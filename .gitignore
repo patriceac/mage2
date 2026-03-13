@@ -3,6 +3,10 @@ dist/
 dist-electron/
 coverage/
 *.log
+.env
+.env.*
+!.env.example
+output/
 examples/sample-build/
 apps/runtime-web/dist/
 apps/editor/dist/
