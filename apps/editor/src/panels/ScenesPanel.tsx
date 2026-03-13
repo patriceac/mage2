@@ -1,6 +1,7 @@
 import { MediaSurface } from "../MediaSurface";
 import type { ProjectBundle } from "@mage2/schema";
 import { addClipSegment, addHotspot, createId, ensureString } from "../project-helpers";
+import type { HotspotGeometry } from "../hotspot-geometry";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
@@ -21,6 +22,23 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
 
   if (!currentScene) {
     return <div className="panel"><p>Create a scene to begin.</p></div>;
+  }
+
+  function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
+    mutateProject((draft) => {
+      const target = draft.scenes.items
+        .find((entry) => entry.id === currentScene.id)
+        ?.hotspots.find((entry) => entry.id === hotspotId);
+
+      if (!target) {
+        return;
+      }
+
+      target.x = geometry.x;
+      target.y = geometry.y;
+      target.width = geometry.width;
+      target.height = geometry.height;
+    });
   }
 
   return (
@@ -166,6 +184,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             })
           }
           onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
+          onHotspotChange={updateHotspotGeometry}
         />
 
         <label>
@@ -397,7 +416,8 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
         <h3>Hotspot Inspector</h3>
         <p className="muted">
           These rectangles are hotspots: clickable interaction regions over the scene. Select one to edit its
-          position, size, timing, and behavior.
+          position, size, timing, and behavior. Drag them in the preview for quick edits, or use the numeric
+          fields below for precise values.
         </p>
         {currentScene.hotspots
           .filter((hotspot) => !selectedHotspotId || hotspot.id === selectedHotspotId)

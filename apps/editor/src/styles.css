@@ -301,21 +301,52 @@ label {
 
 .hotspot {
   position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 1;
   min-width: 0;
-  padding: 0.65rem;
   border-radius: 12px;
   background: rgba(125, 211, 252, 0.22);
   border: 2px solid rgba(125, 211, 252, 0.9);
   color: #f7fafc;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .hotspot--selected {
+  z-index: 2;
   border-color: #f6c177;
   background: rgba(246, 193, 119, 0.28);
+}
+
+.hotspot--editable {
+  touch-action: none;
+}
+
+.hotspot__body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0.65rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+}
+
+.hotspot--editable .hotspot__body {
+  cursor: grab;
+}
+
+.hotspot__body:active {
+  cursor: grabbing;
+}
+
+.hotspot__body:focus-visible {
+  outline: 2px solid rgba(247, 250, 252, 0.9);
+  outline-offset: 2px;
 }
 
 .hotspot__content {
@@ -376,6 +407,86 @@ label {
   visibility: hidden;
   pointer-events: none;
   overflow: visible;
+}
+
+.hotspot__handles {
+  position: absolute;
+  inset: -9px;
+  pointer-events: none;
+}
+
+.hotspot__handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(23, 32, 38, 0.95);
+  background: #f6c177;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+  pointer-events: auto;
+}
+
+.hotspot__handle--n,
+.hotspot__handle--s {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hotspot__handle--e,
+.hotspot__handle--w {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hotspot__handle--n {
+  top: 0;
+  cursor: ns-resize;
+}
+
+.hotspot__handle--s {
+  bottom: 0;
+  cursor: ns-resize;
+}
+
+.hotspot__handle--e {
+  right: 0;
+  cursor: ew-resize;
+}
+
+.hotspot__handle--w {
+  left: 0;
+  cursor: ew-resize;
+}
+
+.hotspot__handle--nw,
+.hotspot__handle--ne,
+.hotspot__handle--sw,
+.hotspot__handle--se {
+  transform: translate(0, 0);
+}
+
+.hotspot__handle--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.hotspot__handle--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.hotspot__handle--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.hotspot__handle--se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
 }
 
 .subtitle-strip,

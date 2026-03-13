@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Asset, Hotspot } from "@mage2/schema";
+import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
 
 interface MediaSurfaceProps {
   asset?: Asset;
@@ -7,6 +8,7 @@ interface MediaSurfaceProps {
   strings?: Record<string, string>;
   onSurfaceClick?: (normalizedX: number, normalizedY: number) => void;
   onHotspotClick?: (hotspotId: string) => void;
+  onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
   selectedHotspotId?: string;
   className?: string;
 }
@@ -17,10 +19,15 @@ export function MediaSurface({
   strings,
   onSurfaceClick,
   onHotspotClick,
+  onHotspotChange,
   selectedHotspotId,
   className
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const suppressSurfaceClickRef = useRef(false);
+  const suppressSurfaceClickTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +51,23 @@ export function MediaSurface({
     };
   }, [asset]);
 
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      if (suppressSurfaceClickTimeoutRef.current !== undefined) {
+        window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
     if (!onSurfaceClick) {
+      return;
+    }
+
+    if (suppressSurfaceClickRef.current) {
+      suppressSurfaceClickRef.current = false;
+      event.stopPropagation();
       return;
     }
 
@@ -53,13 +75,104 @@ export function MediaSurface({
     onSurfaceClick((event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
   };
 
+  const editableHotspots = Boolean(onHotspotChange);
+
+  const startHotspotDrag =
+    (hotspot: Hotspot, handle: HotspotDragHandle) => (event: React.MouseEvent<HTMLElement>) => {
+      if (!onHotspotChange || event.button !== 0) {
+        return;
+      }
+
+      const overlay = overlayRef.current;
+      if (!overlay) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      onHotspotClick?.(hotspot.id);
+
+      const bounds = overlay.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+      }
+
+      dragCleanupRef.current?.();
+
+      const startingGeometry: HotspotGeometry = {
+        x: hotspot.x,
+        y: hotspot.y,
+        width: hotspot.width,
+        height: hotspot.height
+      };
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+
+      let latestGeometry = startingGeometry;
+      let didDrag = false;
+      const body = document.body;
+      const previousCursor = body.style.cursor;
+      const previousUserSelect = body.style.userSelect;
+      body.style.cursor = handle === "move" ? "grabbing" : resolveResizeCursor(handle);
+      body.style.userSelect = "none";
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const nextGeometry = applyHotspotDrag(
+          startingGeometry,
+          handle,
+          (moveEvent.clientX - startClientX) / bounds.width,
+          (moveEvent.clientY - startClientY) / bounds.height
+        );
+
+        if (geometryMatches(nextGeometry, latestGeometry)) {
+          return;
+        }
+
+        latestGeometry = nextGeometry;
+        didDrag = true;
+        onHotspotChange(hotspot.id, nextGeometry);
+      };
+
+      const finishDrag = () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", finishDrag);
+        body.style.cursor = previousCursor;
+        body.style.userSelect = previousUserSelect;
+        dragCleanupRef.current = undefined;
+
+        if (didDrag) {
+          suppressSurfaceClickRef.current = true;
+          if (suppressSurfaceClickTimeoutRef.current !== undefined) {
+            window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
+          }
+          suppressSurfaceClickTimeoutRef.current = window.setTimeout(() => {
+            suppressSurfaceClickRef.current = false;
+            suppressSurfaceClickTimeoutRef.current = undefined;
+          }, 0);
+        }
+      };
+
+      dragCleanupRef.current = () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", finishDrag);
+        body.style.cursor = previousCursor;
+        body.style.userSelect = previousUserSelect;
+        dragCleanupRef.current = undefined;
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", finishDrag);
+    };
+
   return (
     <div
       className={className ? `media-surface ${className}` : "media-surface"}
       onClick={handleClick}
       title={
         onSurfaceClick
-          ? "Scene preview. Click anywhere on the media to add a hotspot at that normalized position."
+          ? editableHotspots
+            ? "Scene preview. Click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to resize it."
+            : "Scene preview. Click anywhere on the media to add a hotspot at that normalized position."
           : "Scene preview with active hotspots overlaid on the selected media."
       }
     >
@@ -96,17 +209,23 @@ export function MediaSurface({
         </div>
       )}
 
-      <div className="media-surface__overlay">
+      <div
+        ref={overlayRef}
+        className={editableHotspots ? "media-surface__overlay media-surface__overlay--editable" : "media-surface__overlay"}
+      >
         {hotspots.map((hotspot) => (
           <HotspotButton
             key={hotspot.id}
             hotspot={hotspot}
             strings={strings}
+            editable={editableHotspots}
             selected={hotspot.id === selectedHotspotId}
             onClick={(event) => {
               event.stopPropagation();
               onHotspotClick?.(hotspot.id);
             }}
+            onMoveStart={startHotspotDrag(hotspot, "move")}
+            onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
             title={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
               onSurfaceClick ? "select and edit" : "activate"
             } this hotspot.`}
@@ -120,34 +239,62 @@ export function MediaSurface({
 interface HotspotButtonProps {
   hotspot: Hotspot;
   strings?: Record<string, string>;
+  editable: boolean;
   selected: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
+  onMoveStart: React.MouseEventHandler<HTMLButtonElement>;
+  onResizeStart: (handle: Exclude<HotspotDragHandle, "move">) => React.MouseEventHandler<HTMLSpanElement>;
   title: string;
 }
 
-function HotspotButton({ hotspot, strings, selected, onClick, title }: HotspotButtonProps) {
+function HotspotButton({
+  hotspot,
+  strings,
+  editable,
+  selected,
+  onClick,
+  onMoveStart,
+  onResizeStart,
+  title
+}: HotspotButtonProps) {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
+  const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   return (
-    <button
-      className={selected ? "hotspot hotspot--selected" : "hotspot"}
+    <div
+      className={resolveHotspotClassName(selected, editable)}
       style={{
         left: `${hotspot.x * 100}%`,
         top: `${hotspot.y * 100}%`,
         width: `${hotspot.width * 100}%`,
         height: `${hotspot.height * 100}%`
       }}
-      onClick={onClick}
-      title={title}
-      type="button"
     >
-      {hotspot.name || comment ? (
-        <span className="hotspot__content">
-          {hotspot.name ? <span className="hotspot__title">{hotspot.name}</span> : null}
-          {comment ? <OverflowingHotspotComment text={comment} className="hotspot__comment" /> : null}
-        </span>
+      <button className="hotspot__body" onClick={onClick} onMouseDown={editable ? onMoveStart : undefined} title={title} type="button">
+        {hotspot.name || comment ? (
+          <span className="hotspot__content">
+            {hotspot.name ? <span className="hotspot__title">{hotspot.name}</span> : null}
+            {comment ? <OverflowingHotspotComment text={comment} className="hotspot__comment" /> : null}
+          </span>
+        ) : null}
+      </button>
+
+      {editable && selected ? (
+        <div className="hotspot__handles" aria-hidden="true">
+          {(["n", "s", "e", "w", "nw", "ne", "sw", "se"] as const).map((handle) => (
+            <span
+              key={handle}
+              className={`hotspot__handle hotspot__handle--${handle}`}
+              onClick={stopHandleClick}
+              onMouseDown={onResizeStart(handle)}
+            />
+          ))}
+        </div>
       ) : null}
-    </button>
+    </div>
   );
 }
 
@@ -246,4 +393,37 @@ function truncateHotspotComment(text: string, length: number): string {
     wordBoundary.length >= Math.max(6, Math.floor(rawTruncated.length * 0.7)) ? wordBoundary : rawTruncated;
 
   return `${truncated || rawTruncated || text.slice(0, length).trim()}...`;
+}
+
+function resolveHotspotClassName(selected: boolean, editable: boolean): string {
+  const classNames = ["hotspot"];
+
+  if (selected) {
+    classNames.push("hotspot--selected");
+  }
+
+  if (editable) {
+    classNames.push("hotspot--editable");
+  }
+
+  return classNames.join(" ");
+}
+
+function resolveResizeCursor(handle: HotspotDragHandle): string {
+  switch (handle) {
+    case "n":
+    case "s":
+      return "ns-resize";
+    case "e":
+    case "w":
+      return "ew-resize";
+    case "ne":
+    case "sw":
+      return "nesw-resize";
+    case "nw":
+    case "se":
+      return "nwse-resize";
+    default:
+      return "grabbing";
+  }
 }
