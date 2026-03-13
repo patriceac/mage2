@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  createStarterHotspot,
   createDefaultProjectBundle,
   migrateProjectBundle,
   parseProjectBundle,
@@ -35,7 +36,9 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
   };
 
   const project = migrateProjectBundle(rawBundle);
-  if (await repairStarterSceneAssetIfNeeded(projectDir, project)) {
+  const repairedStarterAsset = await repairStarterSceneAssetIfNeeded(projectDir, project);
+  const repairedLegacyHotspot = repairLegacyStarterHotspotIfNeeded(project);
+  if (repairedStarterAsset || repairedLegacyHotspot) {
     await saveProjectToDirectory(projectDir, project);
   }
 
@@ -157,4 +160,53 @@ async function repairStarterSceneAssetIfNeeded(
 
   await seedStarterSceneAsset(projectDir, project);
   return true;
+}
+
+function repairLegacyStarterHotspotIfNeeded(project: ProjectBundle): boolean {
+  const starterHotspot = createStarterHotspot();
+  let repaired = false;
+
+  for (const scene of project.scenes.items) {
+    if (scene.backgroundAssetId !== "asset_placeholder") {
+      continue;
+    }
+
+    const hotspotIndex = scene.hotspots.findIndex((hotspot) =>
+      isLegacyStarterHotspot(hotspot, project.strings.values[starterHotspot.labelTextId])
+    );
+
+    if (hotspotIndex < 0) {
+      continue;
+    }
+
+    scene.hotspots[hotspotIndex] = {
+      ...scene.hotspots[hotspotIndex],
+      ...starterHotspot
+    };
+    project.strings.values[starterHotspot.labelTextId] = starterHotspot.name;
+    repaired = true;
+  }
+
+  return repaired;
+}
+
+function isLegacyStarterHotspot(
+  hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number],
+  labelText: string | undefined
+): boolean {
+  return (
+    hotspot.id === "hotspot_inspect" &&
+    hotspot.labelTextId === "text.hotspot.inspect" &&
+    hotspot.x === 0.15 &&
+    hotspot.y === 0.2 &&
+    hotspot.width === 0.2 &&
+    hotspot.height === 0.18 &&
+    hotspot.startMs === 0 &&
+    hotspot.endMs === 30000 &&
+    hotspot.requiredItemIds.length === 0 &&
+    hotspot.conditions.length === 1 &&
+    hotspot.conditions[0]?.type === "always" &&
+    hotspot.effects.length === 0 &&
+    (hotspot.name === "Inspect" || labelText === "Inspect")
+  );
 }

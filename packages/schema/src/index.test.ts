@@ -34,4 +34,16 @@ describe("project validation", () => {
     expect(report.valid).toBe(false);
     expect(report.issues.some((issue) => issue.code === "SCENE_BACKGROUND_MISSING")).toBe(true);
   });
+
+  it("aligns the starter hotspot with the placeholder scene artwork", () => {
+    const project = createDefaultProjectBundle();
+    const hotspot = project.scenes.items[0]?.hotspots[0];
+
+    expect(hotspot?.name).toBe("Hotspot");
+    expect(hotspot?.x).toBeCloseTo(900 / 1280);
+    expect(hotspot?.y).toBeCloseTo(360 / 720);
+    expect(hotspot?.width).toBeCloseTo(220 / 1280);
+    expect(hotspot?.height).toBeCloseTo(170 / 720);
+    expect(project.strings.values["text.hotspot.inspect"]).toBe("Hotspot");
+  });
 });

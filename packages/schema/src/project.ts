@@ -1,6 +1,7 @@
 import {
   type BuildManifest,
   type ExportProjectData,
+  type Hotspot,
   type ProjectBundle,
   type SaveState,
   BuildManifestSchema,
@@ -20,6 +21,27 @@ export function parseSaveState(input: unknown): SaveState {
 
 export function parseBuildManifest(input: unknown): BuildManifest {
   return BuildManifestSchema.parse(input);
+}
+
+const STARTER_SCENE_HOTSPOT_BOUNDS = {
+  x: 900 / 1280,
+  y: 360 / 720,
+  width: 220 / 1280,
+  height: 170 / 720
+} as const;
+
+export function createStarterHotspot(): Hotspot {
+  return {
+    id: "hotspot_inspect",
+    name: "Hotspot",
+    labelTextId: "text.hotspot.inspect",
+    ...STARTER_SCENE_HOTSPOT_BOUNDS,
+    startMs: 0,
+    endMs: 30000,
+    requiredItemIds: [],
+    conditions: [{ type: "always" }],
+    effects: []
+  };
 }
 
 export function createDefaultProjectBundle(projectName = "New FMV Project"): ProjectBundle {
@@ -67,22 +89,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           name: "Opening Scene",
           backgroundAssetId: "asset_placeholder",
           clipSegments: [],
-          hotspots: [
-            {
-              id: "hotspot_inspect",
-              name: "Inspect",
-              labelTextId: "text.hotspot.inspect",
-              x: 0.15,
-              y: 0.2,
-              width: 0.2,
-              height: 0.18,
-              startMs: 0,
-              endMs: 30000,
-              requiredItemIds: [],
-              conditions: [{ type: "always" }],
-              effects: []
-            }
-          ],
+          hotspots: [createStarterHotspot()],
           exitSceneIds: [],
           subtitleTrackIds: [],
           dialogueTreeIds: [],
@@ -109,7 +116,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
       values: {
         "text.location.intro": "Starting location",
         "text.scene.intro": "Opening scene",
-        "text.hotspot.inspect": "Inspect"
+        "text.hotspot.inspect": "Hotspot"
       }
     }
   };
