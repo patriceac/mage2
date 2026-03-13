@@ -263,6 +263,15 @@ function validateScene(
       });
     }
 
+    if (hotspot.commentTextId && !(hotspot.commentTextId in project.strings.values)) {
+      issues.push({
+        level: "warning",
+        code: "HOTSPOT_COMMENT_TEXT_MISSING",
+        message: `Hotspot '${hotspot.id}' references missing comment text '${hotspot.commentTextId}'.`,
+        entityId: hotspot.id
+      });
+    }
+
     if (hotspot.targetSceneId && !sceneIds.has(hotspot.targetSceneId)) {
       issues.push({
         level: "error",

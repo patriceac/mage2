@@ -87,10 +87,18 @@ export function AssetsPanel({
         <div className="panel__toolbar">
           <h3>Imported Media</h3>
           <div>
-            <button type="button" onClick={handleImportAssets}>
+            <button
+              type="button"
+              onClick={handleImportAssets}
+              title="Import source media files into the project and register them in the asset library."
+            >
               Add Files
             </button>
-            <button type="button" onClick={() => void handleGenerateProxies()}>
+            <button
+              type="button"
+              onClick={() => void handleGenerateProxies()}
+              title="Create lightweight proxy files for every asset that does not already have one."
+            >
               Generate Missing Proxies
             </button>
           </div>
@@ -110,6 +118,7 @@ export function AssetsPanel({
                 {currentScene ? (
                   <button
                     type="button"
+                    title={`Assign ${asset.name} as the background asset for the currently selected scene.`}
                     onClick={() =>
                       mutateProject((draft) => {
                         const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -122,7 +131,11 @@ export function AssetsPanel({
                     Use in Scene
                   </button>
                 ) : null}
-                <button type="button" onClick={() => void handleGenerateProxies(asset.id)}>
+                <button
+                  type="button"
+                  onClick={() => void handleGenerateProxies(asset.id)}
+                  title={`Generate or regenerate the proxy file used to preview ${asset.name} inside the editor.`}
+                >
                   Proxy
                 </button>
               </div>

@@ -159,12 +159,14 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
     return undefined;
   }
 
+  const nextHotspotNumber = getNextHotspotNumber(scene);
   const hotspotId = createId("hotspot");
   const textId = `text.${hotspotId}.label`;
-  ensureString(project, textId, "Inspect");
+  const hotspotName = `Hotspot ${nextHotspotNumber}`;
+  ensureString(project, textId, hotspotName);
   const hotspot = {
     id: hotspotId,
-    name: `Hotspot ${scene.hotspots.length + 1}`,
+    name: hotspotName,
     labelTextId: textId,
     x: clamp(x - 0.08, 0, 0.9),
     y: clamp(y - 0.08, 0, 0.9),
@@ -179,6 +181,19 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
 
   scene.hotspots.push(hotspot);
   return hotspot;
+}
+
+function getNextHotspotNumber(scene: Scene): number {
+  const highestHotspotNumber = scene.hotspots.reduce((highest, hotspot) => {
+    const match = /^Hotspot (\d+)$/.exec(hotspot.name);
+    if (!match) {
+      return highest;
+    }
+
+    return Math.max(highest, Number(match[1]));
+  }, 0);
+
+  return highestHotspotNumber + 1;
 }
 
 function clamp(value: number, min: number, max: number): number {

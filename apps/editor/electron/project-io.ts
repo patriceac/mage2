@@ -1,11 +1,11 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  createStarterHotspot,
   createDefaultProjectBundle,
   migrateProjectBundle,
   parseProjectBundle,
   type Asset,
+  type Hotspot,
   type ProjectBundle
 } from "@mage2/schema";
 
@@ -19,6 +19,19 @@ const FILES = {
   subtitles: "subtitles.json",
   strings: "strings.json"
 } as const;
+
+const STARTER_SCENE_HOTSPOT_BOUNDS = {
+  x: 900 / 1280,
+  y: 360 / 720,
+  width: 220 / 1280,
+  height: 170 / 720
+} as const;
+
+const STARTER_SCENE_ASSET_NAME = "starter-scene.svg";
+const STARTER_HOTSPOT_NAME = "Placeholder";
+const STARTER_HOTSPOT_LABEL_TEXT_ID = "text.hotspot.inspect";
+const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
+const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
 
 export async function loadProjectFromDirectory(projectDir: string): Promise<ProjectBundle> {
   const filePaths = resolveProjectFilePaths(projectDir);
@@ -51,6 +64,7 @@ export async function createProjectInDirectory(
 ): Promise<ProjectBundle> {
   const project = createDefaultProjectBundle(projectName);
   project.manifest.projectId = slugify(projectName);
+  repairLegacyStarterHotspotIfNeeded(project);
   await seedStarterSceneAsset(projectDir, project);
   await saveProjectToDirectory(projectDir, project);
   return project;
@@ -104,31 +118,15 @@ function slugify(input: string): string {
 
 async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle): Promise<void> {
   const assetsDir = path.join(projectDir, "assets");
-  const starterAssetPath = path.join(assetsDir, "starter-scene.svg");
+  const starterAssetPath = path.join(assetsDir, STARTER_SCENE_ASSET_NAME);
 
   await mkdir(assetsDir, { recursive: true });
-  await writeFile(
-    starterAssetPath,
-    [
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">',
-      '<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#12202b"/><stop offset="100%" stop-color="#081018"/></linearGradient></defs>',
-      '<rect width="1280" height="720" fill="url(#bg)"/>',
-      '<circle cx="1010" cy="120" r="150" fill="#f6c177" opacity="0.22"/>',
-      '<rect x="84" y="78" width="540" height="140" rx="28" fill="#0d1720" opacity="0.78"/>',
-      '<text x="120" y="148" fill="#f7fafc" font-size="56" font-family="Segoe UI, IBM Plex Sans, sans-serif">MAGE2 Starter Scene</text>',
-      '<text x="120" y="196" fill="#7dd3fc" font-size="26" font-family="Segoe UI, IBM Plex Sans, sans-serif">Import footage in Assets, then assign it in Scenes.</text>',
-      '<rect x="900" y="360" width="220" height="170" rx="18" fill="#132330" stroke="#7dd3fc" stroke-width="4" opacity="0.92"/>',
-      '<text x="943" y="455" fill="#f7fafc" font-size="28" font-family="Segoe UI, IBM Plex Sans, sans-serif">Hotspot</text>',
-      '<text x="918" y="492" fill="#9fb0be" font-size="18" font-family="Segoe UI, IBM Plex Sans, sans-serif">Click in Scenes to add more</text>',
-      "</svg>"
-    ].join(""),
-    "utf8"
-  );
+  await writeFile(starterAssetPath, createStarterSceneSvg(), "utf8");
 
   const starterAsset: Asset = {
     id: "asset_placeholder",
     kind: "image",
-    name: "starter-scene.svg",
+    name: STARTER_SCENE_ASSET_NAME,
     sourcePath: starterAssetPath,
     importedAt: new Date().toISOString(),
     width: 1280,
@@ -152,10 +150,29 @@ async function repairStarterSceneAssetIfNeeded(
   project: ProjectBundle
 ): Promise<boolean> {
   const hasPlaceholderScene = project.scenes.items.some((scene) => scene.backgroundAssetId === "asset_placeholder");
-  const hasPlaceholderAsset = project.assets.assets.some((asset) => asset.id === "asset_placeholder");
+  const placeholderAsset = project.assets.assets.find((asset) => asset.id === "asset_placeholder");
+  const starterAssetPath = path.join(projectDir, "assets", STARTER_SCENE_ASSET_NAME);
 
-  if (!hasPlaceholderScene || hasPlaceholderAsset) {
+  if (!hasPlaceholderScene) {
     return false;
+  }
+
+  if (!placeholderAsset) {
+    await seedStarterSceneAsset(projectDir, project);
+    return true;
+  }
+
+  if (!shouldRefreshStarterSceneAsset(placeholderAsset, starterAssetPath)) {
+    return false;
+  }
+
+  try {
+    const source = await readFile(starterAssetPath, "utf8");
+    if (!isLegacyStarterSceneAsset(source)) {
+      return false;
+    }
+  } catch {
+    // Missing or unreadable starter art should be recreated.
   }
 
   await seedStarterSceneAsset(projectDir, project);
@@ -163,7 +180,7 @@ async function repairStarterSceneAssetIfNeeded(
 }
 
 function repairLegacyStarterHotspotIfNeeded(project: ProjectBundle): boolean {
-  const starterHotspot = createStarterHotspot();
+  const starterHotspot = createStarterHotspotDefinition();
   let repaired = false;
 
   for (const scene of project.scenes.items) {
@@ -183,11 +200,30 @@ function repairLegacyStarterHotspotIfNeeded(project: ProjectBundle): boolean {
       ...scene.hotspots[hotspotIndex],
       ...starterHotspot
     };
-    project.strings.values[starterHotspot.labelTextId] = starterHotspot.name;
+    project.strings.values[starterHotspot.labelTextId] = STARTER_HOTSPOT_NAME;
+    if (starterHotspot.commentTextId) {
+      project.strings.values[starterHotspot.commentTextId] = STARTER_HOTSPOT_COMMENT;
+    }
     repaired = true;
   }
 
   return repaired;
+}
+
+// Keep the repair payload local so editor builds do not depend on a separately built schema helper.
+function createStarterHotspotDefinition(): Hotspot {
+  return {
+    id: "hotspot_inspect",
+    name: STARTER_HOTSPOT_NAME,
+    labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
+    commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
+    ...STARTER_SCENE_HOTSPOT_BOUNDS,
+    startMs: 0,
+    endMs: 30000,
+    requiredItemIds: [],
+    conditions: [{ type: "always" }],
+    effects: []
+  };
 }
 
 function isLegacyStarterHotspot(
@@ -197,16 +233,64 @@ function isLegacyStarterHotspot(
   return (
     hotspot.id === "hotspot_inspect" &&
     hotspot.labelTextId === "text.hotspot.inspect" &&
-    hotspot.x === 0.15 &&
-    hotspot.y === 0.2 &&
-    hotspot.width === 0.2 &&
-    hotspot.height === 0.18 &&
+    hasStarterHotspotBounds(hotspot) &&
     hotspot.startMs === 0 &&
     hotspot.endMs === 30000 &&
     hotspot.requiredItemIds.length === 0 &&
     hotspot.conditions.length === 1 &&
     hotspot.conditions[0]?.type === "always" &&
     hotspot.effects.length === 0 &&
-    (hotspot.name === "Inspect" || labelText === "Inspect")
+    (hotspot.name === "Inspect" ||
+      hotspot.name === "Hotspot" ||
+      hotspot.name === STARTER_HOTSPOT_NAME ||
+      labelText === "Inspect" ||
+      labelText === "Hotspot" ||
+      labelText === STARTER_HOTSPOT_NAME ||
+      !hotspot.commentTextId)
+  );
+}
+
+function hasStarterHotspotBounds(
+  hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number]
+): boolean {
+  return (
+    (hotspot.x === 0.15 &&
+      hotspot.y === 0.2 &&
+      hotspot.width === 0.2 &&
+      hotspot.height === 0.18) ||
+    (hotspot.x === STARTER_SCENE_HOTSPOT_BOUNDS.x &&
+      hotspot.y === STARTER_SCENE_HOTSPOT_BOUNDS.y &&
+      hotspot.width === STARTER_SCENE_HOTSPOT_BOUNDS.width &&
+      hotspot.height === STARTER_SCENE_HOTSPOT_BOUNDS.height)
+  );
+}
+
+function createStarterSceneSvg(): string {
+  return [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">',
+    '<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#12202b"/><stop offset="100%" stop-color="#081018"/></linearGradient></defs>',
+    '<rect width="1280" height="720" fill="url(#bg)"/>',
+    '<circle cx="1010" cy="120" r="150" fill="#f6c177" opacity="0.22"/>',
+    '<rect x="84" y="78" width="540" height="140" rx="28" fill="#0d1720" opacity="0.78"/>',
+    '<text x="120" y="148" fill="#f7fafc" font-size="56" font-family="Segoe UI, IBM Plex Sans, sans-serif">MAGE2 Starter Scene</text>',
+    '<text x="120" y="196" fill="#7dd3fc" font-size="26" font-family="Segoe UI, IBM Plex Sans, sans-serif">Import footage in Assets, then assign it in Scenes.</text>',
+    "</svg>"
+  ].join("");
+}
+
+function shouldRefreshStarterSceneAsset(asset: Asset, starterAssetPath: string): boolean {
+  return (
+    asset.kind === "image" &&
+    asset.name === STARTER_SCENE_ASSET_NAME &&
+    path.resolve(asset.sourcePath) === path.resolve(starterAssetPath)
+  );
+}
+
+function isLegacyStarterSceneAsset(source: string): boolean {
+  return (
+    source.includes(">Hotspot</text>") ||
+    source.includes("Click in Scenes to add more") ||
+    source.includes(">Placeholder</text>") ||
+    source.includes("Add real hotspots")
   );
 }

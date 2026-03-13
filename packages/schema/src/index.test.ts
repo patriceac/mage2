@@ -39,11 +39,13 @@ describe("project validation", () => {
     const project = createDefaultProjectBundle();
     const hotspot = project.scenes.items[0]?.hotspots[0];
 
-    expect(hotspot?.name).toBe("Hotspot");
+    expect(hotspot?.name).toBe("Placeholder");
+    expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
     expect(hotspot?.x).toBeCloseTo(900 / 1280);
     expect(hotspot?.y).toBeCloseTo(360 / 720);
     expect(hotspot?.width).toBeCloseTo(220 / 1280);
     expect(hotspot?.height).toBeCloseTo(170 / 720);
-    expect(project.strings.values["text.hotspot.inspect"]).toBe("Hotspot");
+    expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
+    expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
   });
 });

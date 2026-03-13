@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPlayerController } from "@mage2/player";
 import { type BuildManifest, type ExportProjectData, type SaveState, parseBuildManifest } from "@mage2/schema";
 
@@ -183,7 +183,19 @@ export function App() {
                   setSnapshot(controller.getSnapshot());
                   setPlayheadMs(0);
                 }}
-              />
+              >
+                {(hotspot.name || (hotspot.commentTextId && content.strings[hotspot.commentTextId]?.trim())) ? (
+                  <span className="runtime-hotspot__content">
+                    {hotspot.name ? <span className="runtime-hotspot__title">{hotspot.name}</span> : null}
+                    {hotspot.commentTextId && normalizeHotspotText(content.strings[hotspot.commentTextId]) ? (
+                      <OverflowingHotspotComment
+                        text={normalizeHotspotText(content.strings[hotspot.commentTextId])}
+                        className="runtime-hotspot__comment"
+                      />
+                    ) : null}
+                  </span>
+                ) : null}
+              </button>
             ))}
           </div>
         </div>
@@ -243,4 +255,96 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function normalizeHotspotText(value: string | undefined): string {
+  return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function OverflowingHotspotComment({ text, className }: { text: string; className: string }) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [displayText, setDisplayText] = useState(text);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    if (!container || !measure) {
+      return;
+    }
+
+    let frame = 0;
+
+    const updateDisplayText = () => {
+      if (container.clientHeight <= 0 || container.clientWidth <= 0) {
+        setDisplayText(text);
+        return;
+      }
+
+      measure.textContent = text;
+      if (textFits(measure)) {
+        setDisplayText(text);
+        return;
+      }
+
+      let low = 0;
+      let high = text.length;
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        measure.textContent = truncateHotspotComment(text, mid);
+        if (textFits(measure)) {
+          low = mid;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      setDisplayText(low > 0 ? truncateHotspotComment(text, low) : "...");
+    };
+
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updateDisplayText);
+    };
+
+    scheduleUpdate();
+
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(container);
+
+    void document.fonts.ready.then(() => {
+      if (container.isConnected) {
+        scheduleUpdate();
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [text]);
+
+  return (
+    <span ref={containerRef} className={`${className}-shell`}>
+      <span className={className}>{displayText}</span>
+      <span ref={measureRef} aria-hidden="true" className={`${className} ${className}--measure`} />
+    </span>
+  );
+}
+
+function textFits(element: HTMLSpanElement): boolean {
+  return element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
+}
+
+function truncateHotspotComment(text: string, length: number): string {
+  if (length >= text.length) {
+    return text;
+  }
+
+  const rawTruncated = text.slice(0, length).trimEnd();
+  const wordBoundary = rawTruncated.replace(/\s+\S*$/, "").trimEnd();
+  const truncated =
+    wordBoundary.length >= Math.max(6, Math.floor(rawTruncated.length * 0.7)) ? wordBoundary : rawTruncated;
+
+  return `${truncated || rawTruncated || text.slice(0, length).trim()}...`;
 }

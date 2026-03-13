@@ -73,6 +73,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
           <div className="stack-inline">
             <select
               value={currentDialogue?.id}
+              title="Choose which dialogue tree to inspect and edit."
               onChange={(event) => {
                 setSelectedDialogueId(event.target.value);
                 setSelectedDialogueNodeId(undefined);
@@ -86,6 +87,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
             </select>
             <button
               type="button"
+              title="Create a new dialogue tree with a starter node and make it the active editor target."
               onClick={() =>
                 mutateProject((draft) => {
                   const dialogue = addDialogueTree(draft);
@@ -99,6 +101,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
             {currentDialogue ? (
               <button
                 type="button"
+                title="Append a new dialogue node to the currently selected dialogue tree."
                 onClick={() =>
                   mutateProject((draft) => {
                     const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
@@ -127,7 +130,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
         </div>
 
         {currentDialogue ? (
-          <ReactFlow nodes={dialogueNodes} edges={dialogueEdges} fitView>
+          <ReactFlow nodes={dialogueNodes} edges={dialogueEdges} fitView aria-label="Dialogue flow editor">
             <Background color="#30404d" />
             <Controls />
           </ReactFlow>
@@ -139,10 +142,11 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
       <aside className="panel">
         {currentDialogue ? (
           <>
-            <label>
+            <label title="Readable editor name for this dialogue tree.">
               Dialogue Name
               <input
                 value={currentDialogue.name}
+                title="Readable editor name for this dialogue tree."
                 onChange={(event) =>
                   mutateProject((draft) => {
                     const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
@@ -153,10 +157,11 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                 }
               />
             </label>
-            <label>
+            <label title="Select which node acts as the entry point when this dialogue begins.">
               Start Node
               <select
                 value={currentDialogue.startNodeId}
+                title="Select which node acts as the entry point when this dialogue begins."
                 onChange={(event) =>
                   mutateProject((draft) => {
                     const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
@@ -183,6 +188,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   Speaker
                   <input
                     value={node.speaker}
+                    title="Speaker name displayed for this dialogue node."
                     onFocus={() => setSelectedDialogueNodeId(node.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
@@ -198,6 +204,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   Line
                   <textarea
                     value={project.strings.values[node.textId] ?? ""}
+                    title="Dialogue line text spoken by this node."
                     onFocus={() => setSelectedDialogueNodeId(node.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
@@ -206,10 +213,11 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                     }
                   />
                 </label>
-                <label>
+                <label title="Fallback node to visit after this line when no explicit choice is selected.">
                   Next Node
                   <select
                     value={node.nextNodeId ?? ""}
+                    title="Fallback node to visit after this line when no explicit choice is selected."
                     onFocus={() => setSelectedDialogueNodeId(node.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
@@ -233,6 +241,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                 <JsonField
                   label="Node Effects JSON"
                   value={JSON.stringify(node.effects, null, 2)}
+                  tooltip="Advanced JSON effect list that runs when this dialogue node is entered."
                   onCommit={(nextValue) =>
                     mutateProject((draft) => {
                       const target = findNode(draft, currentDialogue.id, node.id);
@@ -272,6 +281,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
 
                   <button
                     type="button"
+                    title="Add a new player choice to this dialogue node."
                     onClick={() =>
                       mutateProject((draft) => {
                         const target = findNode(draft, currentDialogue.id, node.id);
@@ -322,18 +332,20 @@ function ChoiceEditor({
 }) {
   return (
     <div className="choice-editor">
-      <label>
+      <label title="Text shown to the player for this choice.">
         Choice Text
         <input
           value={project.strings.values[choice.textId] ?? ""}
+          title="Text shown to the player for this choice."
           onFocus={onFocus}
           onChange={(event) => onTextChange(event.target.value)}
         />
       </label>
-      <label>
+      <label title="Node that should be opened when the player selects this choice.">
         Next Node
         <select
           value={choice.nextNodeId ?? ""}
+          title="Node that should be opened when the player selects this choice."
           onFocus={onFocus}
           onChange={(event) => onUpdate({ ...choice, nextNodeId: event.target.value || undefined })}
         >
@@ -348,11 +360,13 @@ function ChoiceEditor({
       <JsonField
         label="Conditions JSON"
         value={JSON.stringify(choice.conditions, null, 2)}
+        tooltip="Advanced JSON condition list that must pass before this choice appears."
         onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
       />
       <JsonField
         label="Effects JSON"
         value={JSON.stringify(choice.effects, null, 2)}
+        tooltip="Advanced JSON effect list that runs after the player selects this choice."
         onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
       />
     </div>
@@ -362,16 +376,18 @@ function ChoiceEditor({
 function JsonField({
   label,
   value,
+  tooltip,
   onCommit
 }: {
   label: string;
   value: string;
+  tooltip?: string;
   onCommit: (nextValue: string) => void;
 }) {
   return (
-    <label>
+    <label title={tooltip}>
       {label}
-      <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} />
+      <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} title={tooltip} />
     </label>
   );
 }

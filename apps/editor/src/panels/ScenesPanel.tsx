@@ -28,7 +28,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
       <section className="panel">
         <div className="panel__toolbar">
           <div className="stack-inline">
-            <label>
+            <label title="Choose which world location owns the currently selected scene.">
               Location
               <select
                 value={currentScene.locationId}
@@ -59,7 +59,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                 ))}
               </select>
             </label>
-            <label>
+            <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
               Scene
               <select
                 value={currentScene.id}
@@ -80,6 +80,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
           <div className="stack-inline">
             <button
               type="button"
+              title="Add a timed clip segment marker to the current scene for branch points or media slicing."
               onClick={() =>
                 mutateProject((draft) => {
                   addClipSegment(draft, currentScene.id);
@@ -92,6 +93,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               type="button"
               className="button-danger"
               disabled={!selectedHotspotId}
+              title="Delete the currently selected hotspot from this scene."
               onClick={() =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -106,13 +108,17 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             >
               Delete Hotspot
             </button>
-            <button type="button" onClick={() => setSelectedHotspotId(undefined)}>
+            <button
+              type="button"
+              title="Deselect the current hotspot so you can inspect the scene without an active hotspot selection."
+              onClick={() => setSelectedHotspotId(undefined)}
+            >
               Clear Hotspot
             </button>
           </div>
         </div>
 
-        <label>
+        <label title="Readable editor name for the current scene.">
           Scene Name
           <input
             value={currentScene.name}
@@ -127,7 +133,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
           />
         </label>
 
-        <label>
+        <label title="Background media shown for this scene in the editor and runtime.">
           Background Asset
           <select
             value={currentScene.backgroundAssetId}
@@ -151,6 +157,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
         <MediaSurface
           asset={currentAsset}
           hotspots={currentScene.hotspots}
+          strings={project.strings.values}
           selectedHotspotId={selectedHotspotId}
           onSurfaceClick={(x, y) =>
             mutateProject((draft) => {
@@ -168,6 +175,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             min={0}
             max={currentAsset?.durationMs ?? 30000}
             value={Math.min(playheadMs, currentAsset?.durationMs ?? 30000)}
+            title="Scrub through the current scene asset to line up hotspot timing and subtitle cues."
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
         </label>
@@ -179,6 +187,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <div key={segment.id} className="list-card list-card--compact">
                 <input
                   value={segment.name}
+                  title="Short editor label for this clip segment."
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
@@ -194,6 +203,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                   <input
                     type="number"
                     value={segment.startMs}
+                    title="Start time in milliseconds for this clip segment."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
@@ -208,6 +218,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                   <input
                     type="number"
                     value={segment.endMs}
+                    title="End time in milliseconds for this clip segment."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
@@ -226,7 +237,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
 
           <section>
             <h4>Scene Wiring</h4>
-            <label>
+            <label title="Comma-separated scene IDs that this scene can lead to.">
               Exit Scene IDs
               <input
                 value={currentScene.exitSceneIds.join(", ")}
@@ -246,6 +257,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             <JsonField
               label="On Enter Effects JSON"
               value={JSON.stringify(currentScene.onEnterEffects, null, 2)}
+              tooltip="JSON effect list that runs automatically when the player enters this scene."
               onCommit={(nextValue) =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -258,6 +270,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             <JsonField
               label="On Exit Effects JSON"
               value={JSON.stringify(currentScene.onExitEffects, null, 2)}
+              tooltip="JSON effect list that runs automatically when the player leaves this scene."
               onCommit={(nextValue) =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -267,11 +280,14 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                 })
               }
             />
-            <label>
+            <label title="Enable dialogue trees that can be referenced or triggered from this scene.">
               Scene Dialogues
               <div className="checkbox-list">
                 {project.dialogues.items.map((dialogue) => (
-                  <label key={dialogue.id}>
+                  <label
+                    key={dialogue.id}
+                    title={`Attach or detach the ${dialogue.name} dialogue tree from this scene.`}
+                  >
                     <input
                       type="checkbox"
                       checked={currentScene.dialogueTreeIds.includes(dialogue.id)}
@@ -301,6 +317,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             <h4>Subtitle Tracks</h4>
             <button
               type="button"
+              title="Create a subtitle track for this scene and seed it with one editable cue."
               onClick={() =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -333,6 +350,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                     <input
                       type="number"
                       value={cue.startMs}
+                      title="Subtitle cue start time in milliseconds."
                       onChange={(event) =>
                         mutateProject((draft) => {
                           const target = draft.subtitles.items
@@ -347,6 +365,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                     <input
                       type="number"
                       value={cue.endMs}
+                      title="Subtitle cue end time in milliseconds."
                       onChange={(event) =>
                         mutateProject((draft) => {
                           const target = draft.subtitles.items
@@ -360,6 +379,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                     />
                     <input
                       value={project.strings.values[cue.textId] ?? ""}
+                      title="Subtitle text shown to the player during this cue."
                       onChange={(event) =>
                         mutateProject((draft) => {
                           draft.strings.values[cue.textId] = event.target.value;
@@ -389,6 +409,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <div className="panel__toolbar">
                 <input
                   value={hotspot.name}
+                  title="Visible hotspot title shown in the editor and runtime."
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
@@ -396,6 +417,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                         ?.hotspots.find((entry) => entry.id === hotspot.id);
                       if (target) {
                         target.name = event.target.value;
+                        draft.strings.values[target.labelTextId] = event.target.value;
                       }
                     })
                   }
@@ -403,6 +425,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                 <button
                   type="button"
                   className="button-danger"
+                  title="Delete this hotspot and remove its interaction region from the scene."
                   onClick={() =>
                     mutateProject((draft) => {
                       const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -420,13 +443,21 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                   Delete
                 </button>
               </div>
-              <label>
-                Label
+              <label title="Optional secondary text shown inside this hotspot under the main label.">
+                Comment
                 <input
-                  value={project.strings.values[hotspot.labelTextId] ?? ""}
+                  value={hotspot.commentTextId ? project.strings.values[hotspot.commentTextId] ?? "" : ""}
                   onChange={(event) =>
                     mutateProject((draft) => {
-                      draft.strings.values[hotspot.labelTextId] = event.target.value;
+                      const target = draft.scenes.items
+                        .find((entry) => entry.id === currentScene.id)
+                        ?.hotspots.find((entry) => entry.id === hotspot.id);
+                      if (!target) {
+                        return;
+                      }
+
+                      target.commentTextId ??= `text.${target.id}.comment`;
+                      draft.strings.values[target.commentTextId] = event.target.value;
                     })
                   }
                 />
@@ -434,18 +465,19 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <div className="four-grid">
                 {(
                   [
-                    ["x", "X"],
-                    ["y", "Y"],
-                    ["width", "Width"],
-                    ["height", "Height"]
+                    ["x", "X", "Horizontal position of the hotspot as a normalized value from 0 to 1."],
+                    ["y", "Y", "Vertical position of the hotspot as a normalized value from 0 to 1."],
+                    ["width", "Width", "Hotspot width as a normalized percentage of the scene surface."],
+                    ["height", "Height", "Hotspot height as a normalized percentage of the scene surface."]
                   ] as const
-                ).map(([field, label]) => (
-                  <label key={field}>
+                ).map(([field, label, tooltip]) => (
+                  <label key={field} title={tooltip}>
                     {label}
                     <input
                       type="number"
                       step="0.01"
                       value={hotspot[field]}
+                      title={tooltip}
                       onChange={(event) =>
                         mutateProject((draft) => {
                           const target = draft.scenes.items
@@ -461,11 +493,12 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                 ))}
               </div>
               <div className="stack-inline">
-                <label>
+                <label title="Time in milliseconds when this hotspot becomes clickable.">
                   Start (ms)
                   <input
                     type="number"
                     value={hotspot.startMs}
+                    title="Time in milliseconds when this hotspot becomes clickable."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
@@ -478,11 +511,12 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                     }
                   />
                 </label>
-                <label>
+                <label title="Time in milliseconds when this hotspot stops being clickable.">
                   End (ms)
                   <input
                     type="number"
                     value={hotspot.endMs}
+                    title="Time in milliseconds when this hotspot stops being clickable."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
@@ -496,7 +530,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                   />
                 </label>
               </div>
-              <label>
+              <label title="Scene that should open when this hotspot is activated.">
                 Target Scene
                 <select
                   value={hotspot.targetSceneId ?? ""}
@@ -519,7 +553,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                   ))}
                 </select>
               </label>
-              <label>
+              <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
                 Required Item IDs
                 <input
                   value={hotspot.requiredItemIds.join(", ")}
@@ -541,6 +575,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <JsonField
                 label="Conditions JSON"
                 value={JSON.stringify(hotspot.conditions, null, 2)}
+                tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
@@ -555,6 +590,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <JsonField
                 label="Effects JSON"
                 value={JSON.stringify(hotspot.effects, null, 2)}
+                tooltip="Advanced JSON effect list that runs after this hotspot is activated."
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
@@ -576,16 +612,18 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
 function JsonField({
   label,
   value,
+  tooltip,
   onCommit
 }: {
   label: string;
   value: string;
+  tooltip?: string;
   onCommit: (nextValue: string) => void;
 }) {
   return (
-    <label>
+    <label title={tooltip}>
       {label}
-      <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} />
+      <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} title={tooltip} />
     </label>
   );
 }

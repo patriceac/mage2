@@ -69,6 +69,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
           <div>
             <button
               type="button"
+              title="Create a new world location node and select it in the inspector."
               onClick={() =>
                 mutateProject((draft) => {
                   const location = addLocation(draft);
@@ -81,6 +82,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
             </button>
             <button
               type="button"
+              title="Add a new scene under the currently selected location."
               onClick={() =>
                 mutateProject((draft) => {
                   const scene = addScene(draft, currentLocation?.id);
@@ -97,6 +99,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
           nodes={locationNodes}
           edges={locationEdges}
           fitView
+          aria-label="Location map editor"
           onNodeClick={(_event, node) => setSelectedLocationId(node.id)}
           onNodeDragStop={onLocationDragStop}
         >
@@ -113,6 +116,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               Name
               <input
                 value={currentLocation.name}
+                title="Editable display name for the selected location node."
                 onChange={(event) =>
                   mutateProject((draft) => {
                     const location = draft.locations.items.find((entry) => entry.id === currentLocation.id);
@@ -132,7 +136,12 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                 }
 
                 return (
-                  <button key={scene.id} type="button" onClick={() => setSelectedSceneId(scene.id)}>
+                  <button
+                    key={scene.id}
+                    type="button"
+                    onClick={() => setSelectedSceneId(scene.id)}
+                    title={`Jump to ${scene.name} in the scene editor.`}
+                  >
                     {scene.name}
                   </button>
                 );

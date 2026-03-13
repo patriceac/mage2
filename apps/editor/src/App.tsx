@@ -18,6 +18,15 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "playtest", label: "Playtest" }
 ];
 
+const TAB_TOOLTIPS: Record<EditorTab, string> = {
+  assets: "Manage imported media files and generate proxy assets for faster editing.",
+  world: "Arrange locations on the world map and manage the scenes inside each location.",
+  scenes: "Edit scene media, hotspots, clip segments, subtitles, and scene-level wiring.",
+  dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
+  inventory: "Create inventory items and edit the string table used across the project.",
+  playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
+};
+
 const RECENT_PROJECT_PATH_KEY = "mage2:recent-project-path";
 const RECENT_PROJECT_NAME_KEY = "mage2:recent-project-name";
 
@@ -274,14 +283,24 @@ export function App() {
               value={newProjectName}
               onChange={(event) => setNewProjectName(event.target.value)}
               placeholder="The Beast Within Prototype"
+              title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
             />
           </label>
           <p className="muted">If left blank, the selected folder name will be used.</p>
           <div className="landing__actions">
-            <button type="button" onClick={handleCreateProject}>
+            <button
+              type="button"
+              onClick={handleCreateProject}
+              title="Create a new project structure inside a folder you choose."
+            >
               Create Project
             </button>
-            <button type="button" className="button-secondary" onClick={handleOpenProject}>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={handleOpenProject}
+              title="Open an existing project folder from disk."
+            >
               Open Project
             </button>
             {recentProjectDir ? (
@@ -289,6 +308,7 @@ export function App() {
                 type="button"
                 className="button-secondary"
                 onClick={() => void openProjectDirectory(recentProjectDir!, "recent")}
+                title="Reopen the last project directory saved in this editor."
               >
                 Open Recent
               </button>
@@ -313,16 +333,33 @@ export function App() {
         </div>
 
         <div className="app-header__actions">
-          <button type="button" onClick={handleCreateProject}>
+          <button
+            type="button"
+            onClick={handleCreateProject}
+            title="Create a brand new project in another folder without closing this editor."
+          >
             New
           </button>
-          <button type="button" onClick={handleOpenProject}>
+          <button
+            type="button"
+            onClick={handleOpenProject}
+            title="Load a different project folder into the editor."
+          >
             Open
           </button>
-          <button type="button" onClick={handleSaveProject}>
+          <button
+            type="button"
+            onClick={handleSaveProject}
+            title="Write the current project manifest and assets metadata back to disk."
+          >
             Save
           </button>
-          <button type="button" className="button-accent" onClick={handleExportProject}>
+          <button
+            type="button"
+            className="button-accent"
+            onClick={handleExportProject}
+            title="Save the project and build a static runtime export for play or distribution."
+          >
             Export Runtime
           </button>
         </div>
@@ -334,6 +371,11 @@ export function App() {
           type="button"
           className={validationReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--warn"}
           onClick={() => setShowValidationDetails((value) => !value)}
+          title={
+            validationReport.valid
+              ? "Validation passed. Click to pin the issues sidebar open anyway."
+              : "Open or close the validation issues sidebar."
+          }
         >
           {validationReport.valid ? "Valid" : `${validationReport.issues.length} issue(s)`}
         </button>
@@ -348,6 +390,7 @@ export function App() {
                 type="button"
                 className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
                 onClick={() => setActiveTab(tab.id)}
+                title={TAB_TOOLTIPS[tab.id]}
               >
                 {tab.label}
               </button>
@@ -375,7 +418,11 @@ export function App() {
                     : "No validation issues detected."}
                 </p>
               </div>
-              <button type="button" onClick={() => setShowValidationDetails((value) => !value)}>
+              <button
+                type="button"
+                onClick={() => setShowValidationDetails((value) => !value)}
+                title="Keep the issues sidebar pinned open, or collapse it when you do not need validation details."
+              >
                 {showValidationDetails ? "Hide" : "Pin Open"}
               </button>
             </div>
@@ -400,6 +447,7 @@ export function App() {
                           type="button"
                           className="issue-action"
                           onClick={() => handleNavigateToIssue(issue)}
+                          title={`Open the ${target.label} editor surface related to this validation issue.`}
                         >
                           Go To {target.label}
                         </button>

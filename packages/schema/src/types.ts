@@ -72,6 +72,7 @@ export const HotspotSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   labelTextId: z.string().min(1),
+  commentTextId: z.string().min(1).optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   width: z.number().min(0.01).max(1),

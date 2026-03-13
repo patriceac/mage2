@@ -41,11 +41,13 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
               min={0}
               max={sceneAsset?.durationMs ?? 30000}
               value={Math.min(playheadMs, sceneAsset?.durationMs ?? 30000)}
+              title="Scrub through the current scene preview to inspect timing, subtitles, and hotspot visibility."
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
           </label>
           <button
             type="button"
+            title="Store the current runtime state in the editor's local playtest save slot."
             onClick={() => {
               const serialized = JSON.stringify(controller.save());
               localStorage.setItem(STORAGE_KEY, serialized);
@@ -55,6 +57,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           </button>
           <button
             type="button"
+            title="Restore the last runtime state saved in the local playtest slot."
             onClick={() => {
               const raw = localStorage.getItem(STORAGE_KEY);
               if (!raw) {
@@ -75,6 +78,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         <MediaSurface
           asset={sceneAsset}
           hotspots={visibleHotspots}
+          strings={project.strings.values}
           onHotspotClick={(hotspotId) => {
             controller.selectHotspot(hotspotId, playheadMs);
             const nextSnapshot = controller.getSnapshot();
@@ -98,6 +102,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
                   <button
                     key={choice.id}
                     type="button"
+                    title="Choose this dialogue response and advance to its target branch."
                     onClick={() => {
                       controller.chooseDialogueChoice(choice.id);
                       setSnapshot(controller.getSnapshot());
@@ -110,6 +115,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             ) : (
               <button
                 type="button"
+                title="Advance to the next dialogue node when there are no explicit choices."
                 onClick={() => {
                   controller.continueDialogue();
                   setSnapshot(controller.getSnapshot());

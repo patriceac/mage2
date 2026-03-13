@@ -17,6 +17,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
           <h3>Inventory Items</h3>
           <button
             type="button"
+            title="Create a new inventory item and open it for editing."
             onClick={() =>
               mutateProject((draft) => {
                 const item = addInventoryItem(draft);
@@ -35,6 +36,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
           >
             <input
               value={item.name}
+              title="Internal name used to identify this inventory item in the editor."
               onFocus={() => setSelectedInventoryItemId(item.id)}
               onChange={(event) =>
                 mutateProject((draft) => {
@@ -49,6 +51,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
               Display Text
               <input
                 value={project.strings.values[item.textId] ?? ""}
+                title="Player-facing item label pulled from the string table."
                 onFocus={() => setSelectedInventoryItemId(item.id)}
                 onChange={(event) =>
                   mutateProject((draft) => {
@@ -61,6 +64,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
               Description
               <textarea
                 value={project.strings.values[item.descriptionTextId ?? ""] ?? ""}
+                title="Longer inspection text shown when the player looks at this item."
                 onFocus={() => setSelectedInventoryItemId(item.id)}
                 onChange={(event) =>
                   mutateProject((draft) => {
@@ -83,6 +87,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
               <span>{textId}</span>
               <textarea
                 value={value}
+                title={`Edit the localized string stored under ${textId}.`}
                 onChange={(event) =>
                   mutateProject((draft) => {
                     draft.strings.values[textId] = event.target.value;

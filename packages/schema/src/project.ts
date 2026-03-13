@@ -30,11 +30,17 @@ const STARTER_SCENE_HOTSPOT_BOUNDS = {
   height: 170 / 720
 } as const;
 
+const STARTER_HOTSPOT_NAME = "Placeholder";
+const STARTER_HOTSPOT_LABEL_TEXT_ID = "text.hotspot.inspect";
+const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
+const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
+
 export function createStarterHotspot(): Hotspot {
   return {
     id: "hotspot_inspect",
-    name: "Hotspot",
-    labelTextId: "text.hotspot.inspect",
+    name: STARTER_HOTSPOT_NAME,
+    labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
+    commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
     ...STARTER_SCENE_HOTSPOT_BOUNDS,
     startMs: 0,
     endMs: 30000,
@@ -116,7 +122,8 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
       values: {
         "text.location.intro": "Starting location",
         "text.scene.intro": "Opening scene",
-        "text.hotspot.inspect": "Hotspot"
+        [STARTER_HOTSPOT_LABEL_TEXT_ID]: STARTER_HOTSPOT_NAME,
+        [STARTER_HOTSPOT_COMMENT_TEXT_ID]: STARTER_HOTSPOT_COMMENT
       }
     }
   };
