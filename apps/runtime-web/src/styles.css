@@ -1,0 +1,122 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", "IBM Plex Sans", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(246, 193, 119, 0.18), transparent 22%),
+    linear-gradient(180deg, #0b1117 0%, #121b22 100%);
+  color: #f7fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  background: #273341;
+  color: #f7fafc;
+}
+
+.runtime-shell {
+  min-height: 100vh;
+  padding: 1.25rem;
+}
+
+.runtime-stage,
+.runtime-card {
+  max-width: 1320px;
+  margin: 0 auto;
+  border-radius: 28px;
+  padding: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 17, 23, 0.9);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.runtime-header,
+.runtime-actions,
+.runtime-choices {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.runtime-header {
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.runtime-eyebrow {
+  color: #9fb0be;
+  margin: 0;
+}
+
+.runtime-media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
+}
+
+.runtime-media__asset,
+.runtime-media__placeholder,
+.runtime-media__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.runtime-media__asset {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.runtime-media__placeholder {
+  display: grid;
+  place-items: center;
+  color: #90a2b2;
+}
+
+.runtime-hotspot {
+  position: absolute;
+  border: 2px solid rgba(125, 211, 252, 0.82);
+  border-radius: 12px;
+  background: rgba(125, 211, 252, 0.22);
+}
+
+.runtime-scrubber,
+.runtime-subtitles,
+.runtime-dialogue,
+.runtime-sidebar {
+  margin-top: 1rem;
+  display: block;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.runtime-sidebar pre {
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .runtime-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

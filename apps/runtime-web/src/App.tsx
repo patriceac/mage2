@@ -1,0 +1,246 @@
+import { useEffect, useState } from "react";
+import { createPlayerController } from "@mage2/player";
+import { type BuildManifest, type ExportProjectData, type SaveState, parseBuildManifest } from "@mage2/schema";
+
+interface RuntimeAsset {
+  id: string;
+  kind: "video" | "image" | "audio" | "subtitle";
+  name: string;
+  sourcePath: string;
+  durationMs?: number;
+}
+
+export function App() {
+  const [buildManifest, setBuildManifest] = useState<BuildManifest>();
+  const [content, setContent] = useState<ExportProjectData>();
+  const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
+
+  useEffect(() => {
+    async function loadBuild() {
+      try {
+        const manifestResponse = await fetch("./build-manifest.json");
+        if (!manifestResponse.ok) {
+          throw new Error("build-manifest.json not found. Export a project and open the generated folder.");
+        }
+
+        const manifest = parseBuildManifest(await manifestResponse.json());
+        const contentResponse = await fetch(`./${manifest.contentPath}`);
+        const parsedContent = (await contentResponse.json()) as ExportProjectData;
+
+        const storageKey = `mage2-runtime-save:${manifest.projectId}`;
+        const storedSave = localStorage.getItem(storageKey);
+        const nextController = createPlayerController(
+          {
+            manifest: parsedContent.manifest,
+            assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
+            locations: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.locations },
+            scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
+            dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
+            inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
+            subtitles: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.subtitleTracks },
+            strings: { schemaVersion: parsedContent.schemaVersion, values: parsedContent.strings }
+          },
+          storedSave ? (JSON.parse(storedSave) as SaveState) : undefined
+        );
+
+        setBuildManifest(manifest);
+        setContent(parsedContent);
+        setController(nextController);
+        setSnapshot(nextController.getSnapshot());
+        setPlayheadMs(storedSave ? ((JSON.parse(storedSave) as SaveState).playheadMs ?? 0) : 0);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    void loadBuild();
+  }, []);
+
+  if (errorMessage) {
+    return (
+      <main className="runtime-shell">
+        <section className="runtime-card">
+          <h1>MAGE2 Runtime</h1>
+          <p>{errorMessage}</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!buildManifest || !content || !controller || !snapshot) {
+    return (
+      <main className="runtime-shell">
+        <section className="runtime-card">
+          <h1>MAGE2 Runtime</h1>
+          <p>Loading export...</p>
+        </section>
+      </main>
+    );
+  }
+
+  const storageKey = `mage2-runtime-save:${buildManifest.projectId}`;
+  const currentAsset = content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as RuntimeAsset | undefined;
+  const visibleHotspots = controller.getVisibleHotspots(playheadMs);
+  const subtitleLines = controller.getSubtitleLines(playheadMs);
+
+  return (
+    <main className="runtime-shell">
+      <section className="runtime-stage">
+        <header className="runtime-header">
+          <div>
+            <p className="runtime-eyebrow">{content.manifest.projectName}</p>
+            <h1>{snapshot.location.name}</h1>
+            <p>{snapshot.scene.name}</p>
+          </div>
+          <div className="runtime-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const nextSave = controller.save();
+                nextSave.playheadMs = playheadMs;
+                localStorage.setItem(storageKey, JSON.stringify(nextSave));
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const storedSave = localStorage.getItem(storageKey);
+                if (!storedSave) {
+                  return;
+                }
+
+                const nextController = createPlayerController(
+                  {
+                    manifest: content.manifest,
+                    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+                    locations: { schemaVersion: content.schemaVersion, items: content.locations },
+                    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+                    dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
+                    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+                    subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
+                    strings: { schemaVersion: content.schemaVersion, values: content.strings }
+                  },
+                  JSON.parse(storedSave) as SaveState
+                );
+                setController(nextController);
+                setSnapshot(nextController.getSnapshot());
+              }}
+            >
+              Load
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem(storageKey);
+                const nextController = createPlayerController({
+                  manifest: content.manifest,
+                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
+                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
+                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+                  subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
+                  strings: { schemaVersion: content.schemaVersion, values: content.strings }
+                });
+                setController(nextController);
+                setSnapshot(nextController.getSnapshot());
+                setPlayheadMs(0);
+              }}
+            >
+              Restart
+            </button>
+          </div>
+        </header>
+
+        <div className="runtime-media">
+          {currentAsset?.kind === "video" ? (
+            <video src={currentAsset.sourcePath} controls className="runtime-media__asset" />
+          ) : currentAsset?.kind === "image" ? (
+            <img src={currentAsset.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />
+          ) : (
+            <div className="runtime-media__placeholder">No playable visual asset for this scene.</div>
+          )}
+
+          <div className="runtime-media__overlay">
+            {visibleHotspots.map((hotspot) => (
+              <button
+                key={hotspot.id}
+                type="button"
+                className="runtime-hotspot"
+                style={{
+                  left: `${hotspot.x * 100}%`,
+                  top: `${hotspot.y * 100}%`,
+                  width: `${hotspot.width * 100}%`,
+                  height: `${hotspot.height * 100}%`
+                }}
+                onClick={() => {
+                  controller.selectHotspot(hotspot.id, playheadMs);
+                  setSnapshot(controller.getSnapshot());
+                  setPlayheadMs(0);
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <label className="runtime-scrubber">
+          Playhead {Math.round(playheadMs)}ms
+          <input
+            type="range"
+            min={0}
+            max={currentAsset?.durationMs ?? 30000}
+            value={Math.min(playheadMs, currentAsset?.durationMs ?? 30000)}
+            onChange={(event) => setPlayheadMs(Number(event.target.value))}
+          />
+        </label>
+
+        <div className="runtime-subtitles">
+          {subtitleLines.length > 0 ? subtitleLines.join(" ") : "Subtitles will appear here."}
+        </div>
+
+        {snapshot.activeDialogue ? (
+          <div className="runtime-dialogue">
+            <h2>{snapshot.activeDialogue.node.speaker}</h2>
+            <p>{content.strings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
+            {snapshot.activeDialogue.choices.length > 0 ? (
+              <div className="runtime-choices">
+                {snapshot.activeDialogue.choices.map((choice) => (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    onClick={() => {
+                      controller.chooseDialogueChoice(choice.id);
+                      setSnapshot(controller.getSnapshot());
+                    }}
+                  >
+                    {content.strings[choice.textId] ?? choice.textId}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  controller.continueDialogue();
+                  setSnapshot(controller.getSnapshot());
+                }}
+              >
+                Continue
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        <aside className="runtime-sidebar">
+          <h3>State</h3>
+          <pre>{JSON.stringify(snapshot.saveState, null, 2)}</pre>
+        </aside>
+      </section>
+    </main>
+  );
+}

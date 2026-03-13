@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import { createDefaultProjectBundle, migrateProjectBundle, validateProject } from "./index";
+
+describe("schema migrations", () => {
+  it("upgrades a pre-versioned project bundle", () => {
+    const migrated = migrateProjectBundle({
+      manifest: {
+        projectId: "legacy",
+        projectName: "Legacy",
+        defaultLanguage: "en",
+        engineVersion: "0.0.1",
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro"
+      },
+      assets: [],
+      locations: [],
+      scenes: [],
+      dialogues: [],
+      inventory: [],
+      subtitles: [],
+      strings: {}
+    });
+
+    expect(migrated.manifest.schemaVersion).toBe(1);
+    expect(migrated.assets.schemaVersion).toBe(1);
+    expect(migrated.strings.schemaVersion).toBe(1);
+  });
+});
+
+describe("project validation", () => {
+  it("reports missing scene media on the starter template", () => {
+    const report = validateProject(createDefaultProjectBundle());
+
+    expect(report.valid).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "SCENE_BACKGROUND_MISSING")).toBe(true);
+  });
+});
