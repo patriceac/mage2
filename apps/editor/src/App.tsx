@@ -409,7 +409,27 @@ export function App() {
 
         {shouldShowIssuesSidebar ? (
           <aside className="validation-panel issues-sidebar">
-            <div className="panel__toolbar">
+            <button
+              type="button"
+              className={
+                showValidationDetails
+                  ? "validation-panel__pin-toggle validation-panel__pin-toggle--active"
+                  : "validation-panel__pin-toggle"
+              }
+              aria-label={showValidationDetails ? "Unpin issues sidebar" : "Pin issues sidebar open"}
+              aria-pressed={showValidationDetails}
+              onClick={() => setShowValidationDetails((value) => !value)}
+              title={
+                showValidationDetails
+                  ? "Unpin the issues sidebar. If validation passes, it will collapse again."
+                  : "Pin the issues sidebar open."
+              }
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 3h8l-1 5 3 3v2h-5v7l-1 1-1-1v-7H6v-2l3-3-1-5Z" fill="currentColor" />
+              </svg>
+            </button>
+            <div className="panel__toolbar validation-panel__header">
               <div>
                 <h3>Issues</h3>
                 <p className="muted">
@@ -418,13 +438,6 @@ export function App() {
                     : "No validation issues detected."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowValidationDetails((value) => !value)}
-                title="Keep the issues sidebar pinned open, or collapse it when you do not need validation details."
-              >
-                {showValidationDetails ? "Hide" : "Pin Open"}
-              </button>
             </div>
 
             {validationReport.issues.length > 0 ? (
