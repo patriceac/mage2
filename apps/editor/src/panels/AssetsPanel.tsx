@@ -110,7 +110,7 @@ export function AssetsPanel({
       <section className="panel">
         <div className="panel__toolbar">
           <h3>Imported Media</h3>
-          <div>
+          <div className="stack-inline">
             <button
               type="button"
               onClick={handleImportAssets}
