@@ -274,6 +274,23 @@ label {
   border-bottom: 0;
 }
 
+.world-panel__toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.world-panel__details {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.world-panel__scenes {
+  display: grid;
+  gap: 0.7rem;
+}
+
 .list-stack,
 .string-table,
 .choice-stack {

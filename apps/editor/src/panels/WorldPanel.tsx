@@ -66,7 +66,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
       <section className="panel panel--flow">
         <div className="panel__toolbar">
           <h3>Location Map</h3>
-          <div>
+          <div className="world-panel__toolbar-actions">
             <button
               type="button"
               title="Create a new world location node and select it in the inspector."
@@ -108,7 +108,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
         </ReactFlow>
       </section>
 
-      <aside className="panel">
+      <aside className="panel world-panel__details">
         {currentLocation ? (
           <>
             <h3>{currentLocation.name}</h3>
@@ -127,25 +127,27 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                 }
               />
             </label>
-            <h4>Scenes</h4>
-            <div className="pill-list">
-              {currentLocation.sceneIds.map((sceneId) => {
-                const scene = project.scenes.items.find((entry) => entry.id === sceneId);
-                if (!scene) {
-                  return null;
-                }
+            <div className="world-panel__scenes">
+              <h4>Scenes</h4>
+              <div className="pill-list">
+                {currentLocation.sceneIds.map((sceneId) => {
+                  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+                  if (!scene) {
+                    return null;
+                  }
 
-                return (
-                  <button
-                    key={scene.id}
-                    type="button"
-                    onClick={() => setSelectedSceneId(scene.id)}
-                    title={`Jump to ${scene.name} in the scene editor.`}
-                  >
-                    {scene.name}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={scene.id}
+                      type="button"
+                      onClick={() => setSelectedSceneId(scene.id)}
+                      title={`Jump to ${scene.name} in the scene editor.`}
+                    >
+                      {scene.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </>
         ) : (
