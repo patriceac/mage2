@@ -1,5 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Asset, Hotspot } from "@mage2/schema";
+import {
+  resolveHotspotBounds,
+  resolveHotspotClipPath,
+  resolveRelativeHotspotPolygon,
+  type Asset,
+  type Hotspot
+} from "@mage2/schema";
 import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
 
 interface MediaSurfaceProps {
@@ -103,7 +109,8 @@ export function MediaSurface({
         x: hotspot.x,
         y: hotspot.y,
         width: hotspot.width,
-        height: hotspot.height
+        height: hotspot.height,
+        polygon: hotspot.polygon
       };
       const startClientX = event.clientX;
       const startClientY = event.clientY;
@@ -171,7 +178,7 @@ export function MediaSurface({
       title={
         onSurfaceClick
           ? editableHotspots
-            ? "Scene preview. Click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to resize it."
+            ? "Scene preview. Click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
             : "Scene preview. Click anywhere on the media to add a hotspot at that normalized position."
           : "Scene preview with active hotspots overlaid on the selected media."
       }
@@ -258,6 +265,9 @@ function HotspotButton({
   title
 }: HotspotButtonProps) {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
+  const bounds = resolveHotspotBounds(hotspot);
+  const clipPath = resolveHotspotClipPath(hotspot);
+  const handlePositions = resolveHotspotHandlePositions(hotspot);
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -267,13 +277,20 @@ function HotspotButton({
     <div
       className={resolveHotspotClassName(selected, editable)}
       style={{
-        left: `${hotspot.x * 100}%`,
-        top: `${hotspot.y * 100}%`,
-        width: `${hotspot.width * 100}%`,
-        height: `${hotspot.height * 100}%`
+        left: `${bounds.x * 100}%`,
+        top: `${bounds.y * 100}%`,
+        width: `${bounds.width * 100}%`,
+        height: `${bounds.height * 100}%`
       }}
     >
-      <button className="hotspot__body" onClick={onClick} onMouseDown={editable ? onMoveStart : undefined} title={title} type="button">
+      <button
+        className="hotspot__body"
+        onClick={onClick}
+        onMouseDown={editable ? onMoveStart : undefined}
+        style={{ clipPath }}
+        title={title}
+        type="button"
+      >
         {hotspot.name || comment ? (
           <span className="hotspot__content">
             {hotspot.name ? <span className="hotspot__title">{hotspot.name}</span> : null}
@@ -284,12 +301,16 @@ function HotspotButton({
 
       {editable && selected ? (
         <div className="hotspot__handles" aria-hidden="true">
-          {(["n", "s", "e", "w", "nw", "ne", "sw", "se"] as const).map((handle) => (
+          {handlePositions.map(({ handle, x, y }) => (
             <span
               key={handle}
               className={`hotspot__handle hotspot__handle--${handle}`}
               onClick={stopHandleClick}
               onMouseDown={onResizeStart(handle)}
+              style={{
+                left: `${x * 100}%`,
+                top: `${y * 100}%`
+              }}
             />
           ))}
         </div>
@@ -407,6 +428,25 @@ function resolveHotspotClassName(selected: boolean, editable: boolean): string {
   }
 
   return classNames.join(" ");
+}
+
+function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{
+  handle: Exclude<HotspotDragHandle, "move">;
+  x: number;
+  y: number;
+}> {
+  const [nw, ne, se, sw] = resolveRelativeHotspotPolygon(hotspot);
+
+  return [
+    { handle: "nw", x: nw.x, y: nw.y },
+    { handle: "n", x: (nw.x + ne.x) / 2, y: (nw.y + ne.y) / 2 },
+    { handle: "ne", x: ne.x, y: ne.y },
+    { handle: "e", x: (ne.x + se.x) / 2, y: (ne.y + se.y) / 2 },
+    { handle: "se", x: se.x, y: se.y },
+    { handle: "s", x: (se.x + sw.x) / 2, y: (se.y + sw.y) / 2 },
+    { handle: "sw", x: sw.x, y: sw.y },
+    { handle: "w", x: (sw.x + nw.x) / 2, y: (sw.y + nw.y) / 2 }
+  ];
 }
 
 function resolveResizeCursor(handle: HotspotDragHandle): string {

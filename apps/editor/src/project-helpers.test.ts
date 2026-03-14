@@ -24,6 +24,17 @@ describe("addHotspot", () => {
 
     expect(hotspot?.name).toBe("Hotspot 4");
     expect(project.strings.values[hotspot!.labelTextId]).toBe("Hotspot 4");
+    expect(
+      hotspot?.polygon?.map((point) => ({
+        x: Number(point.x.toFixed(2)),
+        y: Number(point.y.toFixed(2))
+      }))
+    ).toEqual([
+      { x: 0.72, y: 0.72 },
+      { x: 0.88, y: 0.72 },
+      { x: 0.88, y: 0.88 },
+      { x: 0.72, y: 0.88 }
+    ]);
     expect(scene.hotspots.map((entry) => entry.name)).toEqual([
       "Hotspot 2",
       "Hotspot 3",

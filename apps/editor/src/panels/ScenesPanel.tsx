@@ -1,7 +1,7 @@
 import { MediaSurface } from "../MediaSurface";
 import type { ProjectBundle } from "@mage2/schema";
 import { addClipSegment, addHotspot, createId, ensureString } from "../project-helpers";
-import type { HotspotGeometry } from "../hotspot-geometry";
+import { applyHotspotBounds, type HotspotGeometry } from "../hotspot-geometry";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
@@ -38,6 +38,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
       target.y = geometry.y;
       target.width = geometry.width;
       target.height = geometry.height;
+      target.polygon = geometry.polygon;
     });
   }
 
@@ -461,9 +462,9 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
       <aside className="panel">
         <h3>Hotspot Inspector</h3>
         <p className="muted">
-          These rectangles are hotspots: clickable interaction regions over the scene. Select one to edit its
-          position, size, timing, and behavior. Drag them in the preview for quick edits, or use the numeric
-          fields below for precise values.
+          These hotspot shapes are clickable interaction regions over the scene. Select one to edit its
+          bounds, timing, and behavior. Drag the shape or its orange handles in the preview for quick edits,
+          or use the bounds fields below for precise values.
         </p>
         {currentScene.hotspots
           .filter((hotspot) => !selectedHotspotId || hotspot.id === selectedHotspotId)
@@ -531,10 +532,10 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
               <div className="four-grid">
                 {(
                   [
-                    ["x", "X", "Horizontal position of the hotspot as a normalized value from 0 to 1."],
-                    ["y", "Y", "Vertical position of the hotspot as a normalized value from 0 to 1."],
-                    ["width", "Width", "Hotspot width as a normalized percentage of the scene surface."],
-                    ["height", "Height", "Hotspot height as a normalized percentage of the scene surface."]
+                    ["x", "Bounds X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
+                    ["y", "Bounds Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
+                    ["width", "Bounds Width", "Hotspot bounds width as a normalized percentage of the scene surface."],
+                    ["height", "Bounds Height", "Hotspot bounds height as a normalized percentage of the scene surface."]
                   ] as const
                 ).map(([field, label, tooltip]) => (
                   <label key={field} title={tooltip}>
@@ -550,7 +551,27 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
                             .find((entry) => entry.id === currentScene.id)
                             ?.hotspots.find((entry) => entry.id === hotspot.id);
                           if (target) {
-                            target[field] = Number(event.target.value);
+                            const nextGeometry = applyHotspotBounds(
+                              {
+                                x: target.x,
+                                y: target.y,
+                                width: target.width,
+                                height: target.height,
+                                polygon: target.polygon
+                              },
+                              {
+                                x: field === "x" ? Number(event.target.value) : target.x,
+                                y: field === "y" ? Number(event.target.value) : target.y,
+                                width: field === "width" ? Number(event.target.value) : target.width,
+                                height: field === "height" ? Number(event.target.value) : target.height
+                              }
+                            );
+
+                            target.x = nextGeometry.x;
+                            target.y = nextGeometry.y;
+                            target.width = nextGeometry.width;
+                            target.height = nextGeometry.height;
+                            target.polygon = nextGeometry.polygon;
                           }
                         })
                       }

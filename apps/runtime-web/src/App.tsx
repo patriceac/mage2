@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPlayerController } from "@mage2/player";
-import { type BuildManifest, type ExportProjectData, type SaveState, parseBuildManifest } from "@mage2/schema";
+import {
+  resolveHotspotBounds,
+  resolveHotspotClipPath,
+  type BuildManifest,
+  type ExportProjectData,
+  type SaveState,
+  parseBuildManifest
+} from "@mage2/schema";
 
 interface RuntimeAsset {
   id: string;
@@ -167,36 +174,41 @@ export function App() {
           )}
 
           <div className="runtime-media__overlay">
-            {visibleHotspots.map((hotspot) => (
-              <button
-                key={hotspot.id}
-                type="button"
-                className="runtime-hotspot"
-                style={{
-                  left: `${hotspot.x * 100}%`,
-                  top: `${hotspot.y * 100}%`,
-                  width: `${hotspot.width * 100}%`,
-                  height: `${hotspot.height * 100}%`
-                }}
-                onClick={() => {
-                  controller.selectHotspot(hotspot.id, playheadMs);
-                  setSnapshot(controller.getSnapshot());
-                  setPlayheadMs(0);
-                }}
-              >
-                {(hotspot.name || (hotspot.commentTextId && content.strings[hotspot.commentTextId]?.trim())) ? (
-                  <span className="runtime-hotspot__content">
-                    {hotspot.name ? <span className="runtime-hotspot__title">{hotspot.name}</span> : null}
-                    {hotspot.commentTextId && normalizeHotspotText(content.strings[hotspot.commentTextId]) ? (
-                      <OverflowingHotspotComment
-                        text={normalizeHotspotText(content.strings[hotspot.commentTextId])}
-                        className="runtime-hotspot__comment"
-                      />
-                    ) : null}
-                  </span>
-                ) : null}
-              </button>
-            ))}
+            {visibleHotspots.map((hotspot) => {
+              const bounds = resolveHotspotBounds(hotspot);
+
+              return (
+                <button
+                  key={hotspot.id}
+                  type="button"
+                  className="runtime-hotspot"
+                  style={{
+                    left: `${bounds.x * 100}%`,
+                    top: `${bounds.y * 100}%`,
+                    width: `${bounds.width * 100}%`,
+                    height: `${bounds.height * 100}%`,
+                    clipPath: resolveHotspotClipPath(hotspot)
+                  }}
+                  onClick={() => {
+                    controller.selectHotspot(hotspot.id, playheadMs);
+                    setSnapshot(controller.getSnapshot());
+                    setPlayheadMs(0);
+                  }}
+                >
+                  {(hotspot.name || (hotspot.commentTextId && content.strings[hotspot.commentTextId]?.trim())) ? (
+                    <span className="runtime-hotspot__content">
+                      {hotspot.name ? <span className="runtime-hotspot__title">{hotspot.name}</span> : null}
+                      {hotspot.commentTextId && normalizeHotspotText(content.strings[hotspot.commentTextId]) ? (
+                        <OverflowingHotspotComment
+                          text={normalizeHotspotText(content.strings[hotspot.commentTextId])}
+                          className="runtime-hotspot__comment"
+                        />
+                      ) : null}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
 

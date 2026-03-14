@@ -100,7 +100,7 @@ button {
   min-width: 0;
   padding: 0.65rem;
   border: 2px solid rgba(125, 211, 252, 0.82);
-  border-radius: 12px;
+  border-radius: 0;
   background: rgba(125, 211, 252, 0.22);
   color: #f7fafc;
   overflow: hidden;

@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  createRectangleHotspotPolygon,
   createDefaultProjectBundle,
   migrateProjectBundle,
   parseProjectBundle,
@@ -218,6 +219,7 @@ function createStarterHotspotDefinition(): Hotspot {
     labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
     commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
     ...STARTER_SCENE_HOTSPOT_BOUNDS,
+    polygon: createRectangleHotspotPolygon(STARTER_SCENE_HOTSPOT_BOUNDS),
     startMs: 0,
     endMs: 30000,
     requiredItemIds: [],

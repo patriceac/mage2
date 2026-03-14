@@ -45,6 +45,12 @@ describe("project validation", () => {
     expect(hotspot?.y).toBeCloseTo(360 / 720);
     expect(hotspot?.width).toBeCloseTo(220 / 1280);
     expect(hotspot?.height).toBeCloseTo(170 / 720);
+    expect(hotspot?.polygon).toEqual([
+      { x: 900 / 1280, y: 360 / 720 },
+      { x: 1120 / 1280, y: 360 / 720 },
+      { x: 1120 / 1280, y: 530 / 720 },
+      { x: 900 / 1280, y: 530 / 720 }
+    ]);
     expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
     expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
   });

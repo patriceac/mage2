@@ -7,6 +7,7 @@ import type {
   ProjectBundle,
   Scene
 } from "@mage2/schema";
+import { createRectangleHotspotPolygon } from "@mage2/schema";
 
 export function cloneProject(project: ProjectBundle): ProjectBundle {
   return structuredClone(project);
@@ -163,15 +164,19 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
   const hotspotId = createId("hotspot");
   const textId = `text.${hotspotId}.label`;
   const hotspotName = `Hotspot ${nextHotspotNumber}`;
+  const bounds = {
+    x: clamp(x - 0.08, 0, 0.9),
+    y: clamp(y - 0.08, 0, 0.9),
+    width: 0.16,
+    height: 0.16
+  };
   ensureString(project, textId, hotspotName);
   const hotspot = {
     id: hotspotId,
     name: hotspotName,
     labelTextId: textId,
-    x: clamp(x - 0.08, 0, 0.9),
-    y: clamp(y - 0.08, 0, 0.9),
-    width: 0.16,
-    height: 0.16,
+    ...bounds,
+    polygon: createRectangleHotspotPolygon(bounds),
     startMs: 0,
     endMs: 30000,
     requiredItemIds: [],

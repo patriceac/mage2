@@ -10,6 +10,7 @@ import {
   SaveStateSchema,
   type StringTable
 } from "./types";
+import { createRectangleHotspotPolygon } from "./hotspots";
 
 export function parseProjectBundle(input: unknown): ProjectBundle {
   return ProjectBundleSchema.parse(input);
@@ -36,12 +37,15 @@ const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
 const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
 
 export function createStarterHotspot(): Hotspot {
+  const polygon = createRectangleHotspotPolygon(STARTER_SCENE_HOTSPOT_BOUNDS);
+
   return {
     id: "hotspot_inspect",
     name: STARTER_HOTSPOT_NAME,
     labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
     commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
     ...STARTER_SCENE_HOTSPOT_BOUNDS,
+    polygon,
     startMs: 0,
     endMs: 30000,
     requiredItemIds: [],

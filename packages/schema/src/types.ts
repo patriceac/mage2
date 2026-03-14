@@ -68,6 +68,11 @@ export const ClipSegmentSchema = z.object({
   nextSceneId: z.string().optional()
 });
 
+export const HotspotPointSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1)
+});
+
 export const HotspotSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -77,6 +82,7 @@ export const HotspotSchema = z.object({
   y: z.number().min(0).max(1),
   width: z.number().min(0.01).max(1),
   height: z.number().min(0.01).max(1),
+  polygon: z.array(HotspotPointSchema).length(4).optional(),
   startMs: z.number().nonnegative(),
   endMs: z.number().positive(),
   targetSceneId: z.string().optional(),
@@ -249,6 +255,7 @@ export type Effect = z.infer<typeof EffectSchema>;
 export type SubtitleCue = z.infer<typeof SubtitleCueSchema>;
 export type SubtitleTrack = z.infer<typeof SubtitleTrackSchema>;
 export type ClipSegment = z.infer<typeof ClipSegmentSchema>;
+export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
 export type Hotspot = z.infer<typeof HotspotSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Location = z.infer<typeof LocationSchema>;
