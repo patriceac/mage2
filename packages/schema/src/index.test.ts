@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, migrateProjectBundle, validateProject } from "./index";
+import { createDefaultProjectBundle, migrateProjectBundle, resolveRelativeHotspotContentBox, validateProject } from "./index";
 
 describe("schema migrations", () => {
   it("upgrades a pre-versioned project bundle", () => {
@@ -53,5 +53,29 @@ describe("project validation", () => {
     ]);
     expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
     expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+  });
+});
+
+describe("hotspot content placement", () => {
+  it("anchors content near the polygon centroid instead of the bounding box top", () => {
+    const placement = resolveRelativeHotspotContentBox({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      polygon: [
+        { x: 0.33, y: 0 },
+        { x: 0.9, y: 0.12 },
+        { x: 1, y: 0.95 },
+        { x: 0, y: 0.9 }
+      ]
+    });
+
+    expect(placement.x).toBeGreaterThan(0.45);
+    expect(placement.x).toBeLessThan(0.6);
+    expect(placement.y).toBeGreaterThan(0.42);
+    expect(placement.y).toBeLessThan(0.62);
+    expect(placement.width).toBeLessThan(0.9);
+    expect(placement.height).toBeLessThan(0.9);
   });
 });
