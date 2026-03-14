@@ -35,6 +35,18 @@ function createWindow(): void {
     }
   });
   mainWindow.removeMenu();
+
+  if (restoredWindowState.x !== undefined && restoredWindowState.y !== undefined) {
+    mainWindow.setBounds({
+      x: restoredWindowState.x,
+      y: restoredWindowState.y,
+      width: restoredWindowState.width,
+      height: restoredWindowState.height
+    });
+  } else {
+    mainWindow.setSize(restoredWindowState.width, restoredWindowState.height);
+  }
+
   registerWindowStatePersistence(mainWindow);
 
   if (restoredWindowState.isMaximized) {
