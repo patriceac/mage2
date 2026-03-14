@@ -41,6 +41,32 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
     });
   }
 
+  function deleteClipSegment(segmentId: string) {
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+      if (!scene) {
+        return;
+      }
+
+      scene.clipSegments = scene.clipSegments.filter((entry) => entry.id !== segmentId);
+      if (scene.defaultSegmentId === segmentId) {
+        scene.defaultSegmentId = scene.clipSegments[0]?.id;
+      }
+    });
+  }
+
+  function deleteSubtitleTrack(trackId: string) {
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+      if (!scene) {
+        return;
+      }
+
+      scene.subtitleTrackIds = scene.subtitleTrackIds.filter((entry) => entry !== trackId);
+      draft.subtitles.items = draft.subtitles.items.filter((entry) => entry.id !== trackId);
+    });
+  }
+
   return (
     <div className="panel-grid panel-grid--scenes">
       <section className="panel">
@@ -204,20 +230,30 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             <h4>Clip Segments</h4>
             {currentScene.clipSegments.map((segment) => (
               <div key={segment.id} className="list-card list-card--compact">
-                <input
-                  value={segment.name}
-                  title="Short editor label for this clip segment."
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.scenes.items
-                        .find((entry) => entry.id === currentScene.id)
-                        ?.clipSegments.find((entry) => entry.id === segment.id);
-                      if (target) {
-                        target.name = event.target.value;
-                      }
-                    })
-                  }
-                />
+                <div className="panel__toolbar">
+                  <input
+                    value={segment.name}
+                    title="Short editor label for this clip segment."
+                    onChange={(event) =>
+                      mutateProject((draft) => {
+                        const target = draft.scenes.items
+                          .find((entry) => entry.id === currentScene.id)
+                          ?.clipSegments.find((entry) => entry.id === segment.id);
+                        if (target) {
+                          target.name = event.target.value;
+                        }
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="button-danger"
+                    title="Delete this clip segment from the current scene."
+                    onClick={() => deleteClipSegment(segment.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
                 <div className="stack-inline">
                   <input
                     type="number"
@@ -363,7 +399,17 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             .filter((track) => currentScene.subtitleTrackIds.includes(track.id))
             .map((track) => (
               <div key={track.id} className="list-card">
-                <h5>{track.id}</h5>
+                <div className="panel__toolbar">
+                  <h5>{track.id}</h5>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    title="Delete this subtitle track from the current scene."
+                    onClick={() => deleteSubtitleTrack(track.id)}
+                  >
+                    Delete Track
+                  </button>
+                </div>
                 {track.cues.map((cue) => (
                   <div key={cue.id} className="cue-row">
                     <input
