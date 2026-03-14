@@ -398,7 +398,7 @@ export function App() {
           </nav>
 
           <main className="workspace">
-            {activeTab === "assets" ? <AssetsPanel project={project} mutateProject={mutateProject} replaceProject={updateProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
+            {activeTab === "assets" ? <AssetsPanel project={project} replaceProject={updateProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
             {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "scenes" ? <ScenesPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}

@@ -249,7 +249,29 @@ label {
 }
 
 .panel--flow {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   min-height: 70vh;
+}
+
+.panel--flow > .react-flow {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.panel--flow .react-flow__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inset-inline-start: 0.65rem;
+  inset-block-end: 0.65rem;
+  box-shadow: none;
+  background: transparent;
+}
+
+.panel--flow .react-flow__controls-button {
+  border-bottom: 0;
 }
 
 .list-stack,

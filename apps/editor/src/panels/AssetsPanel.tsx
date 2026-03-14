@@ -5,7 +5,6 @@ import { useEditorStore } from "../store";
 
 interface AssetsPanelProps {
   project: ProjectBundle;
-  mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
   replaceProject: (project: ProjectBundle) => void;
   setStatusMessage: (message: string) => void;
   setBusyLabel: (label?: string) => void;
@@ -13,7 +12,6 @@ interface AssetsPanelProps {
 
 export function AssetsPanel({
   project,
-  mutateProject,
   replaceProject,
   setStatusMessage,
   setBusyLabel
@@ -29,15 +27,30 @@ export function AssetsPanel({
     try {
       setBusyLabel("Importing assets");
       const importedAssets = await window.editorApi.importAssets(filePaths);
-      mutateProject((draft) => {
-        addAssetRoots(draft, importedAssets);
-        draft.assets.assets.push(...importedAssets);
 
-        if (draft.scenes.items.length > 0 && draft.scenes.items[0].backgroundAssetId === "asset_placeholder") {
-          draft.scenes.items[0].backgroundAssetId = importedAssets[0].id;
-        }
-      });
-      setStatusMessage(`Imported ${filePaths.length} asset(s).`);
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      const nextProject = cloneProject(project);
+      addAssetRoots(nextProject, importedAssets);
+      nextProject.assets.assets.push(...importedAssets);
+
+      if (
+        nextProject.scenes.items.length > 0 &&
+        nextProject.scenes.items[0].backgroundAssetId === "asset_placeholder"
+      ) {
+        nextProject.scenes.items[0].backgroundAssetId = importedAssets[0].id;
+      }
+
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      replaceProject(result.project);
+      setStatusMessage(
+        result.validationReport.valid
+          ? `Imported ${filePaths.length} asset(s).`
+          : `Imported ${filePaths.length} asset(s) and saved with ${result.validationReport.issues.length} validation issue(s).`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Import failed: ${message}`);
