@@ -12,6 +12,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   const selectedLocationId = useEditorStore((state) => state.selectedLocationId);
   const setSelectedLocationId = useEditorStore((state) => state.setSelectedLocationId);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const currentLocation = project.locations.items.find((entry) => entry.id === selectedLocationId) ?? project.locations.items[0];
 
   const locationNodes: Node[] = project.locations.items.map((location) => ({
@@ -140,7 +141,10 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                     <button
                       key={scene.id}
                       type="button"
-                      onClick={() => setSelectedSceneId(scene.id)}
+                      onClick={() => {
+                        setSelectedSceneId(scene.id);
+                        setActiveTab("scenes");
+                      }}
                       title={`Jump to ${scene.name} in the scene editor.`}
                     >
                       {scene.name}
