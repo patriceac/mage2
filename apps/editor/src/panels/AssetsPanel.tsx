@@ -107,7 +107,7 @@ export function AssetsPanel({
 
   return (
     <div className="panel-grid panel-grid--assets">
-      <section className="panel">
+      <section className="panel assets-panel">
         <div className="panel__toolbar">
           <h3>Imported Media</h3>
           <div className="stack-inline">

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveRelativeHotspotContentBox,
   resolveRelativeHotspotPolygon,
   type Asset,
   type Hotspot
@@ -267,6 +268,7 @@ function HotspotButton({
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const clipPath = resolveHotspotClipPath(hotspot);
+  const contentBox = resolveRelativeHotspotContentBox(hotspot);
   const handlePositions = resolveHotspotHandlePositions(hotspot);
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
     event.preventDefault();
@@ -292,7 +294,15 @@ function HotspotButton({
         type="button"
       >
         {hotspot.name || comment ? (
-          <span className="hotspot__content">
+          <span
+            className="hotspot__content"
+            style={{
+              left: `${contentBox.x * 100}%`,
+              top: `${contentBox.y * 100}%`,
+              width: `${contentBox.width * 100}%`,
+              height: `${contentBox.height * 100}%`
+            }}
+          >
             {hotspot.name ? <span className="hotspot__title">{hotspot.name}</span> : null}
             {comment ? <OverflowingHotspotComment text={comment} className="hotspot__comment" /> : null}
           </span>

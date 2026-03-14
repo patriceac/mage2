@@ -3,6 +3,7 @@ import { createPlayerController } from "@mage2/player";
 import {
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveRelativeHotspotContentBox,
   type BuildManifest,
   type ExportProjectData,
   type SaveState,
@@ -176,6 +177,7 @@ export function App() {
           <div className="runtime-media__overlay">
             {visibleHotspots.map((hotspot) => {
               const bounds = resolveHotspotBounds(hotspot);
+              const contentBox = resolveRelativeHotspotContentBox(hotspot);
 
               return (
                 <button
@@ -196,7 +198,15 @@ export function App() {
                   }}
                 >
                   {(hotspot.name || (hotspot.commentTextId && content.strings[hotspot.commentTextId]?.trim())) ? (
-                    <span className="runtime-hotspot__content">
+                    <span
+                      className="runtime-hotspot__content"
+                      style={{
+                        left: `${contentBox.x * 100}%`,
+                        top: `${contentBox.y * 100}%`,
+                        width: `${contentBox.width * 100}%`,
+                        height: `${contentBox.height * 100}%`
+                      }}
+                    >
                       {hotspot.name ? <span className="runtime-hotspot__title">{hotspot.name}</span> : null}
                       {hotspot.commentTextId && normalizeHotspotText(content.strings[hotspot.commentTextId]) ? (
                         <OverflowingHotspotComment
