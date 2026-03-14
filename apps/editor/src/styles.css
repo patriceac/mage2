@@ -298,6 +298,29 @@ label {
   gap: 1rem;
 }
 
+.scenes-panel {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.scenes-panel__toolbar {
+  align-items: end;
+  gap: 1rem 1.25rem;
+}
+
+.scenes-panel__selectors {
+  align-items: flex-start;
+}
+
+.scenes-panel__selectors label {
+  min-width: 13.25rem;
+}
+
+.scenes-panel__actions {
+  align-self: end;
+}
+
 .panel--flow {
   display: flex;
   flex-direction: column;

@@ -70,9 +70,9 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
 
   return (
     <div className="panel-grid panel-grid--scenes">
-      <section className="panel">
-        <div className="panel__toolbar">
-          <div className="stack-inline">
+      <section className="panel scenes-panel">
+        <div className="panel__toolbar scenes-panel__toolbar">
+          <div className="stack-inline scenes-panel__selectors">
             <label title="Choose which world location owns the currently selected scene.">
               Location
               <select
@@ -122,7 +122,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
             </label>
           </div>
 
-          <div className="stack-inline">
+          <div className="stack-inline scenes-panel__actions">
             <button
               type="button"
               title="Add a timed clip segment marker to the current scene for branch points or media slicing."
