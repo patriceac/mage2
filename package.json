@@ -12,6 +12,7 @@
     "build": "npm run build:packages && npm run build:apps",
     "dev:editor": "npm run build:packages && npm run dev --workspace @mage2/editor",
     "dev:runtime": "npm run build:packages && npm run dev --workspace @mage2/runtime-web",
+    "package:editor:win": "npm run build:packages && npm run build --workspace @mage2/runtime-web && npm run build --workspace @mage2/editor && node scripts/package-editor-win.mjs",
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspace @mage2/editor && npm run typecheck --workspace @mage2/runtime-web"
   },
@@ -20,6 +21,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "concurrently": "^9.2.1",
     "cross-env": "^10.0.0",
+    "electron-builder": "^26.0.12",
     "rimraf": "^6.1.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",

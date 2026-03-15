@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { app } from "electron";
 import { copyAssetForBuild } from "@mage2/media";
 import { toExportProjectData, type BuildManifest, type ProjectBundle, validateProject } from "@mage2/schema";
 
@@ -20,11 +21,10 @@ export async function exportProjectBundle(
     ? project.manifest.buildSettings.outputDir
     : path.join(projectDir, project.manifest.buildSettings.outputDir);
 
-  await buildRuntimeWeb();
+  const runtimeDist = await resolveRuntimeWebDist();
   await rm(outputDirectory, { recursive: true, force: true });
   await mkdir(outputDirectory, { recursive: true });
 
-  const runtimeDist = path.join(getRepoRoot(), "apps", "runtime-web", "dist");
   await cp(runtimeDist, outputDirectory, { recursive: true, force: true });
 
   const mediaDirectory = path.join(outputDirectory, "media");
@@ -93,6 +93,20 @@ export async function exportProjectBundle(
 async function buildRuntimeWeb(): Promise<void> {
   const command = process.platform === "win32" ? "npm.cmd" : "npm";
   await run(command, ["run", "build", "--workspace", "@mage2/runtime-web"], getRepoRoot());
+}
+
+async function resolveRuntimeWebDist(): Promise<string> {
+  if (app.isPackaged) {
+    const bundledRuntimeDist = path.join(process.resourcesPath, "runtime-web");
+    if (existsSync(path.join(bundledRuntimeDist, "index.html"))) {
+      return bundledRuntimeDist;
+    }
+
+    throw new Error("Bundled runtime-web assets are missing from the packaged editor.");
+  }
+
+  await buildRuntimeWeb();
+  return path.join(getRepoRoot(), "apps", "runtime-web", "dist");
 }
 
 function getRepoRoot(): string {

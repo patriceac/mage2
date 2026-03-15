@@ -59,6 +59,14 @@ launch-editor.vbs
 
 Use `launch-editor.cmd` when you want build or startup errors to stay visible in a terminal.
 
+To create a packaged Windows app and installer:
+
+```bash
+npm run package:editor:win
+```
+
+That command writes the packaged artifacts to `output/packaging/editor-win/dist/`, including a `win-unpacked` app folder and an NSIS installer.
+
 ## Development notes
 
 - `npm run dev:editor` starts the Electron editor with the Vite renderer and watched Electron entrypoints.
@@ -71,7 +79,8 @@ Use `launch-editor.cmd` when you want build or startup errors to stay visible in
 Using **Export Runtime** in the editor:
 
 1. Saves the current project bundle.
-2. Builds `apps/runtime-web`.
+2. Uses the latest runtime web build available to the editor.
+   In the repo build, this comes from `apps/runtime-web`; in the packaged editor, it comes from the bundled runtime assets.
 3. Copies the runtime into the project build output folder.
 4. Copies referenced media into `media/`.
 5. Writes `build-manifest.json`, `content/project-content.json`, and `validation-report.json`.
