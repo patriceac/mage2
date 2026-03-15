@@ -29,11 +29,18 @@ export interface AssetReferenceSummary {
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "protected-asset";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
   removedSegmentIds: string[];
   removedSubtitleTrackIds: string[];
+}
+
+export interface AssetDeletionEligibility {
+  canDelete: boolean;
+  blockedReason?: RemoveAssetFromProjectResult["blockedReason"];
+  fallbackAssetId?: string;
+  referenceSummary: AssetReferenceSummary;
 }
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
@@ -145,46 +152,56 @@ export function countAssetReferences(summary: AssetReferenceSummary): number {
   return summary.sceneBackgrounds.length + summary.clipSegments.length + summary.subtitleTracks.length;
 }
 
-export function removeAssetFromProject(
+export function evaluateAssetDeletion(
   project: ProjectBundle,
   assetId: string
-): RemoveAssetFromProjectResult {
+): AssetDeletionEligibility {
   const referenceSummary = collectAssetReferenceSummary(project, assetId);
   const fallbackAssetId = resolveFallbackAssetId(project.assets.assets, assetId);
-
-  if (assetId === STARTER_PLACEHOLDER_ASSET_ID) {
-    return {
-      deleted: false,
-      blockedReason: "protected-asset",
-      fallbackAssetId,
-      referenceSummary,
-      removedSegmentIds: [],
-      removedSubtitleTrackIds: []
-    };
-  }
-
   const assetExists = project.assets.assets.some((asset) => asset.id === assetId);
 
   if (!assetExists) {
     return {
-      deleted: false,
+      canDelete: false,
       blockedReason: "asset-not-found",
       fallbackAssetId,
-      referenceSummary,
-      removedSegmentIds: [],
-      removedSubtitleTrackIds: []
+      referenceSummary
     };
   }
 
   if (referenceSummary.sceneBackgrounds.length > 0 && !fallbackAssetId) {
     return {
-      deleted: false,
+      canDelete: false,
       blockedReason: "background-in-use-without-replacement",
-      referenceSummary,
+      fallbackAssetId,
+      referenceSummary
+    };
+  }
+
+  return {
+    canDelete: true,
+    fallbackAssetId,
+    referenceSummary
+  };
+}
+
+export function removeAssetFromProject(
+  project: ProjectBundle,
+  assetId: string
+): RemoveAssetFromProjectResult {
+  const deletionEligibility = evaluateAssetDeletion(project, assetId);
+
+  if (!deletionEligibility.canDelete) {
+    return {
+      deleted: false,
+      blockedReason: deletionEligibility.blockedReason,
+      fallbackAssetId: deletionEligibility.fallbackAssetId,
+      referenceSummary: deletionEligibility.referenceSummary,
       removedSegmentIds: [],
       removedSubtitleTrackIds: []
     };
   }
+  const { fallbackAssetId, referenceSummary } = deletionEligibility;
 
   const removedSegmentIds: string[] = [];
   const removedSubtitleTrackIds = referenceSummary.subtitleTracks.map((track) => track.trackId);

@@ -180,19 +180,22 @@ describe("removeAssetFromProject", () => {
     expect(scene.backgroundAssetId).toBe(primaryAsset.id);
   });
 
-  it("blocks deletion of the starter placeholder asset", () => {
-    const project = createDefaultProjectBundle("Protected starter asset");
+  it("allows deletion of the starter placeholder asset when another asset can replace it", () => {
+    const project = createDefaultProjectBundle("Starter asset replacement");
+    const scene = project.scenes.items[0];
     project.assets.assets = [
-      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.svg", "D:\\project\\assets\\starter-scene.svg")
+      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.svg", "D:\\project\\assets\\starter-scene.svg"),
+      createAsset("asset_replacement", "replacement.png", "D:\\project\\assets\\replacement.png")
     ];
+    addAssetRoots(project, project.assets.assets);
+    scene.backgroundAssetId = STARTER_PLACEHOLDER_ASSET_ID;
 
     const result = removeAssetFromProject(project, STARTER_PLACEHOLDER_ASSET_ID);
 
-    expect(result).toMatchObject({
-      deleted: false,
-      blockedReason: "protected-asset"
-    });
-    expect(project.assets.assets.map((asset) => asset.id)).toEqual([STARTER_PLACEHOLDER_ASSET_ID]);
+    expect(result.deleted).toBe(true);
+    expect(result.fallbackAssetId).toBe("asset_replacement");
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual(["asset_replacement"]);
+    expect(scene.backgroundAssetId).toBe("asset_replacement");
   });
 });
 

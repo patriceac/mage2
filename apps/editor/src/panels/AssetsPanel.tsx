@@ -7,11 +7,11 @@ import {
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
-  STARTER_PLACEHOLDER_ASSET_ID,
   addAssetRoots,
   cloneProject,
   collectAssetReferenceSummary,
   countAssetReferences,
+  evaluateAssetDeletion,
   removeAssetFromProject,
   type AssetReferenceSummary
 } from "../project-helpers";
@@ -41,6 +41,9 @@ export function AssetsPanel({
   const existingImportPaths = collectAssetImportPaths(project.assets.assets);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
+  );
+  const assetDeletionEligibility = new Map(
+    project.assets.assets.map((asset) => [asset.id, evaluateAssetDeletion(project, asset.id)])
   );
   const dragDepthRef = useRef(0);
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
@@ -113,22 +116,13 @@ export function AssetsPanel({
       return;
     }
 
-    if (asset.id === STARTER_PLACEHOLDER_ASSET_ID) {
-      setStatusMessage(`${asset.name} is the starter placeholder asset and cannot be deleted.`);
+    const deletionEligibility = assetDeletionEligibility.get(asset.id);
+    if (!deletionEligibility || !deletionEligibility.canDelete) {
+      setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletionEligibility?.blockedReason));
       return;
     }
-
-    const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
-    const fallbackAsset =
-      project.assets.assets.find((entry) => entry.id !== asset.id && entry.id !== STARTER_PLACEHOLDER_ASSET_ID) ??
-      project.assets.assets.find((entry) => entry.id !== asset.id);
-
-    if (referenceSummary.sceneBackgrounds.length > 0 && !fallbackAsset) {
-      setStatusMessage(
-        `Cannot delete ${asset.name} because it is still used as a scene background and there is no replacement asset available.`
-      );
-      return;
-    }
+    const referenceSummary = deletionEligibility.referenceSummary;
+    const fallbackAsset = project.assets.assets.find((entry) => entry.id === deletionEligibility.fallbackAssetId);
 
     const confirmed = await dialogs.confirm({
       title: `Delete ${asset.name}?`,
@@ -141,14 +135,14 @@ export function AssetsPanel({
       return;
     }
 
-    try {
-      setBusyLabel("Deleting asset");
-      const nextProject = cloneProject(project);
-      const deletion = removeAssetFromProject(nextProject, asset.id);
-      if (!deletion.deleted) {
-        setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion));
-        return;
-      }
+      try {
+        setBusyLabel("Deleting asset");
+        const nextProject = cloneProject(project);
+        const deletion = removeAssetFromProject(nextProject, asset.id);
+        if (!deletion.deleted) {
+          setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion.blockedReason));
+          return;
+        }
 
       const result = await window.editorApi.saveProject(projectDir, nextProject);
       let deletedSourceFileCount = 0;
@@ -352,7 +346,8 @@ export function AssetsPanel({
 
           {project.assets.assets.map((asset) => {
             const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
-            const deleteDisabled = asset.id === STARTER_PLACEHOLDER_ASSET_ID;
+            const deletionEligibility = assetDeletionEligibility.get(asset.id);
+            const deleteDisabled = !deletionEligibility?.canDelete;
 
             return (
               <article key={asset.id} className="list-card list-card--asset">
@@ -390,7 +385,7 @@ export function AssetsPanel({
                       onClick={() => void handleDeleteAsset(asset)}
                       title={
                         deleteDisabled
-                          ? `${asset.name} is the built-in starter placeholder and cannot be deleted.`
+                          ? resolveDeleteDisabledTitle(asset.name, deletionEligibility?.blockedReason)
                           : countAssetReferences(referenceSummary) > 0
                           ? `Delete ${asset.name} from the project and review its current usages before removal.`
                           : `Delete ${asset.name} from the project library.`
@@ -547,14 +542,21 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
 
 function resolveDeleteBlockedMessage(
   assetName: string,
-  deletion: ReturnType<typeof removeAssetFromProject>
+  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined
 ): string {
-  if (deletion.blockedReason === "protected-asset") {
-    return `${assetName} is the starter placeholder asset and cannot be deleted.`;
+  if (blockedReason === "background-in-use-without-replacement") {
+    return `Cannot delete ${assetName} because it is still used as a scene background and there is no replacement asset available.`;
   }
 
-  if (deletion.blockedReason === "background-in-use-without-replacement") {
-    return `Cannot delete ${assetName} because it is still used as a scene background and there is no replacement asset available.`;
+  return `${assetName} could not be deleted because it is no longer present in the project.`;
+}
+
+function resolveDeleteDisabledTitle(
+  assetName: string,
+  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined
+): string {
+  if (blockedReason === "background-in-use-without-replacement") {
+    return `${assetName} cannot be deleted until another asset is available to replace its scene background usage.`;
   }
 
   return `${assetName} could not be deleted because it is no longer present in the project.`;
