@@ -51,6 +51,14 @@ launch-editor.cmd
 
 That script builds the editor on first run if the compiled assets are missing.
 
+If you want to launch it without a visible console window, use:
+
+```vbscript
+launch-editor.vbs
+```
+
+Use `launch-editor.cmd` when you want build or startup errors to stay visible in a terminal.
+
 ## Development notes
 
 - `npm run dev:editor` starts the Electron editor with the Vite renderer and watched Electron entrypoints.
