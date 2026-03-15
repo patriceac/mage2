@@ -18,8 +18,8 @@ const editorApi = {
     ipcRenderer.invoke("mage2:load-project", projectDir),
   saveProject: (projectDir: string, project: ProjectBundle) =>
     ipcRenderer.invoke("mage2:save-project", projectDir, project),
-  importAssets: (filePaths: string[]): Promise<Asset[]> =>
-    ipcRenderer.invoke("mage2:import-assets", filePaths),
+  importAssets: (projectDir: string, filePaths: string[]): Promise<Asset[]> =>
+    ipcRenderer.invoke("mage2:import-assets", projectDir, filePaths),
   generateProxy: (projectDir: string, asset: Asset): Promise<Asset> =>
     ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset),
   exportProject: (projectDir: string, project: ProjectBundle) =>

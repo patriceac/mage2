@@ -40,7 +40,7 @@ declare global {
         project: ProjectBundle;
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
-      importAssets(filePaths: string[]): Promise<Asset[]>;
+      importAssets(projectDir: string, filePaths: string[]): Promise<Asset[]>;
       generateProxy(projectDir: string, asset: Asset): Promise<Asset>;
       exportProject(projectDir: string, project: ProjectBundle): Promise<{
         outputDirectory: string;

@@ -153,6 +153,7 @@ export const AssetSchema = z.object({
   kind: AssetKindSchema,
   name: z.string().min(1),
   sourcePath: z.string().min(1),
+  importSourcePath: z.string().min(1).optional(),
   proxyPath: z.string().optional(),
   posterPath: z.string().optional(),
   durationMs: z.number().nonnegative().optional(),

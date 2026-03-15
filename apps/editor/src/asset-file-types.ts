@@ -1,3 +1,5 @@
+import type { Asset } from "@mage2/schema";
+
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".avi", ".webm"] as const;
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"] as const;
 const AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"] as const;
@@ -59,6 +61,22 @@ export function classifyImportAssetPaths(
   }
 
   return { importFilePaths, rejectedFilePaths, duplicateFilePaths };
+}
+
+export function collectAssetImportPaths(
+  assets: Array<Pick<Asset, "sourcePath" | "importSourcePath">>
+): string[] {
+  const importPaths: string[] = [];
+
+  for (const asset of assets) {
+    importPaths.push(asset.sourcePath);
+
+    if (asset.importSourcePath) {
+      importPaths.push(asset.importSourcePath);
+    }
+  }
+
+  return importPaths;
 }
 
 function resolveFileExtension(filePath: string): string {

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Asset, ProjectBundle } from "@mage2/schema";
-import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
+import {
+  classifyImportAssetPaths,
+  collectAssetImportPaths,
+  SUPPORTED_ASSET_EXTENSIONS
+} from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
   addAssetRoots,
@@ -33,7 +37,7 @@ export function AssetsPanel({
 }: AssetsPanelProps) {
   const dialogs = useDialogs();
   const assetsMissingProxy = project.assets.assets.filter((entry) => !entry.proxyPath);
-  const existingSourcePaths = project.assets.assets.map((entry) => entry.sourcePath);
+  const existingImportPaths = collectAssetImportPaths(project.assets.assets);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
   );
@@ -43,7 +47,7 @@ export function AssetsPanel({
   async function importAssetPaths(filePaths: string[]) {
     const { importFilePaths, rejectedFilePaths, duplicateFilePaths } = classifyImportAssetPaths(
       filePaths,
-      existingSourcePaths
+      existingImportPaths
     );
     if (importFilePaths.length === 0) {
       setStatusMessage(resolveNoNewImportsMessage(duplicateFilePaths.length, rejectedFilePaths.length));
@@ -51,13 +55,13 @@ export function AssetsPanel({
     }
 
     try {
-      setBusyLabel("Importing assets");
-      const importedAssets = await window.editorApi.importAssets(importFilePaths);
-
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
         throw new Error("No project directory is currently open.");
       }
+
+      setBusyLabel("Importing assets");
+      const importedAssets = await window.editorApi.importAssets(projectDir, importFilePaths);
 
       const nextProject = cloneProject(project);
       addAssetRoots(nextProject, importedAssets);
@@ -90,7 +94,7 @@ export function AssetsPanel({
     const filePaths = await dialogs.pickFiles({
       title: "Import Assets",
       description: "Select video, image, audio, or subtitle files to add to the current project.",
-      initialPath: project.manifest.assetRoots[0] ?? useEditorStore.getState().projectDir,
+      initialPath: resolveAssetImportInitialPath(project) ?? useEditorStore.getState().projectDir,
       confirmLabel: "Import Selected Files",
       allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
     });
@@ -383,6 +387,19 @@ export function AssetsPanel({
       </aside>
     </div>
   );
+}
+
+function resolveAssetImportInitialPath(project: ProjectBundle): string | undefined {
+  for (let index = project.assets.assets.length - 1; index >= 0; index -= 1) {
+    const asset = project.assets.assets[index];
+    const importPath = asset.importSourcePath ?? asset.sourcePath;
+    const parentPath = importPath.replace(/[\\/][^\\/]+$/, "");
+    if (parentPath) {
+      return parentPath;
+    }
+  }
+
+  return undefined;
 }
 
 function resolveNoNewImportsMessage(duplicateCount: number, rejectedCount: number): string {

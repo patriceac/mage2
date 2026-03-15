@@ -72,6 +72,15 @@ export async function probeAsset(filePath: string): Promise<ProbeResult> {
 }
 
 export async function createImportedAsset(filePath: string): Promise<Asset> {
+  return createImportedAssetRecord(filePath, filePath);
+}
+
+export async function importAssetToProject(filePath: string, projectDir: string): Promise<Asset> {
+  const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
+  return createImportedAssetRecord(projectAssetPath, filePath);
+}
+
+async function createImportedAssetRecord(filePath: string, importSourcePath: string): Promise<Asset> {
   const metadata = await stat(filePath);
   const kind = detectAssetKind(filePath);
   const probe = kind === "subtitle" ? {} : await probeAsset(filePath).catch(() => ({}));
@@ -81,12 +90,50 @@ export async function createImportedAsset(filePath: string): Promise<Asset> {
     kind,
     name: path.basename(filePath),
     sourcePath: filePath,
+    importSourcePath: filePath === importSourcePath ? undefined : importSourcePath,
     durationMs: probe.durationMs,
     width: probe.width,
     height: probe.height,
     codec: probe.codec,
     importedAt: metadata.birthtime.toISOString()
   };
+}
+
+async function copyImportedAssetFile(filePath: string, projectDir: string): Promise<string> {
+  const assetDirectory = path.join(projectDir, "assets");
+  await mkdir(assetDirectory, { recursive: true });
+
+  const targetPath = await resolveImportedAssetPath(filePath, assetDirectory);
+  if (path.resolve(filePath) === path.resolve(targetPath)) {
+    return targetPath;
+  }
+
+  await cp(filePath, targetPath, {
+    force: false,
+    errorOnExist: true
+  });
+  return targetPath;
+}
+
+async function resolveImportedAssetPath(filePath: string, assetDirectory: string): Promise<string> {
+  const parsedPath = path.parse(filePath);
+  let suffix = 1;
+
+  while (true) {
+    const fileName = suffix === 1 ? parsedPath.base : `${parsedPath.name}-${suffix}${parsedPath.ext}`;
+    const candidatePath = path.join(assetDirectory, fileName);
+
+    if (path.resolve(filePath) === path.resolve(candidatePath)) {
+      return candidatePath;
+    }
+
+    try {
+      await stat(candidatePath);
+      suffix += 1;
+    } catch {
+      return candidatePath;
+    }
+  }
 }
 
 export async function generateProxy(asset: Asset, projectDir: string): Promise<Asset> {
