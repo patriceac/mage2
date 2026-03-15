@@ -11,9 +11,9 @@ import { cloneProject } from "./project-helpers";
 import { type EditorTab, useEditorStore } from "./store";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
-  { id: "assets", label: "Assets" },
   { id: "world", label: "World" },
   { id: "scenes", label: "Scenes" },
+  { id: "assets", label: "Assets" },
   { id: "dialogue", label: "Dialogue" },
   { id: "inventory", label: "Inventory" },
   { id: "playtest", label: "Playtest" }

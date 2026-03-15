@@ -44,7 +44,7 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
 
 export const useEditorStore = create<EditorState>((set) => ({
   hasUnsavedChanges: false,
-  activeTab: "assets",
+  activeTab: "world",
   playheadMs: 0,
   setProjectContext: (project, projectDir) =>
     set({
@@ -52,6 +52,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       projectDir,
       savedProjectRevision: createProjectRevision(project),
       hasUnsavedChanges: false,
+      activeTab: "world",
       ...resolveProjectSelectionState(project),
       playheadMs: 0
     }),
@@ -76,7 +77,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       projectDir: undefined,
       savedProjectRevision: undefined,
       hasUnsavedChanges: false,
-      activeTab: "assets",
+      activeTab: "world",
       selectedLocationId: undefined,
       selectedSceneId: undefined,
       selectedDialogueId: undefined,
