@@ -49,7 +49,11 @@ declare global {
       }>;
       importAssets(projectDir: string, filePaths: string[]): Promise<Asset[]>;
       generateProxy(projectDir: string, asset: Asset): Promise<Asset>;
-      deleteGeneratedProxyFiles(projectDir: string, asset: Asset): Promise<string[]>;
+      deleteManagedAssetFiles(
+        projectDir: string,
+        asset: Asset,
+        remainingAssets: Asset[]
+      ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }>;
       exportProject(projectDir: string, project: ProjectBundle): Promise<{
         outputDirectory: string;
         buildManifest: unknown;

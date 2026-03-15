@@ -13,6 +13,11 @@ export interface ProbeResult {
   codec?: string;
 }
 
+export interface DeleteManagedAssetFilesResult {
+  deletedProxyPaths: string[];
+  deletedSourcePaths: string[];
+}
+
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"]);
 const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"]);
@@ -201,7 +206,11 @@ export async function generateProxy(asset: Asset, projectDir: string): Promise<A
   };
 }
 
-export async function deleteGeneratedProxyFiles(asset: Asset, projectDir: string): Promise<string[]> {
+export async function deleteGeneratedProxyFiles(
+  asset: Asset,
+  projectDir: string,
+  referencedPaths: Set<string> = new Set()
+): Promise<string[]> {
   const proxyDirectory = path.resolve(projectDir, ".mage2", "proxies");
   const candidatePaths = [
     ...new Set([asset.proxyPath, asset.posterPath].filter((candidatePath): candidatePath is string => Boolean(candidatePath)))
@@ -210,7 +219,7 @@ export async function deleteGeneratedProxyFiles(asset: Asset, projectDir: string
 
   for (const candidatePath of candidatePaths) {
     const resolvedPath = path.resolve(candidatePath);
-    if (!isPathInsideDirectory(resolvedPath, proxyDirectory)) {
+    if (!isPathInsideDirectory(resolvedPath, proxyDirectory) || referencedPaths.has(resolvedPath)) {
       continue;
     }
 
@@ -219,6 +228,21 @@ export async function deleteGeneratedProxyFiles(asset: Asset, projectDir: string
   }
 
   return deletedPaths;
+}
+
+export async function deleteManagedAssetFiles(
+  asset: Asset,
+  projectDir: string,
+  remainingAssets: Asset[] = []
+): Promise<DeleteManagedAssetFilesResult> {
+  const referencedPaths = collectReferencedPaths(remainingAssets);
+  const deletedProxyPaths = await deleteGeneratedProxyFiles(asset, projectDir, referencedPaths);
+  const deletedSourcePaths = await deleteProjectAssetSourceFiles(asset, projectDir, referencedPaths);
+
+  return {
+    deletedProxyPaths,
+    deletedSourcePaths
+  };
 }
 
 export async function copyAssetForBuild(asset: Asset, outputDirectory: string): Promise<string> {
@@ -241,6 +265,22 @@ function guessExtensionForKind(kind: AssetKind): string {
     default:
       return ".png";
   }
+}
+
+async function deleteProjectAssetSourceFiles(
+  asset: Asset,
+  projectDir: string,
+  referencedPaths: Set<string>
+): Promise<string[]> {
+  const assetsDirectory = path.resolve(projectDir, "assets");
+  const resolvedSourcePath = path.resolve(asset.sourcePath);
+
+  if (!isPathInsideDirectory(resolvedSourcePath, assetsDirectory) || referencedPaths.has(resolvedSourcePath)) {
+    return [];
+  }
+
+  await rm(resolvedSourcePath, { force: true });
+  return [resolvedSourcePath];
 }
 
 async function runProcess(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
@@ -272,4 +312,20 @@ async function runProcess(command: string, args: string[]): Promise<{ stdout: st
 function isPathInsideDirectory(targetPath: string, directoryPath: string): boolean {
   const relativePath = path.relative(directoryPath, targetPath);
   return relativePath !== "" && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+function collectReferencedPaths(assets: Asset[]): Set<string> {
+  const referencedPaths = new Set<string>();
+
+  for (const asset of assets) {
+    referencedPaths.add(path.resolve(asset.sourcePath));
+    if (asset.proxyPath) {
+      referencedPaths.add(path.resolve(asset.proxyPath));
+    }
+    if (asset.posterPath) {
+      referencedPaths.add(path.resolve(asset.posterPath));
+    }
+  }
+
+  return referencedPaths;
 }

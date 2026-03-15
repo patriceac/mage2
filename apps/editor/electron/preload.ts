@@ -25,8 +25,12 @@ const editorApi = {
     ipcRenderer.invoke("mage2:import-assets", projectDir, filePaths),
   generateProxy: (projectDir: string, asset: Asset): Promise<Asset> =>
     ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset),
-  deleteGeneratedProxyFiles: (projectDir: string, asset: Asset): Promise<string[]> =>
-    ipcRenderer.invoke("mage2:delete-generated-proxy-files", projectDir, asset),
+  deleteManagedAssetFiles: (
+    projectDir: string,
+    asset: Asset,
+    remainingAssets: Asset[]
+  ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }> =>
+    ipcRenderer.invoke("mage2:delete-managed-asset-files", projectDir, asset, remainingAssets),
   exportProject: (projectDir: string, project: ProjectBundle) =>
     ipcRenderer.invoke("mage2:export-project", projectDir, project),
   pathToFileUrl: (inputPath: string): Promise<string> =>

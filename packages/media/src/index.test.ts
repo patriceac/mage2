@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { deleteGeneratedProxyFiles, importAssetToProject } from "./index";
+import { deleteGeneratedProxyFiles, deleteManagedAssetFiles, importAssetToProject } from "./index";
 
 const tempDirectories: string[] = [];
 
@@ -107,6 +107,102 @@ describe("deleteGeneratedProxyFiles", () => {
 
     expect(deletedPaths).toEqual([]);
     expect(await readFile(outsideProxyPath, "utf8")).toBe("outside");
+  });
+});
+
+describe("deleteManagedAssetFiles", () => {
+  it("removes generated proxy files and the copied project asset file", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const assetsDir = path.join(projectDir, "assets");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const sourcePath = path.join(assetsDir, "video.mp4");
+    const proxyPath = path.join(proxyDir, "asset_video.mp4");
+    const posterPath = path.join(proxyDir, "asset_video.jpg");
+
+    await mkdir(assetsDir, { recursive: true });
+    await mkdir(proxyDir, { recursive: true });
+    await writeFile(sourcePath, "source", "utf8");
+    await writeFile(proxyPath, "proxy", "utf8");
+    await writeFile(posterPath, "poster", "utf8");
+
+    const result = await deleteManagedAssetFiles(
+      {
+        id: "asset_video",
+        kind: "video",
+        name: "video.mp4",
+        sourcePath,
+        proxyPath,
+        posterPath,
+        importedAt: "2026-03-14T00:00:00.000Z"
+      },
+      projectDir
+    );
+
+    expect(result.deletedSourcePaths).toEqual([sourcePath]);
+    expect(result.deletedProxyPaths).toEqual([proxyPath, posterPath]);
+    await expect(readFile(sourcePath, "utf8")).rejects.toThrow();
+    await expect(readFile(proxyPath, "utf8")).rejects.toThrow();
+    await expect(readFile(posterPath, "utf8")).rejects.toThrow();
+  });
+
+  it("keeps files that are still referenced by another asset", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const assetsDir = path.join(projectDir, "assets");
+    const sourcePath = path.join(assetsDir, "shared.png");
+
+    await mkdir(assetsDir, { recursive: true });
+    await writeFile(sourcePath, "shared", "utf8");
+
+    const result = await deleteManagedAssetFiles(
+      {
+        id: "asset_primary",
+        kind: "image",
+        name: "shared.png",
+        sourcePath,
+        importedAt: "2026-03-14T00:00:00.000Z"
+      },
+      projectDir,
+      [
+        {
+          id: "asset_secondary",
+          kind: "image",
+          name: "shared.png",
+          sourcePath,
+          importedAt: "2026-03-14T00:00:00.000Z"
+        }
+      ]
+    );
+
+    expect(result.deletedSourcePaths).toEqual([]);
+    expect(result.deletedProxyPaths).toEqual([]);
+    expect(await readFile(sourcePath, "utf8")).toBe("shared");
+  });
+
+  it("leaves external source files untouched", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const sourceDir = path.join(workspaceDir, "source");
+    const sourcePath = path.join(sourceDir, "outside.png");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, "outside", "utf8");
+
+    const result = await deleteManagedAssetFiles(
+      {
+        id: "asset_external",
+        kind: "image",
+        name: "outside.png",
+        sourcePath,
+        importedAt: "2026-03-14T00:00:00.000Z"
+      },
+      projectDir
+    );
+
+    expect(result.deletedSourcePaths).toEqual([]);
+    expect(result.deletedProxyPaths).toEqual([]);
+    expect(await readFile(sourcePath, "utf8")).toBe("outside");
   });
 });
 

@@ -57,7 +57,7 @@ export function App() {
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
-  const [newProjectName, setNewProjectName] = useState("The Beast Within Prototype");
+  const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>([]);
   const hasEditorApi = typeof window.editorApi !== "undefined";
