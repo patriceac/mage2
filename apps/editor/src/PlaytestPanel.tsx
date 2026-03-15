@@ -77,6 +77,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
 
         <MediaSurface
           asset={sceneAsset}
+          loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
           strings={project.strings.values}
           onHotspotClick={(hotspotId) => {

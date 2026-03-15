@@ -97,6 +97,7 @@ export const SceneSchema = z.object({
   locationId: z.string().min(1),
   name: z.string().min(1),
   backgroundAssetId: z.string().min(1),
+  backgroundVideoLoop: z.boolean().default(false),
   defaultSegmentId: z.string().optional(),
   clipSegments: z.array(ClipSegmentSchema).default([]),
   hotspots: z.array(HotspotSchema).default([]),

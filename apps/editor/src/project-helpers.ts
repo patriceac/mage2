@@ -279,6 +279,7 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     locationId: locationId ?? project.locations.items[0]?.id ?? "location_intro",
     name: `Scene ${project.scenes.items.length + 1}`,
     backgroundAssetId: project.assets.assets[0]?.id ?? "asset_placeholder",
+    backgroundVideoLoop: false,
     clipSegments: [],
     hotspots: [],
     exitSceneIds: [],

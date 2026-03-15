@@ -201,6 +201,7 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
 
         <MediaSurface
           asset={currentAsset}
+          loopVideo={currentScene.backgroundVideoLoop}
           hotspots={currentScene.hotspots}
           strings={project.strings.values}
           selectedHotspotId={selectedHotspotId}
@@ -213,6 +214,27 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
           onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
           onHotspotChange={updateHotspotGeometry}
         />
+
+        {currentAsset?.kind === "video" ? (
+          <label
+            className="scene-video-loop-toggle"
+            title="When enabled, this scene's background video restarts automatically after it reaches the end."
+          >
+            <input
+              type="checkbox"
+              checked={currentScene.backgroundVideoLoop}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                  if (scene) {
+                    scene.backgroundVideoLoop = event.target.checked;
+                  }
+                })
+              }
+            />
+            <span>Loop background video indefinitely</span>
+          </label>
+        ) : null}
 
         <label>
           Playhead {Math.round(playheadMs)}ms

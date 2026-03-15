@@ -25,6 +25,7 @@ export function App() {
   const [playheadMs, setPlayheadMs] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
+  const runtimeVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     async function loadBuild() {
@@ -67,6 +68,26 @@ export function App() {
     void loadBuild();
   }, []);
 
+  const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
+  const currentAsset =
+    content && snapshot
+      ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as RuntimeAsset | undefined)
+      : undefined;
+  const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs) : [];
+  const subtitleLines = controller ? controller.getSubtitleLines(playheadMs) : [];
+
+  useEffect(() => {
+    const video = runtimeVideoRef.current;
+    if (!video || currentAsset?.kind !== "video" || !snapshot) {
+      return;
+    }
+
+    video.currentTime = 0;
+    void video.play().catch(() => {
+      // If the environment blocks autoplay, the controls remain available for manual playback.
+    });
+  }, [currentAsset?.id, currentAsset?.kind, currentAsset?.sourcePath, snapshot?.scene.id]);
+
   if (errorMessage) {
     return (
       <main className="runtime-shell">
@@ -88,11 +109,6 @@ export function App() {
       </main>
     );
   }
-
-  const storageKey = `mage2-runtime-save:${buildManifest.projectId}`;
-  const currentAsset = content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as RuntimeAsset | undefined;
-  const visibleHotspots = controller.getVisibleHotspots(playheadMs);
-  const subtitleLines = controller.getSubtitleLines(playheadMs);
 
   return (
     <main className="runtime-shell">
@@ -167,7 +183,15 @@ export function App() {
 
         <div className="runtime-media">
           {currentAsset?.kind === "video" ? (
-            <video src={currentAsset.sourcePath} controls className="runtime-media__asset" />
+            <video
+              ref={runtimeVideoRef}
+              key={`${snapshot.scene.id}:${currentAsset.id}`}
+              src={currentAsset.sourcePath}
+              autoPlay
+              controls
+              loop={snapshot.scene.backgroundVideoLoop}
+              className="runtime-media__asset"
+            />
           ) : currentAsset?.kind === "image" ? (
             <img src={currentAsset.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />
           ) : (

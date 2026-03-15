@@ -43,13 +43,19 @@ npm run typecheck
 npm run build
 ```
 
-On Windows, you can also launch the editor with:
+On Windows, you can launch the editor without a console window with:
+
+```bat
+launch-editor.vbs
+```
+
+For terminal-based troubleshooting, you can still use:
 
 ```bat
 launch-editor.cmd
 ```
 
-That script builds the editor on first run if the compiled assets are missing.
+Both launchers build the editor on first run if the compiled assets are missing.
 
 ## Development notes
 

@@ -25,6 +25,42 @@ describe("schema migrations", () => {
     expect(migrated.assets.schemaVersion).toBe(1);
     expect(migrated.strings.schemaVersion).toBe(1);
   });
+
+  it("defaults scene background video looping to false when older data omits it", () => {
+    const migrated = migrateProjectBundle({
+      manifest: {
+        schemaVersion: 1,
+        projectId: "legacy",
+        projectName: "Legacy",
+        defaultLanguage: "en",
+        engineVersion: "0.0.1",
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro",
+        buildSettings: {
+          outputDir: "build",
+          includeSourceMap: false
+        }
+      },
+      assets: {
+        schemaVersion: 1,
+        assets: [{ id: "asset_placeholder", kind: "image", name: "starter.png", sourcePath: "D:\\starter.png", importedAt: "2026-03-15T00:00:00.000Z" }]
+      },
+      locations: {
+        schemaVersion: 1,
+        items: [{ id: "location_intro", name: "Intro", x: 0, y: 0, sceneIds: ["scene_intro"] }]
+      },
+      scenes: {
+        schemaVersion: 1,
+        items: [{ id: "scene_intro", locationId: "location_intro", name: "Opening", backgroundAssetId: "asset_placeholder" }]
+      },
+      dialogues: { schemaVersion: 1, items: [] },
+      inventory: { schemaVersion: 1, items: [] },
+      subtitles: { schemaVersion: 1, items: [] },
+      strings: { schemaVersion: 1, values: {} }
+    });
+
+    expect(migrated.scenes.items[0]?.backgroundVideoLoop).toBe(false);
+  });
 });
 
 describe("project validation", () => {
@@ -39,6 +75,7 @@ describe("project validation", () => {
     const project = createDefaultProjectBundle();
     const hotspot = project.scenes.items[0]?.hotspots[0];
 
+    expect(project.scenes.items[0]?.backgroundVideoLoop).toBe(false);
     expect(hotspot?.name).toBe("Placeholder");
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
     expect(hotspot?.x).toBeCloseTo(900 / 1280);

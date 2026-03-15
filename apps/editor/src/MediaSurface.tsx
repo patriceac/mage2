@@ -13,6 +13,7 @@ interface MediaSurfaceProps {
   asset?: Asset;
   hotspots?: Hotspot[];
   strings?: Record<string, string>;
+  loopVideo?: boolean;
   onSurfaceClick?: (normalizedX: number, normalizedY: number) => void;
   onHotspotClick?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
@@ -24,6 +25,7 @@ export function MediaSurface({
   asset,
   hotspots = [],
   strings,
+  loopVideo = false,
   onSurfaceClick,
   onHotspotClick,
   onHotspotChange,
@@ -32,9 +34,13 @@ export function MediaSurface({
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const overlayRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
   const suppressSurfaceClickRef = useRef(false);
   const suppressSurfaceClickTimeoutRef = useRef<number | undefined>(undefined);
+  const previousLoopVideoRef = useRef(loopVideo);
+  const shouldResumeLoopPlaybackRef = useRef(false);
+  const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +72,50 @@ export function MediaSurface({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (loopVideo && !previousLoopVideoRef.current) {
+      shouldResumeLoopPlaybackRef.current = true;
+    }
+
+    if (!loopVideo) {
+      shouldResumeLoopPlaybackRef.current = false;
+    }
+
+    previousLoopVideoRef.current = loopVideo;
+  }, [loopVideo]);
+
+  useEffect(() => {
+    const nextVideoAssetKey = asset?.kind === "video" ? `${asset.id}:${assetUrl ?? ""}` : undefined;
+    const hasVideoAssetChanged =
+      nextVideoAssetKey !== undefined && previousVideoAssetKeyRef.current !== nextVideoAssetKey;
+
+    previousVideoAssetKeyRef.current = nextVideoAssetKey;
+
+    const video = videoRef.current;
+    if (!video || asset?.kind !== "video") {
+      return;
+    }
+
+    const shouldStartPlayback = hasVideoAssetChanged || (loopVideo && shouldResumeLoopPlaybackRef.current);
+    if (!shouldStartPlayback) {
+      return;
+    }
+
+    shouldResumeLoopPlaybackRef.current = false;
+
+    if (
+      hasVideoAssetChanged ||
+      video.ended ||
+      (Number.isFinite(video.duration) && video.currentTime >= Math.max(video.duration - 0.05, 0))
+    ) {
+      video.currentTime = 0;
+    }
+
+    void video.play().catch(() => {
+      // If playback is blocked or the file cannot play, leave the controls available for manual retry.
+    });
+  }, [asset?.kind, assetUrl, loopVideo]);
 
   const handleClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
     if (!onSurfaceClick) {
@@ -187,8 +237,11 @@ export function MediaSurface({
       {asset && assetUrl ? (
         asset.kind === "video" ? (
           <video
+            ref={videoRef}
             src={assetUrl}
+            autoPlay
             controls
+            loop={loopVideo}
             muted
             className="media-surface__media"
             title="Preview the selected video asset directly inside the editor."
