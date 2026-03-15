@@ -1,4 +1,4 @@
-import { cp, mkdir, stat } from "node:fs/promises";
+import { cp, mkdir, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import path from "node:path";
@@ -201,6 +201,26 @@ export async function generateProxy(asset: Asset, projectDir: string): Promise<A
   };
 }
 
+export async function deleteGeneratedProxyFiles(asset: Asset, projectDir: string): Promise<string[]> {
+  const proxyDirectory = path.resolve(projectDir, ".mage2", "proxies");
+  const candidatePaths = [
+    ...new Set([asset.proxyPath, asset.posterPath].filter((candidatePath): candidatePath is string => Boolean(candidatePath)))
+  ];
+  const deletedPaths: string[] = [];
+
+  for (const candidatePath of candidatePaths) {
+    const resolvedPath = path.resolve(candidatePath);
+    if (!isPathInsideDirectory(resolvedPath, proxyDirectory)) {
+      continue;
+    }
+
+    await rm(resolvedPath, { force: true });
+    deletedPaths.push(resolvedPath);
+  }
+
+  return deletedPaths;
+}
+
 export async function copyAssetForBuild(asset: Asset, outputDirectory: string): Promise<string> {
   await mkdir(outputDirectory, { recursive: true });
   const sourcePath = asset.proxyPath ?? asset.sourcePath;
@@ -247,4 +267,9 @@ async function runProcess(command: string, args: string[]): Promise<{ stdout: st
       }
     });
   });
+}
+
+function isPathInsideDirectory(targetPath: string, directoryPath: string): boolean {
+  const relativePath = path.relative(directoryPath, targetPath);
+  return relativePath !== "" && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
 }

@@ -7,6 +7,7 @@ import {
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
+  STARTER_PLACEHOLDER_ASSET_ID,
   addAssetRoots,
   cloneProject,
   collectAssetReferenceSummary,
@@ -112,9 +113,14 @@ export function AssetsPanel({
       return;
     }
 
+    if (asset.id === STARTER_PLACEHOLDER_ASSET_ID) {
+      setStatusMessage(`${asset.name} is the starter placeholder asset and cannot be deleted.`);
+      return;
+    }
+
     const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
     const fallbackAsset =
-      project.assets.assets.find((entry) => entry.id !== asset.id && entry.id !== "asset_placeholder") ??
+      project.assets.assets.find((entry) => entry.id !== asset.id && entry.id !== STARTER_PLACEHOLDER_ASSET_ID) ??
       project.assets.assets.find((entry) => entry.id !== asset.id);
 
     if (referenceSummary.sceneBackgrounds.length > 0 && !fallbackAsset) {
@@ -126,7 +132,7 @@ export function AssetsPanel({
 
     const confirmed = await dialogs.confirm({
       title: `Delete ${asset.name}?`,
-      body: renderDeleteAssetConfirmation(asset.name, referenceSummary, fallbackAsset?.name),
+      body: renderDeleteAssetConfirmation(asset, asset.name, referenceSummary, fallbackAsset?.name),
       confirmLabel: "Delete Asset",
       cancelLabel: "Keep Asset",
       tone: "danger"
@@ -145,12 +151,23 @@ export function AssetsPanel({
       }
 
       const result = await window.editorApi.saveProject(projectDir, nextProject);
+      let deletedProxyFileCount = 0;
+      let proxyCleanupError: string | undefined;
+
+      try {
+        deletedProxyFileCount = (await window.editorApi.deleteGeneratedProxyFiles(projectDir, asset)).length;
+      } catch (error) {
+        proxyCleanupError = error instanceof Error ? error.message : String(error);
+      }
+
       setSavedProject(result.project);
       setStatusMessage(
         resolveDeleteStatusMessage(
           asset.name,
           deletion,
           fallbackAsset?.name,
+          deletedProxyFileCount,
+          proxyCleanupError,
           result.validationReport.valid,
           result.validationReport.issues.length
         )
@@ -327,6 +344,7 @@ export function AssetsPanel({
 
           {project.assets.assets.map((asset) => {
             const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
+            const deleteDisabled = asset.id === STARTER_PLACEHOLDER_ASSET_ID;
 
             return (
               <article key={asset.id} className="list-card list-card--asset">
@@ -360,9 +378,12 @@ export function AssetsPanel({
                     <button
                       type="button"
                       className="button-danger"
+                      disabled={deleteDisabled}
                       onClick={() => void handleDeleteAsset(asset)}
                       title={
-                        countAssetReferences(referenceSummary) > 0
+                        deleteDisabled
+                          ? `${asset.name} is the built-in starter placeholder and cannot be deleted.`
+                          : countAssetReferences(referenceSummary) > 0
                           ? `Delete ${asset.name} from the project and review its current usages before removal.`
                           : `Delete ${asset.name} from the project library.`
                       }
@@ -440,17 +461,24 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
 }
 
 function renderDeleteAssetConfirmation(
+  asset: Asset,
   assetName: string,
   summary: AssetReferenceSummary,
   fallbackAssetName?: string
 ) {
+  const deletesGeneratedProxyFiles = Boolean(asset.proxyPath || asset.posterPath);
+
   if (countAssetReferences(summary) === 0) {
     return (
       <>
         <p>{`Delete "${assetName}" from the project library?`}</p>
         <div className="dialog-callout">
           <strong>No in-project references found</strong>
-          <p>This removes the asset from MAGE2, but the source file on disk will stay untouched.</p>
+          <p>
+            {deletesGeneratedProxyFiles
+              ? "This removes the asset from MAGE2, deletes its generated proxy files, and leaves the source file on disk untouched."
+              : "This removes the asset from MAGE2, but the source file on disk will stay untouched."}
+          </p>
         </div>
       </>
     );
@@ -469,6 +497,9 @@ function renderDeleteAssetConfirmation(
     consequences.push(
       `${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"} will be removed.`
     );
+  }
+  if (deletesGeneratedProxyFiles) {
+    consequences.push("Generated proxy files will be deleted.");
   }
   consequences.push("The source file on disk will not be deleted.");
 
@@ -519,6 +550,10 @@ function resolveDeleteBlockedMessage(
   assetName: string,
   deletion: ReturnType<typeof removeAssetFromProject>
 ): string {
+  if (deletion.blockedReason === "protected-asset") {
+    return `${assetName} is the starter placeholder asset and cannot be deleted.`;
+  }
+
   if (deletion.blockedReason === "background-in-use-without-replacement") {
     return `Cannot delete ${assetName} because it is still used as a scene background and there is no replacement asset available.`;
   }
@@ -530,6 +565,8 @@ function resolveDeleteStatusMessage(
   assetName: string,
   deletion: ReturnType<typeof removeAssetFromProject>,
   fallbackAssetName: string | undefined,
+  deletedProxyFileCount: number,
+  proxyCleanupError: string | undefined,
   valid: boolean,
   issueCount: number
 ): string {
@@ -557,8 +594,16 @@ function resolveDeleteStatusMessage(
     );
   }
 
+  if (deletedProxyFileCount > 0) {
+    segments.push(`Deleted ${deletedProxyFileCount} generated proxy file${deletedProxyFileCount === 1 ? "" : "s"}.`);
+  }
+
   if (!valid) {
     segments.push(`Saved with ${issueCount} validation issue(s).`);
+  }
+
+  if (proxyCleanupError) {
+    segments.push(`Proxy cleanup failed: ${proxyCleanupError}`);
   }
 
   return segments.join(" ");

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { importAssetToProject } from "./index";
+import { deleteGeneratedProxyFiles, importAssetToProject } from "./index";
 
 const tempDirectories: string[] = [];
 
@@ -51,6 +51,62 @@ describe("importAssetToProject", () => {
     expect(secondAsset.name).toBe("shared-2.vtt");
     expect(await readFile(firstAsset.sourcePath, "utf8")).toContain("First");
     expect(await readFile(secondAsset.sourcePath, "utf8")).toContain("Second");
+  });
+});
+
+describe("deleteGeneratedProxyFiles", () => {
+  it("removes generated proxy and poster files from the project's proxy cache", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const proxyPath = path.join(proxyDir, "asset_video.mp4");
+    const posterPath = path.join(proxyDir, "asset_video.jpg");
+
+    await mkdir(proxyDir, { recursive: true });
+    await writeFile(proxyPath, "proxy", "utf8");
+    await writeFile(posterPath, "poster", "utf8");
+
+    const deletedPaths = await deleteGeneratedProxyFiles(
+      {
+        id: "asset_video",
+        kind: "video",
+        name: "video.mp4",
+        sourcePath: path.join(projectDir, "assets", "video.mp4"),
+        proxyPath,
+        posterPath,
+        importedAt: "2026-03-14T00:00:00.000Z"
+      },
+      projectDir
+    );
+
+    expect(deletedPaths).toEqual([proxyPath, posterPath]);
+    await expect(readFile(proxyPath, "utf8")).rejects.toThrow();
+    await expect(readFile(posterPath, "utf8")).rejects.toThrow();
+  });
+
+  it("ignores proxy paths outside the project's generated proxy cache", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const sourceDir = path.join(workspaceDir, "source");
+    const outsideProxyPath = path.join(sourceDir, "outside.mp4");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(outsideProxyPath, "outside", "utf8");
+
+    const deletedPaths = await deleteGeneratedProxyFiles(
+      {
+        id: "asset_video",
+        kind: "video",
+        name: "video.mp4",
+        sourcePath: path.join(projectDir, "assets", "video.mp4"),
+        proxyPath: outsideProxyPath,
+        importedAt: "2026-03-14T00:00:00.000Z"
+      },
+      projectDir
+    );
+
+    expect(deletedPaths).toEqual([]);
+    expect(await readFile(outsideProxyPath, "utf8")).toBe("outside");
   });
 });
 

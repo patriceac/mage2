@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, type Asset } from "@mage2/schema";
 import {
+  STARTER_PLACEHOLDER_ASSET_ID,
   addAssetRoots,
   addHotspot,
   collectAssetReferenceSummary,
@@ -177,6 +178,21 @@ describe("removeAssetFromProject", () => {
     });
     expect(project.assets.assets.map((asset) => asset.id)).toEqual([primaryAsset.id]);
     expect(scene.backgroundAssetId).toBe(primaryAsset.id);
+  });
+
+  it("blocks deletion of the starter placeholder asset", () => {
+    const project = createDefaultProjectBundle("Protected starter asset");
+    project.assets.assets = [
+      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.svg", "D:\\project\\assets\\starter-scene.svg")
+    ];
+
+    const result = removeAssetFromProject(project, STARTER_PLACEHOLDER_ASSET_ID);
+
+    expect(result).toMatchObject({
+      deleted: false,
+      blockedReason: "protected-asset"
+    });
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual([STARTER_PLACEHOLDER_ASSET_ID]);
   });
 });
 

@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
-import { generateProxy, importAssetToProject } from "@mage2/media";
+import { deleteGeneratedProxyFiles, generateProxy, importAssetToProject } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
 import { exportProjectBundle } from "./exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
@@ -213,6 +213,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("mage2:generate-proxy", async (_event, projectDir: string, asset: Asset) => {
     return generateProxy(asset, projectDir);
+  });
+
+  ipcMain.handle("mage2:delete-generated-proxy-files", async (_event, projectDir: string, asset: Asset) => {
+    return deleteGeneratedProxyFiles(asset, projectDir);
   });
 
   ipcMain.handle("mage2:export-project", async (_event, projectDir: string, project: ProjectBundle) => {

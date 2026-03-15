@@ -29,12 +29,14 @@ export interface AssetReferenceSummary {
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "protected-asset";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
   removedSegmentIds: string[];
   removedSubtitleTrackIds: string[];
 }
+
+export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 
 export function cloneProject(project: ProjectBundle): ProjectBundle {
   return structuredClone(project);
@@ -148,8 +150,20 @@ export function removeAssetFromProject(
   assetId: string
 ): RemoveAssetFromProjectResult {
   const referenceSummary = collectAssetReferenceSummary(project, assetId);
-  const assetExists = project.assets.assets.some((asset) => asset.id === assetId);
   const fallbackAssetId = resolveFallbackAssetId(project.assets.assets, assetId);
+
+  if (assetId === STARTER_PLACEHOLDER_ASSET_ID) {
+    return {
+      deleted: false,
+      blockedReason: "protected-asset",
+      fallbackAssetId,
+      referenceSummary,
+      removedSegmentIds: [],
+      removedSubtitleTrackIds: []
+    };
+  }
+
+  const assetExists = project.assets.assets.some((asset) => asset.id === assetId);
 
   if (!assetExists) {
     return {
@@ -379,7 +393,7 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
 
 function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string | undefined {
   return (
-    assets.find((asset) => asset.id !== deletedAssetId && asset.id !== "asset_placeholder")?.id ??
+    assets.find((asset) => asset.id !== deletedAssetId && asset.id !== STARTER_PLACEHOLDER_ASSET_ID)?.id ??
     assets.find((asset) => asset.id !== deletedAssetId)?.id
   );
 }
