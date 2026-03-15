@@ -9,12 +9,56 @@ import type {
 } from "@mage2/schema";
 import { createRectangleHotspotPolygon } from "@mage2/schema";
 
+export interface AssetReferenceSummary {
+  sceneBackgrounds: Array<{
+    sceneId: string;
+    sceneName: string;
+  }>;
+  clipSegments: Array<{
+    sceneId: string;
+    sceneName: string;
+    segmentId: string;
+    segmentName: string;
+  }>;
+  subtitleTracks: Array<{
+    trackId: string;
+    sceneIds: string[];
+    sceneNames: string[];
+  }>;
+}
+
+export interface RemoveAssetFromProjectResult {
+  deleted: boolean;
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement";
+  fallbackAssetId?: string;
+  referenceSummary: AssetReferenceSummary;
+  removedSegmentIds: string[];
+  removedSubtitleTrackIds: string[];
+}
+
 export function cloneProject(project: ProjectBundle): ProjectBundle {
   return structuredClone(project);
 }
 
+export function createProjectRevision(project: ProjectBundle): string {
+  return JSON.stringify(project);
+}
+
 export function createId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function synchronizeAssetRoots(project: ProjectBundle): void {
+  const nextAssetRoots: string[] = [];
+
+  for (const asset of project.assets.assets) {
+    const root = asset.sourcePath.replace(/[\\/][^\\/]+$/, "");
+    if (root && !nextAssetRoots.includes(root)) {
+      nextAssetRoots.push(root);
+    }
+  }
+
+  project.manifest.assetRoots = nextAssetRoots;
 }
 
 export function addAssetRoots(project: ProjectBundle, assets: Asset[]): void {
@@ -24,6 +68,151 @@ export function addAssetRoots(project: ProjectBundle, assets: Asset[]): void {
       project.manifest.assetRoots.push(root);
     }
   }
+}
+
+export function collectAssetReferenceSummary(
+  project: ProjectBundle,
+  assetId: string
+): AssetReferenceSummary {
+  const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
+  const clipSegments: AssetReferenceSummary["clipSegments"] = [];
+  const subtitleTracksById = new Map<string, AssetReferenceSummary["subtitleTracks"][number]>();
+
+  for (const scene of project.scenes.items) {
+    if (scene.backgroundAssetId === assetId) {
+      sceneBackgrounds.push({
+        sceneId: scene.id,
+        sceneName: scene.name
+      });
+    }
+
+    for (const segment of scene.clipSegments) {
+      if (segment.assetId === assetId) {
+        clipSegments.push({
+          sceneId: scene.id,
+          sceneName: scene.name,
+          segmentId: segment.id,
+          segmentName: segment.name
+        });
+      }
+    }
+
+    for (const subtitleTrackId of scene.subtitleTrackIds) {
+      const track = project.subtitles.items.find(
+        (entry) => entry.id === subtitleTrackId && entry.assetId === assetId
+      );
+      if (!track) {
+        continue;
+      }
+
+      const existingTrack = subtitleTracksById.get(track.id);
+      if (existingTrack) {
+        existingTrack.sceneIds.push(scene.id);
+        existingTrack.sceneNames.push(scene.name);
+        continue;
+      }
+
+      subtitleTracksById.set(track.id, {
+        trackId: track.id,
+        sceneIds: [scene.id],
+        sceneNames: [scene.name]
+      });
+    }
+  }
+
+  for (const track of project.subtitles.items) {
+    if (track.assetId !== assetId || subtitleTracksById.has(track.id)) {
+      continue;
+    }
+
+    subtitleTracksById.set(track.id, {
+      trackId: track.id,
+      sceneIds: [],
+      sceneNames: []
+    });
+  }
+
+  return {
+    sceneBackgrounds,
+    clipSegments,
+    subtitleTracks: [...subtitleTracksById.values()]
+  };
+}
+
+export function countAssetReferences(summary: AssetReferenceSummary): number {
+  return summary.sceneBackgrounds.length + summary.clipSegments.length + summary.subtitleTracks.length;
+}
+
+export function removeAssetFromProject(
+  project: ProjectBundle,
+  assetId: string
+): RemoveAssetFromProjectResult {
+  const referenceSummary = collectAssetReferenceSummary(project, assetId);
+  const assetExists = project.assets.assets.some((asset) => asset.id === assetId);
+  const fallbackAssetId = resolveFallbackAssetId(project.assets.assets, assetId);
+
+  if (!assetExists) {
+    return {
+      deleted: false,
+      blockedReason: "asset-not-found",
+      fallbackAssetId,
+      referenceSummary,
+      removedSegmentIds: [],
+      removedSubtitleTrackIds: []
+    };
+  }
+
+  if (referenceSummary.sceneBackgrounds.length > 0 && !fallbackAssetId) {
+    return {
+      deleted: false,
+      blockedReason: "background-in-use-without-replacement",
+      referenceSummary,
+      removedSegmentIds: [],
+      removedSubtitleTrackIds: []
+    };
+  }
+
+  const removedSegmentIds: string[] = [];
+  const removedSubtitleTrackIds = referenceSummary.subtitleTracks.map((track) => track.trackId);
+  const subtitleTrackIdsToDelete = new Set(removedSubtitleTrackIds);
+
+  project.assets.assets = project.assets.assets.filter((asset) => asset.id !== assetId);
+
+  for (const scene of project.scenes.items) {
+    if (scene.backgroundAssetId === assetId && fallbackAssetId) {
+      scene.backgroundAssetId = fallbackAssetId;
+    }
+
+    const removedSceneSegmentIds = scene.clipSegments
+      .filter((segment) => segment.assetId === assetId)
+      .map((segment) => segment.id);
+    if (removedSceneSegmentIds.length > 0) {
+      removedSegmentIds.push(...removedSceneSegmentIds);
+      scene.clipSegments = scene.clipSegments.filter((segment) => segment.assetId !== assetId);
+    }
+
+    if (scene.defaultSegmentId && !scene.clipSegments.some((segment) => segment.id === scene.defaultSegmentId)) {
+      scene.defaultSegmentId = scene.clipSegments[0]?.id;
+    }
+
+    if (subtitleTrackIdsToDelete.size > 0) {
+      scene.subtitleTrackIds = scene.subtitleTrackIds.filter((trackId) => !subtitleTrackIdsToDelete.has(trackId));
+    }
+  }
+
+  if (subtitleTrackIdsToDelete.size > 0) {
+    project.subtitles.items = project.subtitles.items.filter((track) => !subtitleTrackIdsToDelete.has(track.id));
+  }
+
+  synchronizeAssetRoots(project);
+
+  return {
+    deleted: true,
+    fallbackAssetId,
+    referenceSummary,
+    removedSegmentIds,
+    removedSubtitleTrackIds
+  };
 }
 
 export function ensureString(project: ProjectBundle, textId: string, fallback: string): void {
@@ -186,6 +375,13 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
 
   scene.hotspots.push(hotspot);
   return hotspot;
+}
+
+function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string | undefined {
+  return (
+    assets.find((asset) => asset.id !== deletedAssetId && asset.id !== "asset_placeholder")?.id ??
+    assets.find((asset) => asset.id !== deletedAssetId)?.id
+  );
 }
 
 function getNextHotspotNumber(scene: Scene): number {

@@ -1,14 +1,21 @@
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, type MessageBoxOptions } from "electron";
 import { pathToFileURL } from "node:url";
 import { createImportedAsset, generateProxy } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
+import { MEDIA_DIALOG_FILTER_EXTENSIONS } from "../src/asset-file-types";
 import { exportProjectBundle } from "./exporter";
 import { createProjectInDirectory, loadProjectFromDirectory, saveProjectToDirectory } from "./project-io";
+import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
 
 let mainWindow: BrowserWindow | null = null;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
+const APP_NAME = "MAGE2 Editor";
+const LEGACY_USER_DATA_DIRNAME = "Electron";
+
+app.setName(APP_NAME);
 
 function createWindow(): void {
   const restoredWindowState = resolveWindowState(
@@ -67,6 +74,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  migrateLegacyUserData();
   registerIpcHandlers();
   createWindow();
 
@@ -120,7 +128,71 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
   window.on("close", persistNow);
 }
 
+function migrateLegacyUserData(): void {
+  const userDataPath = app.getPath("userData");
+  const legacyUserDataPath = path.join(app.getPath("appData"), LEGACY_USER_DATA_DIRNAME);
+
+  if (path.resolve(userDataPath) === path.resolve(legacyUserDataPath)) {
+    return;
+  }
+
+  for (const fileName of ["window-state.json", "recent-projects.json"]) {
+    const sourcePath = path.join(legacyUserDataPath, fileName);
+    const targetPath = path.join(userDataPath, fileName);
+
+    if (!existsSync(sourcePath) || existsSync(targetPath)) {
+      continue;
+    }
+
+    mkdirSync(path.dirname(targetPath), { recursive: true });
+    copyFileSync(sourcePath, targetPath);
+  }
+}
+
 function registerIpcHandlers(): void {
+  ipcMain.handle("mage2:confirm-close-project", async (_event, projectName: string) => {
+    const dialogOptions: MessageBoxOptions = {
+      type: "question",
+      buttons: ["Save", "Don't Save", "Cancel"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+      title: "Close Project",
+      message: `Save changes to ${projectName}?`,
+      detail: "If you close this project now, your unsaved changes will be lost."
+    };
+    const result = mainWindow
+      ? await dialog.showMessageBox(mainWindow, dialogOptions)
+      : await dialog.showMessageBox(dialogOptions);
+
+    switch (result.response) {
+      case 0:
+        return "save";
+      case 1:
+        return "discard";
+      default:
+        return "cancel";
+    }
+  });
+
+  ipcMain.handle("mage2:get-recent-projects", async () => {
+    return loadRecentProjects(app.getPath("userData"));
+  });
+
+  ipcMain.handle("mage2:remember-recent-project", async (_event, projectDir: string, projectName?: string) => {
+    const userDataPath = app.getPath("userData");
+    const recentProjects = rememberRecentProject(loadRecentProjects(userDataPath), projectDir, projectName);
+    saveRecentProjects(userDataPath, recentProjects);
+    return recentProjects;
+  });
+
+  ipcMain.handle("mage2:forget-recent-project", async (_event, projectDir: string) => {
+    const userDataPath = app.getPath("userData");
+    const recentProjects = forgetRecentProject(loadRecentProjects(userDataPath), projectDir);
+    saveRecentProjects(userDataPath, recentProjects);
+    return recentProjects;
+  });
+
   ipcMain.handle("mage2:choose-project-directory", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory", "createDirectory"]
@@ -151,7 +223,7 @@ function registerIpcHandlers(): void {
       filters: [
         {
           name: "Media",
-          extensions: ["mp4", "mov", "webm", "png", "jpg", "jpeg", "webp", "wav", "mp3", "ogg", "srt", "vtt", "svg"]
+          extensions: [...MEDIA_DIALOG_FILTER_EXTENSIONS]
         }
       ]
     });

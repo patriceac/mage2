@@ -27,16 +27,25 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
 
-const RECENT_PROJECT_PATH_KEY = "mage2:recent-project-path";
-const RECENT_PROJECT_NAME_KEY = "mage2:recent-project-name";
+interface RecentProjectSummary {
+  projectDir: string;
+  projectName: string;
+  lastOpenedAt: string;
+}
+
+const LEGACY_RECENT_PROJECT_PATH_KEY = "mage2:recent-project-path";
+const LEGACY_RECENT_PROJECT_NAME_KEY = "mage2:recent-project-name";
 
 export function App() {
   const {
     project,
     projectDir,
+    hasUnsavedChanges,
     activeTab,
     setProjectContext,
     updateProject,
+    markProjectSaved,
+    clearProjectContext,
     setActiveTab,
     setSelectedLocationId,
     setSelectedSceneId,
@@ -49,8 +58,7 @@ export function App() {
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
   const [newProjectName, setNewProjectName] = useState("The Beast Within Prototype");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
-  const [recentProjectDir, setRecentProjectDir] = useState<string>();
-  const [hasAttemptedAutoOpen, setHasAttemptedAutoOpen] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>([]);
   const hasEditorApi = typeof window.editorApi !== "undefined";
 
   async function withBusy<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
@@ -76,18 +84,24 @@ export function App() {
     updateProject(nextProject);
   }
 
-  function rememberRecentProject(targetProjectDir: string, projectName?: string) {
-    localStorage.setItem(RECENT_PROJECT_PATH_KEY, targetProjectDir);
-    if (projectName) {
-      localStorage.setItem(RECENT_PROJECT_NAME_KEY, projectName);
+  async function rememberRecentProjectEntry(targetProjectDir: string, projectName?: string) {
+    try {
+      const nextRecentProjects = await window.editorApi.rememberRecentProject(targetProjectDir, projectName);
+      setRecentProjects(nextRecentProjects);
+      localStorage.removeItem(LEGACY_RECENT_PROJECT_PATH_KEY);
+      localStorage.removeItem(LEGACY_RECENT_PROJECT_NAME_KEY);
+    } catch {
+      setRecentProjects((currentProjects) => upsertRecentProjects(currentProjects, targetProjectDir, projectName));
     }
-    setRecentProjectDir(targetProjectDir);
   }
 
-  function clearRecentProject() {
-    localStorage.removeItem(RECENT_PROJECT_PATH_KEY);
-    localStorage.removeItem(RECENT_PROJECT_NAME_KEY);
-    setRecentProjectDir(undefined);
+  async function forgetRecentProjectEntry(targetProjectDir: string) {
+    try {
+      const nextRecentProjects = await window.editorApi.forgetRecentProject(targetProjectDir);
+      setRecentProjects(nextRecentProjects);
+    } catch {
+      setRecentProjects((currentProjects) => removeRecentProjectEntry(currentProjects, targetProjectDir));
+    }
   }
 
   async function openProjectDirectory(targetProjectDir: string, source: "picker" | "recent" = "picker") {
@@ -97,14 +111,14 @@ export function App() {
     );
     if (!loadedProject) {
       if (source === "recent") {
-        clearRecentProject();
-        setStatusMessage("Could not reopen the last project. Choose a project manually.");
+        await forgetRecentProjectEntry(targetProjectDir);
+        setStatusMessage("Could not open that recent project. It has been removed from the recent list.");
       }
       return;
     }
 
     setProjectContext(loadedProject, targetProjectDir);
-    rememberRecentProject(targetProjectDir, loadedProject.manifest.projectName);
+    await rememberRecentProjectEntry(targetProjectDir, loadedProject.manifest.projectName);
     setStatusMessage(
       source === "recent"
         ? `Reopened ${loadedProject.manifest.projectName}`
@@ -113,51 +127,61 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!hasEditorApi || project || hasAttemptedAutoOpen) {
+    if (!hasEditorApi) {
       return;
     }
-
-    const storedRecentProjectDir = localStorage.getItem(RECENT_PROJECT_PATH_KEY) ?? undefined;
-    setRecentProjectDir(storedRecentProjectDir);
-    setHasAttemptedAutoOpen(true);
-
-    if (!storedRecentProjectDir) {
-      return;
-    }
-    const recentProjectPath = storedRecentProjectDir;
 
     let cancelled = false;
 
-    async function autoOpenRecentProject() {
-      setBusyLabel("Opening recent project");
-      try {
-        const loadedProject = await window.editorApi.loadProject(recentProjectPath);
-        if (cancelled) {
-          return;
-        }
+    async function initializeRecentProjects() {
+      let persistedRecentProjects: RecentProjectSummary[] = [];
 
-        setProjectContext(loadedProject, recentProjectPath);
-        rememberRecentProject(recentProjectPath, loadedProject.manifest.projectName);
-        setStatusMessage(`Reopened ${loadedProject.manifest.projectName}`);
+      try {
+        persistedRecentProjects = await window.editorApi.getRecentProjects();
       } catch {
-        if (cancelled) {
-          return;
-        }
-        clearRecentProject();
-        setStatusMessage("Could not reopen the last project. Choose a project manually.");
-      } finally {
-        if (!cancelled) {
-          setBusyLabel(undefined);
+        const legacyRecentProject = getLegacyRecentProject();
+        if (legacyRecentProject) {
+          persistedRecentProjects = upsertRecentProjects([], legacyRecentProject.projectDir, legacyRecentProject.projectName);
         }
       }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (persistedRecentProjects.length === 0) {
+        const legacyRecentProject = getLegacyRecentProject();
+        if (legacyRecentProject) {
+          try {
+            persistedRecentProjects = await window.editorApi.rememberRecentProject(
+              legacyRecentProject.projectDir,
+              legacyRecentProject.projectName
+            );
+            localStorage.removeItem(LEGACY_RECENT_PROJECT_PATH_KEY);
+            localStorage.removeItem(LEGACY_RECENT_PROJECT_NAME_KEY);
+          } catch {
+            persistedRecentProjects = upsertRecentProjects(
+              [],
+              legacyRecentProject.projectDir,
+              legacyRecentProject.projectName
+            );
+          }
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      setRecentProjects(persistedRecentProjects);
     }
 
-    void autoOpenRecentProject();
+    void initializeRecentProjects();
 
     return () => {
       cancelled = true;
     };
-  }, [hasAttemptedAutoOpen, hasEditorApi, project, setProjectContext]);
+  }, [hasEditorApi]);
 
   async function handleCreateProject() {
     if (!hasEditorApi) {
@@ -178,7 +202,7 @@ export function App() {
     }
 
     setProjectContext(createdProject, chosenDirectory);
-    rememberRecentProject(chosenDirectory, createdProject.manifest.projectName);
+    await rememberRecentProjectEntry(chosenDirectory, createdProject.manifest.projectName);
     setStatusMessage(`Created project in ${chosenDirectory}`);
   }
 
@@ -194,24 +218,58 @@ export function App() {
     await openProjectDirectory(chosenDirectory);
   }
 
-  async function handleSaveProject() {
+  async function saveCurrentProject(): Promise<ProjectBundle | undefined> {
     if (!hasEditorApi || !project || !projectDir) {
-      return;
+      return undefined;
     }
 
     const result = await withBusy("Saving project", () =>
       window.editorApi.saveProject(projectDir, project)
     );
     if (!result) {
-      return;
+      return undefined;
     }
 
-    updateProject(result.project);
+    markProjectSaved(result.project);
     setStatusMessage(
       result.validationReport.valid
         ? "Project saved successfully."
         : `Project saved with ${result.validationReport.issues.length} validation issue(s).`
     );
+    return result.project;
+  }
+
+  async function handleSaveProject() {
+    if (!hasUnsavedChanges || busyLabel) {
+      return;
+    }
+
+    await saveCurrentProject();
+  }
+
+  async function handleCloseProject() {
+    if (!project || !projectDir) {
+      return;
+    }
+
+    if (hasUnsavedChanges) {
+      const closeAction = await window.editorApi.confirmCloseProject(project.manifest.projectName);
+      if (closeAction === "cancel") {
+        setStatusMessage(`Kept ${project.manifest.projectName} open.`);
+        return;
+      }
+
+      if (closeAction === "save") {
+        const savedProject = await saveCurrentProject();
+        if (!savedProject) {
+          return;
+        }
+      }
+    }
+
+    const closingProjectName = project.manifest.projectName;
+    clearProjectContext();
+    setStatusMessage(`Closed ${closingProjectName}.`);
   }
 
   async function handleExportProject() {
@@ -219,9 +277,13 @@ export function App() {
       return;
     }
 
-    await handleSaveProject();
+    const savedProject = await saveCurrentProject();
+    if (!savedProject) {
+      return;
+    }
+
     const result = await withBusy("Exporting runtime build", () =>
-      window.editorApi.exportProject(projectDir, project)
+      window.editorApi.exportProject(projectDir, savedProject)
     );
     if (!result) {
       return;
@@ -293,7 +355,7 @@ export function App() {
               onClick={handleCreateProject}
               title="Create a new project structure inside a folder you choose."
             >
-              Create Project
+              New Project
             </button>
             <button
               type="button"
@@ -303,18 +365,29 @@ export function App() {
             >
               Open Project
             </button>
-            {recentProjectDir ? (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => void openProjectDirectory(recentProjectDir!, "recent")}
-                title="Reopen the last project directory saved in this editor."
-              >
-                Open Recent
-              </button>
-            ) : null}
           </div>
-          {recentProjectDir ? <p className="muted">Recent project: {recentProjectDir}</p> : null}
+          {recentProjects.length > 0 ? (
+            <section className="recent-projects">
+              <div className="recent-projects__header">
+                <h2>Recent Projects</h2>
+                <p className="muted">The last five projects are remembered here, even after rebuilding the app.</p>
+              </div>
+              <div className="recent-projects__list">
+                {recentProjects.map((recentProject) => (
+                  <button
+                    key={recentProject.projectDir}
+                    type="button"
+                    className="recent-project"
+                    onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
+                    title={recentProject.projectDir}
+                  >
+                    <span className="recent-project__name">{recentProject.projectName}</span>
+                    <span className="recent-project__path">{recentProject.projectDir}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
       </main>
     );
@@ -322,6 +395,7 @@ export function App() {
 
   const validationReport = validateProject(project);
   const shouldShowIssuesSidebar = showValidationDetails || validationReport.issues.length > 0;
+  const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
 
   return (
     <div className="app-shell">
@@ -335,22 +409,21 @@ export function App() {
         <div className="app-header__actions">
           <button
             type="button"
-            onClick={handleCreateProject}
-            title="Create a brand new project in another folder without closing this editor."
+            className="button-secondary"
+            onClick={() => void handleCloseProject()}
+            title="Close the current project and return to the welcome screen."
           >
-            New
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenProject}
-            title="Load a different project folder into the editor."
-          >
-            Open
+            Close Project
           </button>
           <button
             type="button"
             onClick={handleSaveProject}
-            title="Write the current project manifest and assets metadata back to disk."
+            disabled={isSaveDisabled}
+            title={
+              hasUnsavedChanges
+                ? "Write the current project manifest and assets metadata back to disk."
+                : "No unsaved changes to save."
+            }
           >
             Save
           </button>
@@ -398,7 +471,7 @@ export function App() {
           </nav>
 
           <main className="workspace">
-            {activeTab === "assets" ? <AssetsPanel project={project} replaceProject={updateProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
+            {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={markProjectSaved} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
             {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "scenes" ? <ScenesPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
@@ -487,6 +560,52 @@ function resolveProjectName(input: string, directoryPath: string): string {
 
   const parts = directoryPath.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? "New FMV Project";
+}
+
+function getLegacyRecentProject(): { projectDir: string; projectName?: string } | undefined {
+  const projectDir = localStorage.getItem(LEGACY_RECENT_PROJECT_PATH_KEY)?.trim();
+  if (!projectDir) {
+    return undefined;
+  }
+
+  const projectName = localStorage.getItem(LEGACY_RECENT_PROJECT_NAME_KEY)?.trim() || undefined;
+  return {
+    projectDir,
+    projectName
+  };
+}
+
+function createRecentProjectSummary(projectDir: string, projectName?: string): RecentProjectSummary {
+  return {
+    projectDir,
+    projectName: resolveProjectName(projectName ?? "", projectDir),
+    lastOpenedAt: new Date().toISOString()
+  };
+}
+
+function isSameProjectDirectory(leftProjectDir: string, rightProjectDir: string): boolean {
+  return (
+    leftProjectDir.trim().replaceAll("/", "\\").toLowerCase() ===
+    rightProjectDir.trim().replaceAll("/", "\\").toLowerCase()
+  );
+}
+
+function upsertRecentProjects(
+  recentProjects: RecentProjectSummary[],
+  projectDir: string,
+  projectName?: string
+): RecentProjectSummary[] {
+  return [
+    createRecentProjectSummary(projectDir, projectName),
+    ...recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir))
+  ].slice(0, 5);
+}
+
+function removeRecentProjectEntry(
+  recentProjects: RecentProjectSummary[],
+  projectDir: string
+): RecentProjectSummary[] {
+  return recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir));
 }
 
 interface IssueNavigationTarget {

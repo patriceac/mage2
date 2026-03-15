@@ -1,8 +1,18 @@
 import type { Asset, ProjectBundle } from "@mage2/schema";
 
+interface RecentProjectSummary {
+  projectDir: string;
+  projectName: string;
+  lastOpenedAt: string;
+}
+
 declare global {
   interface Window {
     editorApi: {
+      confirmCloseProject(projectName: string): Promise<"save" | "discard" | "cancel">;
+      getRecentProjects(): Promise<RecentProjectSummary[]>;
+      rememberRecentProject(projectDir: string, projectName?: string): Promise<RecentProjectSummary[]>;
+      forgetRecentProject(projectDir: string): Promise<RecentProjectSummary[]>;
       chooseProjectDirectory(): Promise<string | undefined>;
       createProject(projectDir: string, projectName: string): Promise<ProjectBundle>;
       loadProject(projectDir: string): Promise<ProjectBundle>;
@@ -19,6 +29,7 @@ declare global {
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
       pathToFileUrl(inputPath: string): Promise<string>;
+      getPathForDroppedFile(file: File): string;
     };
   }
 }

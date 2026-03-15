@@ -298,6 +298,43 @@ label {
   gap: 1rem;
 }
 
+.asset-dropzone {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 1.2rem 1.35rem;
+  border: 1px dashed rgba(125, 211, 252, 0.38);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.08), rgba(125, 211, 252, 0.03)),
+    rgba(18, 26, 34, 0.92);
+  color: #d7e3ec;
+  text-align: left;
+}
+
+.asset-dropzone:hover {
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.12), rgba(125, 211, 252, 0.05)),
+    rgba(18, 26, 34, 0.96);
+}
+
+.asset-dropzone--active {
+  border-color: rgba(246, 193, 119, 0.88);
+  background:
+    linear-gradient(180deg, rgba(246, 193, 119, 0.22), rgba(125, 211, 252, 0.1)),
+    rgba(18, 26, 34, 0.96);
+  box-shadow: 0 0 0 1px rgba(246, 193, 119, 0.28);
+}
+
+.asset-dropzone strong {
+  font-size: 1rem;
+  color: #f7fafc;
+}
+
+.asset-dropzone span {
+  color: #aab9c6;
+}
+
 .scenes-panel {
   display: grid;
   align-content: start;
@@ -682,6 +719,22 @@ label {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.recent-picker {
+  display: grid;
+  min-width: min(22rem, 100%);
+}
+
+.recent-picker__label {
+  color: #9fb0be;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recent-picker select {
+  min-width: 0;
+}
+
 .landing {
   min-height: 100vh;
   display: grid;
@@ -693,6 +746,60 @@ label {
   max-width: 720px;
   border-radius: 32px;
   padding: 2rem;
+}
+
+.recent-projects {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+}
+
+.recent-projects__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.recent-projects__header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.recent-projects__header p {
+  margin: 0;
+}
+
+.recent-projects__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.recent-project {
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.08), rgba(255, 255, 255, 0.04)),
+    rgba(18, 26, 34, 0.94);
+  text-align: left;
+}
+
+.recent-project:hover {
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.14), rgba(255, 255, 255, 0.05)),
+    rgba(18, 26, 34, 0.98);
+}
+
+.recent-project__name {
+  font-weight: 600;
+  color: #f7fafc;
+}
+
+.recent-project__path {
+  color: #9fb0be;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }
 
 .eyebrow,

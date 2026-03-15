@@ -1,0 +1,73 @@
+const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".avi", ".webm"] as const;
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"] as const;
+const AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"] as const;
+const SUBTITLE_EXTENSIONS = [".srt", ".vtt"] as const;
+
+export const SUPPORTED_ASSET_EXTENSIONS = [
+  ...VIDEO_EXTENSIONS,
+  ...IMAGE_EXTENSIONS,
+  ...AUDIO_EXTENSIONS,
+  ...SUBTITLE_EXTENSIONS
+] as const;
+
+export const MEDIA_DIALOG_FILTER_EXTENSIONS = SUPPORTED_ASSET_EXTENSIONS.map((extension) => extension.slice(1));
+
+const SUPPORTED_ASSET_EXTENSION_SET = new Set<string>(SUPPORTED_ASSET_EXTENSIONS);
+
+export function isSupportedAssetPath(filePath: string): boolean {
+  return SUPPORTED_ASSET_EXTENSION_SET.has(resolveFileExtension(filePath));
+}
+
+export function classifyImportAssetPaths(
+  filePaths: string[],
+  existingSourcePaths: string[] = []
+): {
+  importFilePaths: string[];
+  rejectedFilePaths: string[];
+  duplicateFilePaths: string[];
+} {
+  const seenImportPaths = new Set<string>(existingSourcePaths.map(normalizeAssetPathForComparison));
+  const seenRejectedPaths = new Set<string>();
+  const importFilePaths: string[] = [];
+  const rejectedFilePaths: string[] = [];
+  const duplicateFilePaths: string[] = [];
+
+  for (const filePath of filePaths) {
+    const normalizedFilePath = filePath.trim();
+    if (!normalizedFilePath) {
+      continue;
+    }
+
+    const comparableFilePath = normalizeAssetPathForComparison(normalizedFilePath);
+
+    if (isSupportedAssetPath(normalizedFilePath)) {
+      if (seenImportPaths.has(comparableFilePath)) {
+        duplicateFilePaths.push(normalizedFilePath);
+        continue;
+      }
+
+      seenImportPaths.add(comparableFilePath);
+      importFilePaths.push(normalizedFilePath);
+    } else {
+      if (seenRejectedPaths.has(comparableFilePath)) {
+        continue;
+      }
+
+      seenRejectedPaths.add(comparableFilePath);
+      rejectedFilePaths.push(normalizedFilePath);
+    }
+  }
+
+  return { importFilePaths, rejectedFilePaths, duplicateFilePaths };
+}
+
+function resolveFileExtension(filePath: string): string {
+  const fileName = filePath.replace(/^.*[\\/]/, "");
+  const extensionIndex = fileName.lastIndexOf(".");
+  return extensionIndex >= 0 ? fileName.slice(extensionIndex).toLowerCase() : "";
+}
+
+function normalizeAssetPathForComparison(filePath: string): string {
+  const slashNormalizedPath = filePath.trim().replace(/\\/g, "/");
+  return /^(?:[a-z]:\/|\/\/)/i.test(slashNormalizedPath) ? slashNormalizedPath.toLowerCase() : slashNormalizedPath;
+}

@@ -1,6 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle } from "@mage2/schema";
-import { addHotspot } from "./project-helpers";
+import { createDefaultProjectBundle, type Asset } from "@mage2/schema";
+import {
+  addAssetRoots,
+  addHotspot,
+  collectAssetReferenceSummary,
+  createProjectRevision,
+  removeAssetFromProject
+} from "./project-helpers";
+
+describe("createProjectRevision", () => {
+  it("stays stable for unchanged project data and changes after edits", () => {
+    const project = createDefaultProjectBundle("Revision tracking");
+    const initialRevision = createProjectRevision(project);
+    const unchangedRevision = createProjectRevision(structuredClone(project));
+
+    project.manifest.projectName = "Revision tracking updated";
+    const updatedRevision = createProjectRevision(project);
+
+    expect(unchangedRevision).toBe(initialRevision);
+    expect(updatedRevision).not.toBe(initialRevision);
+  });
+});
 
 describe("addHotspot", () => {
   it("keeps hotspot numbers increasing after earlier hotspots are deleted", () => {
@@ -42,3 +62,132 @@ describe("addHotspot", () => {
     ]);
   });
 });
+
+describe("collectAssetReferenceSummary", () => {
+  it("reports scene backgrounds, clip segments, and subtitle tracks that use an asset", () => {
+    const project = createDefaultProjectBundle("Asset usage");
+    const scene = project.scenes.items[0];
+    const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
+    const secondaryAsset = createAsset("asset_secondary", "secondary.png", "D:\\other\\secondary.png");
+
+    project.assets.assets = [primaryAsset, secondaryAsset];
+    scene.backgroundAssetId = primaryAsset.id;
+    scene.clipSegments = [
+      {
+        id: "segment_intro",
+        name: "Intro clip",
+        assetId: primaryAsset.id,
+        startMs: 0,
+        endMs: 1200,
+        loop: false
+      }
+    ];
+    scene.defaultSegmentId = "segment_intro";
+    scene.subtitleTrackIds = ["subtitle_intro"];
+    project.subtitles.items = [
+      {
+        id: "subtitle_intro",
+        assetId: primaryAsset.id,
+        cues: []
+      }
+    ];
+
+    const summary = collectAssetReferenceSummary(project, primaryAsset.id);
+
+    expect(summary).toEqual({
+      sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
+      clipSegments: [
+        {
+          sceneId: scene.id,
+          sceneName: scene.name,
+          segmentId: "segment_intro",
+          segmentName: "Intro clip"
+        }
+      ],
+      subtitleTracks: [
+        {
+          trackId: "subtitle_intro",
+          sceneIds: [scene.id],
+          sceneNames: [scene.name]
+        }
+      ]
+    });
+  });
+});
+
+describe("removeAssetFromProject", () => {
+  it("reassigns scene backgrounds and removes dependent segments and subtitle tracks", () => {
+    const project = createDefaultProjectBundle("Asset removal");
+    const scene = project.scenes.items[0];
+    const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
+    const secondaryAsset = createAsset("asset_secondary", "secondary.png", "D:\\other\\secondary.png");
+
+    project.assets.assets = [primaryAsset, secondaryAsset];
+    addAssetRoots(project, project.assets.assets);
+    scene.backgroundAssetId = primaryAsset.id;
+    scene.clipSegments = [
+      {
+        id: "segment_intro",
+        name: "Intro clip",
+        assetId: primaryAsset.id,
+        startMs: 0,
+        endMs: 1200,
+        loop: false
+      }
+    ];
+    scene.defaultSegmentId = "segment_intro";
+    scene.subtitleTrackIds = ["subtitle_intro"];
+    project.subtitles.items = [
+      {
+        id: "subtitle_intro",
+        assetId: primaryAsset.id,
+        cues: []
+      }
+    ];
+
+    const result = removeAssetFromProject(project, primaryAsset.id);
+
+    expect(result.deleted).toBe(true);
+    expect(result.fallbackAssetId).toBe(secondaryAsset.id);
+    expect(result.removedSegmentIds).toEqual(["segment_intro"]);
+    expect(result.removedSubtitleTrackIds).toEqual(["subtitle_intro"]);
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual([secondaryAsset.id]);
+    expect(project.manifest.assetRoots).toEqual(["D:\\other"]);
+    expect(scene.backgroundAssetId).toBe(secondaryAsset.id);
+    expect(scene.clipSegments).toEqual([]);
+    expect(scene.defaultSegmentId).toBeUndefined();
+    expect(scene.subtitleTrackIds).toEqual([]);
+    expect(project.subtitles.items).toEqual([]);
+  });
+
+  it("blocks deletion when the asset is still a scene background and no replacement exists", () => {
+    const project = createDefaultProjectBundle("Asset removal blocked");
+    const scene = project.scenes.items[0];
+    const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
+
+    project.assets.assets = [primaryAsset];
+    addAssetRoots(project, project.assets.assets);
+    scene.backgroundAssetId = primaryAsset.id;
+
+    const result = removeAssetFromProject(project, primaryAsset.id);
+
+    expect(result).toMatchObject({
+      deleted: false,
+      blockedReason: "background-in-use-without-replacement"
+    });
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual([primaryAsset.id]);
+    expect(scene.backgroundAssetId).toBe(primaryAsset.id);
+  });
+});
+
+function createAsset(id: string, name: string, sourcePath: string): Asset {
+  return {
+    id,
+    kind: "image",
+    name,
+    sourcePath,
+    importedAt: "2026-03-14T00:00:00.000Z",
+    width: 1280,
+    height: 720
+  };
+}
