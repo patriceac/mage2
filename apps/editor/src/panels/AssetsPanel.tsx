@@ -132,7 +132,7 @@ export function AssetsPanel({
 
     const confirmed = await dialogs.confirm({
       title: `Delete ${asset.name}?`,
-      body: renderDeleteAssetConfirmation(asset, asset.name, referenceSummary, fallbackAsset?.name),
+      body: renderDeleteAssetConfirmation(asset.name, referenceSummary, fallbackAsset?.name),
       confirmLabel: "Delete Asset",
       cancelLabel: "Keep Asset",
       tone: "danger"
@@ -151,13 +151,20 @@ export function AssetsPanel({
       }
 
       const result = await window.editorApi.saveProject(projectDir, nextProject);
+      let deletedSourceFileCount = 0;
       let deletedProxyFileCount = 0;
-      let proxyCleanupError: string | undefined;
+      let cleanupError: string | undefined;
 
       try {
-        deletedProxyFileCount = (await window.editorApi.deleteGeneratedProxyFiles(projectDir, asset)).length;
+        const cleanupResult = await window.editorApi.deleteManagedAssetFiles(
+          projectDir,
+          asset,
+          result.project.assets.assets
+        );
+        deletedSourceFileCount = cleanupResult.deletedSourcePaths.length;
+        deletedProxyFileCount = cleanupResult.deletedProxyPaths.length;
       } catch (error) {
-        proxyCleanupError = error instanceof Error ? error.message : String(error);
+        cleanupError = error instanceof Error ? error.message : String(error);
       }
 
       setSavedProject(result.project);
@@ -166,8 +173,9 @@ export function AssetsPanel({
           asset.name,
           deletion,
           fallbackAsset?.name,
+          deletedSourceFileCount,
           deletedProxyFileCount,
-          proxyCleanupError,
+          cleanupError,
           result.validationReport.valid,
           result.validationReport.issues.length
         )
@@ -460,14 +468,7 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
   return segments.length > 0 ? `In use by ${joinList(segments)}.` : "Not currently in use.";
 }
 
-function renderDeleteAssetConfirmation(
-  asset: Asset,
-  assetName: string,
-  summary: AssetReferenceSummary,
-  fallbackAssetName?: string
-) {
-  const deletesGeneratedProxyFiles = Boolean(asset.proxyPath || asset.posterPath);
-
+function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenceSummary, fallbackAssetName?: string) {
   if (countAssetReferences(summary) === 0) {
     return (
       <>
@@ -475,9 +476,8 @@ function renderDeleteAssetConfirmation(
         <div className="dialog-callout">
           <strong>No in-project references found</strong>
           <p>
-            {deletesGeneratedProxyFiles
-              ? "This removes the asset from MAGE2, deletes its generated proxy files, and leaves the source file on disk untouched."
-              : "This removes the asset from MAGE2, but the source file on disk will stay untouched."}
+            This removes the asset from MAGE2, deletes any generated proxy files, deletes its project copy from this
+            project's assets folder when applicable, and leaves the original import source untouched.
           </p>
         </div>
       </>
@@ -498,10 +498,9 @@ function renderDeleteAssetConfirmation(
       `${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"} will be removed.`
     );
   }
-  if (deletesGeneratedProxyFiles) {
-    consequences.push("Generated proxy files will be deleted.");
-  }
-  consequences.push("The source file on disk will not be deleted.");
+  consequences.push("Any generated proxy files will be deleted.");
+  consequences.push("If this asset was copied into the project's assets folder, that project copy will be deleted.");
+  consequences.push("The original import source file on disk will not be deleted.");
 
   return (
     <>
@@ -565,8 +564,9 @@ function resolveDeleteStatusMessage(
   assetName: string,
   deletion: ReturnType<typeof removeAssetFromProject>,
   fallbackAssetName: string | undefined,
+  deletedSourceFileCount: number,
   deletedProxyFileCount: number,
-  proxyCleanupError: string | undefined,
+  cleanupError: string | undefined,
   valid: boolean,
   issueCount: number
 ): string {
@@ -594,6 +594,10 @@ function resolveDeleteStatusMessage(
     );
   }
 
+  if (deletedSourceFileCount > 0) {
+    segments.push(`Deleted ${deletedSourceFileCount} project asset file${deletedSourceFileCount === 1 ? "" : "s"}.`);
+  }
+
   if (deletedProxyFileCount > 0) {
     segments.push(`Deleted ${deletedProxyFileCount} generated proxy file${deletedProxyFileCount === 1 ? "" : "s"}.`);
   }
@@ -602,8 +606,8 @@ function resolveDeleteStatusMessage(
     segments.push(`Saved with ${issueCount} validation issue(s).`);
   }
 
-  if (proxyCleanupError) {
-    segments.push(`Proxy cleanup failed: ${proxyCleanupError}`);
+  if (cleanupError) {
+    segments.push(`Asset file cleanup failed: ${cleanupError}`);
   }
 
   return segments.join(" ");

@@ -358,7 +358,7 @@ export function App() {
             <input
               value={newProjectName}
               onChange={(event) => setNewProjectName(event.target.value)}
-              placeholder="The Beast Within Prototype"
+              placeholder="My Project"
               title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
             />
           </label>
