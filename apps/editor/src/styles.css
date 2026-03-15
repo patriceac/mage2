@@ -849,6 +849,328 @@ label {
   cursor: not-allowed;
 }
 
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top, rgba(125, 211, 252, 0.12), transparent 36%),
+    rgba(7, 11, 15, 0.74);
+  backdrop-filter: blur(18px);
+}
+
+.dialog-shell {
+  width: min(100%, 36rem);
+  max-height: calc(100vh - 3rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.08), transparent 22%),
+    rgba(10, 15, 20, 0.98);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.dialog-shell--wide {
+  width: min(100%, 72rem);
+}
+
+.dialog-shell--danger {
+  background:
+    linear-gradient(180deg, rgba(251, 113, 133, 0.08), transparent 24%),
+    rgba(10, 15, 20, 0.98);
+}
+
+.dialog-shell__header,
+.dialog-shell__footer {
+  padding: 1.35rem 1.4rem;
+}
+
+.dialog-shell__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dialog-shell__body {
+  padding: 1.35rem 1.4rem;
+  overflow: auto;
+}
+
+.dialog-shell__footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dialog-title-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dialog-title-group h2 {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.dialog-title-group p {
+  margin: 0;
+}
+
+.dialog-eyebrow {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9fb0be;
+}
+
+.dialog-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c8d5df;
+}
+
+.dialog-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.dialog-stack p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.dialog-actions,
+.dialog-actions--spread,
+.dialog-button-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+}
+
+.dialog-actions--spread {
+  justify-content: space-between;
+}
+
+.dialog-selection-summary {
+  color: #9fb0be;
+  max-width: 24rem;
+}
+
+.dialog-callout {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dialog-callout--danger {
+  border-color: rgba(251, 113, 133, 0.24);
+  background: rgba(251, 113, 133, 0.09);
+}
+
+.dialog-callout strong {
+  font-size: 0.92rem;
+}
+
+.dialog-callout p {
+  color: #d8e2ea;
+}
+
+.dialog-detail-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+  color: #d8e2ea;
+}
+
+.dialog-error {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(251, 113, 133, 0.14);
+  color: #fecdd3;
+}
+
+.file-browser {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 18rem minmax(0, 1fr);
+  min-height: 31rem;
+}
+
+.file-browser__sidebar,
+.file-browser__main {
+  min-width: 0;
+}
+
+.file-browser__sidebar {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.file-browser__sidebar-section {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.file-browser__locations {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.file-browser__location {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  border-radius: 18px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.file-browser__location span {
+  color: #9fb0be;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.file-browser__location--active {
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.16), rgba(255, 255, 255, 0.04)),
+    rgba(18, 26, 34, 0.96);
+}
+
+.file-browser__selection-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.file-browser__selection-pill {
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: rgba(125, 211, 252, 0.16);
+  color: #c5ecff;
+  font-size: 0.84rem;
+}
+
+.file-browser__main {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 1rem;
+}
+
+.file-browser__toolbar {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.file-browser__breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.file-browser__breadcrumb {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #9fb0be;
+}
+
+.file-browser__breadcrumb strong {
+  color: #f7fafc;
+}
+
+.file-browser__path-form,
+.file-browser__folder-tools {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.file-browser__status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: #9fb0be;
+  font-size: 0.88rem;
+}
+
+.file-browser__entries {
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+  min-height: 16rem;
+  padding: 0.9rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: auto;
+}
+
+.file-browser__entry {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.file-browser__entry:hover {
+  border-color: rgba(125, 211, 252, 0.22);
+}
+
+.file-browser__entry--selected {
+  border-color: rgba(125, 211, 252, 0.32);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(18, 26, 34, 0.96);
+}
+
+.file-browser__entry-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.file-browser__entry-copy strong {
+  overflow-wrap: anywhere;
+}
+
+.file-browser__entry-copy span,
+.file-browser__entry-action {
+  color: #9fb0be;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 1100px) {
   .editor-layout--with-issues,
   .panel-grid--assets,
@@ -876,5 +1198,32 @@ label {
   .issues-sidebar {
     position: static;
     max-height: none;
+  }
+
+  .dialog-overlay {
+    padding: 1rem;
+  }
+
+  .dialog-shell,
+  .dialog-shell--wide {
+    width: 100%;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .dialog-shell__header,
+  .dialog-actions--spread,
+  .file-browser,
+  .file-browser__path-form,
+  .file-browser__folder-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-shell__header,
+  .dialog-actions--spread {
+    display: grid;
+  }
+
+  .file-browser {
+    min-height: auto;
   }
 }

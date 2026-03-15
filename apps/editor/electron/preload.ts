@@ -3,22 +3,21 @@ import type { Asset, ProjectBundle } from "@mage2/schema";
 import type { RecentProject } from "./recent-projects";
 
 const editorApi = {
-  confirmCloseProject: (projectName: string): Promise<"save" | "discard" | "cancel"> =>
-    ipcRenderer.invoke("mage2:confirm-close-project", projectName),
   getRecentProjects: (): Promise<RecentProject[]> => ipcRenderer.invoke("mage2:get-recent-projects"),
   rememberRecentProject: (projectDir: string, projectName?: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke("mage2:remember-recent-project", projectDir, projectName),
   forgetRecentProject: (projectDir: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke("mage2:forget-recent-project", projectDir),
-  chooseProjectDirectory: (): Promise<string | undefined> =>
-    ipcRenderer.invoke("mage2:choose-project-directory"),
+  getFileBrowserLocations: () => ipcRenderer.invoke("mage2:get-file-browser-locations"),
+  listDirectory: (targetPath: string) => ipcRenderer.invoke("mage2:list-directory", targetPath),
+  createDirectory: (parentDirectory: string, directoryName: string) =>
+    ipcRenderer.invoke("mage2:create-directory", parentDirectory, directoryName),
   createProject: (projectDir: string, projectName: string): Promise<ProjectBundle> =>
     ipcRenderer.invoke("mage2:create-project", projectDir, projectName),
   loadProject: (projectDir: string): Promise<ProjectBundle> =>
     ipcRenderer.invoke("mage2:load-project", projectDir),
   saveProject: (projectDir: string, project: ProjectBundle) =>
     ipcRenderer.invoke("mage2:save-project", projectDir, project),
-  pickAssets: (): Promise<string[]> => ipcRenderer.invoke("mage2:pick-assets"),
   importAssets: (filePaths: string[]): Promise<Asset[]> =>
     ipcRenderer.invoke("mage2:import-assets", filePaths),
   generateProxy: (projectDir: string, asset: Asset): Promise<Asset> =>

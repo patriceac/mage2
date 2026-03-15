@@ -1,11 +1,11 @@
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, type MessageBoxOptions } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
 import { createImportedAsset, generateProxy } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
-import { MEDIA_DIALOG_FILTER_EXTENSIONS } from "../src/asset-file-types";
 import { exportProjectBundle } from "./exporter";
+import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
 import { createProjectInDirectory, loadProjectFromDirectory, saveProjectToDirectory } from "./project-io";
 import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
@@ -150,31 +150,6 @@ function migrateLegacyUserData(): void {
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.handle("mage2:confirm-close-project", async (_event, projectName: string) => {
-    const dialogOptions: MessageBoxOptions = {
-      type: "question",
-      buttons: ["Save", "Don't Save", "Cancel"],
-      defaultId: 0,
-      cancelId: 2,
-      noLink: true,
-      title: "Close Project",
-      message: `Save changes to ${projectName}?`,
-      detail: "If you close this project now, your unsaved changes will be lost."
-    };
-    const result = mainWindow
-      ? await dialog.showMessageBox(mainWindow, dialogOptions)
-      : await dialog.showMessageBox(dialogOptions);
-
-    switch (result.response) {
-      case 0:
-        return "save";
-      case 1:
-        return "discard";
-      default:
-        return "cancel";
-    }
-  });
-
   ipcMain.handle("mage2:get-recent-projects", async () => {
     return loadRecentProjects(app.getPath("userData"));
   });
@@ -193,11 +168,16 @@ function registerIpcHandlers(): void {
     return recentProjects;
   });
 
-  ipcMain.handle("mage2:choose-project-directory", async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"]
-    });
-    return result.canceled ? undefined : result.filePaths[0];
+  ipcMain.handle("mage2:get-file-browser-locations", async () => {
+    return getFileBrowserLocations();
+  });
+
+  ipcMain.handle("mage2:list-directory", async (_event, targetPath: string) => {
+    return listDirectoryContents(targetPath);
+  });
+
+  ipcMain.handle("mage2:create-directory", async (_event, parentDirectory: string, directoryName: string) => {
+    return createSubdirectory(parentDirectory, directoryName);
   });
 
   ipcMain.handle("mage2:create-project", async (_event, projectDir: string, projectName: string) => {
@@ -215,19 +195,6 @@ function registerIpcHandlers(): void {
       project: normalized,
       validationReport: validateProject(normalized)
     };
-  });
-
-  ipcMain.handle("mage2:pick-assets", async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ["openFile", "multiSelections"],
-      filters: [
-        {
-          name: "Media",
-          extensions: [...MEDIA_DIALOG_FILTER_EXTENSIONS]
-        }
-      ]
-    });
-    return result.canceled ? [] : result.filePaths;
   });
 
   ipcMain.handle("mage2:import-assets", async (_event, filePaths: string[]) => {

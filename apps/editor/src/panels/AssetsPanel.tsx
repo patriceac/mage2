@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Asset, ProjectBundle } from "@mage2/schema";
-import { classifyImportAssetPaths } from "../asset-file-types";
+import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
+import { useDialogs } from "../dialogs";
 import {
   addAssetRoots,
   cloneProject,
@@ -30,6 +31,7 @@ export function AssetsPanel({
   setStatusMessage,
   setBusyLabel
 }: AssetsPanelProps) {
+  const dialogs = useDialogs();
   const assetsMissingProxy = project.assets.assets.filter((entry) => !entry.proxyPath);
   const existingSourcePaths = project.assets.assets.map((entry) => entry.sourcePath);
   const assetReferenceSummaries = new Map(
@@ -85,7 +87,13 @@ export function AssetsPanel({
   }
 
   async function handleImportAssets() {
-    const filePaths = await window.editorApi.pickAssets();
+    const filePaths = await dialogs.pickFiles({
+      title: "Import Assets",
+      description: "Select video, image, audio, or subtitle files to add to the current project.",
+      initialPath: project.manifest.assetRoots[0] ?? useEditorStore.getState().projectDir,
+      confirmLabel: "Import Selected Files",
+      allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
+    });
     if (filePaths.length === 0) {
       return;
     }
@@ -112,9 +120,13 @@ export function AssetsPanel({
       return;
     }
 
-    const confirmed = window.confirm(
-      buildDeleteAssetConfirmationMessage(asset.name, referenceSummary, fallbackAsset?.name)
-    );
+    const confirmed = await dialogs.confirm({
+      title: `Delete ${asset.name}?`,
+      body: renderDeleteAssetConfirmation(asset.name, referenceSummary, fallbackAsset?.name),
+      confirmLabel: "Delete Asset",
+      cancelLabel: "Keep Asset",
+      tone: "danger"
+    });
     if (!confirmed) {
       return;
     }
@@ -410,44 +422,22 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
   return segments.length > 0 ? `In use by ${joinList(segments)}.` : "Not currently in use.";
 }
 
-function buildDeleteAssetConfirmationMessage(
+function renderDeleteAssetConfirmation(
   assetName: string,
   summary: AssetReferenceSummary,
   fallbackAssetName?: string
-): string {
-  const sections = [`Delete "${assetName}" from the project library?`];
-
+) {
   if (countAssetReferences(summary) === 0) {
-    sections.push("This only removes the asset from MAGE2. The source file on disk will not be deleted.");
-    return sections.join("\n\n");
-  }
-
-  const usageLines: string[] = [];
-  if (summary.sceneBackgrounds.length > 0) {
-    usageLines.push(
-      `Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
-        .map((entry) => entry.sceneName)
-        .join(", ")}`
+    return (
+      <>
+        <p>{`Delete "${assetName}" from the project library?`}</p>
+        <div className="dialog-callout">
+          <strong>No in-project references found</strong>
+          <p>This removes the asset from MAGE2, but the source file on disk will stay untouched.</p>
+        </div>
+      </>
     );
   }
-  if (summary.clipSegments.length > 0) {
-    usageLines.push(
-      `Clip segment${summary.clipSegments.length === 1 ? "" : "s"}: ${summary.clipSegments
-        .map((entry) => `${entry.sceneName} / ${entry.segmentName}`)
-        .join(", ")}`
-    );
-  }
-  if (summary.subtitleTracks.length > 0) {
-    usageLines.push(
-      `Subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"}: ${summary.subtitleTracks
-        .map((entry) =>
-          entry.sceneNames.length > 0 ? `${entry.sceneNames.join(", ")} / ${entry.trackId}` : entry.trackId
-        )
-        .join(", ")}`
-    );
-  }
-
-  sections.push(`This asset is currently in use by:\n- ${usageLines.join("\n- ")}`);
 
   const consequences: string[] = [];
   if (summary.sceneBackgrounds.length > 0 && fallbackAssetName) {
@@ -465,8 +455,47 @@ function buildDeleteAssetConfirmationMessage(
   }
   consequences.push("The source file on disk will not be deleted.");
 
-  sections.push(consequences.join("\n"));
-  return sections.join("\n\n");
+  return (
+    <>
+      <p>{`Delete "${assetName}" from the project library?`}</p>
+      <div className="dialog-callout">
+        <strong>Currently in use by</strong>
+        <ul className="dialog-detail-list">
+          {summary.sceneBackgrounds.length > 0 ? (
+            <li>
+              {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
+                .map((entry) => entry.sceneName)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.clipSegments.length > 0 ? (
+            <li>
+              {`Clip segment${summary.clipSegments.length === 1 ? "" : "s"}: ${summary.clipSegments
+                .map((entry) => `${entry.sceneName} / ${entry.segmentName}`)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.subtitleTracks.length > 0 ? (
+            <li>
+              {`Subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"}: ${summary.subtitleTracks
+                .map((entry) =>
+                  entry.sceneNames.length > 0 ? `${entry.sceneNames.join(", ")} / ${entry.trackId}` : entry.trackId
+                )
+                .join(", ")}`}
+            </li>
+          ) : null}
+        </ul>
+      </div>
+      <div className="dialog-callout dialog-callout--danger">
+        <strong>What happens next</strong>
+        <ul className="dialog-detail-list">
+          {consequences.map((consequence) => (
+            <li key={consequence}>{consequence}</li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
 }
 
 function resolveDeleteBlockedMessage(

@@ -6,6 +6,7 @@ import { InventoryPanel } from "./panels/InventoryPanel";
 import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
+import { useDialogs } from "./dialogs";
 import { cloneProject } from "./project-helpers";
 import { type EditorTab, useEditorStore } from "./store";
 
@@ -60,6 +61,7 @@ export function App() {
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>([]);
   const hasEditorApi = typeof window.editorApi !== "undefined";
+  const dialogs = useDialogs();
 
   async function withBusy<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
     try {
@@ -187,7 +189,13 @@ export function App() {
     if (!hasEditorApi) {
       return;
     }
-    const chosenDirectory = await window.editorApi.chooseProjectDirectory();
+    const chosenDirectory = await dialogs.chooseDirectory({
+      title: "Create Project",
+      description: "Browse to the folder that should hold your new project files.",
+      initialPath: projectDir ?? recentProjects[0]?.projectDir,
+      confirmLabel: "Create Project Here",
+      allowCreateDirectory: true
+    });
     if (!chosenDirectory) {
       return;
     }
@@ -210,7 +218,12 @@ export function App() {
     if (!hasEditorApi) {
       return;
     }
-    const chosenDirectory = await window.editorApi.chooseProjectDirectory();
+    const chosenDirectory = await dialogs.chooseDirectory({
+      title: "Open Project",
+      description: "Browse to an existing MAGE2 project folder and open it in the editor.",
+      initialPath: projectDir ?? recentProjects[0]?.projectDir,
+      confirmLabel: "Open This Project"
+    });
     if (!chosenDirectory) {
       return;
     }
@@ -253,7 +266,7 @@ export function App() {
     }
 
     if (hasUnsavedChanges) {
-      const closeAction = await window.editorApi.confirmCloseProject(project.manifest.projectName);
+      const closeAction = await dialogs.confirmCloseProject(project.manifest.projectName);
       if (closeAction === "cancel") {
         setStatusMessage(`Kept ${project.manifest.projectName} open.`);
         return;
