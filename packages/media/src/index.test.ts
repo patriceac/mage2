@@ -2,7 +2,13 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { deleteGeneratedProxyFiles, deleteManagedAssetFiles, importAssetToProject } from "./index";
+import {
+  deleteGeneratedProxyFiles,
+  deleteManagedAssetFiles,
+  hydrateAssetSha256s,
+  importAssetsToProject,
+  importAssetToProject
+} from "./index";
 
 const tempDirectories: string[] = [];
 
@@ -51,6 +57,48 @@ describe("importAssetToProject", () => {
     expect(secondAsset.name).toBe("shared-2.vtt");
     expect(await readFile(firstAsset.sourcePath, "utf8")).toContain("First");
     expect(await readFile(secondAsset.sourcePath, "utf8")).toContain("Second");
+  });
+});
+
+describe("importAssetsToProject", () => {
+  it("skips new files whose SHA-256 already exists in the project", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const firstSourcePath = path.join(sourceDir, "first.vtt");
+    const duplicateSourcePath = path.join(sourceDir, "same-content.vtt");
+    const sourceContent = "WEBVTT\n\n00:00.000 --> 00:01.000\nSame bytes\n";
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(firstSourcePath, sourceContent, "utf8");
+    await writeFile(duplicateSourcePath, sourceContent, "utf8");
+
+    const existingAsset = await importAssetToProject(firstSourcePath, projectDir);
+    const result = await importAssetsToProject([duplicateSourcePath], projectDir, [existingAsset]);
+
+    expect(result.importedAssets).toEqual([]);
+    expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
+  });
+});
+
+describe("hydrateAssetSha256s", () => {
+  it("fills in missing asset hashes from the on-disk source file", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const assetPath = path.join(workspaceDir, "legacy.vtt");
+    await writeFile(assetPath, "WEBVTT\n\n00:00.000 --> 00:01.000\nLegacy\n", "utf8");
+
+    const { assets, updated } = await hydrateAssetSha256s([
+      {
+        id: "asset_legacy",
+        kind: "subtitle",
+        name: "legacy.vtt",
+        sourcePath: assetPath,
+        importedAt: "2026-03-15T00:00:00.000Z"
+      }
+    ]);
+
+    expect(updated).toBe(true);
+    expect(assets[0]?.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 });
 

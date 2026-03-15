@@ -1,5 +1,6 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { computeFileSha256, hydrateAssetSha256s } from "@mage2/media";
 import {
   createRectangleHotspotPolygon,
   createDefaultProjectBundle,
@@ -58,7 +59,8 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
   const project = migrateProjectBundle(rawBundle);
   const repairedStarterAsset = await repairStarterSceneAssetIfNeeded(projectDir, project);
   const repairedLegacyHotspot = repairLegacyStarterHotspotIfNeeded(project);
-  if (repairedStarterAsset || repairedLegacyHotspot) {
+  const repairedMissingHashes = await repairMissingAssetHashesIfNeeded(project);
+  if (repairedStarterAsset || repairedLegacyHotspot || repairedMissingHashes) {
     await saveProjectToDirectory(projectDir, project);
   }
 
@@ -174,6 +176,7 @@ async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle)
     kind: "image",
     name: STARTER_SCENE_ASSET_NAME,
     sourcePath: starterAssetPath,
+    sha256: await computeFileSha256(starterAssetPath),
     importedAt: new Date().toISOString(),
     width: 1280,
     height: 720
@@ -340,4 +343,13 @@ function isLegacyStarterSceneAsset(source: string): boolean {
     source.includes(">Placeholder</text>") ||
     source.includes("Add real hotspots")
   );
+}
+
+async function repairMissingAssetHashesIfNeeded(project: ProjectBundle): Promise<boolean> {
+  const { assets, updated } = await hydrateAssetSha256s(project.assets.assets);
+  if (updated) {
+    project.assets.assets = assets;
+  }
+
+  return updated;
 }

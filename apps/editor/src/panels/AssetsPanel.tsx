@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Asset, ProjectBundle } from "@mage2/schema";
-import {
-  classifyImportAssetPaths,
-  collectAssetImportPaths,
-  SUPPORTED_ASSET_EXTENSIONS
-} from "../asset-file-types";
+import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
   addAssetRoots,
@@ -38,7 +34,6 @@ export function AssetsPanel({
 }: AssetsPanelProps) {
   const dialogs = useDialogs();
   const assetsMissingProxy = project.assets.assets.filter((entry) => !entry.proxyPath);
-  const existingImportPaths = collectAssetImportPaths(project.assets.assets);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
   );
@@ -49,12 +44,9 @@ export function AssetsPanel({
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
 
   async function importAssetPaths(filePaths: string[]) {
-    const { importFilePaths, rejectedFilePaths, duplicateFilePaths } = classifyImportAssetPaths(
-      filePaths,
-      existingImportPaths
-    );
+    const { importFilePaths, rejectedFilePaths } = classifyImportAssetPaths(filePaths);
     if (importFilePaths.length === 0) {
-      setStatusMessage(resolveNoNewImportsMessage(duplicateFilePaths.length, rejectedFilePaths.length));
+      setStatusMessage(resolveNoNewImportsMessage(0, rejectedFilePaths.length));
       return;
     }
 
@@ -65,7 +57,15 @@ export function AssetsPanel({
       }
 
       setBusyLabel("Importing assets");
-      const importedAssets = await window.editorApi.importAssets(projectDir, importFilePaths);
+      const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
+        projectDir,
+        project.assets.assets,
+        importFilePaths
+      );
+      if (importedAssets.length === 0) {
+        setStatusMessage(resolveNoNewImportsMessage(duplicateFilePaths.length, rejectedFilePaths.length));
+        return;
+      }
 
       const nextProject = cloneProject(project);
       addAssetRoots(nextProject, importedAssets);

@@ -47,7 +47,10 @@ declare global {
         project: ProjectBundle;
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
-      importAssets(projectDir: string, filePaths: string[]): Promise<Asset[]>;
+      importAssets(projectDir: string, existingAssets: Asset[], filePaths: string[]): Promise<{
+        importedAssets: Asset[];
+        duplicateFilePaths: string[];
+      }>;
       generateProxy(projectDir: string, asset: Asset): Promise<Asset>;
       deleteManagedAssetFiles(
         projectDir: string,

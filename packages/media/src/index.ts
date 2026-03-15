@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { cp, mkdir, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -16,6 +17,11 @@ export interface ProbeResult {
 export interface DeleteManagedAssetFilesResult {
   deletedProxyPaths: string[];
   deletedSourcePaths: string[];
+}
+
+export interface ImportAssetsToProjectResult {
+  importedAssets: Asset[];
+  duplicateFilePaths: string[];
 }
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
@@ -85,7 +91,84 @@ export async function importAssetToProject(filePath: string, projectDir: string)
   return createImportedAssetRecord(projectAssetPath, filePath);
 }
 
-async function createImportedAssetRecord(filePath: string, importSourcePath: string): Promise<Asset> {
+export async function importAssetsToProject(
+  filePaths: string[],
+  projectDir: string,
+  existingAssets: Asset[] = []
+): Promise<ImportAssetsToProjectResult> {
+  const existingHashes = new Set((await Promise.all(existingAssets.map(resolveAssetSha256))).filter(isDefined));
+  const seenImportHashes = new Set<string>();
+  const importedAssets: Asset[] = [];
+  const duplicateFilePaths: string[] = [];
+
+  for (const filePath of filePaths) {
+    const sha256 = await computeFileSha256(filePath);
+    if (existingHashes.has(sha256) || seenImportHashes.has(sha256)) {
+      duplicateFilePaths.push(filePath);
+      continue;
+    }
+
+    seenImportHashes.add(sha256);
+    const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
+    importedAssets.push(await createImportedAssetRecord(projectAssetPath, filePath, sha256));
+  }
+
+  return {
+    importedAssets,
+    duplicateFilePaths
+  };
+}
+
+export async function hydrateAssetSha256s(
+  assets: Asset[]
+): Promise<{ assets: Asset[]; updated: boolean }> {
+  let updated = false;
+
+  const hydratedAssets = await Promise.all(
+    assets.map(async (asset) => {
+      if (asset.sha256) {
+        return asset;
+      }
+
+      try {
+        const sha256 = await computeFileSha256(asset.sourcePath);
+        updated = true;
+        return {
+          ...asset,
+          sha256
+        };
+      } catch {
+        return asset;
+      }
+    })
+  );
+
+  return {
+    assets: updated ? hydratedAssets : assets,
+    updated
+  };
+}
+
+export async function computeFileSha256(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = createReadStream(filePath);
+
+    stream.on("data", (chunk) => {
+      hash.update(chunk);
+    });
+    stream.on("error", reject);
+    stream.on("end", () => {
+      resolve(hash.digest("hex"));
+    });
+  });
+}
+
+async function createImportedAssetRecord(
+  filePath: string,
+  importSourcePath: string,
+  sha256?: string
+): Promise<Asset> {
   const metadata = await stat(filePath);
   const kind = detectAssetKind(filePath);
   const probe = kind === "subtitle" ? {} : await probeAsset(filePath).catch(() => ({}));
@@ -96,6 +179,7 @@ async function createImportedAssetRecord(filePath: string, importSourcePath: str
     name: path.basename(filePath),
     sourcePath: filePath,
     importSourcePath: filePath === importSourcePath ? undefined : importSourcePath,
+    sha256: sha256 ?? (await computeFileSha256(filePath)),
     durationMs: probe.durationMs,
     width: probe.width,
     height: probe.height,
@@ -328,4 +412,20 @@ function collectReferencedPaths(assets: Asset[]): Set<string> {
   }
 
   return referencedPaths;
+}
+
+async function resolveAssetSha256(asset: Asset): Promise<string | undefined> {
+  if (asset.sha256) {
+    return asset.sha256;
+  }
+
+  try {
+    return await computeFileSha256(asset.sourcePath);
+  } catch {
+    return undefined;
+  }
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
 }

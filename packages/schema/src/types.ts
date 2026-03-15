@@ -154,6 +154,7 @@ export const AssetSchema = z.object({
   name: z.string().min(1),
   sourcePath: z.string().min(1),
   importSourcePath: z.string().min(1).optional(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   proxyPath: z.string().optional(),
   posterPath: z.string().optional(),
   durationMs: z.number().nonnegative().optional(),

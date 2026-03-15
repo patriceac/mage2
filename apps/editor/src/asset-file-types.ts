@@ -1,5 +1,3 @@
-import type { Asset } from "@mage2/schema";
-
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".avi", ".webm"] as const;
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"] as const;
 const AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"] as const;
@@ -20,19 +18,14 @@ export function isSupportedAssetPath(filePath: string): boolean {
   return SUPPORTED_ASSET_EXTENSION_SET.has(resolveFileExtension(filePath));
 }
 
-export function classifyImportAssetPaths(
-  filePaths: string[],
-  existingSourcePaths: string[] = []
-): {
+export function classifyImportAssetPaths(filePaths: string[]): {
   importFilePaths: string[];
   rejectedFilePaths: string[];
   duplicateFilePaths: string[];
 } {
-  const seenImportPaths = new Set<string>(existingSourcePaths.map(normalizeAssetPathForComparison));
   const seenRejectedPaths = new Set<string>();
   const importFilePaths: string[] = [];
   const rejectedFilePaths: string[] = [];
-  const duplicateFilePaths: string[] = [];
 
   for (const filePath of filePaths) {
     const normalizedFilePath = filePath.trim();
@@ -40,17 +33,10 @@ export function classifyImportAssetPaths(
       continue;
     }
 
-    const comparableFilePath = normalizeAssetPathForComparison(normalizedFilePath);
-
     if (isSupportedAssetPath(normalizedFilePath)) {
-      if (seenImportPaths.has(comparableFilePath)) {
-        duplicateFilePaths.push(normalizedFilePath);
-        continue;
-      }
-
-      seenImportPaths.add(comparableFilePath);
       importFilePaths.push(normalizedFilePath);
     } else {
+      const comparableFilePath = normalizeAssetPathForComparison(normalizedFilePath);
       if (seenRejectedPaths.has(comparableFilePath)) {
         continue;
       }
@@ -60,23 +46,7 @@ export function classifyImportAssetPaths(
     }
   }
 
-  return { importFilePaths, rejectedFilePaths, duplicateFilePaths };
-}
-
-export function collectAssetImportPaths(
-  assets: Array<Pick<Asset, "sourcePath" | "importSourcePath">>
-): string[] {
-  const importPaths: string[] = [];
-
-  for (const asset of assets) {
-    importPaths.push(asset.sourcePath);
-
-    if (asset.importSourcePath) {
-      importPaths.push(asset.importSourcePath);
-    }
-  }
-
-  return importPaths;
+  return { importFilePaths, rejectedFilePaths, duplicateFilePaths: [] };
 }
 
 function resolveFileExtension(filePath: string): string {
