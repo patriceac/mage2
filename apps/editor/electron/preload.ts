@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Asset, ProjectBundle } from "@mage2/schema";
+import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
 
 const editorApi = {
@@ -12,6 +13,8 @@ const editorApi = {
   listDirectory: (targetPath: string) => ipcRenderer.invoke("mage2:list-directory", targetPath),
   createDirectory: (parentDirectory: string, directoryName: string) =>
     ipcRenderer.invoke("mage2:create-directory", parentDirectory, directoryName),
+  inspectProjectDirectory: (projectDir: string): Promise<ProjectDirectoryInspection> =>
+    ipcRenderer.invoke("mage2:inspect-project-directory", projectDir),
   createProject: (projectDir: string, projectName: string): Promise<ProjectBundle> =>
     ipcRenderer.invoke("mage2:create-project", projectDir, projectName),
   loadProject: (projectDir: string): Promise<ProjectBundle> =>

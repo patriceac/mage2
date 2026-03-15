@@ -222,7 +222,8 @@ export function App() {
       title: "Open Project",
       description: "Browse to an existing MAGE2 project folder and open it in the editor.",
       initialPath: projectDir ?? recentProjects[0]?.projectDir,
-      confirmLabel: "Open This Project"
+      confirmLabel: "Open This Project",
+      directoryRequirement: "project"
     });
     if (!chosenDirectory) {
       return;

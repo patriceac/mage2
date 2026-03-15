@@ -34,6 +34,12 @@ const STARTER_HOTSPOT_LABEL_TEXT_ID = "text.hotspot.inspect";
 const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
 const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
 
+export interface ProjectDirectoryInspection {
+  isProjectDirectory: boolean;
+  projectName?: string;
+  reason?: string;
+}
+
 export async function loadProjectFromDirectory(projectDir: string): Promise<ProjectBundle> {
   const filePaths = resolveProjectFilePaths(projectDir);
   await access(filePaths.manifest);
@@ -57,6 +63,45 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
   }
 
   return project;
+}
+
+export async function inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection> {
+  const filePaths = resolveProjectFilePaths(projectDir);
+  const requiredFileEntries = Object.entries(filePaths) as Array<[keyof typeof FILES, string]>;
+
+  try {
+    await Promise.all(requiredFileEntries.map(([, filePath]) => access(filePath)));
+  } catch {
+    return {
+      isProjectDirectory: false,
+      reason: "This folder is missing one or more required MAGE2 project files."
+    };
+  }
+
+  try {
+    const rawBundle = {
+      manifest: await readJson(filePaths.manifest),
+      assets: await readJson(filePaths.assets),
+      locations: await readJson(filePaths.locations),
+      scenes: await readJson(filePaths.scenes),
+      dialogues: await readJson(filePaths.dialogues),
+      inventory: await readJson(filePaths.inventory),
+      subtitles: await readJson(filePaths.subtitles),
+      strings: await readJson(filePaths.strings)
+    };
+
+    const project = parseProjectBundle(migrateProjectBundle(rawBundle));
+    return {
+      isProjectDirectory: true,
+      projectName: project.manifest.projectName
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      isProjectDirectory: false,
+      reason: `Project files were found, but they could not be loaded: ${message}`
+    };
+  }
 }
 
 export async function createProjectInDirectory(

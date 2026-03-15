@@ -28,6 +28,12 @@ interface FileBrowserDirectoryListing {
   entries: FileBrowserEntry[];
 }
 
+interface ProjectDirectoryInspection {
+  isProjectDirectory: boolean;
+  projectName?: string;
+  reason?: string;
+}
+
 interface ConfirmDialogOptions {
   title: string;
   body: ReactNode;
@@ -42,6 +48,7 @@ interface DirectoryDialogOptions {
   initialPath?: string;
   confirmLabel?: string;
   allowCreateDirectory?: boolean;
+  directoryRequirement?: "project";
 }
 
 interface FileDialogOptions {
@@ -259,9 +266,13 @@ function FileBrowserDialog({
   const [listing, setListing] = useState<FileBrowserDirectoryListing>();
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInspectingDirectory, setIsInspectingDirectory] = useState(false);
+  const [directoryInspection, setDirectoryInspection] = useState<ProjectDirectoryInspection>();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isCreatingDirectory, setIsCreatingDirectory] = useState(false);
   const [newDirectoryName, setNewDirectoryName] = useState("");
+  const requiresProjectDirectory =
+    mode === "directory" && "directoryRequirement" in options && options.directoryRequirement === "project";
 
   const allowedExtensionSet =
     mode === "files" && "allowedExtensions" in options && options.allowedExtensions
@@ -312,6 +323,7 @@ function FileBrowserDialog({
       try {
         setIsLoading(true);
         setErrorMessage(undefined);
+        setDirectoryInspection(undefined);
         const nextListing = await window.editorApi.listDirectory(requestedPath);
         if (cancelled) {
           return;
@@ -340,6 +352,49 @@ function FileBrowserDialog({
     };
   }, [requestedPath]);
 
+  useEffect(() => {
+    if (!requiresProjectDirectory || !listing?.path) {
+      setIsInspectingDirectory(false);
+      setDirectoryInspection(undefined);
+      return;
+    }
+
+    const directoryPath = listing.path;
+    let cancelled = false;
+
+    async function inspectDirectory() {
+      try {
+        setIsInspectingDirectory(true);
+        const inspection = await window.editorApi.inspectProjectDirectory(directoryPath);
+        if (cancelled) {
+          return;
+        }
+
+        setDirectoryInspection(inspection);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : String(error);
+        setDirectoryInspection({
+          isProjectDirectory: false,
+          reason: `Could not inspect this folder: ${message}`
+        });
+      } finally {
+        if (!cancelled) {
+          setIsInspectingDirectory(false);
+        }
+      }
+    }
+
+    void inspectDirectory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [listing?.path, requiresProjectDirectory]);
+
   const visibleEntries = listing?.entries.filter((entry) => {
     if (entry.kind === "directory") {
       return true;
@@ -361,7 +416,13 @@ function FileBrowserDialog({
 
   const breadcrumbItems = buildBreadcrumbs(listing?.path ?? pathInput);
   const canConfirm =
-    mode === "directory" ? Boolean(listing?.path && !isLoading) : selectedPaths.length > 0 && !isLoading;
+    mode === "directory"
+      ? Boolean(
+          listing?.path &&
+            !isLoading &&
+            (!requiresProjectDirectory || (!isInspectingDirectory && directoryInspection?.isProjectDirectory))
+        )
+      : selectedPaths.length > 0 && !isLoading;
 
   const confirmLabel =
     options.confirmLabel ?? (mode === "directory" ? "Use This Folder" : "Import Selected Files");
@@ -370,6 +431,17 @@ function FileBrowserDialog({
     mode === "files"
       ? selectedPaths.map((selectedPath) => selectedPath.replace(/^.*[\\/]/, ""))
       : [];
+
+  const directoryValidationMessage = resolveDirectoryValidationMessage(
+    requiresProjectDirectory,
+    isLoading,
+    isInspectingDirectory,
+    directoryInspection
+  );
+  const directoryValidationTone =
+    requiresProjectDirectory && directoryInspection && !directoryInspection.isProjectDirectory
+      ? "warning"
+      : "default";
 
   function navigateToPath(nextPath: string) {
     const trimmedPath = nextPath.trim();
@@ -420,7 +492,7 @@ function FileBrowserDialog({
         <div className="dialog-actions dialog-actions--spread">
           <div className="dialog-selection-summary">
             {mode === "directory" ? (
-              <span>{listing?.path ?? "Browse to a folder to continue."}</span>
+              <span>{directoryValidationMessage}</span>
             ) : selectedPaths.length > 0 ? (
               <span>
                 {selectedPaths.length} file{selectedPaths.length === 1 ? "" : "s"} selected
@@ -575,7 +647,9 @@ function FileBrowserDialog({
 
           <div className="file-browser__status-row">
             <span>
-              {mode === "directory"
+              {requiresProjectDirectory
+                ? "Choose a folder that contains a valid MAGE2 project."
+                : mode === "directory"
                 ? "Choose the current folder when you reach the project location you want."
                 : "Click files to select them. Open folders to keep browsing."}
             </span>
@@ -583,6 +657,18 @@ function FileBrowserDialog({
               <span>{hiddenFileCount} unsupported file{hiddenFileCount === 1 ? "" : "s"} hidden</span>
             ) : null}
           </div>
+
+          {requiresProjectDirectory && !isLoading ? (
+            <div
+              className={
+                directoryValidationTone === "warning"
+                  ? "file-browser__validation file-browser__validation--warning"
+                  : "file-browser__validation"
+              }
+            >
+              {directoryValidationMessage}
+            </div>
+          ) : null}
 
           <div className="file-browser__entries">
             {isLoading ? <p className="muted">Loading folder contents...</p> : null}
@@ -701,6 +787,33 @@ function DialogFrame({
       </div>
     </div>
   );
+}
+
+function resolveDirectoryValidationMessage(
+  requiresProjectDirectory: boolean,
+  isLoading: boolean,
+  isInspectingDirectory: boolean,
+  directoryInspection: ProjectDirectoryInspection | undefined
+): string {
+  if (!requiresProjectDirectory) {
+    return "Browse to a folder to continue.";
+  }
+
+  if (isLoading) {
+    return "Loading folder contents...";
+  }
+
+  if (isInspectingDirectory) {
+    return "Checking this folder for a valid MAGE2 project...";
+  }
+
+  if (directoryInspection?.isProjectDirectory) {
+    return directoryInspection.projectName
+      ? `Detected project: ${directoryInspection.projectName}`
+      : "Valid MAGE2 project detected.";
+  }
+
+  return directoryInspection?.reason ?? "This folder does not contain a valid MAGE2 project.";
 }
 
 function buildBreadcrumbs(inputPath: string): Array<{ label: string; path: string }> {

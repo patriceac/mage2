@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
-import { createProjectInDirectory, loadProjectFromDirectory, saveProjectToDirectory } from "./project-io";
+import {
+  createProjectInDirectory,
+  inspectProjectDirectory,
+  loadProjectFromDirectory,
+  saveProjectToDirectory
+} from "./project-io";
 
 const tempDirs: string[] = [];
 
@@ -127,5 +132,30 @@ describe("starter project repairs", () => {
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
     expect(repairedProject.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
     expect(repairedProject.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+  });
+});
+
+describe("inspectProjectDirectory", () => {
+  it("recognizes loadable MAGE2 project folders", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-inspect-"));
+    tempDirs.push(projectDir);
+
+    const project = await createProjectInDirectory(projectDir, "Inspectable Project");
+    const inspection = await inspectProjectDirectory(projectDir);
+
+    expect(inspection).toEqual({
+      isProjectDirectory: true,
+      projectName: project.manifest.projectName
+    });
+  });
+
+  it("rejects folders missing required project files", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-inspect-"));
+    tempDirs.push(projectDir);
+
+    const inspection = await inspectProjectDirectory(projectDir);
+
+    expect(inspection.isProjectDirectory).toBe(false);
+    expect(inspection.reason).toContain("missing");
   });
 });

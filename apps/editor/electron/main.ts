@@ -6,7 +6,12 @@ import { generateProxy, importAssetToProject } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
 import { exportProjectBundle } from "./exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
-import { createProjectInDirectory, loadProjectFromDirectory, saveProjectToDirectory } from "./project-io";
+import {
+  createProjectInDirectory,
+  inspectProjectDirectory,
+  loadProjectFromDirectory,
+  saveProjectToDirectory
+} from "./project-io";
 import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
 
@@ -178,6 +183,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("mage2:create-directory", async (_event, parentDirectory: string, directoryName: string) => {
     return createSubdirectory(parentDirectory, directoryName);
+  });
+
+  ipcMain.handle("mage2:inspect-project-directory", async (_event, projectDir: string) => {
+    return inspectProjectDirectory(projectDir);
   });
 
   ipcMain.handle("mage2:create-project", async (_event, projectDir: string, projectName: string) => {

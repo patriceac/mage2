@@ -25,6 +25,12 @@ interface FileBrowserDirectoryListing {
   entries: FileBrowserEntry[];
 }
 
+interface ProjectDirectoryInspection {
+  isProjectDirectory: boolean;
+  projectName?: string;
+  reason?: string;
+}
+
 declare global {
   interface Window {
     editorApi: {
@@ -34,6 +40,7 @@ declare global {
       getFileBrowserLocations(): Promise<FileBrowserLocation[]>;
       listDirectory(targetPath: string): Promise<FileBrowserDirectoryListing>;
       createDirectory(parentDirectory: string, directoryName: string): Promise<string>;
+      inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection>;
       createProject(projectDir: string, projectName: string): Promise<ProjectBundle>;
       loadProject(projectDir: string): Promise<ProjectBundle>;
       saveProject(projectDir: string, project: ProjectBundle): Promise<{
