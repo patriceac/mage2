@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Asset, ProjectBundle } from "@mage2/schema";
 import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
@@ -11,6 +11,7 @@ import {
   removeAssetFromProject,
   type AssetReferenceSummary
 } from "../project-helpers";
+import { AssetPreview } from "../previews";
 import { useEditorStore } from "../store";
 
 interface AssetsPanelProps {
@@ -602,127 +603,4 @@ function joinList(values: string[]): string {
   }
 
   return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
-}
-
-function AssetPreview({ asset }: { asset: Asset }) {
-  const [assetUrl, setAssetUrl] = useState<string>();
-  const [posterUrl, setPosterUrl] = useState<string>();
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPreviewUrls() {
-      if (!asset.proxyPath) {
-        setAssetUrl(undefined);
-        setPosterUrl(undefined);
-        setLoadState("ready");
-        return;
-      }
-
-      if (asset.kind === "subtitle") {
-        setAssetUrl(undefined);
-        setPosterUrl(undefined);
-        setLoadState("ready");
-        return;
-      }
-
-      setLoadState("loading");
-
-      try {
-        const sourcePath = asset.proxyPath;
-        const nextAssetUrl = await window.editorApi.pathToFileUrl(sourcePath);
-        const nextPosterUrl =
-          asset.posterPath && asset.posterPath !== sourcePath
-            ? await window.editorApi.pathToFileUrl(asset.posterPath)
-            : undefined;
-
-        if (!cancelled) {
-          setAssetUrl(nextAssetUrl);
-          setPosterUrl(nextPosterUrl);
-          setLoadState("ready");
-        }
-      } catch {
-        if (!cancelled) {
-          setAssetUrl(undefined);
-          setPosterUrl(undefined);
-          setLoadState("error");
-        }
-      }
-    }
-
-    void loadPreviewUrls();
-    return () => {
-      cancelled = true;
-    };
-  }, [asset.id, asset.kind, asset.sourcePath, asset.proxyPath, asset.posterPath]);
-
-  if (loadState === "error") {
-    return (
-      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
-        <strong>Preview unavailable</strong>
-        <span>{asset.name}</span>
-      </div>
-    );
-  }
-
-  if (!asset.proxyPath) {
-    return (
-      <div className="asset-preview asset-preview--placeholder" title={`Generate a proxy to preview ${asset.name}.`}>
-        <strong>Proxy required</strong>
-        <span>Generate a proxy to preview this asset.</span>
-      </div>
-    );
-  }
-
-  if (asset.kind === "image" && assetUrl) {
-    return (
-      <img
-        src={assetUrl}
-        alt={asset.name}
-        className="asset-preview asset-preview__media"
-        title={`Preview ${asset.name}.`}
-      />
-    );
-  }
-
-  if (asset.kind === "video" && assetUrl) {
-    return (
-      <video
-        src={assetUrl}
-        poster={posterUrl}
-        controls
-        muted
-        preload="metadata"
-        className="asset-preview asset-preview__media"
-        title={`Preview ${asset.name}.`}
-      />
-    );
-  }
-
-  if (asset.kind === "audio" && assetUrl) {
-    return (
-      <div className="asset-preview asset-preview--audio" title={`Preview ${asset.name}.`}>
-        <strong>Audio Preview</strong>
-        <span>{asset.name}</span>
-        <audio controls preload="metadata" src={assetUrl} className="asset-preview__audio-player" />
-      </div>
-    );
-  }
-
-  if (asset.kind === "subtitle") {
-    return (
-      <div className="asset-preview asset-preview--placeholder" title={`Subtitle asset ${asset.name}.`}>
-        <strong>Subtitle File</strong>
-        <span>{asset.name}</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="asset-preview asset-preview--placeholder" title={`Loading preview for ${asset.name}.`}>
-      <strong>Loading preview...</strong>
-      <span>{asset.name}</span>
-    </div>
-  );
 }

@@ -1,21 +1,33 @@
 import { MediaSurface } from "../MediaSurface";
-import type { ProjectBundle } from "@mage2/schema";
-import { addHotspot, createId, ensureString } from "../project-helpers";
+import { type ProjectBundle, validateProject } from "@mage2/schema";
+import { useDialogs } from "../dialogs";
+import {
+  addHotspot,
+  cloneProject,
+  collectSceneReferenceSummary,
+  createId,
+  ensureString,
+  removeSceneFromProject,
+  type RemoveSceneFromProjectResult
+} from "../project-helpers";
 import { applyHotspotBounds, type HotspotGeometry } from "../hotspot-geometry";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  setStatusMessage: (message: string) => void;
 }
 
-export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
+export function ScenesPanel({ project, mutateProject, setStatusMessage }: ScenesPanelProps) {
+  const dialogs = useDialogs();
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const playheadMs = useEditorStore((state) => state.playheadMs);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
   const selectedHotspotId = useEditorStore((state) => state.selectedHotspotId);
   const setSelectedHotspotId = useEditorStore((state) => state.setSelectedHotspotId);
   const setPlayheadMs = useEditorStore((state) => state.setPlayheadMs);
+  const updateProject = useEditorStore((state) => state.updateProject);
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
@@ -52,6 +64,52 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
       scene.subtitleTrackIds = scene.subtitleTrackIds.filter((entry) => entry !== trackId);
       draft.subtitles.items = draft.subtitles.items.filter((entry) => entry.id !== trackId);
     });
+  }
+
+  async function handleDeleteScene() {
+    const dialogResult = await dialogs.deleteScene({
+      project,
+      sceneId: currentScene.id,
+      referenceSummary: collectSceneReferenceSummary(project, currentScene.id)
+    });
+    if (dialogResult.action === "cancel") {
+      return;
+    }
+
+    const nextProject = cloneProject(project);
+    const deletion = removeSceneFromProject(
+      nextProject,
+      currentScene.id,
+      dialogResult.action === "rewire"
+        ? { mode: "rewire", replacementSceneId: dialogResult.replacementSceneId }
+        : { mode: "cleanup" }
+    );
+
+    if (!deletion.deleted) {
+      setStatusMessage(resolveDeleteSceneBlockedMessage(currentScene.name, deletion.blockedReason));
+      return;
+    }
+
+    const nextSelectedSceneId =
+      dialogResult.action === "rewire" ? dialogResult.replacementSceneId : nextProject.scenes.items[0]?.id;
+    const replacementSceneName =
+      dialogResult.action === "rewire"
+        ? nextProject.scenes.items.find((scene) => scene.id === dialogResult.replacementSceneId)?.name
+        : undefined;
+    const validationReport = validateProject(nextProject);
+
+    setSelectedHotspotId(undefined);
+    setSelectedSceneId(nextSelectedSceneId);
+    updateProject(nextProject);
+    setStatusMessage(
+      resolveDeleteSceneStatusMessage(
+        currentScene.name,
+        deletion,
+        replacementSceneName,
+        validationReport.valid,
+        validationReport.issues.length
+      )
+    );
   }
 
   return (
@@ -109,6 +167,14 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
           </div>
 
           <div className="stack-inline scenes-panel__actions">
+            <button
+              type="button"
+              className="button-danger"
+              title="Delete this scene and choose whether to clean or rewire references to it."
+              onClick={() => void handleDeleteScene()}
+            >
+              Delete Scene
+            </button>
             <button
               type="button"
               className="button-danger"
@@ -654,4 +720,49 @@ function parseJson<T>(input: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function resolveDeleteSceneBlockedMessage(
+  sceneName: string,
+  blockedReason: RemoveSceneFromProjectResult["blockedReason"]
+): string {
+  if (blockedReason === "replacement-scene-not-found") {
+    return `Could not delete ${sceneName} because the selected replacement scene is no longer available.`;
+  }
+
+  return `Could not delete ${sceneName} because it is no longer present in the project.`;
+}
+
+function resolveDeleteSceneStatusMessage(
+  sceneName: string,
+  deletion: RemoveSceneFromProjectResult,
+  replacementSceneName: string | undefined,
+  valid: boolean,
+  issueCount: number
+): string {
+  const segments = [`Deleted ${sceneName}.`];
+
+  if (deletion.strategy.mode === "rewire" && replacementSceneName) {
+    segments.push(`Rewired scene references to ${replacementSceneName}.`);
+  } else {
+    segments.push("Cleaned references to the deleted scene.");
+  }
+
+  if (deletion.removedSubtitleTrackIds.length > 0) {
+    segments.push(
+      `Removed ${deletion.removedSubtitleTrackIds.length} subtitle track${
+        deletion.removedSubtitleTrackIds.length === 1 ? "" : "s"
+      }.`
+    );
+  }
+
+  if (deletion.strategy.mode === "cleanup" && deletion.referenceSummary.isStartScene) {
+    segments.push("Choose a new start scene to clear the validation error.");
+  }
+
+  if (!valid) {
+    segments.push(`Project now has ${issueCount} validation issue(s).`);
+  }
+
+  return segments.join(" ");
 }

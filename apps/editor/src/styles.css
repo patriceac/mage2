@@ -1059,6 +1059,70 @@ label {
   color: #d8e2ea;
 }
 
+.scene-delete-dialog__preview-grid,
+.scene-delete-dialog__choice-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scene-delete-dialog__section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.scene-delete-choice,
+.scene-preview-card {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  border-radius: 22px;
+  padding: 1rem;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scene-delete-choice {
+  min-height: 8.5rem;
+}
+
+.scene-delete-choice strong,
+.scene-preview-card__header h3 {
+  margin: 0;
+  color: #f7fafc;
+}
+
+.scene-delete-choice span,
+.scene-preview-card__meta,
+.scene-preview-card--empty .muted {
+  color: #c6d3dc;
+  line-height: 1.45;
+}
+
+.scene-delete-choice--active {
+  border-color: rgba(125, 211, 252, 0.5);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.16), rgba(255, 255, 255, 0.04)),
+    rgba(18, 26, 34, 0.96);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.22);
+}
+
+.scene-preview-card__header,
+.scene-preview-card__meta {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.scene-preview-card__meta p {
+  margin: 0;
+}
+
+.scene-preview-card--empty {
+  place-items: center;
+  min-height: 100%;
+}
+
 .dialog-error {
   margin: 0;
   padding: 0.9rem 1rem;
@@ -1291,7 +1355,9 @@ label {
   .dialog-actions--spread,
   .file-browser,
   .file-browser__path-form,
-  .file-browser__folder-tools {
+  .file-browser__folder-tools,
+  .scene-delete-dialog__preview-grid,
+  .scene-delete-dialog__choice-grid {
     grid-template-columns: 1fr;
   }
 

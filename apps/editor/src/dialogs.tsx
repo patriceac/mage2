@@ -8,6 +8,9 @@ import {
   type FormEvent,
   type ReactNode
 } from "react";
+import type { ProjectBundle } from "@mage2/schema";
+import { countSceneReferences, type SceneReferenceSummary } from "./project-helpers";
+import { ScenePreviewCard } from "./previews";
 
 interface FileBrowserLocation {
   label: string;
@@ -59,11 +62,30 @@ interface FileDialogOptions {
   allowedExtensions?: string[];
 }
 
+export interface DeleteSceneDialogOptions {
+  project: ProjectBundle;
+  sceneId: string;
+  referenceSummary: SceneReferenceSummary;
+}
+
+export type DeleteSceneDialogResult =
+  | {
+      action: "cancel";
+    }
+  | {
+      action: "cleanup";
+    }
+  | {
+      action: "rewire";
+      replacementSceneId: string;
+    };
+
 interface DialogContextValue {
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
+  deleteScene: (options: DeleteSceneDialogOptions) => Promise<DeleteSceneDialogResult>;
 }
 
 type DialogRequest =
@@ -86,6 +108,11 @@ type DialogRequest =
       kind: "files";
       options: FileDialogOptions;
       resolve: (value: string[]) => void;
+    }
+  | {
+      kind: "delete-scene";
+      options: DeleteSceneDialogOptions;
+      resolve: (value: DeleteSceneDialogResult) => void;
     };
 
 const DialogContext = createContext<DialogContextValue | undefined>(undefined);
@@ -111,6 +138,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       pickFiles: (options) =>
         new Promise<string[]>((resolve) => {
           setDialogQueue((currentQueue) => [...currentQueue, { kind: "files", options, resolve }]);
+        }),
+      deleteScene: (options) =>
+        new Promise<DeleteSceneDialogResult>((resolve) => {
+          setDialogQueue((currentQueue) => [...currentQueue, { kind: "delete-scene", options, resolve }]);
         })
     }),
     []
@@ -161,6 +192,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           options={activeDialog.options}
           onResolve={(value) => {
             activeDialog.resolve(Array.isArray(value) ? value : []);
+            dismissActiveDialog();
+          }}
+        />
+      ) : null}
+      {activeDialog?.kind === "delete-scene" ? (
+        <DeleteSceneDialog
+          options={activeDialog.options}
+          onResolve={(value) => {
+            activeDialog.resolve(value);
             dismissActiveDialog();
           }}
         />
@@ -245,6 +285,195 @@ function CloseProjectDialog({
         <div className="dialog-callout">
           <strong>Unsaved work detected</strong>
           <p>If you close this project now, any unsaved changes will be lost.</p>
+        </div>
+      </div>
+    </DialogFrame>
+  );
+}
+
+function DeleteSceneDialog({
+  options,
+  onResolve
+}: {
+  options: DeleteSceneDialogOptions;
+  onResolve: (value: DeleteSceneDialogResult) => void;
+}) {
+  const deletedScene = options.project.scenes.items.find((scene) => scene.id === options.sceneId);
+  const replacementCandidates = options.project.scenes.items.filter((scene) => scene.id !== options.sceneId);
+  const [mode, setMode] = useState<"cleanup" | "rewire">("cleanup");
+  const [replacementSceneId, setReplacementSceneId] = useState("");
+  const replacementScene = replacementCandidates.find((scene) => scene.id === replacementSceneId);
+  const deletedLocationName = deletedScene
+    ? options.project.locations.items.find((location) => location.id === deletedScene.locationId)?.name
+    : undefined;
+  const replacementLocationName = replacementScene
+    ? options.project.locations.items.find((location) => location.id === replacementScene.locationId)?.name
+    : undefined;
+  const deletedAsset = deletedScene
+    ? options.project.assets.assets.find((asset) => asset.id === deletedScene.backgroundAssetId)
+    : undefined;
+  const replacementAsset = replacementScene
+    ? options.project.assets.assets.find((asset) => asset.id === replacementScene.backgroundAssetId)
+    : undefined;
+  const canRewire = replacementCandidates.length > 0;
+  const confirmDisabled = !deletedScene || (mode === "rewire" && !replacementScene);
+  const referenceRows = resolveSceneReferenceRows(options.referenceSummary);
+  const outcomeRows = resolveDeleteSceneOutcomeRows(
+    options.referenceSummary,
+    mode,
+    replacementScene?.name,
+    replacementLocationName
+  );
+  const confirmLabel = mode === "rewire" ? "Delete and Rewire" : "Delete and Clean";
+  const summaryMessage =
+    mode === "rewire"
+      ? replacementScene
+        ? `References will be rewired to ${replacementScene.name}.`
+        : "Choose a replacement scene to finish rewiring."
+      : options.referenceSummary.isStartScene
+      ? "Cleanup will leave the project with an invalid start scene until you choose a new one."
+      : "Cleanup will remove references to the deleted scene and keep the rest of the project intact.";
+
+  return (
+    <DialogFrame
+      title={deletedScene ? `Delete ${deletedScene.name}?` : "Delete Scene"}
+      description="Choose whether to clean references to this scene or redirect them to another scene before deleting it."
+      wide
+      tone="danger"
+      onCancel={() => onResolve({ action: "cancel" })}
+      footer={
+        <div className="dialog-actions dialog-actions--spread">
+          <div className="dialog-selection-summary">{summaryMessage}</div>
+          <div className="dialog-button-row">
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => onResolve({ action: "cancel" })}
+              autoFocus
+            >
+              Keep Scene
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              disabled={confirmDisabled}
+              onClick={() =>
+                onResolve(
+                  mode === "rewire" && replacementScene
+                    ? { action: "rewire", replacementSceneId: replacementScene.id }
+                    : { action: "cleanup" }
+                )
+              }
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="dialog-stack scene-delete-dialog">
+        <p>
+          {deletedScene
+            ? `Delete "${deletedScene.name}" from this project? This removes the scene and its hotspots from the world.`
+            : "This scene is no longer available to delete."}
+        </p>
+
+        <div className="dialog-callout dialog-callout--danger">
+          <strong>Permanent scene deletion</strong>
+          <p>
+            Unshared subtitle tracks attached only to this scene will be removed. Dialogue trees remain in the project,
+            but any references to this scene inside them will be cleaned or rewired.
+          </p>
+        </div>
+
+        <div className="scene-delete-dialog__preview-grid">
+          <ScenePreviewCard
+            label="Deleting"
+            scene={deletedScene}
+            locationName={deletedLocationName}
+            asset={deletedAsset}
+            emptyTitle="Scene not found"
+            emptyBody="The selected scene could not be loaded."
+          />
+          <ScenePreviewCard
+            label="Replacement"
+            scene={mode === "rewire" ? replacementScene : undefined}
+            locationName={replacementLocationName}
+            asset={replacementAsset}
+            emptyTitle="No replacement scene"
+            emptyBody={
+              mode === "rewire"
+                ? "Pick a replacement scene to preview the rewire target here."
+                : "Switch to Rewire references if you want to preview a replacement scene."
+            }
+          />
+        </div>
+
+        <section className="scene-delete-dialog__section">
+          <div className="scene-delete-dialog__choice-grid">
+            <button
+              type="button"
+              className={mode === "cleanup" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
+              onClick={() => setMode("cleanup")}
+            >
+              <strong>Clean References</strong>
+              <span>Remove references to the deleted scene, even if that leaves the project invalid.</span>
+            </button>
+            <button
+              type="button"
+              className={mode === "rewire" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
+              disabled={!canRewire}
+              onClick={() => setMode("rewire")}
+            >
+              <strong>Rewire References</strong>
+              <span>
+                {canRewire
+                  ? "Redirect scene references to another scene that you choose."
+                  : "Create another scene first if you want to rewire references instead of cleaning them."}
+              </span>
+            </button>
+          </div>
+        </section>
+
+        {mode === "rewire" ? (
+          <label>
+            Replacement Scene
+            <select value={replacementSceneId} onChange={(event) => setReplacementSceneId(event.target.value)}>
+              <option value="">Select a replacement scene</option>
+              {replacementCandidates.map((scene) => {
+                const locationName =
+                  options.project.locations.items.find((location) => location.id === scene.locationId)?.name ??
+                  "Unknown location";
+                return (
+                  <option key={scene.id} value={scene.id}>
+                    {`${scene.name} (${locationName})`}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        ) : null}
+
+        <div className="dialog-callout">
+          <strong>References found</strong>
+          {referenceRows.length > 0 ? (
+            <ul className="dialog-detail-list">
+              {referenceRows.map((row) => (
+                <li key={row}>{row}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No cross-scene references will need cleanup or rewiring.</p>
+          )}
+        </div>
+
+        <div className="dialog-callout">
+          <strong>What happens next</strong>
+          <ul className="dialog-detail-list">
+            {outcomeRows.map((row) => (
+              <li key={row}>{row}</li>
+            ))}
+          </ul>
         </div>
       </div>
     </DialogFrame>
@@ -787,6 +1016,83 @@ function DialogFrame({
       </div>
     </div>
   );
+}
+
+function resolveSceneReferenceRows(summary: SceneReferenceSummary): string[] {
+  const rows: string[] = [];
+
+  if (summary.isStartScene) {
+    rows.push("1 start scene reference");
+  }
+  if (summary.locationReferenceCount > 0) {
+    rows.push(`${summary.locationReferenceCount} location scene list reference${summary.locationReferenceCount === 1 ? "" : "s"}`);
+  }
+  if (summary.exitSceneReferenceCount > 0) {
+    rows.push(`${summary.exitSceneReferenceCount} exit scene reference${summary.exitSceneReferenceCount === 1 ? "" : "s"}`);
+  }
+  if (summary.hotspotTargetReferenceCount > 0) {
+    rows.push(
+      `${summary.hotspotTargetReferenceCount} hotspot target reference${
+        summary.hotspotTargetReferenceCount === 1 ? "" : "s"
+      }`
+    );
+  }
+  if (summary.sceneVisitedConditionCount > 0) {
+    rows.push(
+      `${summary.sceneVisitedConditionCount} scene-visited condition${
+        summary.sceneVisitedConditionCount === 1 ? "" : "s"
+      }`
+    );
+  }
+  if (summary.goToSceneEffectCount > 0) {
+    rows.push(`${summary.goToSceneEffectCount} go-to-scene effect${summary.goToSceneEffectCount === 1 ? "" : "s"}`);
+  }
+
+  return rows;
+}
+
+function resolveDeleteSceneOutcomeRows(
+  summary: SceneReferenceSummary,
+  mode: "cleanup" | "rewire",
+  replacementSceneName?: string,
+  replacementLocationName?: string
+): string[] {
+  const rows = ["The selected scene and its hotspots will be deleted."];
+
+  if (summary.removedSubtitleTrackIds.length > 0) {
+    rows.push(
+      `Deleted ${summary.removedSubtitleTrackIds.length} subtitle track${
+        summary.removedSubtitleTrackIds.length === 1 ? "" : "s"
+      } that are only used by this scene.`
+    );
+  }
+
+  if (countSceneReferences(summary) === 0) {
+    rows.push("No other scene references need to be updated.");
+    return rows;
+  }
+
+  if (mode === "cleanup") {
+    rows.push("References to the deleted scene will be removed from the rest of the project.");
+
+    if (summary.isStartScene) {
+      rows.push("The project start scene will remain invalid until you choose a new one.");
+    }
+
+    return rows;
+  }
+
+  if (replacementSceneName) {
+    rows.push(`References to the deleted scene will point to ${replacementSceneName}.`);
+  } else {
+    rows.push("References will be rewired after you choose a replacement scene.");
+  }
+
+  if (summary.isStartScene && replacementLocationName) {
+    rows.push(`The start location will move to ${replacementLocationName}.`);
+  }
+
+  return rows;
 }
 
 function resolveDirectoryValidationMessage(

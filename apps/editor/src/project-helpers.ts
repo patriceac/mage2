@@ -1,6 +1,9 @@
 import type {
   Asset,
+  Condition,
   DialogueTree,
+  Effect,
+  Hotspot,
   InventoryItem,
   Location,
   ProjectBundle,
@@ -33,6 +36,33 @@ export interface AssetDeletionEligibility {
   blockedReason?: RemoveAssetFromProjectResult["blockedReason"];
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
+}
+
+export interface SceneReferenceSummary {
+  isStartScene: boolean;
+  locationReferenceCount: number;
+  exitSceneReferenceCount: number;
+  hotspotTargetReferenceCount: number;
+  sceneVisitedConditionCount: number;
+  goToSceneEffectCount: number;
+  removedSubtitleTrackIds: string[];
+}
+
+export type RemoveSceneStrategy =
+  | {
+      mode: "cleanup";
+    }
+  | {
+      mode: "rewire";
+      replacementSceneId: string;
+    };
+
+export interface RemoveSceneFromProjectResult {
+  deleted: boolean;
+  blockedReason?: "scene-not-found" | "replacement-scene-not-found";
+  strategy: RemoveSceneStrategy;
+  referenceSummary: SceneReferenceSummary;
+  removedSubtitleTrackIds: string[];
 }
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
@@ -210,6 +240,163 @@ export function removeAssetFromProject(
   };
 }
 
+export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: string): SceneReferenceSummary {
+  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+  const summary: SceneReferenceSummary = {
+    isStartScene: project.manifest.startSceneId === sceneId,
+    locationReferenceCount: 0,
+    exitSceneReferenceCount: 0,
+    hotspotTargetReferenceCount: 0,
+    sceneVisitedConditionCount: 0,
+    goToSceneEffectCount: 0,
+    removedSubtitleTrackIds: scene ? resolveSceneSubtitleTrackIdsToDelete(project, scene) : []
+  };
+
+  if (!scene) {
+    return summary;
+  }
+
+  for (const location of project.locations.items) {
+    summary.locationReferenceCount += location.sceneIds.filter((entry) => entry === sceneId).length;
+  }
+
+  for (const candidateScene of project.scenes.items) {
+    if (candidateScene.id === sceneId) {
+      continue;
+    }
+
+    summary.exitSceneReferenceCount += candidateScene.exitSceneIds.filter((entry) => entry === sceneId).length;
+
+    for (const hotspot of candidateScene.hotspots) {
+      if (hotspot.targetSceneId === sceneId) {
+        summary.hotspotTargetReferenceCount += 1;
+      }
+
+      summary.sceneVisitedConditionCount += countSceneVisitedConditions(hotspot.conditions, sceneId);
+      summary.goToSceneEffectCount += countGoToSceneEffects(hotspot.effects, sceneId);
+    }
+
+    summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onEnterEffects, sceneId);
+    summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onExitEffects, sceneId);
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      summary.goToSceneEffectCount += countGoToSceneEffects(node.effects, sceneId);
+
+      for (const choice of node.choices) {
+        summary.sceneVisitedConditionCount += countSceneVisitedConditions(choice.conditions, sceneId);
+        summary.goToSceneEffectCount += countGoToSceneEffects(choice.effects, sceneId);
+      }
+    }
+  }
+
+  return summary;
+}
+
+export function countSceneReferences(summary: SceneReferenceSummary): number {
+  return (
+    Number(summary.isStartScene) +
+    summary.locationReferenceCount +
+    summary.exitSceneReferenceCount +
+    summary.hotspotTargetReferenceCount +
+    summary.sceneVisitedConditionCount +
+    summary.goToSceneEffectCount
+  );
+}
+
+export function removeSceneFromProject(
+  project: ProjectBundle,
+  sceneId: string,
+  strategy: RemoveSceneStrategy
+): RemoveSceneFromProjectResult {
+  const referenceSummary = collectSceneReferenceSummary(project, sceneId);
+  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+
+  if (!scene) {
+    return {
+      deleted: false,
+      blockedReason: "scene-not-found",
+      strategy,
+      referenceSummary,
+      removedSubtitleTrackIds: []
+    };
+  }
+
+  const replacementScene =
+    strategy.mode === "rewire"
+      ? project.scenes.items.find((entry) => entry.id === strategy.replacementSceneId && entry.id !== sceneId)
+      : undefined;
+
+  if (strategy.mode === "rewire" && !replacementScene) {
+    return {
+      deleted: false,
+      blockedReason: "replacement-scene-not-found",
+      strategy,
+      referenceSummary,
+      removedSubtitleTrackIds: []
+    };
+  }
+
+  project.scenes.items = project.scenes.items.filter((entry) => entry.id !== sceneId);
+
+  for (const location of project.locations.items) {
+    location.sceneIds = location.sceneIds.filter((entry) => entry !== sceneId);
+  }
+
+  if (strategy.mode === "rewire" && replacementScene && project.manifest.startSceneId === sceneId) {
+    project.manifest.startSceneId = replacementScene.id;
+    project.manifest.startLocationId = replacementScene.locationId;
+  }
+
+  for (const candidateScene of project.scenes.items) {
+    candidateScene.exitSceneIds = rewriteSceneIdList(candidateScene.exitSceneIds, sceneId, strategy);
+
+    for (const hotspot of candidateScene.hotspots) {
+      if (hotspot.targetSceneId === sceneId) {
+        hotspot.targetSceneId = strategy.mode === "rewire" ? strategy.replacementSceneId : undefined;
+      }
+
+      hotspot.conditions = rewriteSceneConditions(hotspot.conditions, sceneId, strategy);
+      hotspot.effects = rewriteSceneEffects(hotspot.effects, sceneId, strategy);
+    }
+
+    candidateScene.onEnterEffects = rewriteSceneEffects(candidateScene.onEnterEffects, sceneId, strategy);
+    candidateScene.onExitEffects = rewriteSceneEffects(candidateScene.onExitEffects, sceneId, strategy);
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      node.effects = rewriteSceneEffects(node.effects, sceneId, strategy);
+
+      for (const choice of node.choices) {
+        choice.conditions = rewriteSceneConditions(choice.conditions, sceneId, strategy);
+        choice.effects = rewriteSceneEffects(choice.effects, sceneId, strategy);
+      }
+    }
+  }
+
+  const removedSubtitleTrackIds = referenceSummary.removedSubtitleTrackIds;
+  if (removedSubtitleTrackIds.length > 0) {
+    const removedSubtitleTrackIdSet = new Set(removedSubtitleTrackIds);
+
+    for (const candidateScene of project.scenes.items) {
+      candidateScene.subtitleTrackIds = candidateScene.subtitleTrackIds.filter(
+        (trackId) => !removedSubtitleTrackIdSet.has(trackId)
+      );
+    }
+
+    project.subtitles.items = project.subtitles.items.filter((track) => !removedSubtitleTrackIdSet.has(track.id));
+  }
+
+  return {
+    deleted: true,
+    strategy,
+    referenceSummary,
+    removedSubtitleTrackIds
+  };
+}
+
 export function ensureString(project: ProjectBundle, textId: string, fallback: string): void {
   if (!(textId in project.strings.values)) {
     project.strings.values[textId] = fallback;
@@ -315,7 +502,7 @@ export function addInventoryItem(project: ProjectBundle): InventoryItem {
   return item;
 }
 
-export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y: number) {
+export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y: number): Hotspot | undefined {
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
   if (!scene) {
     return undefined;
@@ -332,7 +519,7 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
     height: 0.16
   };
   ensureString(project, textId, hotspotName);
-  const hotspot = {
+  const hotspot: Hotspot = {
     id: hotspotId,
     name: hotspotName,
     labelTextId: textId,
@@ -354,6 +541,70 @@ function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string
     assets.find((asset) => asset.id !== deletedAssetId && asset.id !== STARTER_PLACEHOLDER_ASSET_ID)?.id ??
     assets.find((asset) => asset.id !== deletedAssetId)?.id
   );
+}
+
+function resolveSceneSubtitleTrackIdsToDelete(project: ProjectBundle, scene: Scene): string[] {
+  const referencedSubtitleTrackIds = new Set(
+    project.scenes.items
+      .filter((entry) => entry.id !== scene.id)
+      .flatMap((entry) => entry.subtitleTrackIds)
+  );
+
+  return scene.subtitleTrackIds.filter((trackId) => !referencedSubtitleTrackIds.has(trackId));
+}
+
+function countSceneVisitedConditions(conditions: Condition[], sceneId: string): number {
+  return conditions.filter((condition) => condition.type === "sceneVisited" && condition.sceneId === sceneId).length;
+}
+
+function countGoToSceneEffects(effects: Effect[], sceneId: string): number {
+  return effects.filter((effect) => effect.type === "goToScene" && effect.sceneId === sceneId).length;
+}
+
+function rewriteSceneIdList(sceneIds: string[], deletedSceneId: string, strategy: RemoveSceneStrategy): string[] {
+  if (strategy.mode === "cleanup") {
+    return sceneIds.filter((sceneId) => sceneId !== deletedSceneId);
+  }
+
+  return [...new Set(sceneIds.map((sceneId) => (sceneId === deletedSceneId ? strategy.replacementSceneId : sceneId)))];
+}
+
+function rewriteSceneConditions(
+  conditions: Condition[],
+  deletedSceneId: string,
+  strategy: RemoveSceneStrategy
+): Condition[] {
+  return conditions.flatMap((condition) => {
+    if (condition.type !== "sceneVisited" || condition.sceneId !== deletedSceneId) {
+      return [condition];
+    }
+
+    return strategy.mode === "cleanup"
+      ? []
+      : [
+          {
+            ...condition,
+            sceneId: strategy.replacementSceneId
+          }
+        ];
+  });
+}
+
+function rewriteSceneEffects(effects: Effect[], deletedSceneId: string, strategy: RemoveSceneStrategy): Effect[] {
+  return effects.flatMap((effect) => {
+    if (effect.type !== "goToScene" || effect.sceneId !== deletedSceneId) {
+      return [effect];
+    }
+
+    return strategy.mode === "cleanup"
+      ? []
+      : [
+          {
+            ...effect,
+            sceneId: strategy.replacementSceneId
+          }
+        ];
+  });
 }
 
 function getNextHotspotNumber(scene: Scene): number {
