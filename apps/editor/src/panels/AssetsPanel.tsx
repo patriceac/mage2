@@ -22,7 +22,6 @@ interface AssetsPanelProps {
 
 const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
   sceneBackgrounds: [],
-  clipSegments: [],
   subtitleTracks: []
 };
 
@@ -452,10 +451,6 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
     segments.push(`${summary.sceneBackgrounds.length} scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}`);
   }
 
-  if (summary.clipSegments.length > 0) {
-    segments.push(`${summary.clipSegments.length} clip segment${summary.clipSegments.length === 1 ? "" : "s"}`);
-  }
-
   if (summary.subtitleTracks.length > 0) {
     segments.push(`${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"}`);
   }
@@ -483,11 +478,6 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
   if (summary.sceneBackgrounds.length > 0 && fallbackAssetName) {
     consequences.push(`Affected scene backgrounds will switch to "${fallbackAssetName}".`);
   }
-  if (summary.clipSegments.length > 0) {
-    consequences.push(
-      `${summary.clipSegments.length} clip segment${summary.clipSegments.length === 1 ? "" : "s"} will be removed.`
-    );
-  }
   if (summary.subtitleTracks.length > 0) {
     consequences.push(
       `${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"} will be removed.`
@@ -507,13 +497,6 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
             <li>
               {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
                 .map((entry) => entry.sceneName)
-                .join(", ")}`}
-            </li>
-          ) : null}
-          {summary.clipSegments.length > 0 ? (
-            <li>
-              {`Clip segment${summary.clipSegments.length === 1 ? "" : "s"}: ${summary.clipSegments
-                .map((entry) => `${entry.sceneName} / ${entry.segmentName}`)
                 .join(", ")}`}
             </li>
           ) : null}
@@ -579,12 +562,6 @@ function resolveDeleteStatusMessage(
       `Reassigned ${deletion.referenceSummary.sceneBackgrounds.length} scene background${
         deletion.referenceSummary.sceneBackgrounds.length === 1 ? "" : "s"
       } to ${fallbackAssetName}.`
-    );
-  }
-
-  if (deletion.removedSegmentIds.length > 0) {
-    segments.push(
-      `Removed ${deletion.removedSegmentIds.length} clip segment${deletion.removedSegmentIds.length === 1 ? "" : "s"}.`
     );
   }
 

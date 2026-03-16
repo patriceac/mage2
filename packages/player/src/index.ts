@@ -7,6 +7,7 @@ import {
   type Hotspot,
   type InventoryItem,
   type Location,
+  parseSaveState,
   type ProjectBundle,
   type SaveState,
   type Scene,
@@ -50,10 +51,10 @@ export function createPlayerController(
   project: ProjectBundle,
   initialSaveState?: SaveState
 ): PlayerController {
-  const state: SaveState = {
+  const state = parseSaveState({
     ...createInitialSaveState(project),
     ...(initialSaveState ?? {})
-  };
+  });
 
   function getScene(sceneId = state.currentSceneId): Scene {
     const scene = project.scenes.items.find((entry) => entry.id === sceneId);
@@ -167,7 +168,6 @@ export function createPlayerController(
     const nextScene = getScene(sceneId);
     state.currentSceneId = nextScene.id;
     state.currentLocationId = nextScene.locationId;
-    state.currentSegmentId = nextScene.defaultSegmentId;
     state.playheadMs = 0;
 
     if (!state.visitedSceneIds.includes(nextScene.id)) {

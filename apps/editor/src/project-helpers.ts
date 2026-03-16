@@ -1,6 +1,5 @@
 import type {
   Asset,
-  ClipSegment,
   DialogueTree,
   InventoryItem,
   Location,
@@ -14,12 +13,6 @@ export interface AssetReferenceSummary {
     sceneId: string;
     sceneName: string;
   }>;
-  clipSegments: Array<{
-    sceneId: string;
-    sceneName: string;
-    segmentId: string;
-    segmentName: string;
-  }>;
   subtitleTracks: Array<{
     trackId: string;
     sceneIds: string[];
@@ -32,7 +25,6 @@ export interface RemoveAssetFromProjectResult {
   blockedReason?: "asset-not-found" | "background-in-use-without-replacement";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
-  removedSegmentIds: string[];
   removedSubtitleTrackIds: string[];
 }
 
@@ -84,7 +76,6 @@ export function collectAssetReferenceSummary(
   assetId: string
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
-  const clipSegments: AssetReferenceSummary["clipSegments"] = [];
   const subtitleTracksById = new Map<string, AssetReferenceSummary["subtitleTracks"][number]>();
 
   for (const scene of project.scenes.items) {
@@ -93,17 +84,6 @@ export function collectAssetReferenceSummary(
         sceneId: scene.id,
         sceneName: scene.name
       });
-    }
-
-    for (const segment of scene.clipSegments) {
-      if (segment.assetId === assetId) {
-        clipSegments.push({
-          sceneId: scene.id,
-          sceneName: scene.name,
-          segmentId: segment.id,
-          segmentName: segment.name
-        });
-      }
     }
 
     for (const subtitleTrackId of scene.subtitleTrackIds) {
@@ -143,13 +123,12 @@ export function collectAssetReferenceSummary(
 
   return {
     sceneBackgrounds,
-    clipSegments,
     subtitleTracks: [...subtitleTracksById.values()]
   };
 }
 
 export function countAssetReferences(summary: AssetReferenceSummary): number {
-  return summary.sceneBackgrounds.length + summary.clipSegments.length + summary.subtitleTracks.length;
+  return summary.sceneBackgrounds.length + summary.subtitleTracks.length;
 }
 
 export function evaluateAssetDeletion(
@@ -197,13 +176,11 @@ export function removeAssetFromProject(
       blockedReason: deletionEligibility.blockedReason,
       fallbackAssetId: deletionEligibility.fallbackAssetId,
       referenceSummary: deletionEligibility.referenceSummary,
-      removedSegmentIds: [],
       removedSubtitleTrackIds: []
     };
   }
   const { fallbackAssetId, referenceSummary } = deletionEligibility;
 
-  const removedSegmentIds: string[] = [];
   const removedSubtitleTrackIds = referenceSummary.subtitleTracks.map((track) => track.trackId);
   const subtitleTrackIdsToDelete = new Set(removedSubtitleTrackIds);
 
@@ -212,18 +189,6 @@ export function removeAssetFromProject(
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId && fallbackAssetId) {
       scene.backgroundAssetId = fallbackAssetId;
-    }
-
-    const removedSceneSegmentIds = scene.clipSegments
-      .filter((segment) => segment.assetId === assetId)
-      .map((segment) => segment.id);
-    if (removedSceneSegmentIds.length > 0) {
-      removedSegmentIds.push(...removedSceneSegmentIds);
-      scene.clipSegments = scene.clipSegments.filter((segment) => segment.assetId !== assetId);
-    }
-
-    if (scene.defaultSegmentId && !scene.clipSegments.some((segment) => segment.id === scene.defaultSegmentId)) {
-      scene.defaultSegmentId = scene.clipSegments[0]?.id;
     }
 
     if (subtitleTrackIdsToDelete.size > 0) {
@@ -241,7 +206,6 @@ export function removeAssetFromProject(
     deleted: true,
     fallbackAssetId,
     referenceSummary,
-    removedSegmentIds,
     removedSubtitleTrackIds
   };
 }
@@ -280,7 +244,6 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     name: `Scene ${project.scenes.items.length + 1}`,
     backgroundAssetId: project.assets.assets[0]?.id ?? "asset_placeholder",
     backgroundVideoLoop: false,
-    clipSegments: [],
     hotspots: [],
     exitSceneIds: [],
     subtitleTrackIds: [],
@@ -350,29 +313,6 @@ export function addInventoryItem(project: ProjectBundle): InventoryItem {
   ensureString(project, descriptionTextId, `${item.name} description`);
   project.inventory.items.push(item);
   return item;
-}
-
-export function addClipSegment(project: ProjectBundle, sceneId: string): ClipSegment | undefined {
-  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
-  if (!scene) {
-    return undefined;
-  }
-
-  const asset = project.assets.assets.find((entry) => entry.id === scene.backgroundAssetId);
-  const segment: ClipSegment = {
-    id: createId("segment"),
-    name: `Segment ${scene.clipSegments.length + 1}`,
-    assetId: scene.backgroundAssetId,
-    startMs: 0,
-    endMs: asset?.durationMs ?? 30000,
-    loop: false
-  };
-
-  scene.clipSegments.push(segment);
-  if (!scene.defaultSegmentId) {
-    scene.defaultSegmentId = segment.id;
-  }
-  return segment;
 }
 
 export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y: number) {

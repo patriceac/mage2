@@ -22,7 +22,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
   assets: "Manage imported media files and generate proxy assets for faster editing.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
-  scenes: "Edit scene media, hotspots, clip segments, subtitles, and scene-level wiring.",
+  scenes: "Edit scene media, hotspots, subtitles, and scene-level wiring.",
   dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
   inventory: "Create inventory items and edit the string table used across the project.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
@@ -672,16 +672,6 @@ function resolveIssueNavigation(
         };
       }
 
-      const segment = candidateScene.clipSegments.find((entry) => entry.id === entityId);
-      if (segment) {
-        return {
-          label: `${candidateScene.name} / ${segment.name}`,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id
-        };
-      }
-
       if (candidateScene.subtitleTrackIds.includes(entityId)) {
         return {
           label: `${candidateScene.name} subtitles`,
@@ -764,7 +754,6 @@ function resolveIssueNavigation(
         sceneId: project.manifest.startSceneId
       };
     case "SCENE_BACKGROUND_MISSING":
-    case "SEGMENT_ASSET_MISSING":
       return {
         label: "scene media",
         tab: "scenes",
@@ -795,11 +784,8 @@ function getIssueHint(issue: ValidationIssue): string {
   switch (issue.code) {
     case "SCENE_BACKGROUND_MISSING":
       return "Import media in Assets, then assign a background asset in the Scenes tab.";
-    case "SEGMENT_ASSET_MISSING":
-      return "Pick an existing media asset for the clip segment or remove the segment.";
     case "HOTSPOT_TARGET_SCENE_MISSING":
     case "EFFECT_SCENE_MISSING":
-    case "SEGMENT_TARGET_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";
     case "HOTSPOT_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":

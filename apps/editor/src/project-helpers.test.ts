@@ -65,7 +65,7 @@ describe("addHotspot", () => {
 });
 
 describe("collectAssetReferenceSummary", () => {
-  it("reports scene backgrounds, clip segments, and subtitle tracks that use an asset", () => {
+  it("reports scene backgrounds and subtitle tracks that use an asset", () => {
     const project = createDefaultProjectBundle("Asset usage");
     const scene = project.scenes.items[0];
     const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
@@ -73,17 +73,6 @@ describe("collectAssetReferenceSummary", () => {
 
     project.assets.assets = [primaryAsset, secondaryAsset];
     scene.backgroundAssetId = primaryAsset.id;
-    scene.clipSegments = [
-      {
-        id: "segment_intro",
-        name: "Intro clip",
-        assetId: primaryAsset.id,
-        startMs: 0,
-        endMs: 1200,
-        loop: false
-      }
-    ];
-    scene.defaultSegmentId = "segment_intro";
     scene.subtitleTrackIds = ["subtitle_intro"];
     project.subtitles.items = [
       {
@@ -97,14 +86,6 @@ describe("collectAssetReferenceSummary", () => {
 
     expect(summary).toEqual({
       sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
-      clipSegments: [
-        {
-          sceneId: scene.id,
-          sceneName: scene.name,
-          segmentId: "segment_intro",
-          segmentName: "Intro clip"
-        }
-      ],
       subtitleTracks: [
         {
           trackId: "subtitle_intro",
@@ -117,7 +98,7 @@ describe("collectAssetReferenceSummary", () => {
 });
 
 describe("removeAssetFromProject", () => {
-  it("reassigns scene backgrounds and removes dependent segments and subtitle tracks", () => {
+  it("reassigns scene backgrounds and removes dependent subtitle tracks", () => {
     const project = createDefaultProjectBundle("Asset removal");
     const scene = project.scenes.items[0];
     const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
@@ -126,17 +107,6 @@ describe("removeAssetFromProject", () => {
     project.assets.assets = [primaryAsset, secondaryAsset];
     addAssetRoots(project, project.assets.assets);
     scene.backgroundAssetId = primaryAsset.id;
-    scene.clipSegments = [
-      {
-        id: "segment_intro",
-        name: "Intro clip",
-        assetId: primaryAsset.id,
-        startMs: 0,
-        endMs: 1200,
-        loop: false
-      }
-    ];
-    scene.defaultSegmentId = "segment_intro";
     scene.subtitleTrackIds = ["subtitle_intro"];
     project.subtitles.items = [
       {
@@ -150,13 +120,10 @@ describe("removeAssetFromProject", () => {
 
     expect(result.deleted).toBe(true);
     expect(result.fallbackAssetId).toBe(secondaryAsset.id);
-    expect(result.removedSegmentIds).toEqual(["segment_intro"]);
     expect(result.removedSubtitleTrackIds).toEqual(["subtitle_intro"]);
     expect(project.assets.assets.map((asset) => asset.id)).toEqual([secondaryAsset.id]);
     expect(project.manifest.assetRoots).toEqual(["D:\\other"]);
     expect(scene.backgroundAssetId).toBe(secondaryAsset.id);
-    expect(scene.clipSegments).toEqual([]);
-    expect(scene.defaultSegmentId).toBeUndefined();
     expect(scene.subtitleTrackIds).toEqual([]);
     expect(project.subtitles.items).toEqual([]);
   });

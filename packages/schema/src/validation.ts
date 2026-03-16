@@ -15,12 +15,6 @@ export function collectSceneLinks(scene: Scene): string[] {
     links.add(exitSceneId);
   }
 
-  for (const segment of scene.clipSegments) {
-    if (segment.nextSceneId) {
-      links.add(segment.nextSceneId);
-    }
-  }
-
   for (const hotspot of scene.hotspots) {
     if (hotspot.targetSceneId) {
       links.add(hotspot.targetSceneId);
@@ -194,54 +188,6 @@ function validateScene(
       message: `Scene '${scene.id}' references missing asset '${scene.backgroundAssetId}'.`,
       entityId: scene.id
     });
-  }
-
-  if (scene.defaultSegmentId && !scene.clipSegments.some((segment) => segment.id === scene.defaultSegmentId)) {
-    issues.push({
-      level: "error",
-      code: "SCENE_DEFAULT_SEGMENT_MISSING",
-      message: `Scene '${scene.id}' references missing segment '${scene.defaultSegmentId}'.`,
-      entityId: scene.id
-    });
-  }
-
-  for (const segment of scene.clipSegments) {
-    if (!assetIds.has(segment.assetId)) {
-      issues.push({
-        level: "error",
-        code: "SEGMENT_ASSET_MISSING",
-        message: `Segment '${segment.id}' references missing asset '${segment.assetId}'.`,
-        entityId: segment.id
-      });
-    }
-
-    if (segment.endMs <= segment.startMs) {
-      issues.push({
-        level: "error",
-        code: "SEGMENT_RANGE_INVALID",
-        message: `Segment '${segment.id}' has an invalid trim range.`,
-        entityId: segment.id
-      });
-    }
-
-    const asset = project.assets.assets.find((entry) => entry.id === segment.assetId);
-    if (asset?.durationMs !== undefined && segment.endMs > asset.durationMs) {
-      issues.push({
-        level: "error",
-        code: "SEGMENT_RANGE_EXCEEDS_ASSET",
-        message: `Segment '${segment.id}' ends past the asset duration.`,
-        entityId: segment.id
-      });
-    }
-
-    if (segment.nextSceneId && !sceneIds.has(segment.nextSceneId)) {
-      issues.push({
-        level: "error",
-        code: "SEGMENT_TARGET_SCENE_MISSING",
-        message: `Segment '${segment.id}' targets missing scene '${segment.nextSceneId}'.`,
-        entityId: segment.id
-      });
-    }
   }
 
   for (const hotspot of scene.hotspots) {

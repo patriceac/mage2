@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPlayerController } from "@mage2/player";
 import {
+  createInitialSaveState,
+  parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
   resolveRelativeHotspotContentBox,
   type BuildManifest,
   type ExportProjectData,
-  type SaveState,
   parseBuildManifest
 } from "@mage2/schema";
 
@@ -41,25 +42,32 @@ export function App() {
 
         const storageKey = `mage2-runtime-save:${manifest.projectId}`;
         const storedSave = localStorage.getItem(storageKey);
+        const loadedProject = {
+          manifest: parsedContent.manifest,
+          assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
+          locations: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.locations },
+          scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
+          dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
+          inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
+          subtitles: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.subtitleTracks },
+          strings: { schemaVersion: parsedContent.schemaVersion, values: parsedContent.strings }
+        };
+        const normalizedSaveState = storedSave
+          ? parseSaveState({
+              ...createInitialSaveState(loadedProject),
+              ...(JSON.parse(storedSave) as object)
+            })
+          : undefined;
         const nextController = createPlayerController(
-          {
-            manifest: parsedContent.manifest,
-            assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
-            locations: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.locations },
-            scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
-            dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
-            inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-            subtitles: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.subtitleTracks },
-            strings: { schemaVersion: parsedContent.schemaVersion, values: parsedContent.strings }
-          },
-          storedSave ? (JSON.parse(storedSave) as SaveState) : undefined
+          loadedProject,
+          normalizedSaveState
         );
 
         setBuildManifest(manifest);
         setContent(parsedContent);
         setController(nextController);
         setSnapshot(nextController.getSnapshot());
-        setPlayheadMs(storedSave ? ((JSON.parse(storedSave) as SaveState).playheadMs ?? 0) : 0);
+        setPlayheadMs(normalizedSaveState?.playheadMs ?? 0);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : String(error));
       }
@@ -138,21 +146,27 @@ export function App() {
                   return;
                 }
 
+                const loadedProject = {
+                  manifest: content.manifest,
+                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
+                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
+                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+                  subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
+                  strings: { schemaVersion: content.schemaVersion, values: content.strings }
+                };
+                const nextSaveState = parseSaveState({
+                  ...createInitialSaveState(loadedProject),
+                  ...(JSON.parse(storedSave) as object)
+                });
                 const nextController = createPlayerController(
-                  {
-                    manifest: content.manifest,
-                    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-                    locations: { schemaVersion: content.schemaVersion, items: content.locations },
-                    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-                    dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
-                    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                    subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
-                    strings: { schemaVersion: content.schemaVersion, values: content.strings }
-                  },
-                  JSON.parse(storedSave) as SaveState
+                  loadedProject,
+                  nextSaveState
                 );
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
+                setPlayheadMs(nextSaveState.playheadMs ?? 0);
               }}
             >
               Load

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPlayerController } from "@mage2/player";
-import type { ProjectBundle, SaveState } from "@mage2/schema";
+import type { ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
 
 interface PlaytestPanelProps {
@@ -64,11 +64,11 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
                 return;
               }
 
-              const saveState = JSON.parse(raw) as SaveState;
-              const nextController = createPlayerController(project, saveState);
+              const nextController = createPlayerController(project, JSON.parse(raw));
               setController(nextController);
-              setSnapshot(nextController.getSnapshot());
-              setPlayheadMs(saveState.playheadMs ?? 0);
+              const nextSnapshot = nextController.getSnapshot();
+              setSnapshot(nextSnapshot);
+              setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
             }}
           >
             Load Slot

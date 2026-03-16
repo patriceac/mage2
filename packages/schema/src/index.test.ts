@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, migrateProjectBundle, resolveRelativeHotspotContentBox, validateProject } from "./index";
+import {
+  createDefaultProjectBundle,
+  createInitialSaveState,
+  migrateProjectBundle,
+  resolveRelativeHotspotContentBox,
+  validateProject
+} from "./index";
 
 describe("schema migrations", () => {
   it("upgrades a pre-versioned project bundle", () => {
@@ -21,12 +27,12 @@ describe("schema migrations", () => {
       strings: {}
     });
 
-    expect(migrated.manifest.schemaVersion).toBe(1);
-    expect(migrated.assets.schemaVersion).toBe(1);
-    expect(migrated.strings.schemaVersion).toBe(1);
+    expect(migrated.manifest.schemaVersion).toBe(2);
+    expect(migrated.assets.schemaVersion).toBe(2);
+    expect(migrated.strings.schemaVersion).toBe(2);
   });
 
-  it("defaults scene background video looping to false when older data omits it", () => {
+  it("drops legacy segment fields while defaulting scene background video looping", () => {
     const migrated = migrateProjectBundle({
       manifest: {
         schemaVersion: 1,
@@ -51,7 +57,25 @@ describe("schema migrations", () => {
       },
       scenes: {
         schemaVersion: 1,
-        items: [{ id: "scene_intro", locationId: "location_intro", name: "Opening", backgroundAssetId: "asset_placeholder" }]
+        items: [
+          {
+            id: "scene_intro",
+            locationId: "location_intro",
+            name: "Opening",
+            backgroundAssetId: "asset_placeholder",
+            defaultSegmentId: "segment_intro",
+            clipSegments: [
+              {
+                id: "segment_intro",
+                name: "Intro",
+                assetId: "asset_placeholder",
+                startMs: 0,
+                endMs: 1000,
+                nextSceneId: "scene_later"
+              }
+            ]
+          }
+        ]
       },
       dialogues: { schemaVersion: 1, items: [] },
       inventory: { schemaVersion: 1, items: [] },
@@ -60,6 +84,16 @@ describe("schema migrations", () => {
     });
 
     expect(migrated.scenes.items[0]?.backgroundVideoLoop).toBe(false);
+    expect(migrated.scenes.items[0]).not.toHaveProperty("defaultSegmentId");
+    expect(migrated.scenes.items[0]).not.toHaveProperty("clipSegments");
+  });
+
+  it("creates starter projects and save states without segment fields", () => {
+    const project = createDefaultProjectBundle();
+
+    expect(project.scenes.items[0]).not.toHaveProperty("defaultSegmentId");
+    expect(project.scenes.items[0]).not.toHaveProperty("clipSegments");
+    expect(createInitialSaveState(project)).not.toHaveProperty("currentSegmentId");
   });
 });
 
@@ -90,6 +124,90 @@ describe("project validation", () => {
     ]);
     expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
     expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+  });
+
+  it("treats legacy segment links as removed during reachability checks", () => {
+    const project = migrateProjectBundle({
+      manifest: {
+        schemaVersion: 1,
+        projectId: "legacy",
+        projectName: "Legacy",
+        defaultLanguage: "en",
+        engineVersion: "0.0.1",
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro",
+        buildSettings: {
+          outputDir: "build",
+          includeSourceMap: false
+        }
+      },
+      assets: {
+        schemaVersion: 1,
+        assets: [
+          {
+            id: "asset_placeholder",
+            kind: "image",
+            name: "starter.png",
+            sourcePath: "D:\\starter.png",
+            importedAt: "2026-03-15T00:00:00.000Z"
+          }
+        ]
+      },
+      locations: {
+        schemaVersion: 1,
+        items: [
+          {
+            id: "location_intro",
+            name: "Intro",
+            x: 0,
+            y: 0,
+            sceneIds: ["scene_intro", "scene_two"]
+          }
+        ]
+      },
+      scenes: {
+        schemaVersion: 1,
+        items: [
+          {
+            id: "scene_intro",
+            locationId: "location_intro",
+            name: "Opening",
+            backgroundAssetId: "asset_placeholder",
+            clipSegments: [
+              {
+                id: "segment_intro",
+                name: "Intro",
+                assetId: "asset_placeholder",
+                startMs: 0,
+                endMs: 1000,
+                nextSceneId: "scene_two"
+              }
+            ]
+          },
+          {
+            id: "scene_two",
+            locationId: "location_intro",
+            name: "Second",
+            backgroundAssetId: "asset_placeholder"
+          }
+        ]
+      },
+      dialogues: { schemaVersion: 1, items: [] },
+      inventory: { schemaVersion: 1, items: [] },
+      subtitles: { schemaVersion: 1, items: [] },
+      strings: { schemaVersion: 1, values: {} }
+    });
+
+    const report = validateProject(project);
+
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SCENE_UNREACHABLE",
+          entityId: "scene_two"
+        })
+      ])
+    );
   });
 });
 

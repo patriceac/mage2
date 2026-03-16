@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio", "subtitle"]);
 
@@ -58,16 +58,6 @@ export const SubtitleTrackSchema = z.object({
   cues: z.array(SubtitleCueSchema)
 });
 
-export const ClipSegmentSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  assetId: z.string().min(1),
-  startMs: z.number().nonnegative(),
-  endMs: z.number().positive(),
-  loop: z.boolean().default(false),
-  nextSceneId: z.string().optional()
-});
-
 export const HotspotPointSchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1)
@@ -98,8 +88,6 @@ export const SceneSchema = z.object({
   name: z.string().min(1),
   backgroundAssetId: z.string().min(1),
   backgroundVideoLoop: z.boolean().default(false),
-  defaultSegmentId: z.string().optional(),
-  clipSegments: z.array(ClipSegmentSchema).default([]),
   hotspots: z.array(HotspotSchema).default([]),
   exitSceneIds: z.array(z.string()).default([]),
   subtitleTrackIds: z.array(z.string()).default([]),
@@ -190,7 +178,6 @@ export const SaveStateSchema = z.object({
   visitedSceneIds: z.array(z.string()).default([]),
   activeDialogueTreeId: z.string().optional(),
   activeDialogueNodeId: z.string().optional(),
-  currentSegmentId: z.string().optional(),
   playheadMs: z.number().nonnegative().default(0)
 });
 
@@ -257,7 +244,6 @@ export type Condition = z.infer<typeof ConditionSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
 export type SubtitleCue = z.infer<typeof SubtitleCueSchema>;
 export type SubtitleTrack = z.infer<typeof SubtitleTrackSchema>;
-export type ClipSegment = z.infer<typeof ClipSegmentSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
 export type Hotspot = z.infer<typeof HotspotSchema>;
 export type Scene = z.infer<typeof SceneSchema>;

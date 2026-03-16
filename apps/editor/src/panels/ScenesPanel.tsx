@@ -1,6 +1,6 @@
 import { MediaSurface } from "../MediaSurface";
 import type { ProjectBundle } from "@mage2/schema";
-import { addClipSegment, addHotspot, createId, ensureString } from "../project-helpers";
+import { addHotspot, createId, ensureString } from "../project-helpers";
 import { applyHotspotBounds, type HotspotGeometry } from "../hotspot-geometry";
 import { useEditorStore } from "../store";
 
@@ -39,20 +39,6 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
       target.width = geometry.width;
       target.height = geometry.height;
       target.polygon = geometry.polygon;
-    });
-  }
-
-  function deleteClipSegment(segmentId: string) {
-    mutateProject((draft) => {
-      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-      if (!scene) {
-        return;
-      }
-
-      scene.clipSegments = scene.clipSegments.filter((entry) => entry.id !== segmentId);
-      if (scene.defaultSegmentId === segmentId) {
-        scene.defaultSegmentId = scene.clipSegments[0]?.id;
-      }
     });
   }
 
@@ -123,17 +109,6 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
           </div>
 
           <div className="stack-inline scenes-panel__actions">
-            <button
-              type="button"
-              title="Add a timed clip segment marker to the current scene for branch points or media slicing."
-              onClick={() =>
-                mutateProject((draft) => {
-                  addClipSegment(draft, currentScene.id);
-                })
-              }
-            >
-              Add Segment
-            </button>
             <button
               type="button"
               className="button-danger"
@@ -249,70 +224,6 @@ export function ScenesPanel({ project, mutateProject }: ScenesPanelProps) {
         </label>
 
         <div className="split-columns">
-          <section>
-            <h4>Clip Segments</h4>
-            {currentScene.clipSegments.map((segment) => (
-              <div key={segment.id} className="list-card list-card--compact">
-                <div className="panel__toolbar">
-                  <input
-                    value={segment.name}
-                    title="Short editor label for this clip segment."
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = draft.scenes.items
-                          .find((entry) => entry.id === currentScene.id)
-                          ?.clipSegments.find((entry) => entry.id === segment.id);
-                        if (target) {
-                          target.name = event.target.value;
-                        }
-                      })
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="button-danger"
-                    title="Delete this clip segment from the current scene."
-                    onClick={() => deleteClipSegment(segment.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-                <div className="stack-inline">
-                  <input
-                    type="number"
-                    value={segment.startMs}
-                    title="Start time in milliseconds for this clip segment."
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = draft.scenes.items
-                          .find((entry) => entry.id === currentScene.id)
-                          ?.clipSegments.find((entry) => entry.id === segment.id);
-                        if (target) {
-                          target.startMs = Number(event.target.value);
-                        }
-                      })
-                    }
-                  />
-                  <input
-                    type="number"
-                    value={segment.endMs}
-                    title="End time in milliseconds for this clip segment."
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = draft.scenes.items
-                          .find((entry) => entry.id === currentScene.id)
-                          ?.clipSegments.find((entry) => entry.id === segment.id);
-                        if (target) {
-                          target.endMs = Number(event.target.value);
-                        }
-                      })
-                    }
-                  />
-                </div>
-              </div>
-            ))}
-          </section>
-
           <section>
             <h4>Scene Wiring</h4>
             <label title="Comma-separated scene IDs that this scene can lead to.">
