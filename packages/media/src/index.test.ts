@@ -7,7 +7,8 @@ import {
   deleteManagedAssetFiles,
   hydrateAssetSha256s,
   importAssetsToProject,
-  importAssetToProject
+  importAssetToProject,
+  resolvePackagedExecutablePath
 } from "./index";
 
 const tempDirectories: string[] = [];
@@ -99,6 +100,51 @@ describe("hydrateAssetSha256s", () => {
 
     expect(updated).toBe(true);
     expect(assets[0]?.sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+});
+
+describe("resolvePackagedExecutablePath", () => {
+  it("rewrites app.asar executable paths to the unpacked location when present", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const unpackedBinaryPath = path.join(
+      workspaceDir,
+      "resources",
+      "app.asar.unpacked",
+      "node_modules",
+      "@ffmpeg-installer",
+      "win32-x64",
+      "ffmpeg.exe"
+    );
+    await mkdir(path.dirname(unpackedBinaryPath), { recursive: true });
+    await writeFile(unpackedBinaryPath, "binary", "utf8");
+
+    const asarBinaryPath = path.join(
+      workspaceDir,
+      "resources",
+      "app.asar",
+      "node_modules",
+      "@ffmpeg-installer",
+      "win32-x64",
+      "ffmpeg.exe"
+    );
+
+    expect(resolvePackagedExecutablePath(asarBinaryPath)).toBe(unpackedBinaryPath);
+  });
+
+  it("leaves executable paths unchanged when no unpacked copy exists", () => {
+    const asarBinaryPath = path.join(
+      "D:\\",
+      "Apps",
+      "MAGE2 Editor",
+      "resources",
+      "app.asar",
+      "node_modules",
+      "@ffmpeg-installer",
+      "win32-x64",
+      "ffmpeg.exe"
+    );
+
+    expect(resolvePackagedExecutablePath(asarBinaryPath)).toBe(asarBinaryPath);
   });
 });
 

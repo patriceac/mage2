@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { cp, mkdir, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -29,12 +29,21 @@ const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gi
 const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"]);
 const SUBTITLE_EXTENSIONS = new Set([".srt", ".vtt"]);
 
+export function resolvePackagedExecutablePath(candidatePath: string): string {
+  const unpackedPath = candidatePath.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
+  if (unpackedPath !== candidatePath && existsSync(unpackedPath)) {
+    return unpackedPath;
+  }
+
+  return candidatePath;
+}
+
 export function getFfmpegPath(): string {
-  return ffmpeg.path;
+  return resolvePackagedExecutablePath(ffmpeg.path);
 }
 
 export function getFfprobePath(): string {
-  return ffprobe.path;
+  return resolvePackagedExecutablePath(ffprobe.path);
 }
 
 export function detectAssetKind(filePath: string): AssetKind {
