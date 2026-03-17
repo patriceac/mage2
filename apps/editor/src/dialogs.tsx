@@ -1039,9 +1039,6 @@ function resolveSceneReferenceRows(summary: SceneReferenceSummary): string[] {
   if (summary.locationReferenceCount > 0) {
     rows.push(`${summary.locationReferenceCount} location scene list reference${summary.locationReferenceCount === 1 ? "" : "s"}`);
   }
-  if (summary.exitSceneReferenceCount > 0) {
-    rows.push(`${summary.exitSceneReferenceCount} exit scene reference${summary.exitSceneReferenceCount === 1 ? "" : "s"}`);
-  }
   if (summary.hotspotTargetReferenceCount > 0) {
     rows.push(
       `${summary.hotspotTargetReferenceCount} hotspot target reference${

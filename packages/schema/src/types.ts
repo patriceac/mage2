@@ -88,7 +88,6 @@ export const SceneSchema = z.object({
   backgroundAssetId: z.string().min(1),
   backgroundVideoLoop: z.boolean().default(false),
   hotspots: z.array(HotspotSchema).default([]),
-  exitSceneIds: z.array(z.string()).default([]),
   subtitleTracks: z.array(SubtitleTrackSchema).default([]),
   dialogueTreeIds: z.array(z.string()).default([]),
   overlayTextId: z.string().optional(),

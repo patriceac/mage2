@@ -36,7 +36,6 @@ export interface AssetDeletionEligibility {
 export interface SceneReferenceSummary {
   isStartScene: boolean;
   locationReferenceCount: number;
-  exitSceneReferenceCount: number;
   hotspotTargetReferenceCount: number;
   sceneVisitedConditionCount: number;
   goToSceneEffectCount: number;
@@ -193,7 +192,6 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
   const summary: SceneReferenceSummary = {
     isStartScene: project.manifest.startSceneId === sceneId,
     locationReferenceCount: 0,
-    exitSceneReferenceCount: 0,
     hotspotTargetReferenceCount: 0,
     sceneVisitedConditionCount: 0,
     goToSceneEffectCount: 0,
@@ -212,8 +210,6 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
     if (candidateScene.id === sceneId) {
       continue;
     }
-
-    summary.exitSceneReferenceCount += candidateScene.exitSceneIds.filter((entry) => entry === sceneId).length;
 
     for (const hotspot of candidateScene.hotspots) {
       if (hotspot.targetSceneId === sceneId) {
@@ -246,7 +242,6 @@ export function countSceneReferences(summary: SceneReferenceSummary): number {
   return (
     Number(summary.isStartScene) +
     summary.locationReferenceCount +
-    summary.exitSceneReferenceCount +
     summary.hotspotTargetReferenceCount +
     summary.sceneVisitedConditionCount +
     summary.goToSceneEffectCount
@@ -299,8 +294,6 @@ export function removeSceneFromProject(
   }
 
   for (const candidateScene of project.scenes.items) {
-    candidateScene.exitSceneIds = rewriteSceneIdList(candidateScene.exitSceneIds, sceneId, strategy);
-
     for (const hotspot of candidateScene.hotspots) {
       if (hotspot.targetSceneId === sceneId) {
         hotspot.targetSceneId = strategy.mode === "rewire" ? strategy.replacementSceneId : undefined;
@@ -368,7 +361,6 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     backgroundAssetId: project.assets.assets[0]?.id ?? "asset_placeholder",
     backgroundVideoLoop: false,
     hotspots: [],
-    exitSceneIds: [],
     subtitleTracks: [],
     dialogueTreeIds: [],
     overlayTextId,
@@ -485,14 +477,6 @@ function countSceneVisitedConditions(conditions: Condition[], sceneId: string): 
 
 function countGoToSceneEffects(effects: Effect[], sceneId: string): number {
   return effects.filter((effect) => effect.type === "goToScene" && effect.sceneId === sceneId).length;
-}
-
-function rewriteSceneIdList(sceneIds: string[], deletedSceneId: string, strategy: RemoveSceneStrategy): string[] {
-  if (strategy.mode === "cleanup") {
-    return sceneIds.filter((sceneId) => sceneId !== deletedSceneId);
-  }
-
-  return [...new Set(sceneIds.map((sceneId) => (sceneId === deletedSceneId ? strategy.replacementSceneId : sceneId)))];
 }
 
 function rewriteSceneConditions(

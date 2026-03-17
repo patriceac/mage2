@@ -164,7 +164,6 @@ describe("removeSceneFromProject", () => {
     sourceScene.subtitleTracks = [createSubtitleTrack("subtitle_source")];
     const hotspot = addHotspot(project, sourceScene.id, 0.25, 0.25)!;
 
-    sourceScene.exitSceneIds = [deletedScene.id];
     hotspot.targetSceneId = deletedScene.id;
     hotspot.conditions = [
       { type: "always" },
@@ -221,13 +220,12 @@ describe("removeSceneFromProject", () => {
     expect(summary).toMatchObject({
       isStartScene: true,
       locationReferenceCount: 1,
-      exitSceneReferenceCount: 1,
       hotspotTargetReferenceCount: 1,
       sceneVisitedConditionCount: 2,
       goToSceneEffectCount: 5,
       removedSubtitleTrackIds: ["subtitle_deleted", "subtitle_deleted_two"]
     });
-    expect(countSceneReferences(summary)).toBe(11);
+    expect(countSceneReferences(summary)).toBe(10);
 
     const result = removeSceneFromProject(project, deletedScene.id, { mode: "cleanup" });
 
@@ -237,7 +235,6 @@ describe("removeSceneFromProject", () => {
     expect(project.locations.items[0].sceneIds).toEqual([sourceScene.id]);
     expect(project.manifest.startSceneId).toBe(deletedScene.id);
     expect(project.manifest.startLocationId).toBe(deletedScene.locationId);
-    expect(sourceScene.exitSceneIds).toEqual([]);
     expect(sourceScene.onEnterEffects).toEqual([{ type: "setFlag", flag: "entered", value: true }]);
     expect(sourceScene.onExitEffects).toEqual([{ type: "setFlag", flag: "exited", value: true }]);
     expect(sourceScene.hotspots[0].targetSceneId).toBeUndefined();
@@ -266,7 +263,6 @@ describe("removeSceneFromProject", () => {
     project.manifest.startSceneId = deletedScene.id;
     project.manifest.startLocationId = deletedScene.locationId;
 
-    sourceScene.exitSceneIds = [deletedScene.id];
     hotspot.targetSceneId = deletedScene.id;
     hotspot.conditions = [{ type: "sceneVisited", sceneId: deletedScene.id }];
     hotspot.effects = [{ type: "goToScene", sceneId: deletedScene.id }];
@@ -319,7 +315,6 @@ describe("removeSceneFromProject", () => {
     expect(project.locations.items.find((location) => location.id === replacementScene.locationId)?.sceneIds).toEqual([
       replacementScene.id
     ]);
-    expect(sourceScene.exitSceneIds).toEqual([replacementScene.id]);
     expect(sourceScene.onEnterEffects).toEqual([{ type: "goToScene", sceneId: replacementScene.id }]);
     expect(sourceScene.onExitEffects).toEqual([{ type: "goToScene", sceneId: replacementScene.id }]);
     expect(sourceScene.hotspots[0].targetSceneId).toBe(replacementScene.id);

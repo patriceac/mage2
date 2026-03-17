@@ -413,23 +413,6 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         <div className="split-columns">
           <section>
             <h4>Scene Wiring</h4>
-            <label title="Comma-separated scene IDs that this scene can lead to.">
-              Exit Scene IDs
-              <input
-                value={currentScene.exitSceneIds.join(", ")}
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                    if (scene) {
-                      scene.exitSceneIds = event.target.value
-                        .split(",")
-                        .map((value) => value.trim())
-                        .filter(Boolean);
-                    }
-                  })
-                }
-              />
-            </label>
             <JsonField
               label="On Enter Effects JSON"
               value={JSON.stringify(currentScene.onEnterEffects, null, 2)}

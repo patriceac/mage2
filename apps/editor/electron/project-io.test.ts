@@ -268,7 +268,6 @@ describe("subtitle project persistence", () => {
             backgroundAssetId: "asset_visual",
             backgroundVideoLoop: false,
             hotspots: [],
-            exitSceneIds: [],
             subtitleTrackIds: ["subtitle_intro"],
             dialogueTreeIds: [],
             onEnterEffects: [],

@@ -100,7 +100,6 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           backgroundAssetId: "asset_placeholder",
           backgroundVideoLoop: false,
           hotspots: [createStarterHotspot()],
-          exitSceneIds: [],
           subtitleTracks: [],
           dialogueTreeIds: [],
           overlayTextId: "text.scene.intro",
