@@ -9,7 +9,7 @@ import type {
   ProjectBundle,
   Scene
 } from "@mage2/schema";
-import { createRectangleHotspotPolygon } from "@mage2/schema";
+import { createRectangleHotspotPolygon, resolveHotspotBounds } from "@mage2/schema";
 
 export interface AssetReferenceSummary {
   sceneBackgrounds: Array<{
@@ -60,6 +60,11 @@ export interface RemoveSceneFromProjectResult {
 }
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
+const DEFAULT_HOTSPOT_WIDTH = 0.16;
+const DEFAULT_HOTSPOT_HEIGHT = 0.16;
+const HOTSPOT_AUTO_PLACEMENT_STEP = 0.04;
+const HOTSPOT_AUTO_PLACEMENT_PADDING = 0.04;
+const HOTSPOT_SCORE_EPSILON = 0.000001;
 
 export function cloneProject(project: ProjectBundle): ProjectBundle {
   return structuredClone(project);
@@ -436,32 +441,19 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
     return undefined;
   }
 
-  const nextHotspotNumber = getNextHotspotNumber(scene);
-  const hotspotId = createId("hotspot");
-  const textId = `text.${hotspotId}.label`;
-  const hotspotName = `Hotspot ${nextHotspotNumber}`;
-  const bounds = {
-    x: clamp(x - 0.08, 0, 0.9),
-    y: clamp(y - 0.08, 0, 0.9),
-    width: 0.16,
-    height: 0.16
-  };
-  ensureString(project, textId, hotspotName);
-  const hotspot: Hotspot = {
-    id: hotspotId,
-    name: hotspotName,
-    labelTextId: textId,
-    ...bounds,
-    polygon: createRectangleHotspotPolygon(bounds),
-    startMs: 0,
-    endMs: 30000,
-    requiredItemIds: [],
-    conditions: [{ type: "always" as const }],
-    effects: []
-  };
+  return createHotspot(project, scene, resolveHotspotBoundsFromCenter(x, y));
+}
 
-  scene.hotspots.push(hotspot);
-  return hotspot;
+export function addHotspotAtBestAvailablePosition(
+  project: ProjectBundle,
+  sceneId: string
+): Hotspot | undefined {
+  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+  if (!scene) {
+    return undefined;
+  }
+
+  return createHotspot(project, scene, findBestHotspotBounds(scene.hotspots));
 }
 
 function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string | undefined {
@@ -530,6 +522,226 @@ function getNextHotspotNumber(scene: Scene): number {
   return highestHotspotNumber + 1;
 }
 
+function createHotspot(
+  project: ProjectBundle,
+  scene: Scene,
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+): Hotspot {
+  const nextHotspotNumber = getNextHotspotNumber(scene);
+  const hotspotId = createId("hotspot");
+  const textId = `text.${hotspotId}.label`;
+  const hotspotName = `Hotspot ${nextHotspotNumber}`;
+
+  ensureString(project, textId, hotspotName);
+  const hotspot: Hotspot = {
+    id: hotspotId,
+    name: hotspotName,
+    labelTextId: textId,
+    ...bounds,
+    polygon: createRectangleHotspotPolygon(bounds),
+    startMs: 0,
+    endMs: 30000,
+    requiredItemIds: [],
+    conditions: [{ type: "always" as const }],
+    effects: []
+  };
+
+  scene.hotspots.push(hotspot);
+  return hotspot;
+}
+
+function resolveHotspotBoundsFromCenter(centerX: number, centerY: number) {
+  return {
+    x: clamp(centerX - DEFAULT_HOTSPOT_WIDTH / 2, 0, 1 - DEFAULT_HOTSPOT_WIDTH),
+    y: clamp(centerY - DEFAULT_HOTSPOT_HEIGHT / 2, 0, 1 - DEFAULT_HOTSPOT_HEIGHT),
+    width: DEFAULT_HOTSPOT_WIDTH,
+    height: DEFAULT_HOTSPOT_HEIGHT
+  };
+}
+
+function findBestHotspotBounds(hotspots: Hotspot[]) {
+  const occupiedBounds = hotspots.map((hotspot) => resolveHotspotBounds(hotspot));
+  let bestCandidate:
+    | {
+        bounds: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        };
+        score: HotspotPlacementScore;
+      }
+    | undefined;
+
+  for (const centerX of createHotspotCandidateCenters(DEFAULT_HOTSPOT_WIDTH)) {
+    for (const centerY of createHotspotCandidateCenters(DEFAULT_HOTSPOT_HEIGHT)) {
+      const bounds = resolveHotspotBoundsFromCenter(centerX, centerY);
+      const score = scoreHotspotPlacement(bounds, occupiedBounds);
+
+      if (!bestCandidate || compareHotspotPlacementScores(score, bestCandidate.score) < 0) {
+        bestCandidate = { bounds, score };
+      }
+    }
+  }
+
+  return bestCandidate?.bounds ?? resolveHotspotBoundsFromCenter(0.5, 0.5);
+}
+
+function createHotspotCandidateCenters(size: number): number[] {
+  const minimum = size / 2;
+  const maximum = 1 - size / 2;
+  const centers = new Set<number>([minimum, 0.5, maximum]);
+
+  for (let value = minimum; value <= maximum + HOTSPOT_SCORE_EPSILON; value += HOTSPOT_AUTO_PLACEMENT_STEP) {
+    centers.add(Number(value.toFixed(4)));
+  }
+
+  return [...centers]
+    .filter((value) => value >= minimum - HOTSPOT_SCORE_EPSILON && value <= maximum + HOTSPOT_SCORE_EPSILON)
+    .sort((left, right) => left - right);
+}
+
+function scoreHotspotPlacement(
+  candidate: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  occupiedBounds: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>
+): HotspotPlacementScore {
+  let overlapArea = 0;
+  let paddedOverlapArea = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const occupied of occupiedBounds) {
+    overlapArea += getRectangleOverlapArea(candidate, occupied);
+    paddedOverlapArea += getRectangleOverlapArea(candidate, expandRectangle(occupied, HOTSPOT_AUTO_PLACEMENT_PADDING));
+    nearestDistance = Math.min(nearestDistance, getRectangleDistance(candidate, occupied));
+  }
+
+  return {
+    overlapArea,
+    paddedOverlapArea,
+    nearestDistance,
+    centerDistance: Math.hypot(candidate.x + candidate.width / 2 - 0.5, candidate.y + candidate.height / 2 - 0.5),
+    y: candidate.y,
+    x: candidate.x
+  };
+}
+
+function compareHotspotPlacementScores(left: HotspotPlacementScore, right: HotspotPlacementScore): number {
+  return (
+    comparePlacementValue(left.overlapArea, right.overlapArea, "lower") ||
+    comparePlacementValue(left.paddedOverlapArea, right.paddedOverlapArea, "lower") ||
+    comparePlacementValue(left.nearestDistance, right.nearestDistance, "higher") ||
+    comparePlacementValue(left.centerDistance, right.centerDistance, "lower") ||
+    comparePlacementValue(left.y, right.y, "lower") ||
+    comparePlacementValue(left.x, right.x, "lower")
+  );
+}
+
+function comparePlacementValue(left: number, right: number, preference: "lower" | "higher"): number {
+  if (left === right) {
+    return 0;
+  }
+
+  if (Math.abs(left - right) <= HOTSPOT_SCORE_EPSILON) {
+    return 0;
+  }
+
+  if (preference === "lower") {
+    return left < right ? -1 : 1;
+  }
+
+  return left > right ? -1 : 1;
+}
+
+function getRectangleOverlapArea(
+  left: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  right: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+): number {
+  const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+  const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
+
+  if (overlapWidth <= 0 || overlapHeight <= 0) {
+    return 0;
+  }
+
+  return overlapWidth * overlapHeight;
+}
+
+function getRectangleDistance(
+  left: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  right: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+): number {
+  const horizontalGap = Math.max(0, left.x - (right.x + right.width), right.x - (left.x + left.width));
+  const verticalGap = Math.max(0, left.y - (right.y + right.height), right.y - (left.y + left.height));
+
+  return Math.hypot(horizontalGap, verticalGap);
+}
+
+function expandRectangle(
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  padding: number
+) {
+  const nextLeft = clamp(bounds.x - padding, 0, 1);
+  const nextTop = clamp(bounds.y - padding, 0, 1);
+  const nextRight = clamp(bounds.x + bounds.width + padding, 0, 1);
+  const nextBottom = clamp(bounds.y + bounds.height + padding, 0, 1);
+
+  return {
+    x: nextLeft,
+    y: nextTop,
+    width: Math.max(0, nextRight - nextLeft),
+    height: Math.max(0, nextBottom - nextTop)
+  };
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+interface HotspotPlacementScore {
+  overlapArea: number;
+  paddedOverlapArea: number;
+  nearestDistance: number;
+  centerDistance: number;
+  y: number;
+  x: number;
 }

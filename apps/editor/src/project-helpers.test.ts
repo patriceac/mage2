@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, type Asset, type SubtitleTrack } from "@mage2/schema";
+import { createDefaultProjectBundle, resolveHotspotBounds, type Asset, type SubtitleTrack } from "@mage2/schema";
 import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
   addScene,
   addAssetRoots,
   addHotspot,
+  addHotspotAtBestAvailablePosition,
   collectSceneReferenceSummary,
   countSceneReferences,
   collectAssetReferenceSummary,
@@ -66,6 +67,43 @@ describe("addHotspot", () => {
       "Hotspot 3",
       "Hotspot 4"
     ]);
+  });
+
+  it("keeps hotspots inside the scene when they are created near an edge", () => {
+    const project = createDefaultProjectBundle("Hotspot edge placement");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspot(project, scene.id, 0.99, 0.99);
+
+    expect(hotspot?.x).toBeCloseTo(0.84);
+    expect(hotspot?.y).toBeCloseTo(0.84);
+    expect((hotspot?.x ?? 0) + (hotspot?.width ?? 0)).toBeLessThanOrEqual(1);
+    expect((hotspot?.y ?? 0) + (hotspot?.height ?? 0)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("addHotspotAtBestAvailablePosition", () => {
+  it("starts new scenes with a centered hotspot placement", () => {
+    const project = createDefaultProjectBundle("Hotspot auto placement");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspotAtBestAvailablePosition(project, scene.id);
+
+    expect(hotspot?.x).toBeCloseTo(0.42);
+    expect(hotspot?.y).toBeCloseTo(0.42);
+  });
+
+  it("avoids overlapping existing hotspots when open space is available", () => {
+    const project = createDefaultProjectBundle("Hotspot overlap avoidance");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const existing = addHotspot(project, scene.id, 0.5, 0.5)!;
+    const created = addHotspotAtBestAvailablePosition(project, scene.id)!;
+
+    expect(getOverlapArea(resolveHotspotBounds(existing), resolveHotspotBounds(created))).toBe(0);
   });
 });
 
@@ -354,4 +392,28 @@ function createSubtitleTrack(id: string): SubtitleTrack {
       }
     ]
   };
+}
+
+function getOverlapArea(
+  left: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  right: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+): number {
+  const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+  const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
+
+  if (overlapWidth <= 0 || overlapHeight <= 0) {
+    return 0;
+  }
+
+  return overlapWidth * overlapHeight;
 }

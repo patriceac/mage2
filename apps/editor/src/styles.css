@@ -360,6 +360,11 @@ label {
   align-self: end;
 }
 
+.scenes-panel__hotspot-actions {
+  align-self: start;
+  flex-wrap: wrap;
+}
+
 .scene-video-loop-toggle {
   display: inline-grid;
   grid-template-columns: 1.4rem auto;

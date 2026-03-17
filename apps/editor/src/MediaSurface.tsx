@@ -14,7 +14,7 @@ interface MediaSurfaceProps {
   hotspots?: Hotspot[];
   strings?: Record<string, string>;
   loopVideo?: boolean;
-  onSurfaceClick?: (normalizedX: number, normalizedY: number) => void;
+  onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
   onHotspotClick?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
   selectedHotspotId?: string;
@@ -129,7 +129,11 @@ export function MediaSurface({
     }
 
     const bounds = event.currentTarget.getBoundingClientRect();
-    onSurfaceClick((event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
+    onSurfaceClick({
+      normalizedX: (event.clientX - bounds.left) / bounds.width,
+      normalizedY: (event.clientY - bounds.top) / bounds.height,
+      createRequested: event.ctrlKey || event.metaKey
+    });
   };
 
   const editableHotspots = Boolean(onHotspotChange);
@@ -229,8 +233,8 @@ export function MediaSurface({
       title={
         onSurfaceClick
           ? editableHotspots
-            ? "Scene preview. Click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
-            : "Scene preview. Click anywhere on the media to add a hotspot at that normalized position."
+            ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
+            : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position."
           : "Scene preview with active hotspots overlaid on the selected media."
       }
     >
@@ -295,6 +299,12 @@ export function MediaSurface({
       </div>
     </div>
   );
+}
+
+interface MediaSurfaceClickEvent {
+  normalizedX: number;
+  normalizedY: number;
+  createRequested: boolean;
 }
 
 interface HotspotButtonProps {

@@ -5,6 +5,7 @@ import { SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
   addHotspot,
+  addHotspotAtBestAvailablePosition,
   cloneProject,
   collectSceneReferenceSummary,
   createId,
@@ -165,6 +166,17 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
     });
   }
 
+  function createHotspotAtBestAvailablePosition() {
+    if (!currentSceneId) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const hotspot = addHotspotAtBestAvailablePosition(draft, currentSceneId);
+      setSelectedHotspotId(hotspot?.id);
+    });
+  }
+
   useEffect(() => {
     if (!currentSceneId || !selectedHotspotId) {
       return;
@@ -306,22 +318,6 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
             >
               Delete Scene
             </button>
-            <button
-              type="button"
-              className="button-danger"
-              disabled={!selectedHotspotId}
-              title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
-              onClick={() => deleteHotspot(selectedHotspotId)}
-            >
-              Delete Hotspot
-            </button>
-            <button
-              type="button"
-              title="Deselect the current hotspot so you can inspect the scene without an active hotspot selection."
-              onClick={() => setSelectedHotspotId(undefined)}
-            >
-              Clear Hotspot
-            </button>
           </div>
         </div>
 
@@ -367,12 +363,17 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
           hotspots={currentScene.hotspots}
           strings={project.strings.values}
           selectedHotspotId={selectedHotspotId}
-          onSurfaceClick={(x, y) =>
+          onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
+            if (!createRequested) {
+              setSelectedHotspotId(undefined);
+              return;
+            }
+
             mutateProject((draft) => {
-              const hotspot = addHotspot(draft, currentScene.id, x, y);
+              const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
               setSelectedHotspotId(hotspot?.id);
-            })
-          }
+            });
+          }}
           onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
           onHotspotChange={updateHotspotGeometry}
         />
@@ -397,6 +398,32 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
             <span>Loop background video indefinitely</span>
           </label>
         ) : null}
+
+        <div className="stack-inline scenes-panel__hotspot-actions">
+          <button
+            type="button"
+            title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
+            onClick={createHotspotAtBestAvailablePosition}
+          >
+            Create Hotspot
+          </button>
+          <button
+            type="button"
+            className="button-danger"
+            disabled={!selectedHotspotId}
+            title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
+            onClick={() => deleteHotspot(selectedHotspotId)}
+          >
+            Delete Hotspot
+          </button>
+          <button
+            type="button"
+            title="Deselect the current hotspot so you can inspect the scene without an active hotspot selection."
+            onClick={() => setSelectedHotspotId(undefined)}
+          >
+            Clear Hotspot
+          </button>
+        </div>
 
         <label>
           Playhead {Math.round(playheadMs)}ms
