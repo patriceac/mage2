@@ -113,7 +113,7 @@ export function MediaSurface({
     }
 
     void video.play().catch(() => {
-      // If playback is blocked or the file cannot play, leave the controls available for manual retry.
+      // If autoplay is blocked or the file cannot play, keep the surface clean and leave playback stopped.
     });
   }, [asset?.kind, assetUrl, loopVideo]);
 
@@ -244,9 +244,9 @@ export function MediaSurface({
             ref={videoRef}
             src={assetUrl}
             autoPlay
-            controls
             loop={loopVideo}
             muted
+            playsInline
             className="media-surface__media"
             title="Preview the selected video asset directly inside the editor."
           />

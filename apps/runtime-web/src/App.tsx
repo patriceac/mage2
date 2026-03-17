@@ -91,7 +91,7 @@ export function App() {
 
     video.currentTime = 0;
     void video.play().catch(() => {
-      // If the environment blocks autoplay, the controls remain available for manual playback.
+      // If autoplay is blocked, keep the runtime surface clean and leave playback stopped.
     });
   }, [currentAsset?.id, currentAsset?.kind, currentAsset?.sourcePath, snapshot?.scene.id]);
 
@@ -199,8 +199,8 @@ export function App() {
               key={`${snapshot.scene.id}:${currentAsset.id}`}
               src={currentAsset.sourcePath}
               autoPlay
-              controls
               loop={snapshot.scene.backgroundVideoLoop}
+              playsInline
               className="runtime-media__asset"
             />
           ) : currentAsset?.kind === "image" ? (
