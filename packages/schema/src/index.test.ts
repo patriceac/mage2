@@ -358,6 +358,94 @@ describe("project validation", () => {
       ])
     );
   });
+
+  it("ignores exit scene ids when computing reachability", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "image",
+      name: "Placeholder",
+      sourcePath: "placeholder.png",
+      importedAt: new Date().toISOString()
+    });
+    project.locations.items[0]?.sceneIds.push("scene_two");
+    project.scenes.items[0]!.exitSceneIds = ["scene_two"];
+    project.scenes.items.push({
+      id: "scene_two",
+      locationId: project.locations.items[0]!.id,
+      name: "Second",
+      backgroundAssetId: "asset_placeholder",
+      backgroundVideoLoop: false,
+      hotspots: [],
+      exitSceneIds: [],
+      subtitleTracks: [],
+      dialogueTreeIds: [],
+      onEnterEffects: [],
+      onExitEffects: []
+    });
+
+    const report = validateProject(project);
+
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SCENE_UNREACHABLE",
+          entityId: "scene_two"
+        })
+      ])
+    );
+  });
+
+  it("treats hotspot targets and go-to-scene effects as reachable links", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "image",
+      name: "Placeholder",
+      sourcePath: "placeholder.png",
+      importedAt: new Date().toISOString()
+    });
+    project.locations.items[0]?.sceneIds.push("scene_two", "scene_three");
+    project.scenes.items[0]!.hotspots[0]!.targetSceneId = "scene_two";
+    project.scenes.items[0]!.onEnterEffects = [{ type: "goToScene", sceneId: "scene_three" }];
+    project.scenes.items.push(
+      {
+        id: "scene_two",
+        locationId: project.locations.items[0]!.id,
+        name: "Second",
+        backgroundAssetId: "asset_placeholder",
+        backgroundVideoLoop: false,
+        hotspots: [],
+        exitSceneIds: [],
+        subtitleTracks: [],
+        dialogueTreeIds: [],
+        onEnterEffects: [],
+        onExitEffects: []
+      },
+      {
+        id: "scene_three",
+        locationId: project.locations.items[0]!.id,
+        name: "Third",
+        backgroundAssetId: "asset_placeholder",
+        backgroundVideoLoop: false,
+        hotspots: [],
+        exitSceneIds: [],
+        subtitleTracks: [],
+        dialogueTreeIds: [],
+        onEnterEffects: [],
+        onExitEffects: []
+      }
+    );
+
+    const report = validateProject(project);
+
+    expect(report.issues.some((issue) => issue.code === "SCENE_UNREACHABLE" && issue.entityId === "scene_two")).toBe(
+      false
+    );
+    expect(
+      report.issues.some((issue) => issue.code === "SCENE_UNREACHABLE" && issue.entityId === "scene_three")
+    ).toBe(false);
+  });
 });
 
 describe("hotspot content placement", () => {

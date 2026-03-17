@@ -11,10 +11,6 @@ import {
 export function collectSceneLinks(scene: Scene): string[] {
   const links = new Set<string>();
 
-  for (const exitSceneId of scene.exitSceneIds) {
-    links.add(exitSceneId);
-  }
-
   for (const hotspot of scene.hotspots) {
     if (hotspot.targetSceneId) {
       links.add(hotspot.targetSceneId);
@@ -28,6 +24,12 @@ export function collectSceneLinks(scene: Scene): string[] {
   }
 
   for (const effect of scene.onEnterEffects) {
+    if (effect.type === "goToScene") {
+      links.add(effect.sceneId);
+    }
+  }
+
+  for (const effect of scene.onExitEffects) {
     if (effect.type === "goToScene") {
       links.add(effect.sceneId);
     }
