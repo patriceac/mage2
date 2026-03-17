@@ -4,6 +4,7 @@ import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
 
 const editorApi = {
+  getRecentProjectsSync: (): RecentProject[] => ipcRenderer.sendSync("mage2:get-recent-projects-sync"),
   getRecentProjects: (): Promise<RecentProject[]> => ipcRenderer.invoke("mage2:get-recent-projects"),
   rememberRecentProject: (projectDir: string, projectName?: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke("mage2:remember-recent-project", projectDir, projectName),

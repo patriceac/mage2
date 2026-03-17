@@ -34,6 +34,7 @@ interface ProjectDirectoryInspection {
 declare global {
   interface Window {
     editorApi: {
+      getRecentProjectsSync(): RecentProjectSummary[];
       getRecentProjects(): Promise<RecentProjectSummary[]>;
       rememberRecentProject(projectDir: string, projectName?: string): Promise<RecentProjectSummary[]>;
       forgetRecentProject(projectDir: string): Promise<RecentProjectSummary[]>;

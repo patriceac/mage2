@@ -155,6 +155,10 @@ function migrateLegacyUserData(): void {
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.on("mage2:get-recent-projects-sync", (event) => {
+    event.returnValue = loadRecentProjects(app.getPath("userData"));
+  });
+
   ipcMain.handle("mage2:get-recent-projects", async () => {
     return loadRecentProjects(app.getPath("userData"));
   });

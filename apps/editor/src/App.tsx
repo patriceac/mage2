@@ -60,7 +60,7 @@ export function App() {
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
-  const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>([]);
+  const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const dialogs = useDialogs();
 
@@ -581,6 +581,22 @@ function getLegacyRecentProject(): { projectDir: string; projectName?: string } 
     projectName
   };
 }
+
+function getInitialRecentProjects(): RecentProjectSummary[] {
+  const hasEditorApi = typeof window !== "undefined" && typeof window.editorApi !== "undefined";
+
+  if (hasEditorApi) {
+    try {
+      return window.editorApi.getRecentProjectsSync();
+    } catch {
+      // Fall through to the legacy localStorage key so the landing screen still has something useful.
+    }
+  }
+
+  const legacyRecentProject = getLegacyRecentProject();
+  return legacyRecentProject ? upsertRecentProjects([], legacyRecentProject.projectDir, legacyRecentProject.projectName) : [];
+}
+
 interface IssueNavigationTarget {
   label: string;
   tab: EditorTab;
