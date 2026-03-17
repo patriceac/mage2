@@ -8,6 +8,13 @@ import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
 import { useDialogs } from "./dialogs";
 import { cloneProject } from "./project-helpers";
+import {
+  type RecentProjectSummary,
+  mergeRecentProjects,
+  removeRecentProjectEntry,
+  resolveProjectName,
+  upsertRecentProjects
+} from "./recent-project-list";
 import { type EditorTab, useEditorStore } from "./store";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
@@ -27,12 +34,6 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   inventory: "Create inventory items and edit the string table used across the project.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
-
-interface RecentProjectSummary {
-  projectDir: string;
-  projectName: string;
-  lastOpenedAt: string;
-}
 
 const LEGACY_RECENT_PROJECT_PATH_KEY = "mage2:recent-project-path";
 const LEGACY_RECENT_PROJECT_NAME_KEY = "mage2:recent-project-name";
@@ -175,7 +176,7 @@ export function App() {
         return;
       }
 
-      setRecentProjects(persistedRecentProjects);
+      setRecentProjects((currentProjects) => mergeRecentProjects(currentProjects, persistedRecentProjects));
     }
 
     void initializeRecentProjects();
@@ -568,16 +569,6 @@ export function App() {
   );
 }
 
-function resolveProjectName(input: string, directoryPath: string): string {
-  const trimmed = input.trim();
-  if (trimmed.length > 0) {
-    return trimmed;
-  }
-
-  const parts = directoryPath.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? "New FMV Project";
-}
-
 function getLegacyRecentProject(): { projectDir: string; projectName?: string } | undefined {
   const projectDir = localStorage.getItem(LEGACY_RECENT_PROJECT_PATH_KEY)?.trim();
   if (!projectDir) {
@@ -590,40 +581,6 @@ function getLegacyRecentProject(): { projectDir: string; projectName?: string } 
     projectName
   };
 }
-
-function createRecentProjectSummary(projectDir: string, projectName?: string): RecentProjectSummary {
-  return {
-    projectDir,
-    projectName: resolveProjectName(projectName ?? "", projectDir),
-    lastOpenedAt: new Date().toISOString()
-  };
-}
-
-function isSameProjectDirectory(leftProjectDir: string, rightProjectDir: string): boolean {
-  return (
-    leftProjectDir.trim().replaceAll("/", "\\").toLowerCase() ===
-    rightProjectDir.trim().replaceAll("/", "\\").toLowerCase()
-  );
-}
-
-function upsertRecentProjects(
-  recentProjects: RecentProjectSummary[],
-  projectDir: string,
-  projectName?: string
-): RecentProjectSummary[] {
-  return [
-    createRecentProjectSummary(projectDir, projectName),
-    ...recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir))
-  ].slice(0, 5);
-}
-
-function removeRecentProjectEntry(
-  recentProjects: RecentProjectSummary[],
-  projectDir: string
-): RecentProjectSummary[] {
-  return recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir));
-}
-
 interface IssueNavigationTarget {
   label: string;
   tab: EditorTab;

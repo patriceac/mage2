@@ -716,6 +716,7 @@ function FileBrowserDialog({
       title={options.title}
       description={options.description}
       wide
+      bodyClassName="dialog-shell__body--file-browser"
       onCancel={() => onResolve(mode === "directory" ? undefined : [])}
       footer={
         <div className="dialog-actions dialog-actions--spread">
@@ -816,22 +817,31 @@ function FileBrowserDialog({
               <div className="dialog-button-row">
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="button-secondary file-browser__toolbar-button"
                   disabled={!listing?.parentPath}
                   onClick={() => listing?.parentPath && navigateToPath(listing.parentPath)}
+                  aria-label="Go to parent folder"
+                  title="Go to parent folder"
                 >
-                  Up
+                  ⬆️
                 </button>
-                <button type="submit" className="button-secondary">
-                  Go
+                <button
+                  type="submit"
+                  className="button-secondary file-browser__toolbar-button"
+                  aria-label="Go to path"
+                  title="Go to path"
+                >
+                  ➡️
                 </button>
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="button-secondary file-browser__toolbar-button"
                   disabled={!listing?.path}
                   onClick={() => listing?.path && navigateToPath(listing.path)}
+                  aria-label="Refresh current folder"
+                  title="Refresh current folder"
                 >
-                  Refresh
+                  🔄
                 </button>
               </div>
             </form>
@@ -952,7 +962,8 @@ function DialogFrame({
   tone = "default",
   onCancel,
   children,
-  footer
+  footer,
+  bodyClassName
 }: {
   title: string;
   description?: string;
@@ -961,6 +972,7 @@ function DialogFrame({
   onCancel: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  bodyClassName?: string;
 }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -1011,7 +1023,7 @@ function DialogFrame({
           </button>
         </div>
 
-        <div className="dialog-shell__body">{children}</div>
+        <div className={bodyClassName ? `dialog-shell__body ${bodyClassName}` : "dialog-shell__body"}>{children}</div>
         {footer ? <div className="dialog-shell__footer">{footer}</div> : null}
       </div>
     </div>
