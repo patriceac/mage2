@@ -791,8 +791,43 @@ label {
   align-items: start;
 }
 
+.subtitle-track {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.subtitle-track__meta {
+  margin: 0.25rem 0 0;
+  color: #9fb0be;
+  font-size: 0.84rem;
+}
+
+.subtitle-track__cues {
+  display: grid;
+  gap: 0.7rem;
+  max-height: 30rem;
+  overflow: auto;
+  padding-right: 0.35rem;
+}
+
+.subtitle-track__columns {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 0.7fr 0.7fr 1.8fr auto;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.1rem 0 0.25rem;
+  background: rgba(24, 31, 40, 0.96);
+  color: #9fb0be;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .cue-row--subtitle textarea {
-  min-height: 4.5rem;
+  min-height: 3.35rem;
   resize: vertical;
   white-space: pre-wrap;
 }
@@ -800,6 +835,26 @@ label {
 .cue-row__delete-button {
   min-width: 2.75rem;
   padding-inline: 0.7rem;
+}
+
+@media (max-width: 980px) {
+  .subtitle-track__columns,
+  .cue-row--subtitle {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .subtitle-track__columns span:nth-child(3),
+  .subtitle-track__columns span:nth-child(4) {
+    display: none;
+  }
+
+  .cue-row--subtitle textarea {
+    grid-column: 1 / -1;
+  }
+
+  .cue-row__delete-button {
+    justify-self: start;
+  }
 }
 
 .choice-editor {

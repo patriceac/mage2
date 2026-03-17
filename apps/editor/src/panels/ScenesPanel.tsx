@@ -511,9 +511,14 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
           {currentScene.subtitleTracks
             .map((track, trackIndex) => (
-              <div key={track.id} className="list-card">
+              <div key={track.id} className="list-card subtitle-track">
                 <div className="panel__toolbar">
-                  <h5>{`Track ${trackIndex + 1}`}</h5>
+                  <div>
+                    <h5>{`Track ${trackIndex + 1}`}</h5>
+                    <p className="subtitle-track__meta">
+                      {track.cues.length} cue{track.cues.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
                   <div className="stack-inline">
                     <button
                       type="button"
@@ -533,66 +538,75 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                   </div>
                 </div>
                 {track.cues.length > 0 ? (
-                  track.cues.map((cue) => (
-                    <div key={cue.id} className="cue-row cue-row--subtitle">
-                      <input
-                        type="number"
-                        value={cue.startMs}
-                        title="Subtitle cue start time in milliseconds."
-                        onChange={(event) =>
-                          mutateProject((draft) => {
-                            const target = draft.scenes.items
-                              .find((entry) => entry.id === currentScene.id)
-                              ?.subtitleTracks.find((entry) => entry.id === track.id)
-                              ?.cues.find((entry) => entry.id === cue.id);
-                            if (target) {
-                              target.startMs = Number(event.target.value);
-                            }
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        value={cue.endMs}
-                        title="Subtitle cue end time in milliseconds."
-                        onChange={(event) =>
-                          mutateProject((draft) => {
-                            const target = draft.scenes.items
-                              .find((entry) => entry.id === currentScene.id)
-                              ?.subtitleTracks.find((entry) => entry.id === track.id)
-                              ?.cues.find((entry) => entry.id === cue.id);
-                            if (target) {
-                              target.endMs = Number(event.target.value);
-                            }
-                          })
-                        }
-                      />
-                      <textarea
-                        value={cue.text}
-                        title="Subtitle text shown to the player during this cue."
-                        onChange={(event) =>
-                          mutateProject((draft) => {
-                            const target = draft.scenes.items
-                              .find((entry) => entry.id === currentScene.id)
-                              ?.subtitleTracks.find((entry) => entry.id === track.id)
-                              ?.cues.find((entry) => entry.id === cue.id);
-                            if (target) {
-                              target.text = event.target.value;
-                            }
-                          })
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="button-danger cue-row__delete-button"
-                        aria-label="Remove cue"
-                        title="Delete this subtitle cue from the track."
-                        onClick={() => deleteSubtitleCue(track.id, cue.id)}
-                      >
-                        ❌
-                      </button>
+                  <div className="subtitle-track__cues">
+                    <div className="subtitle-track__columns" aria-hidden="true">
+                      <span>Start</span>
+                      <span>End</span>
+                      <span>Text</span>
+                      <span />
                     </div>
-                  ))
+                    {track.cues.map((cue) => (
+                      <div key={cue.id} className="cue-row cue-row--subtitle">
+                        <input
+                          type="number"
+                          value={cue.startMs}
+                          title="Subtitle cue start time in milliseconds."
+                          onChange={(event) =>
+                            mutateProject((draft) => {
+                              const target = draft.scenes.items
+                                .find((entry) => entry.id === currentScene.id)
+                                ?.subtitleTracks.find((entry) => entry.id === track.id)
+                                ?.cues.find((entry) => entry.id === cue.id);
+                              if (target) {
+                                target.startMs = Number(event.target.value);
+                              }
+                            })
+                          }
+                        />
+                        <input
+                          type="number"
+                          value={cue.endMs}
+                          title="Subtitle cue end time in milliseconds."
+                          onChange={(event) =>
+                            mutateProject((draft) => {
+                              const target = draft.scenes.items
+                                .find((entry) => entry.id === currentScene.id)
+                                ?.subtitleTracks.find((entry) => entry.id === track.id)
+                                ?.cues.find((entry) => entry.id === cue.id);
+                              if (target) {
+                                target.endMs = Number(event.target.value);
+                              }
+                            })
+                          }
+                        />
+                        <textarea
+                          rows={2}
+                          value={cue.text}
+                          title="Subtitle text shown to the player during this cue."
+                          onChange={(event) =>
+                            mutateProject((draft) => {
+                              const target = draft.scenes.items
+                                .find((entry) => entry.id === currentScene.id)
+                                ?.subtitleTracks.find((entry) => entry.id === track.id)
+                                ?.cues.find((entry) => entry.id === cue.id);
+                              if (target) {
+                                target.text = event.target.value;
+                              }
+                            })
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="button-danger cue-row__delete-button"
+                          aria-label="Remove cue"
+                          title="Delete this subtitle cue from the track."
+                          onClick={() => deleteSubtitleCue(track.id, cue.id)}
+                        >
+                          ❌
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <p className="muted">No cues yet. Add one to start timing this track.</p>
                 )}
