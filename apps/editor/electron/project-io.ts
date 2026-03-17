@@ -1,7 +1,8 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { computeFileSha256, hydrateAssetSha256s } from "@mage2/media";
 import {
+  CURRENT_SCHEMA_VERSION,
   createRectangleHotspotPolygon,
   createDefaultProjectBundle,
   migrateProjectBundle,
@@ -18,9 +19,10 @@ const FILES = {
   scenes: "scenes.json",
   dialogues: "dialogues.json",
   inventory: "inventory.json",
-  subtitles: "subtitles.json",
   strings: "strings.json"
 } as const;
+
+const LEGACY_SUBTITLES_FILE = "subtitles.json";
 
 const STARTER_SCENE_HOTSPOT_BOUNDS = {
   x: 900 / 1280,
@@ -52,15 +54,20 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     scenes: await readJson(filePaths.scenes),
     dialogues: await readJson(filePaths.dialogues),
     inventory: await readJson(filePaths.inventory),
-    subtitles: await readJson(filePaths.subtitles),
+    subtitles: await readOptionalJson(filePaths.legacySubtitles),
     strings: await readJson(filePaths.strings)
   };
 
+  const rawManifest = rawBundle.manifest as Record<string, unknown> | undefined;
+  const rawSchemaVersion =
+    typeof rawManifest?.schemaVersion === "number" ? rawManifest.schemaVersion : 0;
+  const requiresNormalizationSave =
+    rawSchemaVersion < CURRENT_SCHEMA_VERSION || rawBundle.subtitles !== undefined;
   const project = migrateProjectBundle(rawBundle);
   const repairedStarterAsset = await repairStarterSceneAssetIfNeeded(projectDir, project);
   const repairedLegacyHotspot = repairLegacyStarterHotspotIfNeeded(project);
   const repairedMissingHashes = await repairMissingAssetHashesIfNeeded(project);
-  if (repairedStarterAsset || repairedLegacyHotspot || repairedMissingHashes) {
+  if (requiresNormalizationSave || repairedStarterAsset || repairedLegacyHotspot || repairedMissingHashes) {
     await saveProjectToDirectory(projectDir, project);
   }
 
@@ -69,10 +76,14 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
 
 export async function inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection> {
   const filePaths = resolveProjectFilePaths(projectDir);
-  const requiredFileEntries = Object.entries(filePaths) as Array<[keyof typeof FILES, string]>;
+  const requiredFileEntries = Object.entries(filePaths) as Array<[keyof ReturnType<typeof resolveProjectFilePaths>, string]>;
 
   try {
-    await Promise.all(requiredFileEntries.map(([, filePath]) => access(filePath)));
+    await Promise.all(
+      requiredFileEntries
+        .filter(([key]) => key !== "legacySubtitles")
+        .map(([, filePath]) => access(filePath))
+    );
   } catch {
     return {
       isProjectDirectory: false,
@@ -88,7 +99,7 @@ export async function inspectProjectDirectory(projectDir: string): Promise<Proje
       scenes: await readJson(filePaths.scenes),
       dialogues: await readJson(filePaths.dialogues),
       inventory: await readJson(filePaths.inventory),
-      subtitles: await readJson(filePaths.subtitles),
+      subtitles: await readOptionalJson(filePaths.legacySubtitles),
       strings: await readJson(filePaths.strings)
     };
 
@@ -133,22 +144,33 @@ export async function saveProjectToDirectory(
     writeJson(filePaths.scenes, normalized.scenes),
     writeJson(filePaths.dialogues, normalized.dialogues),
     writeJson(filePaths.inventory, normalized.inventory),
-    writeJson(filePaths.subtitles, normalized.subtitles),
     writeJson(filePaths.strings, normalized.strings)
   ]);
+  await rm(filePaths.legacySubtitles, { force: true });
 
   return normalized;
 }
 
-function resolveProjectFilePaths(projectDir: string): Record<keyof typeof FILES, string> {
-  return Object.fromEntries(
-    Object.entries(FILES).map(([key, fileName]) => [key, path.join(projectDir, fileName)])
-  ) as Record<keyof typeof FILES, string>;
+function resolveProjectFilePaths(projectDir: string): Record<keyof typeof FILES | "legacySubtitles", string> {
+  return {
+    ...(Object.fromEntries(
+      Object.entries(FILES).map(([key, fileName]) => [key, path.join(projectDir, fileName)])
+    ) as Record<keyof typeof FILES, string>),
+    legacySubtitles: path.join(projectDir, LEGACY_SUBTITLES_FILE)
+  };
 }
 
 async function readJson(filePath: string): Promise<unknown> {
   const source = await readFile(filePath, "utf8");
   return JSON.parse(source);
+}
+
+async function readOptionalJson(filePath: string): Promise<unknown> {
+  try {
+    return await readJson(filePath);
+  } catch {
+    return undefined;
+  }
 }
 
 async function writeJson(filePath: string, value: unknown): Promise<void> {

@@ -6,6 +6,7 @@ import path from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
 import type { Asset, AssetKind } from "@mage2/schema";
+export * from "./subtitles";
 
 export interface ProbeResult {
   durationMs?: number;
@@ -27,7 +28,6 @@ export interface ImportAssetsToProjectResult {
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"]);
 const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"]);
-const SUBTITLE_EXTENSIONS = new Set([".srt", ".vtt"]);
 
 export function resolvePackagedExecutablePath(candidatePath: string): string {
   const unpackedPath = candidatePath.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
@@ -58,10 +58,6 @@ export function detectAssetKind(filePath: string): AssetKind {
 
   if (AUDIO_EXTENSIONS.has(extension)) {
     return "audio";
-  }
-
-  if (SUBTITLE_EXTENSIONS.has(extension)) {
-    return "subtitle";
   }
 
   return "image";
@@ -180,7 +176,7 @@ async function createImportedAssetRecord(
 ): Promise<Asset> {
   const metadata = await stat(filePath);
   const kind = detectAssetKind(filePath);
-  const probe = kind === "subtitle" ? {} : await probeAsset(filePath).catch(() => ({}));
+  const probe: ProbeResult = await probeAsset(filePath).catch(() => ({}));
 
   return {
     id: `asset_${crypto.randomUUID().replace(/-/g, "")}`,
@@ -238,7 +234,7 @@ export async function generateProxy(asset: Asset, projectDir: string): Promise<A
   const proxyDirectory = path.join(projectDir, ".mage2", "proxies");
   await mkdir(proxyDirectory, { recursive: true });
 
-  if (asset.kind === "image" || asset.kind === "subtitle") {
+  if (asset.kind === "image") {
     const extension = path.extname(asset.sourcePath);
     const proxyPath = path.join(proxyDirectory, `${asset.id}${extension}`);
     await cp(asset.sourcePath, proxyPath, { force: true });
@@ -353,8 +349,6 @@ function guessExtensionForKind(kind: AssetKind): string {
       return ".mp3";
     case "video":
       return ".mp4";
-    case "subtitle":
-      return ".vtt";
     default:
       return ".png";
   }

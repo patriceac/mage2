@@ -381,8 +381,8 @@ function DeleteSceneDialog({
         <div className="dialog-callout dialog-callout--danger">
           <strong>Permanent scene deletion</strong>
           <p>
-            Unshared subtitle tracks attached only to this scene will be removed. Dialogue trees remain in the project,
-            but any references to this scene inside them will be cleaned or rewired.
+            Subtitle tracks attached to this scene will be removed with it. Dialogue trees remain in the project, but
+            any references to this scene inside them will be cleaned or rewired.
           </p>
         </div>
 
@@ -1063,7 +1063,7 @@ function resolveDeleteSceneOutcomeRows(
     rows.push(
       `Deleted ${summary.removedSubtitleTrackIds.length} subtitle track${
         summary.removedSubtitleTrackIds.length === 1 ? "" : "s"
-      } that are only used by this scene.`
+      } on this scene.`
     );
   }
 

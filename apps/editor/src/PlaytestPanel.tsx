@@ -89,7 +89,15 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         />
 
         <div className="subtitle-strip">
-          {subtitleLines.length > 0 ? subtitleLines.join(" ") : "Subtitles will appear here."}
+          {subtitleLines.length > 0 ? (
+            subtitleLines.map((line, index) => (
+              <p key={`${index}:${line}`} className="subtitle-strip__line">
+                {line}
+              </p>
+            ))
+          ) : (
+            "Subtitles will appear here."
+          )}
         </div>
 
         {snapshot.activeDialogue ? (

@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
-import { deleteManagedAssetFiles, generateProxy, importAssetsToProject } from "@mage2/media";
+import { deleteManagedAssetFiles, generateProxy, importAssetsToProject, parseSubtitleFiles } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
 import { exportProjectBundle } from "./exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
@@ -208,6 +208,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("mage2:import-assets", async (_event, projectDir: string, existingAssets: Asset[], filePaths: string[]) => {
     return importAssetsToProject(filePaths, projectDir, existingAssets);
+  });
+
+  ipcMain.handle("mage2:parse-subtitles", async (_event, filePaths: string[]) => {
+    return parseSubtitleFiles(filePaths);
   });
 
   ipcMain.handle("mage2:generate-proxy", async (_event, projectDir: string, asset: Asset) => {

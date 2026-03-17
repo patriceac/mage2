@@ -255,10 +255,7 @@ export function createPlayerController(
 
   function getSubtitleLines(timeMs: number): string[] {
     const scene = getScene();
-    return scene.subtitleTrackIds.flatMap((trackId) => {
-      const track = project.subtitles.items.find((entry) => entry.id === trackId);
-      return track ? resolveSubtitleTrackLines(project.strings.values, track, timeMs) : [];
-    });
+    return scene.subtitleTracks.flatMap((track) => resolveSubtitleTrackLines(track, timeMs));
   }
 
   function getSnapshot(): PlayerSnapshot {
@@ -287,11 +284,10 @@ export function createPlayerController(
 }
 
 export function resolveSubtitleTrackLines(
-  strings: Record<string, string>,
   track: SubtitleTrack,
   timeMs: number
 ): string[] {
   return track.cues
     .filter((cue) => timeMs >= cue.startMs && timeMs <= cue.endMs)
-    .map((cue) => strings[cue.textId] ?? cue.textId);
+    .map((cue) => cue.text);
 }

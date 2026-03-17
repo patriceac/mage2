@@ -43,7 +43,6 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   const sceneIds = new Set(project.scenes.items.map((scene) => scene.id));
   const dialogueIds = new Set(project.dialogues.items.map((dialogue) => dialogue.id));
   const inventoryIds = new Set(project.inventory.items.map((item) => item.id));
-  const subtitleIds = new Set(project.subtitles.items.map((track) => track.id));
 
   if (!locationIds.has(project.manifest.startLocationId)) {
     issues.push({
@@ -75,54 +74,11 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   }
 
   for (const scene of project.scenes.items) {
-    validateScene(project, scene, assetIds, locationIds, sceneIds, dialogueIds, inventoryIds, subtitleIds, issues);
+    validateScene(project, scene, assetIds, locationIds, sceneIds, dialogueIds, inventoryIds, issues);
   }
 
   for (const dialogue of project.dialogues.items) {
     validateDialogue(project, dialogue, sceneIds, inventoryIds, dialogueIds, issues);
-  }
-
-  for (const track of project.subtitles.items) {
-    if (!assetIds.has(track.assetId)) {
-      issues.push({
-        level: "error",
-        code: "SUBTITLE_ASSET_MISSING",
-        message: `Subtitle track '${track.id}' references missing asset '${track.assetId}'.`,
-        entityId: track.id
-      });
-    }
-
-    const sortedCues = [...track.cues].sort((left, right) => left.startMs - right.startMs);
-    for (let index = 0; index < sortedCues.length; index += 1) {
-      const cue = sortedCues[index];
-      if (!(cue.textId in project.strings.values)) {
-        issues.push({
-          level: "warning",
-          code: "SUBTITLE_TEXT_MISSING",
-          message: `Subtitle cue '${cue.id}' references missing text '${cue.textId}'.`,
-          entityId: cue.id
-        });
-      }
-
-      if (cue.endMs <= cue.startMs) {
-        issues.push({
-          level: "error",
-          code: "SUBTITLE_RANGE_INVALID",
-          message: `Subtitle cue '${cue.id}' has an invalid time range.`,
-          entityId: cue.id
-        });
-      }
-
-      const previousCue = sortedCues[index - 1];
-      if (previousCue && cue.startMs < previousCue.endMs) {
-        issues.push({
-          level: "error",
-          code: "SUBTITLE_OVERLAP",
-          message: `Subtitle cue '${cue.id}' overlaps '${previousCue.id}'.`,
-          entityId: cue.id
-        });
-      }
-    }
   }
 
   const reachableScenes = new Set<string>();
@@ -169,7 +125,6 @@ function validateScene(
   sceneIds: Set<string>,
   dialogueIds: Set<string>,
   inventoryIds: Set<string>,
-  subtitleIds: Set<string>,
   issues: ValidationIssue[]
 ): void {
   if (!locationIds.has(scene.locationId)) {
@@ -261,13 +216,33 @@ function validateScene(
   validateConditionEffectRefs([], scene.onEnterEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
   validateConditionEffectRefs([], scene.onExitEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
 
-  for (const subtitleTrackId of scene.subtitleTrackIds) {
-    if (!subtitleIds.has(subtitleTrackId)) {
+  for (const track of scene.subtitleTracks) {
+    for (const cue of track.cues) {
+      if (cue.endMs <= cue.startMs) {
+        issues.push({
+          level: "error",
+          code: "SUBTITLE_RANGE_INVALID",
+          message: `Subtitle cue '${cue.id}' has an invalid time range.`,
+          entityId: cue.id
+        });
+      }
+
+      if (cue.text.trim().length === 0) {
+        issues.push({
+          level: "warning",
+          code: "SUBTITLE_TEXT_EMPTY",
+          message: `Subtitle cue '${cue.id}' has no visible text.`,
+          entityId: cue.id
+        });
+      }
+    }
+
+    if (track.cues.length === 0) {
       issues.push({
-        level: "error",
-        code: "SCENE_SUBTITLE_TRACK_MISSING",
-        message: `Scene '${scene.id}' references missing subtitle track '${subtitleTrackId}'.`,
-        entityId: scene.id
+        level: "warning",
+        code: "SUBTITLE_TRACK_EMPTY",
+        message: `Subtitle track '${track.id}' has no cues.`,
+        entityId: track.id
       });
     }
   }

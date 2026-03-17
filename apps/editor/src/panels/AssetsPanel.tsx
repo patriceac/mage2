@@ -22,8 +22,7 @@ interface AssetsPanelProps {
 }
 
 const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
-  sceneBackgrounds: [],
-  subtitleTracks: []
+  sceneBackgrounds: []
 };
 
 export function AssetsPanel({
@@ -97,7 +96,7 @@ export function AssetsPanel({
   async function handleImportAssets() {
     const filePaths = await dialogs.pickFiles({
       title: "Import Assets",
-      description: "Select video, image, audio, or subtitle files to add to the current project.",
+      description: "Select video, image, or audio files to add to the current project.",
       initialPath: resolveAssetImportInitialPath(project) ?? useEditorStore.getState().projectDir,
       confirmLabel: "Import Selected Files",
       allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
@@ -341,7 +340,7 @@ export function AssetsPanel({
             title="Drag supported media files here to import them, or click to browse."
           >
             <strong>{isDropTargetActive ? "Drop files to import them" : "Drag media here or click to browse"}</strong>
-            <span>Supports video, image, audio, and subtitle files and adds them to the project asset library.</span>
+            <span>Supports video, image, and audio files and adds them to the project asset library.</span>
           </button>
 
           {project.assets.assets.map((asset) => {
@@ -452,10 +451,6 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
     segments.push(`${summary.sceneBackgrounds.length} scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}`);
   }
 
-  if (summary.subtitleTracks.length > 0) {
-    segments.push(`${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"}`);
-  }
-
   return segments.length > 0 ? `In use by ${joinList(segments)}.` : "Not currently in use.";
 }
 
@@ -479,11 +474,6 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
   if (summary.sceneBackgrounds.length > 0 && fallbackAssetName) {
     consequences.push(`Affected scene backgrounds will switch to "${fallbackAssetName}".`);
   }
-  if (summary.subtitleTracks.length > 0) {
-    consequences.push(
-      `${summary.subtitleTracks.length} subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"} will be removed.`
-    );
-  }
   consequences.push("Any generated proxy files will be deleted.");
   consequences.push("If this asset was copied into the project's assets folder, that project copy will be deleted.");
   consequences.push("The original import source file on disk will not be deleted.");
@@ -498,15 +488,6 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
             <li>
               {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
                 .map((entry) => entry.sceneName)
-                .join(", ")}`}
-            </li>
-          ) : null}
-          {summary.subtitleTracks.length > 0 ? (
-            <li>
-              {`Subtitle track${summary.subtitleTracks.length === 1 ? "" : "s"}: ${summary.subtitleTracks
-                .map((entry) =>
-                  entry.sceneNames.length > 0 ? `${entry.sceneNames.join(", ")} / ${entry.trackId}` : entry.trackId
-                )
                 .join(", ")}`}
             </li>
           ) : null}
@@ -563,14 +544,6 @@ function resolveDeleteStatusMessage(
       `Reassigned ${deletion.referenceSummary.sceneBackgrounds.length} scene background${
         deletion.referenceSummary.sceneBackgrounds.length === 1 ? "" : "s"
       } to ${fallbackAssetName}.`
-    );
-  }
-
-  if (deletion.removedSubtitleTrackIds.length > 0) {
-    segments.push(
-      `Removed ${deletion.removedSubtitleTrackIds.length} subtitle track${
-        deletion.removedSubtitleTrackIds.length === 1 ? "" : "s"
-      }.`
     );
   }
 

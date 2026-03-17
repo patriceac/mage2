@@ -13,7 +13,7 @@ import {
 
 interface RuntimeAsset {
   id: string;
-  kind: "video" | "image" | "audio" | "subtitle";
+  kind: "video" | "image" | "audio";
   name: string;
   sourcePath: string;
   durationMs?: number;
@@ -49,7 +49,6 @@ export function App() {
           scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
           dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
           inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-          subtitles: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.subtitleTracks },
           strings: { schemaVersion: parsedContent.schemaVersion, values: parsedContent.strings }
         };
         const normalizedSaveState = storedSave
@@ -153,7 +152,6 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
                   strings: { schemaVersion: content.schemaVersion, values: content.strings }
                 };
                 const nextSaveState = parseSaveState({
@@ -182,7 +180,6 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  subtitles: { schemaVersion: content.schemaVersion, items: content.subtitleTracks },
                   strings: { schemaVersion: content.schemaVersion, values: content.strings }
                 });
                 setController(nextController);
@@ -272,7 +269,15 @@ export function App() {
         </label>
 
         <div className="runtime-subtitles">
-          {subtitleLines.length > 0 ? subtitleLines.join(" ") : "Subtitles will appear here."}
+          {subtitleLines.length > 0 ? (
+            subtitleLines.map((line, index) => (
+              <p key={`${index}:${line}`} className="runtime-subtitles__line">
+                {line}
+              </p>
+            ))
+          ) : (
+            "Subtitles will appear here."
+          )}
         </div>
 
         {snapshot.activeDialogue ? (

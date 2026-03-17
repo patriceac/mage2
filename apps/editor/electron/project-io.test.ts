@@ -159,3 +159,176 @@ describe("inspectProjectDirectory", () => {
     expect(inspection.reason).toContain("missing");
   });
 });
+
+describe("subtitle project persistence", () => {
+  it("saves projects without writing subtitles.json", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-save-"));
+    tempDirs.push(projectDir);
+
+    const project = createDefaultProjectBundle("No Subtitle File");
+    project.assets.assets.push({
+      id: "asset_visual",
+      kind: "image",
+      name: "placeholder.png",
+      sourcePath: path.join(projectDir, "assets", "placeholder.png"),
+      importedAt: new Date(0).toISOString()
+    });
+    project.scenes.items[0].backgroundAssetId = "asset_visual";
+    project.scenes.items[0].subtitleTracks = [
+      {
+        id: "subtitle_scene",
+        cues: [
+          {
+            id: "cue_scene",
+            startMs: 0,
+            endMs: 1000,
+            text: "Inline text"
+          }
+        ]
+      }
+    ];
+
+    await saveProjectToDirectory(projectDir, project);
+
+    await expect(readFile(path.join(projectDir, "subtitles.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("loads legacy subtitle files, migrates them into scenes, and removes subtitles.json", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-legacy-subtitles-"));
+    tempDirs.push(projectDir);
+
+    await mkdir(path.join(projectDir, "assets"), { recursive: true });
+
+    await writeFile(
+      path.join(projectDir, "project.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        projectId: "legacy_subtitles",
+        projectName: "Legacy Subtitles",
+        defaultLanguage: "en",
+        engineVersion: "0.1.0",
+        assetRoots: [path.join(projectDir, "assets")],
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro",
+        buildSettings: {
+          outputDir: "build",
+          includeSourceMap: false
+        }
+      }, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(projectDir, "assets.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        assets: [
+          {
+            id: "asset_visual",
+            kind: "image",
+            name: "placeholder.png",
+            sourcePath: path.join(projectDir, "assets", "placeholder.png"),
+            importedAt: new Date(0).toISOString()
+          },
+          {
+            id: "asset_subtitle",
+            kind: "subtitle",
+            name: "captions.vtt",
+            sourcePath: path.join(projectDir, "assets", "captions.vtt"),
+            importedAt: new Date(0).toISOString()
+          }
+        ]
+      }, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(projectDir, "locations.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        items: [
+          {
+            id: "location_intro",
+            name: "Intro",
+            x: 0,
+            y: 0,
+            sceneIds: ["scene_intro"]
+          }
+        ]
+      }, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(projectDir, "scenes.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        items: [
+          {
+            id: "scene_intro",
+            locationId: "location_intro",
+            name: "Intro Scene",
+            backgroundAssetId: "asset_visual",
+            backgroundVideoLoop: false,
+            hotspots: [],
+            exitSceneIds: [],
+            subtitleTrackIds: ["subtitle_intro"],
+            dialogueTreeIds: [],
+            onEnterEffects: [],
+            onExitEffects: []
+          }
+        ]
+      }, null, 2),
+      "utf8"
+    );
+    await writeFile(path.join(projectDir, "dialogues.json"), JSON.stringify({ schemaVersion: 2, items: [] }, null, 2), "utf8");
+    await writeFile(path.join(projectDir, "inventory.json"), JSON.stringify({ schemaVersion: 2, items: [] }, null, 2), "utf8");
+    await writeFile(
+      path.join(projectDir, "subtitles.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        items: [
+          {
+            id: "subtitle_intro",
+            assetId: "asset_subtitle",
+            cues: [
+              {
+                id: "cue_intro",
+                startMs: 0,
+                endMs: 1000,
+                textId: "text.subtitle.intro"
+              }
+            ]
+          }
+        ]
+      }, null, 2),
+      "utf8"
+    );
+    await writeFile(
+      path.join(projectDir, "strings.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        values: {
+          "text.subtitle.intro": "Legacy subtitle text"
+        }
+      }, null, 2),
+      "utf8"
+    );
+
+    const project = await loadProjectFromDirectory(projectDir);
+
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual(["asset_visual"]);
+    expect(project.scenes.items[0]?.subtitleTracks).toEqual([
+      {
+        id: "subtitle_intro",
+        cues: [
+          {
+            id: "cue_intro",
+            startMs: 0,
+            endMs: 1000,
+            text: "Legacy subtitle text"
+          }
+        ]
+      }
+    ]);
+    expect(project.strings.values).toEqual({});
+    await expect(readFile(path.join(projectDir, "subtitles.json"), "utf8")).rejects.toThrow();
+  });
+});

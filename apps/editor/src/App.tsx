@@ -674,7 +674,7 @@ function resolveIssueNavigation(
         };
       }
 
-      if (candidateScene.subtitleTrackIds.includes(entityId)) {
+      if (candidateScene.subtitleTracks.some((track) => track.id === entityId)) {
         return {
           label: `${candidateScene.name} subtitles`,
           tab: "scenes",
@@ -682,19 +682,13 @@ function resolveIssueNavigation(
           sceneId: candidateScene.id
         };
       }
-    }
-
-    for (const track of project.subtitles.items) {
-      if (track.cues.some((cue) => cue.id === entityId)) {
-        const owningScene = project.scenes.items.find((scene) => scene.subtitleTrackIds.includes(track.id));
-        if (owningScene) {
-          return {
-            label: `${owningScene.name} subtitles`,
-            tab: "scenes",
-            locationId: owningScene.locationId,
-            sceneId: owningScene.id
-          };
-        }
+      if (candidateScene.subtitleTracks.some((track) => track.cues.some((cue) => cue.id === entityId))) {
+        return {
+          label: `${candidateScene.name} subtitles`,
+          tab: "scenes",
+          locationId: candidateScene.locationId,
+          sceneId: candidateScene.id
+        };
       }
     }
 
@@ -796,8 +790,6 @@ function getIssueHint(issue: ValidationIssue): string {
     case "HOTSPOT_DIALOGUE_MISSING":
     case "EFFECT_DIALOGUE_MISSING":
       return "Create the dialogue tree in the Dialogue tab or clear the broken reference.";
-    case "SUBTITLE_OVERLAP":
-      return "Adjust subtitle cue timing so each cue starts after the previous one ends.";
     case "SCENE_UNREACHABLE":
       return "Add a path from the start scene or another reachable scene if this content should be playable.";
     default:

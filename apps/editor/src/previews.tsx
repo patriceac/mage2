@@ -32,13 +32,6 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
         return;
       }
 
-      if (asset.kind === "subtitle") {
-        setAssetUrl(undefined);
-        setPosterUrl(undefined);
-        setLoadState("ready");
-        return;
-      }
-
       const sourcePath = asset.proxyPath ?? (allowSourceFallback ? asset.sourcePath : undefined);
       if (!sourcePath) {
         setAssetUrl(undefined);
@@ -147,15 +140,6 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
     );
   }
 
-  if (asset.kind === "subtitle") {
-    return (
-      <div className="asset-preview asset-preview--placeholder" title={`Subtitle asset ${asset.name}.`}>
-        <strong>Subtitle File</strong>
-        <span>{asset.name}</span>
-      </div>
-    );
-  }
-
   return (
     <div className="asset-preview asset-preview--placeholder" title={`Loading preview for ${asset.name}.`}>
       <strong>Loading preview...</strong>
@@ -194,8 +178,8 @@ export function ScenePreviewCard({
       <div className="scene-preview-card__meta">
         <p>{locationName ?? "Unknown location"}</p>
         <p>
-          {scene.hotspots.length} hotspot{scene.hotspots.length === 1 ? "" : "s"} / {scene.subtitleTrackIds.length} subtitle
-          track{scene.subtitleTrackIds.length === 1 ? "" : "s"}
+          {scene.hotspots.length} hotspot{scene.hotspots.length === 1 ? "" : "s"} / {scene.subtitleTracks.length} subtitle
+          track{scene.subtitleTracks.length === 1 ? "" : "s"}
         </p>
       </div>
     </article>

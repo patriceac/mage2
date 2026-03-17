@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, type Asset } from "@mage2/schema";
+import { createDefaultProjectBundle, type Asset, type SubtitleTrack } from "@mage2/schema";
 import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
@@ -70,7 +70,7 @@ describe("addHotspot", () => {
 });
 
 describe("collectAssetReferenceSummary", () => {
-  it("reports scene backgrounds and subtitle tracks that use an asset", () => {
+  it("reports scene backgrounds and ignores subtitle tracks", () => {
     const project = createDefaultProjectBundle("Asset usage");
     const scene = project.scenes.items[0];
     const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
@@ -78,32 +78,18 @@ describe("collectAssetReferenceSummary", () => {
 
     project.assets.assets = [primaryAsset, secondaryAsset];
     scene.backgroundAssetId = primaryAsset.id;
-    scene.subtitleTrackIds = ["subtitle_intro"];
-    project.subtitles.items = [
-      {
-        id: "subtitle_intro",
-        assetId: primaryAsset.id,
-        cues: []
-      }
-    ];
+    scene.subtitleTracks = [createSubtitleTrack("subtitle_intro")];
 
     const summary = collectAssetReferenceSummary(project, primaryAsset.id);
 
     expect(summary).toEqual({
-      sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
-      subtitleTracks: [
-        {
-          trackId: "subtitle_intro",
-          sceneIds: [scene.id],
-          sceneNames: [scene.name]
-        }
-      ]
+      sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }]
     });
   });
 });
 
 describe("removeAssetFromProject", () => {
-  it("reassigns scene backgrounds and removes dependent subtitle tracks", () => {
+  it("reassigns scene backgrounds without touching scene-owned subtitle tracks", () => {
     const project = createDefaultProjectBundle("Asset removal");
     const scene = project.scenes.items[0];
     const primaryAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
@@ -112,25 +98,17 @@ describe("removeAssetFromProject", () => {
     project.assets.assets = [primaryAsset, secondaryAsset];
     addAssetRoots(project, project.assets.assets);
     scene.backgroundAssetId = primaryAsset.id;
-    scene.subtitleTrackIds = ["subtitle_intro"];
-    project.subtitles.items = [
-      {
-        id: "subtitle_intro",
-        assetId: primaryAsset.id,
-        cues: []
-      }
-    ];
+    scene.subtitleTracks = [createSubtitleTrack("subtitle_intro")];
 
     const result = removeAssetFromProject(project, primaryAsset.id);
 
     expect(result.deleted).toBe(true);
     expect(result.fallbackAssetId).toBe(secondaryAsset.id);
-    expect(result.removedSubtitleTrackIds).toEqual(["subtitle_intro"]);
+    expect(result.removedSubtitleTrackIds).toEqual([]);
     expect(project.assets.assets.map((asset) => asset.id)).toEqual([secondaryAsset.id]);
     expect(project.manifest.assetRoots).toEqual(["D:\\other"]);
     expect(scene.backgroundAssetId).toBe(secondaryAsset.id);
-    expect(scene.subtitleTrackIds).toEqual([]);
-    expect(project.subtitles.items).toEqual([]);
+    expect(scene.subtitleTracks).toEqual([createSubtitleTrack("subtitle_intro")]);
   });
 
   it("blocks deletion when the asset is still a scene background and no replacement exists", () => {
@@ -172,13 +150,18 @@ describe("removeAssetFromProject", () => {
 });
 
 describe("removeSceneFromProject", () => {
-  it("cleans scene references while leaving the start scene invalid when requested", () => {
+  it("cleans scene references and removes subtitle tracks owned by the deleted scene", () => {
     const project = createDefaultProjectBundle("Scene cleanup");
     const deletedScene = project.scenes.items[0];
     deletedScene.name = "Deleted Scene";
+    deletedScene.subtitleTracks = [
+      createSubtitleTrack("subtitle_deleted"),
+      createSubtitleTrack("subtitle_deleted_two")
+    ];
 
     const sourceScene = addScene(project, deletedScene.locationId);
     sourceScene.name = "Source Scene";
+    sourceScene.subtitleTracks = [createSubtitleTrack("subtitle_source")];
     const hotspot = addHotspot(project, sourceScene.id, 0.25, 0.25)!;
 
     sourceScene.exitSceneIds = [deletedScene.id];
@@ -233,21 +216,6 @@ describe("removeSceneFromProject", () => {
       }
     ];
 
-    deletedScene.subtitleTrackIds = ["subtitle_deleted", "subtitle_shared"];
-    sourceScene.subtitleTrackIds = ["subtitle_shared"];
-    project.subtitles.items = [
-      {
-        id: "subtitle_deleted",
-        assetId: deletedScene.backgroundAssetId,
-        cues: []
-      },
-      {
-        id: "subtitle_shared",
-        assetId: deletedScene.backgroundAssetId,
-        cues: []
-      }
-    ];
-
     const summary = collectSceneReferenceSummary(project, deletedScene.id);
 
     expect(summary).toMatchObject({
@@ -257,14 +225,14 @@ describe("removeSceneFromProject", () => {
       hotspotTargetReferenceCount: 1,
       sceneVisitedConditionCount: 2,
       goToSceneEffectCount: 5,
-      removedSubtitleTrackIds: ["subtitle_deleted"]
+      removedSubtitleTrackIds: ["subtitle_deleted", "subtitle_deleted_two"]
     });
     expect(countSceneReferences(summary)).toBe(11);
 
     const result = removeSceneFromProject(project, deletedScene.id, { mode: "cleanup" });
 
     expect(result.deleted).toBe(true);
-    expect(result.removedSubtitleTrackIds).toEqual(["subtitle_deleted"]);
+    expect(result.removedSubtitleTrackIds).toEqual(["subtitle_deleted", "subtitle_deleted_two"]);
     expect(project.scenes.items.map((scene) => scene.id)).toEqual([sourceScene.id]);
     expect(project.locations.items[0].sceneIds).toEqual([sourceScene.id]);
     expect(project.manifest.startSceneId).toBe(deletedScene.id);
@@ -278,14 +246,14 @@ describe("removeSceneFromProject", () => {
     expect(project.dialogues.items[0].nodes[0].effects).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].conditions).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([]);
-    expect(project.subtitles.items.map((track) => track.id)).toEqual(["subtitle_shared"]);
-    expect(sourceScene.subtitleTrackIds).toEqual(["subtitle_shared"]);
+    expect(sourceScene.subtitleTracks.map((track) => track.id)).toEqual(["subtitle_source"]);
   });
 
   it("rewires scene references and updates the start location when replacing the deleted scene", () => {
     const project = createDefaultProjectBundle("Scene rewire");
     const deletedScene = project.scenes.items[0];
     deletedScene.name = "Deleted Scene";
+    deletedScene.subtitleTracks = [createSubtitleTrack("subtitle_deleted")];
 
     const sourceScene = addScene(project, deletedScene.locationId);
     sourceScene.name = "Source Scene";
@@ -338,21 +306,13 @@ describe("removeSceneFromProject", () => {
       }
     ];
 
-    deletedScene.subtitleTrackIds = ["subtitle_deleted"];
-    project.subtitles.items = [
-      {
-        id: "subtitle_deleted",
-        assetId: deletedScene.backgroundAssetId,
-        cues: []
-      }
-    ];
-
     const result = removeSceneFromProject(project, deletedScene.id, {
       mode: "rewire",
       replacementSceneId: replacementScene.id
     });
 
     expect(result.deleted).toBe(true);
+    expect(result.removedSubtitleTrackIds).toEqual(["subtitle_deleted"]);
     expect(project.manifest.startSceneId).toBe(replacementScene.id);
     expect(project.manifest.startLocationId).toBe(replacementScene.locationId);
     expect(project.locations.items.find((location) => location.id === deletedScene.locationId)?.sceneIds).toEqual([sourceScene.id]);
@@ -372,7 +332,6 @@ describe("removeSceneFromProject", () => {
     expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([
       { type: "goToScene", sceneId: replacementScene.id }
     ]);
-    expect(project.subtitles.items).toEqual([]);
   });
 });
 
@@ -385,5 +344,19 @@ function createAsset(id: string, name: string, sourcePath: string): Asset {
     importedAt: "2026-03-14T00:00:00.000Z",
     width: 1280,
     height: 720
+  };
+}
+
+function createSubtitleTrack(id: string): SubtitleTrack {
+  return {
+    id,
+    cues: [
+      {
+        id: `${id}_cue`,
+        startMs: 0,
+        endMs: 1000,
+        text: `Cue for ${id}`
+      }
+    ]
   };
 }

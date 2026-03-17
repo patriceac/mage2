@@ -1,12 +1,13 @@
+import { useEffect } from "react";
 import { MediaSurface } from "../MediaSurface";
 import { type ProjectBundle, validateProject } from "@mage2/schema";
+import { SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
   addHotspot,
   cloneProject,
   collectSceneReferenceSummary,
   createId,
-  ensureString,
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
 } from "../project-helpers";
@@ -30,16 +31,13 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const updateProject = useEditorStore((state) => state.updateProject);
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
+  const currentSceneId = currentScene?.id;
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
-
-  if (!currentScene) {
-    return <div className="panel"><p>Create a scene to begin.</p></div>;
-  }
 
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     mutateProject((draft) => {
       const target = draft.scenes.items
-        .find((entry) => entry.id === currentScene.id)
+        .find((entry) => entry.id === currentSceneId)
         ?.hotspots.find((entry) => entry.id === hotspotId);
 
       if (!target) {
@@ -56,14 +54,147 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
   function deleteSubtitleTrack(trackId: string) {
     mutateProject((draft) => {
-      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+      const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
       if (!scene) {
         return;
       }
 
-      scene.subtitleTrackIds = scene.subtitleTrackIds.filter((entry) => entry !== trackId);
-      draft.subtitles.items = draft.subtitles.items.filter((entry) => entry.id !== trackId);
+      scene.subtitleTracks = scene.subtitleTracks.filter((entry) => entry.id !== trackId);
     });
+  }
+
+  function addSubtitleTrack() {
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
+      if (!scene) {
+        return;
+      }
+
+      scene.subtitleTracks.push({
+        id: createId("subtitle"),
+        cues: [createSubtitleCue(0, 3000, "A subtitle cue")]
+      });
+    });
+  }
+
+  function addSubtitleCue(trackId: string) {
+    mutateProject((draft) => {
+      const track = draft.scenes.items
+        .find((entry) => entry.id === currentSceneId)
+        ?.subtitleTracks.find((entry) => entry.id === trackId);
+      if (!track) {
+        return;
+      }
+
+      const lastCue = track.cues.at(-1);
+      const startMs = lastCue?.endMs ?? 0;
+      track.cues.push(createSubtitleCue(startMs, startMs + 3000, ""));
+    });
+  }
+
+  function deleteSubtitleCue(trackId: string, cueId: string) {
+    mutateProject((draft) => {
+      const track = draft.scenes.items
+        .find((entry) => entry.id === currentSceneId)
+        ?.subtitleTracks.find((entry) => entry.id === trackId);
+      if (!track) {
+        return;
+      }
+
+      track.cues = track.cues.filter((cue) => cue.id !== cueId);
+    });
+  }
+
+  async function handleImportSubtitles() {
+    const filePaths = await dialogs.pickFiles({
+      title: "Import Subtitles",
+      description: "Select one or more SRT or VTT files to create subtitle tracks for this scene.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: "Import Subtitle Files",
+      allowedExtensions: [...SUBTITLE_IMPORT_EXTENSIONS]
+    });
+    if (filePaths.length === 0 || !currentSceneId) {
+      return;
+    }
+
+    try {
+      const result = await window.editorApi.parseSubtitleFiles(filePaths);
+      if (result.parsedFiles.length > 0) {
+        mutateProject((draft) => {
+          const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
+          if (!scene) {
+            return;
+          }
+
+          scene.subtitleTracks.push(
+            ...result.parsedFiles.map((file) => ({
+              id: createId("subtitle"),
+              cues: file.cues.map((cue) => createSubtitleCue(cue.startMs, cue.endMs, cue.text))
+            }))
+          );
+        });
+      }
+
+      setStatusMessage(resolveSubtitleImportStatusMessage(result.parsedFiles.length, result.failedFiles.length));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Subtitle import failed: ${message}`);
+    }
+  }
+
+  function deleteHotspot(hotspotId: string | undefined) {
+    if (!currentSceneId || !hotspotId) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
+      if (!scene) {
+        return;
+      }
+
+      const nextHotspots = scene.hotspots.filter((entry) => entry.id !== hotspotId);
+      if (nextHotspots.length === scene.hotspots.length) {
+        return;
+      }
+
+      scene.hotspots = nextHotspots;
+      if (selectedHotspotId === hotspotId) {
+        setSelectedHotspotId(nextHotspots[0]?.id);
+      }
+    });
+  }
+
+  useEffect(() => {
+    if (!currentSceneId || !selectedHotspotId) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.key !== "Delete") {
+        return;
+      }
+
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      if (document.querySelector(".dialog-overlay") || shouldIgnoreDeleteHotspotShortcut(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      deleteHotspot(selectedHotspotId);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [currentSceneId, deleteHotspot, selectedHotspotId]);
+
+  if (!currentScene) {
+    return <div className="panel"><p>Create a scene to begin.</p></div>;
   }
 
   async function handleDeleteScene() {
@@ -179,18 +310,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               type="button"
               className="button-danger"
               disabled={!selectedHotspotId}
-              title="Delete the currently selected hotspot from this scene."
-              onClick={() =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (!scene || !selectedHotspotId) {
-                    return;
-                  }
-
-                  scene.hotspots = scene.hotspots.filter((hotspot) => hotspot.id !== selectedHotspotId);
-                  setSelectedHotspotId(scene.hotspots[0]?.id);
-                })
-              }
+              title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
+              onClick={() => deleteHotspot(selectedHotspotId)}
             >
               Delete Hotspot
             </button>
@@ -370,89 +491,111 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         <section>
           <div className="panel__toolbar">
             <h4>Subtitle Tracks</h4>
-            <button
-              type="button"
-              title="Create a subtitle track for this scene and seed it with one editable cue."
-              onClick={() =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (!scene) {
-                    return;
-                  }
-                  const trackId = createId("subtitle");
-                  const textId = `text.${trackId}.cue`;
-                  ensureString(draft, textId, "A subtitle cue");
-                  draft.subtitles.items.push({
-                    id: trackId,
-                    assetId: scene.backgroundAssetId,
-                    cues: [{ id: createId("cue"), startMs: 0, endMs: 3000, textId }]
-                  });
-                  scene.subtitleTrackIds.push(trackId);
-                })
-              }
-            >
-              Add Track
-            </button>
+            <div className="stack-inline">
+              <button
+                type="button"
+                title="Import SRT or VTT files and create subtitle tracks for this scene."
+                onClick={() => void handleImportSubtitles()}
+              >
+                Import Subtitles
+              </button>
+              <button
+                type="button"
+                title="Create a subtitle track for this scene and seed it with one editable cue."
+                onClick={addSubtitleTrack}
+              >
+                Add Track
+              </button>
+            </div>
           </div>
 
-          {project.subtitles.items
-            .filter((track) => currentScene.subtitleTrackIds.includes(track.id))
-            .map((track) => (
+          {currentScene.subtitleTracks
+            .map((track, trackIndex) => (
               <div key={track.id} className="list-card">
                 <div className="panel__toolbar">
-                  <h5>{track.id}</h5>
-                  <button
-                    type="button"
-                    className="button-danger"
-                    title="Delete this subtitle track from the current scene."
-                    onClick={() => deleteSubtitleTrack(track.id)}
-                  >
-                    Delete Track
-                  </button>
-                </div>
-                {track.cues.map((cue) => (
-                  <div key={cue.id} className="cue-row">
-                    <input
-                      type="number"
-                      value={cue.startMs}
-                      title="Subtitle cue start time in milliseconds."
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const target = draft.subtitles.items
-                            .find((entry) => entry.id === track.id)
-                            ?.cues.find((entry) => entry.id === cue.id);
-                          if (target) {
-                            target.startMs = Number(event.target.value);
-                          }
-                        })
-                      }
-                    />
-                    <input
-                      type="number"
-                      value={cue.endMs}
-                      title="Subtitle cue end time in milliseconds."
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const target = draft.subtitles.items
-                            .find((entry) => entry.id === track.id)
-                            ?.cues.find((entry) => entry.id === cue.id);
-                          if (target) {
-                            target.endMs = Number(event.target.value);
-                          }
-                        })
-                      }
-                    />
-                    <input
-                      value={project.strings.values[cue.textId] ?? ""}
-                      title="Subtitle text shown to the player during this cue."
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          draft.strings.values[cue.textId] = event.target.value;
-                        })
-                      }
-                    />
+                  <h5>{`Track ${trackIndex + 1}`}</h5>
+                  <div className="stack-inline">
+                    <button
+                      type="button"
+                      title="Append a new subtitle cue after the current last cue."
+                      onClick={() => addSubtitleCue(track.id)}
+                    >
+                      Add Cue
+                    </button>
+                    <button
+                      type="button"
+                      className="button-danger"
+                      title="Delete this subtitle track from the current scene."
+                      onClick={() => deleteSubtitleTrack(track.id)}
+                    >
+                      Delete Track
+                    </button>
                   </div>
-                ))}
+                </div>
+                {track.cues.length > 0 ? (
+                  track.cues.map((cue) => (
+                    <div key={cue.id} className="cue-row cue-row--subtitle">
+                      <input
+                        type="number"
+                        value={cue.startMs}
+                        title="Subtitle cue start time in milliseconds."
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            const target = draft.scenes.items
+                              .find((entry) => entry.id === currentScene.id)
+                              ?.subtitleTracks.find((entry) => entry.id === track.id)
+                              ?.cues.find((entry) => entry.id === cue.id);
+                            if (target) {
+                              target.startMs = Number(event.target.value);
+                            }
+                          })
+                        }
+                      />
+                      <input
+                        type="number"
+                        value={cue.endMs}
+                        title="Subtitle cue end time in milliseconds."
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            const target = draft.scenes.items
+                              .find((entry) => entry.id === currentScene.id)
+                              ?.subtitleTracks.find((entry) => entry.id === track.id)
+                              ?.cues.find((entry) => entry.id === cue.id);
+                            if (target) {
+                              target.endMs = Number(event.target.value);
+                            }
+                          })
+                        }
+                      />
+                      <textarea
+                        value={cue.text}
+                        title="Subtitle text shown to the player during this cue."
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            const target = draft.scenes.items
+                              .find((entry) => entry.id === currentScene.id)
+                              ?.subtitleTracks.find((entry) => entry.id === track.id)
+                              ?.cues.find((entry) => entry.id === cue.id);
+                            if (target) {
+                              target.text = event.target.value;
+                            }
+                          })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="button-danger cue-row__delete-button"
+                        aria-label="Remove cue"
+                        title="Delete this subtitle cue from the track."
+                        onClick={() => deleteSubtitleCue(track.id, cue.id)}
+                      >
+                        ❌
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">No cues yet. Add one to start timing this track.</p>
+                )}
               </div>
             ))}
         </section>
@@ -491,20 +634,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 <button
                   type="button"
                   className="button-danger"
-                  title="Delete this hotspot and remove its interaction region from the scene."
-                  onClick={() =>
-                    mutateProject((draft) => {
-                      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                      if (!scene) {
-                        return;
-                      }
-
-                      scene.hotspots = scene.hotspots.filter((entry) => entry.id !== hotspot.id);
-                      if (selectedHotspotId === hotspot.id) {
-                        setSelectedHotspotId(scene.hotspots[0]?.id);
-                      }
-                    })
-                  }
+                  title="Delete this hotspot and remove its interaction region from the scene. Shortcut: Delete when selected."
+                  onClick={() => deleteHotspot(hotspot.id)}
                 >
                   Delete
                 </button>
@@ -693,6 +824,40 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
       </aside>
     </div>
   );
+}
+
+function shouldIgnoreDeleteHotspotShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true'], [role='textbox']"));
+}
+
+function createSubtitleCue(startMs: number, endMs: number, text: string) {
+  return {
+    id: createId("cue"),
+    startMs,
+    endMs,
+    text
+  };
+}
+
+function resolveSubtitleImportStatusMessage(importedTrackCount: number, failedFileCount: number): string {
+  if (importedTrackCount === 0) {
+    return failedFileCount > 0
+      ? `No subtitle tracks were imported. ${failedFileCount} file${failedFileCount === 1 ? "" : "s"} failed.`
+      : "No subtitle tracks were imported.";
+  }
+
+  const segments = [
+    `Imported ${importedTrackCount} subtitle track${importedTrackCount === 1 ? "" : "s"}.`
+  ];
+  if (failedFileCount > 0) {
+    segments.push(`${failedFileCount} file${failedFileCount === 1 ? "" : "s"} failed.`);
+  }
+
+  return segments.join(" ");
 }
 
 function JsonField({

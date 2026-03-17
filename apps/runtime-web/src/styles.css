@@ -183,6 +183,15 @@ button {
   overflow: auto;
 }
 
+.runtime-subtitles__line {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.runtime-subtitles__line + .runtime-subtitles__line {
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 900px) {
   .runtime-header {
     flex-direction: column;

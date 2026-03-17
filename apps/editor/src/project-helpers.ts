@@ -16,11 +16,6 @@ export interface AssetReferenceSummary {
     sceneId: string;
     sceneName: string;
   }>;
-  subtitleTracks: Array<{
-    trackId: string;
-    sceneIds: string[];
-    sceneNames: string[];
-  }>;
 }
 
 export interface RemoveAssetFromProjectResult {
@@ -106,7 +101,6 @@ export function collectAssetReferenceSummary(
   assetId: string
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
-  const subtitleTracksById = new Map<string, AssetReferenceSummary["subtitleTracks"][number]>();
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
@@ -115,50 +109,15 @@ export function collectAssetReferenceSummary(
         sceneName: scene.name
       });
     }
-
-    for (const subtitleTrackId of scene.subtitleTrackIds) {
-      const track = project.subtitles.items.find(
-        (entry) => entry.id === subtitleTrackId && entry.assetId === assetId
-      );
-      if (!track) {
-        continue;
-      }
-
-      const existingTrack = subtitleTracksById.get(track.id);
-      if (existingTrack) {
-        existingTrack.sceneIds.push(scene.id);
-        existingTrack.sceneNames.push(scene.name);
-        continue;
-      }
-
-      subtitleTracksById.set(track.id, {
-        trackId: track.id,
-        sceneIds: [scene.id],
-        sceneNames: [scene.name]
-      });
-    }
-  }
-
-  for (const track of project.subtitles.items) {
-    if (track.assetId !== assetId || subtitleTracksById.has(track.id)) {
-      continue;
-    }
-
-    subtitleTracksById.set(track.id, {
-      trackId: track.id,
-      sceneIds: [],
-      sceneNames: []
-    });
   }
 
   return {
-    sceneBackgrounds,
-    subtitleTracks: [...subtitleTracksById.values()]
+    sceneBackgrounds
   };
 }
 
 export function countAssetReferences(summary: AssetReferenceSummary): number {
-  return summary.sceneBackgrounds.length + summary.subtitleTracks.length;
+  return summary.sceneBackgrounds.length;
 }
 
 export function evaluateAssetDeletion(
@@ -211,23 +170,12 @@ export function removeAssetFromProject(
   }
   const { fallbackAssetId, referenceSummary } = deletionEligibility;
 
-  const removedSubtitleTrackIds = referenceSummary.subtitleTracks.map((track) => track.trackId);
-  const subtitleTrackIdsToDelete = new Set(removedSubtitleTrackIds);
-
   project.assets.assets = project.assets.assets.filter((asset) => asset.id !== assetId);
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId && fallbackAssetId) {
       scene.backgroundAssetId = fallbackAssetId;
     }
-
-    if (subtitleTrackIdsToDelete.size > 0) {
-      scene.subtitleTrackIds = scene.subtitleTrackIds.filter((trackId) => !subtitleTrackIdsToDelete.has(trackId));
-    }
-  }
-
-  if (subtitleTrackIdsToDelete.size > 0) {
-    project.subtitles.items = project.subtitles.items.filter((track) => !subtitleTrackIdsToDelete.has(track.id));
   }
 
   synchronizeAssetRoots(project);
@@ -236,7 +184,7 @@ export function removeAssetFromProject(
     deleted: true,
     fallbackAssetId,
     referenceSummary,
-    removedSubtitleTrackIds
+    removedSubtitleTrackIds: []
   };
 }
 
@@ -249,7 +197,7 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
     hotspotTargetReferenceCount: 0,
     sceneVisitedConditionCount: 0,
     goToSceneEffectCount: 0,
-    removedSubtitleTrackIds: scene ? resolveSceneSubtitleTrackIdsToDelete(project, scene) : []
+    removedSubtitleTrackIds: scene ? scene.subtitleTracks.map((track) => track.id) : []
   };
 
   if (!scene) {
@@ -312,6 +260,7 @@ export function removeSceneFromProject(
 ): RemoveSceneFromProjectResult {
   const referenceSummary = collectSceneReferenceSummary(project, sceneId);
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+  const removedSubtitleTrackIds = scene ? scene.subtitleTracks.map((track) => track.id) : [];
 
   if (!scene) {
     return {
@@ -376,19 +325,6 @@ export function removeSceneFromProject(
     }
   }
 
-  const removedSubtitleTrackIds = referenceSummary.removedSubtitleTrackIds;
-  if (removedSubtitleTrackIds.length > 0) {
-    const removedSubtitleTrackIdSet = new Set(removedSubtitleTrackIds);
-
-    for (const candidateScene of project.scenes.items) {
-      candidateScene.subtitleTrackIds = candidateScene.subtitleTrackIds.filter(
-        (trackId) => !removedSubtitleTrackIdSet.has(trackId)
-      );
-    }
-
-    project.subtitles.items = project.subtitles.items.filter((track) => !removedSubtitleTrackIdSet.has(track.id));
-  }
-
   return {
     deleted: true,
     strategy,
@@ -433,7 +369,7 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     backgroundVideoLoop: false,
     hotspots: [],
     exitSceneIds: [],
-    subtitleTrackIds: [],
+    subtitleTracks: [],
     dialogueTreeIds: [],
     overlayTextId,
     onEnterEffects: [],
@@ -541,16 +477,6 @@ function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string
     assets.find((asset) => asset.id !== deletedAssetId && asset.id !== STARTER_PLACEHOLDER_ASSET_ID)?.id ??
     assets.find((asset) => asset.id !== deletedAssetId)?.id
   );
-}
-
-function resolveSceneSubtitleTrackIdsToDelete(project: ProjectBundle, scene: Scene): string[] {
-  const referencedSubtitleTrackIds = new Set(
-    project.scenes.items
-      .filter((entry) => entry.id !== scene.id)
-      .flatMap((entry) => entry.subtitleTrackIds)
-  );
-
-  return scene.subtitleTrackIds.filter((trackId) => !referencedSubtitleTrackIds.has(trackId));
 }
 
 function countSceneVisitedConditions(conditions: Condition[], sceneId: string): number {

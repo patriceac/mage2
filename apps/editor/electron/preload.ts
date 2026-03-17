@@ -27,6 +27,12 @@ const editorApi = {
     filePaths: string[]
   ): Promise<{ importedAssets: Asset[]; duplicateFilePaths: string[] }> =>
     ipcRenderer.invoke("mage2:import-assets", projectDir, existingAssets, filePaths),
+  parseSubtitleFiles: (
+    filePaths: string[]
+  ): Promise<{
+    parsedFiles: Array<{ filePath: string; fileName: string; cues: Array<{ startMs: number; endMs: number; text: string }> }>;
+    failedFiles: Array<{ filePath: string; reason: string }>;
+  }> => ipcRenderer.invoke("mage2:parse-subtitles", filePaths),
   generateProxy: (projectDir: string, asset: Asset): Promise<Asset> =>
     ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset),
   deleteManagedAssetFiles: (

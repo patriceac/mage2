@@ -22,17 +22,17 @@ describe("importAssetToProject", () => {
     const workspaceDir = await createTempWorkspace();
     const sourceDir = path.join(workspaceDir, "source");
     const projectDir = path.join(workspaceDir, "project");
-    const sourcePath = path.join(sourceDir, "captions.vtt");
-    const sourceContent = "WEBVTT\n\n00:00.000 --> 00:01.000\nHello there\n";
+    const sourcePath = path.join(sourceDir, "poster.png");
+    const sourceContent = "fake png bytes";
 
     await mkdir(sourceDir, { recursive: true });
     await writeFile(sourcePath, sourceContent, "utf8");
 
     const asset = await importAssetToProject(sourcePath, projectDir);
 
-    expect(asset.kind).toBe("subtitle");
-    expect(asset.name).toBe("captions.vtt");
-    expect(asset.sourcePath).toBe(path.join(projectDir, "assets", "captions.vtt"));
+    expect(asset.kind).toBe("image");
+    expect(asset.name).toBe("poster.png");
+    expect(asset.sourcePath).toBe(path.join(projectDir, "assets", "poster.png"));
     expect(asset.importSourcePath).toBe(sourcePath);
     expect(await readFile(asset.sourcePath, "utf8")).toBe(sourceContent);
   });
@@ -42,22 +42,22 @@ describe("importAssetToProject", () => {
     const firstSourceDir = path.join(workspaceDir, "source-a");
     const secondSourceDir = path.join(workspaceDir, "source-b");
     const projectDir = path.join(workspaceDir, "project");
-    const firstSourcePath = path.join(firstSourceDir, "shared.vtt");
-    const secondSourcePath = path.join(secondSourceDir, "shared.vtt");
+    const firstSourcePath = path.join(firstSourceDir, "shared.png");
+    const secondSourcePath = path.join(secondSourceDir, "shared.png");
 
     await mkdir(firstSourceDir, { recursive: true });
     await mkdir(secondSourceDir, { recursive: true });
-    await writeFile(firstSourcePath, "WEBVTT\n\n00:00.000 --> 00:01.000\nFirst\n", "utf8");
-    await writeFile(secondSourcePath, "WEBVTT\n\n00:00.000 --> 00:01.000\nSecond\n", "utf8");
+    await writeFile(firstSourcePath, "first image bytes", "utf8");
+    await writeFile(secondSourcePath, "second image bytes", "utf8");
 
     const firstAsset = await importAssetToProject(firstSourcePath, projectDir);
     const secondAsset = await importAssetToProject(secondSourcePath, projectDir);
 
-    expect(firstAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared.vtt"));
-    expect(secondAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared-2.vtt"));
-    expect(secondAsset.name).toBe("shared-2.vtt");
-    expect(await readFile(firstAsset.sourcePath, "utf8")).toContain("First");
-    expect(await readFile(secondAsset.sourcePath, "utf8")).toContain("Second");
+    expect(firstAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared.png"));
+    expect(secondAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared-2.png"));
+    expect(secondAsset.name).toBe("shared-2.png");
+    expect(await readFile(firstAsset.sourcePath, "utf8")).toContain("first");
+    expect(await readFile(secondAsset.sourcePath, "utf8")).toContain("second");
   });
 });
 
@@ -66,9 +66,9 @@ describe("importAssetsToProject", () => {
     const workspaceDir = await createTempWorkspace();
     const sourceDir = path.join(workspaceDir, "source");
     const projectDir = path.join(workspaceDir, "project");
-    const firstSourcePath = path.join(sourceDir, "first.vtt");
-    const duplicateSourcePath = path.join(sourceDir, "same-content.vtt");
-    const sourceContent = "WEBVTT\n\n00:00.000 --> 00:01.000\nSame bytes\n";
+    const firstSourcePath = path.join(sourceDir, "first.png");
+    const duplicateSourcePath = path.join(sourceDir, "same-content.png");
+    const sourceContent = "same image bytes";
 
     await mkdir(sourceDir, { recursive: true });
     await writeFile(firstSourcePath, sourceContent, "utf8");
@@ -85,14 +85,14 @@ describe("importAssetsToProject", () => {
 describe("hydrateAssetSha256s", () => {
   it("fills in missing asset hashes from the on-disk source file", async () => {
     const workspaceDir = await createTempWorkspace();
-    const assetPath = path.join(workspaceDir, "legacy.vtt");
-    await writeFile(assetPath, "WEBVTT\n\n00:00.000 --> 00:01.000\nLegacy\n", "utf8");
+    const assetPath = path.join(workspaceDir, "legacy.png");
+    await writeFile(assetPath, "legacy image bytes", "utf8");
 
     const { assets, updated } = await hydrateAssetSha256s([
       {
         id: "asset_legacy",
-        kind: "subtitle",
-        name: "legacy.vtt",
+        kind: "image",
+        name: "legacy.png",
         sourcePath: assetPath,
         importedAt: "2026-03-15T00:00:00.000Z"
       }

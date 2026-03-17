@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
-export const AssetKindSchema = z.enum(["video", "image", "audio", "subtitle"]);
+export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("always") }),
@@ -49,13 +49,12 @@ export const SubtitleCueSchema = z.object({
   id: z.string().min(1),
   startMs: z.number().nonnegative(),
   endMs: z.number().positive(),
-  textId: z.string().min(1)
+  text: z.string()
 });
 
 export const SubtitleTrackSchema = z.object({
   id: z.string().min(1),
-  assetId: z.string().min(1),
-  cues: z.array(SubtitleCueSchema)
+  cues: z.array(SubtitleCueSchema).default([])
 });
 
 export const HotspotPointSchema = z.object({
@@ -90,7 +89,7 @@ export const SceneSchema = z.object({
   backgroundVideoLoop: z.boolean().default(false),
   hotspots: z.array(HotspotSchema).default([]),
   exitSceneIds: z.array(z.string()).default([]),
-  subtitleTrackIds: z.array(z.string()).default([]),
+  subtitleTracks: z.array(SubtitleTrackSchema).default([]),
   dialogueTreeIds: z.array(z.string()).default([]),
   overlayTextId: z.string().optional(),
   onEnterEffects: z.array(EffectSchema).default([]),
@@ -218,11 +217,6 @@ export const InventoryFileSchema = z.object({
   items: z.array(InventoryItemSchema).default([])
 });
 
-export const SubtitleFileSchema = z.object({
-  schemaVersion: z.number().int().positive(),
-  items: z.array(SubtitleTrackSchema).default([])
-});
-
 export const StringTableSchema = z.object({
   schemaVersion: z.number().int().positive(),
   values: z.record(z.string(), z.string()).default({})
@@ -235,7 +229,6 @@ export const ProjectBundleSchema = z.object({
   scenes: SceneFileSchema,
   dialogues: DialogueFileSchema,
   inventory: InventoryFileSchema,
-  subtitles: SubtitleFileSchema,
   strings: StringTableSchema
 });
 
@@ -261,7 +254,6 @@ export type LocationFile = z.infer<typeof LocationFileSchema>;
 export type SceneFile = z.infer<typeof SceneFileSchema>;
 export type DialogueFile = z.infer<typeof DialogueFileSchema>;
 export type InventoryFile = z.infer<typeof InventoryFileSchema>;
-export type SubtitleFile = z.infer<typeof SubtitleFileSchema>;
 export type StringTable = z.infer<typeof StringTableSchema>;
 export type ProjectBundle = z.infer<typeof ProjectBundleSchema>;
 
@@ -285,6 +277,5 @@ export interface ExportProjectData {
   scenes: Scene[];
   dialogues: DialogueTree[];
   inventoryItems: InventoryItem[];
-  subtitleTracks: SubtitleTrack[];
   strings: Record<string, string>;
 }

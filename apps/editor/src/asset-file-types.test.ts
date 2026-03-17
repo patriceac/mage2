@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MEDIA_DIALOG_FILTER_EXTENSIONS, classifyImportAssetPaths } from "./asset-file-types";
+import {
+  MEDIA_DIALOG_FILTER_EXTENSIONS,
+  SUBTITLE_DIALOG_FILTER_EXTENSIONS,
+  classifyImportAssetPaths
+} from "./asset-file-types";
 
 describe("classifyImportAssetPaths", () => {
   it("keeps supported paths and leaves duplicate detection to hash-based import inspection", () => {
@@ -18,10 +22,9 @@ describe("classifyImportAssetPaths", () => {
         "C:\\media\\intro.mp4",
         "C:\\media\\bg.png",
         "C:\\media\\INTRO.mp4",
-        "C:\\media\\intro.mp4",
-        "C:\\media\\captions.vtt"
+        "C:\\media\\intro.mp4"
       ],
-      rejectedFilePaths: ["C:\\media\\readme.txt"],
+      rejectedFilePaths: ["C:\\media\\readme.txt", "C:\\media\\captions.vtt"],
       duplicateFilePaths: []
     });
   });
@@ -32,7 +35,12 @@ describe("MEDIA_DIALOG_FILTER_EXTENSIONS", () => {
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("mp4");
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("png");
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("mp3");
-    expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("vtt");
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS.some((extension) => extension.startsWith("."))).toBe(false);
+  });
+});
+
+describe("SUBTITLE_DIALOG_FILTER_EXTENSIONS", () => {
+  it("keeps subtitle imports separate from generic asset imports", () => {
+    expect(SUBTITLE_DIALOG_FILTER_EXTENSIONS).toEqual(["srt", "vtt"]);
   });
 });
