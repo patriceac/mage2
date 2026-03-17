@@ -35,6 +35,10 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const currentSceneId = currentScene?.id;
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
 
+  useEffect(() => {
+    setPlayheadMs(0);
+  }, [currentScene?.backgroundAssetId, currentSceneId, setPlayheadMs]);
+
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     mutateProject((draft) => {
       const target = draft.scenes.items
@@ -362,6 +366,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
           loopVideo={currentScene.backgroundVideoLoop}
           hotspots={currentScene.hotspots}
           strings={project.strings.values}
+          playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
+          onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
           selectedHotspotId={selectedHotspotId}
           onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
             if (!createRequested) {

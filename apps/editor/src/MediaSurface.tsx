@@ -8,12 +8,20 @@ import {
   type Hotspot
 } from "@mage2/schema";
 import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
+import {
+  clampPlayheadMs,
+  getVideoPlayheadMs,
+  resolvePlayableDurationMs,
+  shouldSyncPlayheadMs
+} from "./media-playhead";
 
 interface MediaSurfaceProps {
   asset?: Asset;
   hotspots?: Hotspot[];
   strings?: Record<string, string>;
   loopVideo?: boolean;
+  playheadMs?: number;
+  onPlayheadMsChange?: (playheadMs: number) => void;
   onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
   onHotspotClick?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
@@ -26,6 +34,8 @@ export function MediaSurface({
   hotspots = [],
   strings,
   loopVideo = false,
+  playheadMs,
+  onPlayheadMsChange,
   onSurfaceClick,
   onHotspotClick,
   onHotspotChange,
@@ -41,6 +51,7 @@ export function MediaSurface({
   const previousLoopVideoRef = useRef(loopVideo);
   const shouldResumeLoopPlaybackRef = useRef(false);
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
+  const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -109,13 +120,59 @@ export function MediaSurface({
       video.ended ||
       (Number.isFinite(video.duration) && video.currentTime >= Math.max(video.duration - 0.05, 0))
     ) {
-      video.currentTime = 0;
+      const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+      const nextPlayheadMs = isControlledVideoPlayhead ? clampPlayheadMs(playheadMs, durationMs) : 0;
+      video.currentTime = nextPlayheadMs / 1000;
     }
 
     void video.play().catch(() => {
       // If autoplay is blocked or the file cannot play, keep the surface clean and leave playback stopped.
     });
-  }, [asset?.kind, assetUrl, loopVideo]);
+  }, [asset?.durationMs, asset?.kind, assetUrl, isControlledVideoPlayhead, loopVideo, playheadMs]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isControlledVideoPlayhead) {
+      return;
+    }
+
+    const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+    const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
+    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
+      return;
+    }
+
+    video.currentTime = nextPlayheadMs / 1000;
+  }, [asset?.durationMs, asset?.id, assetUrl, isControlledVideoPlayhead, playheadMs]);
+
+  function syncPlayheadFromVideo(video: HTMLVideoElement) {
+    if (!isControlledVideoPlayhead) {
+      return;
+    }
+
+    const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    if (!shouldSyncPlayheadMs(playheadMs, nextPlayheadMs)) {
+      return;
+    }
+
+    onPlayheadMsChange(nextPlayheadMs);
+  }
+
+  function syncVideoFromPlayhead(video: HTMLVideoElement) {
+    if (!isControlledVideoPlayhead) {
+      return;
+    }
+
+    const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+    const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
+    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
+      return;
+    }
+
+    video.currentTime = nextPlayheadMs / 1000;
+  }
 
   const handleClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
     if (!onSurfaceClick) {
@@ -249,6 +306,12 @@ export function MediaSurface({
             playsInline
             className="media-surface__media"
             title="Preview the selected video asset directly inside the editor."
+            onLoadedMetadata={(event) => {
+              syncVideoFromPlayhead(event.currentTarget);
+              syncPlayheadFromVideo(event.currentTarget);
+            }}
+            onSeeked={(event) => syncPlayheadFromVideo(event.currentTarget)}
+            onTimeUpdate={(event) => syncPlayheadFromVideo(event.currentTarget)}
           />
         ) : asset.kind === "image" ? (
           <img

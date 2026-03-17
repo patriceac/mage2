@@ -49,7 +49,9 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             type="button"
             title="Store the current runtime state in the editor's local playtest save slot."
             onClick={() => {
-              const serialized = JSON.stringify(controller.save());
+              const nextSave = controller.save();
+              nextSave.playheadMs = playheadMs;
+              const serialized = JSON.stringify(nextSave);
               localStorage.setItem(STORAGE_KEY, serialized);
             }}
           >
@@ -80,6 +82,8 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
           strings={project.strings.values}
+          playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
+          onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
           onHotspotClick={(hotspotId) => {
             controller.selectHotspot(hotspotId, playheadMs);
             const nextSnapshot = controller.getSnapshot();
