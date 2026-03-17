@@ -1,14 +1,10 @@
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { computeFileSha256, hydrateAssetSha256s } from "@mage2/media";
+import { computeFileSha256 } from "@mage2/media";
 import {
-  CURRENT_SCHEMA_VERSION,
-  createRectangleHotspotPolygon,
   createDefaultProjectBundle,
-  migrateProjectBundle,
   parseProjectBundle,
   type Asset,
-  type Hotspot,
   type ProjectBundle
 } from "@mage2/schema";
 
@@ -22,20 +18,7 @@ const FILES = {
   strings: "strings.json"
 } as const;
 
-const LEGACY_SUBTITLES_FILE = "subtitles.json";
-
-const STARTER_SCENE_HOTSPOT_BOUNDS = {
-  x: 900 / 1280,
-  y: 360 / 720,
-  width: 220 / 1280,
-  height: 170 / 720
-} as const;
-
 const STARTER_SCENE_ASSET_NAME = "starter-scene.svg";
-const STARTER_HOTSPOT_NAME = "Placeholder";
-const STARTER_HOTSPOT_LABEL_TEXT_ID = "text.hotspot.inspect";
-const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
-const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
 
 export interface ProjectDirectoryInspection {
   isProjectDirectory: boolean;
@@ -54,36 +37,18 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     scenes: await readJson(filePaths.scenes),
     dialogues: await readJson(filePaths.dialogues),
     inventory: await readJson(filePaths.inventory),
-    subtitles: await readOptionalJson(filePaths.legacySubtitles),
     strings: await readJson(filePaths.strings)
   };
 
-  const rawManifest = rawBundle.manifest as Record<string, unknown> | undefined;
-  const rawSchemaVersion =
-    typeof rawManifest?.schemaVersion === "number" ? rawManifest.schemaVersion : 0;
-  const requiresNormalizationSave =
-    rawSchemaVersion < CURRENT_SCHEMA_VERSION || rawBundle.subtitles !== undefined;
-  const project = migrateProjectBundle(rawBundle);
-  const repairedStarterAsset = await repairStarterSceneAssetIfNeeded(projectDir, project);
-  const repairedLegacyHotspot = repairLegacyStarterHotspotIfNeeded(project);
-  const repairedMissingHashes = await repairMissingAssetHashesIfNeeded(project);
-  if (requiresNormalizationSave || repairedStarterAsset || repairedLegacyHotspot || repairedMissingHashes) {
-    await saveProjectToDirectory(projectDir, project);
-  }
-
-  return project;
+  return parseProjectBundle(rawBundle);
 }
 
 export async function inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection> {
   const filePaths = resolveProjectFilePaths(projectDir);
-  const requiredFileEntries = Object.entries(filePaths) as Array<[keyof ReturnType<typeof resolveProjectFilePaths>, string]>;
+  const requiredFileEntries = Object.values(filePaths);
 
   try {
-    await Promise.all(
-      requiredFileEntries
-        .filter(([key]) => key !== "legacySubtitles")
-        .map(([, filePath]) => access(filePath))
-    );
+    await Promise.all(requiredFileEntries.map((filePath) => access(filePath)));
   } catch {
     return {
       isProjectDirectory: false,
@@ -99,11 +64,10 @@ export async function inspectProjectDirectory(projectDir: string): Promise<Proje
       scenes: await readJson(filePaths.scenes),
       dialogues: await readJson(filePaths.dialogues),
       inventory: await readJson(filePaths.inventory),
-      subtitles: await readOptionalJson(filePaths.legacySubtitles),
       strings: await readJson(filePaths.strings)
     };
 
-    const project = parseProjectBundle(migrateProjectBundle(rawBundle));
+    const project = parseProjectBundle(rawBundle);
     return {
       isProjectDirectory: true,
       projectName: project.manifest.projectName
@@ -123,7 +87,6 @@ export async function createProjectInDirectory(
 ): Promise<ProjectBundle> {
   const project = createDefaultProjectBundle(projectName);
   project.manifest.projectId = slugify(projectName);
-  repairLegacyStarterHotspotIfNeeded(project);
   await seedStarterSceneAsset(projectDir, project);
   await saveProjectToDirectory(projectDir, project);
   return project;
@@ -146,31 +109,19 @@ export async function saveProjectToDirectory(
     writeJson(filePaths.inventory, normalized.inventory),
     writeJson(filePaths.strings, normalized.strings)
   ]);
-  await rm(filePaths.legacySubtitles, { force: true });
 
   return normalized;
 }
 
-function resolveProjectFilePaths(projectDir: string): Record<keyof typeof FILES | "legacySubtitles", string> {
-  return {
-    ...(Object.fromEntries(
-      Object.entries(FILES).map(([key, fileName]) => [key, path.join(projectDir, fileName)])
-    ) as Record<keyof typeof FILES, string>),
-    legacySubtitles: path.join(projectDir, LEGACY_SUBTITLES_FILE)
-  };
+function resolveProjectFilePaths(projectDir: string): Record<keyof typeof FILES, string> {
+  return Object.fromEntries(
+    Object.entries(FILES).map(([key, fileName]) => [key, path.join(projectDir, fileName)])
+  ) as Record<keyof typeof FILES, string>;
 }
 
 async function readJson(filePath: string): Promise<unknown> {
   const source = await readFile(filePath, "utf8");
   return JSON.parse(source);
-}
-
-async function readOptionalJson(filePath: string): Promise<unknown> {
-  try {
-    return await readJson(filePath);
-  } catch {
-    return undefined;
-  }
 }
 
 async function writeJson(filePath: string, value: unknown): Promise<void> {
@@ -216,127 +167,6 @@ async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle)
   }
 }
 
-async function repairStarterSceneAssetIfNeeded(
-  projectDir: string,
-  project: ProjectBundle
-): Promise<boolean> {
-  const hasPlaceholderScene = project.scenes.items.some((scene) => scene.backgroundAssetId === "asset_placeholder");
-  const placeholderAsset = project.assets.assets.find((asset) => asset.id === "asset_placeholder");
-  const starterAssetPath = path.join(projectDir, "assets", STARTER_SCENE_ASSET_NAME);
-
-  if (!hasPlaceholderScene) {
-    return false;
-  }
-
-  if (!placeholderAsset) {
-    await seedStarterSceneAsset(projectDir, project);
-    return true;
-  }
-
-  if (!shouldRefreshStarterSceneAsset(placeholderAsset, starterAssetPath)) {
-    return false;
-  }
-
-  try {
-    const source = await readFile(starterAssetPath, "utf8");
-    if (!isLegacyStarterSceneAsset(source)) {
-      return false;
-    }
-  } catch {
-    // Missing or unreadable starter art should be recreated.
-  }
-
-  await seedStarterSceneAsset(projectDir, project);
-  return true;
-}
-
-function repairLegacyStarterHotspotIfNeeded(project: ProjectBundle): boolean {
-  const starterHotspot = createStarterHotspotDefinition();
-  let repaired = false;
-
-  for (const scene of project.scenes.items) {
-    if (scene.backgroundAssetId !== "asset_placeholder") {
-      continue;
-    }
-
-    const hotspotIndex = scene.hotspots.findIndex((hotspot) =>
-      isLegacyStarterHotspot(hotspot, project.strings.values[starterHotspot.labelTextId])
-    );
-
-    if (hotspotIndex < 0) {
-      continue;
-    }
-
-    scene.hotspots[hotspotIndex] = {
-      ...scene.hotspots[hotspotIndex],
-      ...starterHotspot
-    };
-    project.strings.values[starterHotspot.labelTextId] = STARTER_HOTSPOT_NAME;
-    if (starterHotspot.commentTextId) {
-      project.strings.values[starterHotspot.commentTextId] = STARTER_HOTSPOT_COMMENT;
-    }
-    repaired = true;
-  }
-
-  return repaired;
-}
-
-// Keep the repair payload local so editor builds do not depend on a separately built schema helper.
-function createStarterHotspotDefinition(): Hotspot {
-  return {
-    id: "hotspot_inspect",
-    name: STARTER_HOTSPOT_NAME,
-    labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
-    commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
-    ...STARTER_SCENE_HOTSPOT_BOUNDS,
-    polygon: createRectangleHotspotPolygon(STARTER_SCENE_HOTSPOT_BOUNDS),
-    startMs: 0,
-    endMs: 30000,
-    requiredItemIds: [],
-    conditions: [{ type: "always" }],
-    effects: []
-  };
-}
-
-function isLegacyStarterHotspot(
-  hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number],
-  labelText: string | undefined
-): boolean {
-  return (
-    hotspot.id === "hotspot_inspect" &&
-    hotspot.labelTextId === "text.hotspot.inspect" &&
-    hasStarterHotspotBounds(hotspot) &&
-    hotspot.startMs === 0 &&
-    hotspot.endMs === 30000 &&
-    hotspot.requiredItemIds.length === 0 &&
-    hotspot.conditions.length === 1 &&
-    hotspot.conditions[0]?.type === "always" &&
-    hotspot.effects.length === 0 &&
-    (hotspot.name === "Inspect" ||
-      hotspot.name === "Hotspot" ||
-      hotspot.name === STARTER_HOTSPOT_NAME ||
-      labelText === "Inspect" ||
-      labelText === "Hotspot" ||
-      labelText === STARTER_HOTSPOT_NAME ||
-      !hotspot.commentTextId)
-  );
-}
-
-function hasStarterHotspotBounds(
-  hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number]
-): boolean {
-  return (
-    (hotspot.x === 0.15 &&
-      hotspot.y === 0.2 &&
-      hotspot.width === 0.2 &&
-      hotspot.height === 0.18) ||
-    (hotspot.x === STARTER_SCENE_HOTSPOT_BOUNDS.x &&
-      hotspot.y === STARTER_SCENE_HOTSPOT_BOUNDS.y &&
-      hotspot.width === STARTER_SCENE_HOTSPOT_BOUNDS.width &&
-      hotspot.height === STARTER_SCENE_HOTSPOT_BOUNDS.height)
-  );
-}
-
 function createStarterSceneSvg(): string {
   return [
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">',
@@ -348,30 +178,4 @@ function createStarterSceneSvg(): string {
     '<text x="120" y="196" fill="#7dd3fc" font-size="26" font-family="Segoe UI, IBM Plex Sans, sans-serif">Import footage in Assets, then assign it in Scenes.</text>',
     "</svg>"
   ].join("");
-}
-
-function shouldRefreshStarterSceneAsset(asset: Asset, starterAssetPath: string): boolean {
-  return (
-    asset.kind === "image" &&
-    asset.name === STARTER_SCENE_ASSET_NAME &&
-    path.resolve(asset.sourcePath) === path.resolve(starterAssetPath)
-  );
-}
-
-function isLegacyStarterSceneAsset(source: string): boolean {
-  return (
-    source.includes(">Hotspot</text>") ||
-    source.includes("Click in Scenes to add more") ||
-    source.includes(">Placeholder</text>") ||
-    source.includes("Add real hotspots")
-  );
-}
-
-async function repairMissingAssetHashesIfNeeded(project: ProjectBundle): Promise<boolean> {
-  const { assets, updated } = await hydrateAssetSha256s(project.assets.assets);
-  if (updated) {
-    project.assets.assets = assets;
-  }
-
-  return updated;
 }

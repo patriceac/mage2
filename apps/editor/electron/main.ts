@@ -1,4 +1,3 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
@@ -18,7 +17,6 @@ import { createWindowState, loadWindowState, resolveWindowState, saveWindowState
 let mainWindow: BrowserWindow | null = null;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
 const APP_NAME = "MAGE2 Editor";
-const LEGACY_USER_DATA_DIRNAME = "Electron";
 
 app.setName(APP_NAME);
 
@@ -79,7 +77,6 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
-  migrateLegacyUserData();
   registerIpcHandlers();
   createWindow();
 
@@ -131,27 +128,6 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
   window.on("maximize", persistNow);
   window.on("unmaximize", persistNow);
   window.on("close", persistNow);
-}
-
-function migrateLegacyUserData(): void {
-  const userDataPath = app.getPath("userData");
-  const legacyUserDataPath = path.join(app.getPath("appData"), LEGACY_USER_DATA_DIRNAME);
-
-  if (path.resolve(userDataPath) === path.resolve(legacyUserDataPath)) {
-    return;
-  }
-
-  for (const fileName of ["window-state.json", "recent-projects.json"]) {
-    const sourcePath = path.join(legacyUserDataPath, fileName);
-    const targetPath = path.join(userDataPath, fileName);
-
-    if (!existsSync(sourcePath) || existsSync(targetPath)) {
-      continue;
-    }
-
-    mkdirSync(path.dirname(targetPath), { recursive: true });
-    copyFileSync(sourcePath, targetPath);
-  }
 }
 
 function registerIpcHandlers(): void {

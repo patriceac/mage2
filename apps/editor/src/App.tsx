@@ -35,9 +35,6 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
 
-const LEGACY_RECENT_PROJECT_PATH_KEY = "mage2:recent-project-path";
-const LEGACY_RECENT_PROJECT_NAME_KEY = "mage2:recent-project-name";
-
 export function App() {
   const {
     project,
@@ -91,8 +88,6 @@ export function App() {
     try {
       const nextRecentProjects = await window.editorApi.rememberRecentProject(targetProjectDir, projectName);
       setRecentProjects(nextRecentProjects);
-      localStorage.removeItem(LEGACY_RECENT_PROJECT_PATH_KEY);
-      localStorage.removeItem(LEGACY_RECENT_PROJECT_NAME_KEY);
     } catch {
       setRecentProjects((currentProjects) => upsertRecentProjects(currentProjects, targetProjectDir, projectName));
     }
@@ -142,34 +137,7 @@ export function App() {
       try {
         persistedRecentProjects = await window.editorApi.getRecentProjects();
       } catch {
-        const legacyRecentProject = getLegacyRecentProject();
-        if (legacyRecentProject) {
-          persistedRecentProjects = upsertRecentProjects([], legacyRecentProject.projectDir, legacyRecentProject.projectName);
-        }
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      if (persistedRecentProjects.length === 0) {
-        const legacyRecentProject = getLegacyRecentProject();
-        if (legacyRecentProject) {
-          try {
-            persistedRecentProjects = await window.editorApi.rememberRecentProject(
-              legacyRecentProject.projectDir,
-              legacyRecentProject.projectName
-            );
-            localStorage.removeItem(LEGACY_RECENT_PROJECT_PATH_KEY);
-            localStorage.removeItem(LEGACY_RECENT_PROJECT_NAME_KEY);
-          } catch {
-            persistedRecentProjects = upsertRecentProjects(
-              [],
-              legacyRecentProject.projectDir,
-              legacyRecentProject.projectName
-            );
-          }
-        }
+        persistedRecentProjects = [];
       }
 
       if (cancelled) {
@@ -569,19 +537,6 @@ export function App() {
   );
 }
 
-function getLegacyRecentProject(): { projectDir: string; projectName?: string } | undefined {
-  const projectDir = localStorage.getItem(LEGACY_RECENT_PROJECT_PATH_KEY)?.trim();
-  if (!projectDir) {
-    return undefined;
-  }
-
-  const projectName = localStorage.getItem(LEGACY_RECENT_PROJECT_NAME_KEY)?.trim() || undefined;
-  return {
-    projectDir,
-    projectName
-  };
-}
-
 function getInitialRecentProjects(): RecentProjectSummary[] {
   const hasEditorApi = typeof window !== "undefined" && typeof window.editorApi !== "undefined";
 
@@ -589,12 +544,11 @@ function getInitialRecentProjects(): RecentProjectSummary[] {
     try {
       return window.editorApi.getRecentProjectsSync();
     } catch {
-      // Fall through to the legacy localStorage key so the landing screen still has something useful.
+      return [];
     }
   }
 
-  const legacyRecentProject = getLegacyRecentProject();
-  return legacyRecentProject ? upsertRecentProjects([], legacyRecentProject.projectDir, legacyRecentProject.projectName) : [];
+  return [];
 }
 
 interface IssueNavigationTarget {

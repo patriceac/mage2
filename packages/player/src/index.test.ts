@@ -18,22 +18,6 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(35000)).toHaveLength(0);
   });
 
-  it("drops legacy currentSegmentId values from loaded save state", () => {
-    const project = createDefaultProjectBundle();
-    const controller = createPlayerController(
-      project,
-      {
-        ...createInitialSaveState(project),
-        playheadMs: 1250,
-        currentSegmentId: "segment_intro"
-      } as unknown as Parameters<typeof createPlayerController>[1]
-    );
-
-    expect(controller.getSnapshot().saveState.playheadMs).toBe(1250);
-    expect(controller.getSnapshot().saveState).not.toHaveProperty("currentSegmentId");
-    expect(controller.save()).not.toHaveProperty("currentSegmentId");
-  });
-
   it("returns active subtitle cue text from scene-owned tracks, including overlaps and line breaks", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({
