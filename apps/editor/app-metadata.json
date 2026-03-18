@@ -1,0 +1,8 @@
+{
+  "packageName": "mage2-editor",
+  "appId": "com.mage2.editor",
+  "productName": "MAGE2 Editor",
+  "executableName": "MAGE2 Editor",
+  "author": "MAGE2",
+  "winArtifactName": "MAGE2-Editor-${version}-${arch}.${ext}"
+}

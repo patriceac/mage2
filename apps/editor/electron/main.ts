@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
 import { deleteManagedAssetFiles, generateProxy, importAssetsToProject, parseSubtitleFiles } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
+import appMetadata from "../app-metadata.json";
 import { exportProjectBundle } from "./exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
 import {
@@ -16,9 +17,14 @@ import { createWindowState, loadWindowState, resolveWindowState, saveWindowState
 
 let mainWindow: BrowserWindow | null = null;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
-const APP_NAME = "MAGE2 Editor";
+const APP_NAME = appMetadata.productName;
+const APP_ID = appMetadata.appId;
 
 app.setName(APP_NAME);
+
+if (process.platform === "win32") {
+  app.setAppUserModelId(APP_ID);
+}
 
 function createWindow(): void {
   const restoredWindowState = resolveWindowState(

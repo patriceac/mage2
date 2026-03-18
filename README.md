@@ -49,7 +49,8 @@ On Windows, you can also launch the editor with:
 launch-editor.cmd
 ```
 
-That script builds the editor on first run if the compiled assets are missing.
+That shortcut-friendly launcher starts the packaged `MAGE2 Editor.exe` from `output/packaging/editor-win/dist/win-unpacked/`.
+If the packaged app is missing or stale, it rebuilds the Windows package first so taskbar pinning stays attached to MAGE2 instead of raw Electron.
 
 If you want to launch it without a visible console window, use:
 
@@ -57,7 +58,13 @@ If you want to launch it without a visible console window, use:
 launch-editor.vbs
 ```
 
-Use `launch-editor.cmd` when you want build or startup errors to stay visible in a terminal.
+If you want the old raw Electron launcher for development, use:
+
+```bat
+launch-editor-dev.cmd
+```
+
+That script starts `electron.exe` directly and keeps startup errors visible in the terminal, but Windows will treat pinned taskbar items as Electron because it is the owning executable.
 
 To create a packaged Windows app and installer:
 

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { build, Platform, Arch } from "electron-builder";
+import editorAppMetadata from "../apps/editor/app-metadata.json" with { type: "json" };
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -85,11 +86,11 @@ async function copyRuntimeDependencies() {
 
 async function writeStagePackageJson() {
   const stagePackageJson = {
-    name: "mage2-editor",
+    name: editorAppMetadata.packageName,
     version: editorPackageJson.version,
     description: "Packaged Windows desktop editor for MAGE2 projects.",
     main: "dist-electron/main.cjs",
-    author: "MAGE2",
+    author: editorAppMetadata.author,
     license: rootPackageJson.license ?? "UNLICENSED",
     dependencies: {
       "@mage2/media": mediaPackageJson.version,
@@ -109,8 +110,9 @@ async function packageWindowsApp() {
   await build({
     targets: Platform.WINDOWS.createTarget(["nsis", "dir"], Arch.x64),
     config: {
-      appId: "com.mage2.editor",
-      productName: "MAGE2 Editor",
+      appId: editorAppMetadata.appId,
+      productName: editorAppMetadata.productName,
+      executableName: editorAppMetadata.executableName,
       electronVersion: editorPackageJson.dependencies.electron.replace(/^[^\d]*/, ""),
       directories: {
         app: appStageDir,
@@ -138,7 +140,7 @@ async function packageWindowsApp() {
           { target: "dir", arch: ["x64"] }
         ],
         icon: path.join(buildResourcesDir, "icon.ico"),
-        artifactName: "MAGE2-Editor-${version}-${arch}.${ext}"
+        artifactName: editorAppMetadata.winArtifactName
       },
       nsis: {
         oneClick: false,
