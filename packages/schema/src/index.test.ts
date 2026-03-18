@@ -118,6 +118,35 @@ describe("project validation", () => {
       report.issues.some((issue) => issue.code === "SCENE_UNREACHABLE" && issue.entityId === "scene_three")
     ).toBe(false);
   });
+
+  it("describes unreachable scenes with scene names in the validation message", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "image",
+      name: "Placeholder",
+      sourcePath: "placeholder.png",
+      importedAt: new Date().toISOString()
+    });
+    project.locations.items[0]?.sceneIds.push("scene_bpacnlcm");
+    project.scenes.items.push({
+      id: "scene_bpacnlcm",
+      locationId: project.locations.items[0]!.id,
+      name: "Scene 2",
+      backgroundAssetId: "asset_placeholder",
+      backgroundVideoLoop: false,
+      hotspots: [],
+      subtitleTracks: [],
+      dialogueTreeIds: [],
+      onEnterEffects: [],
+      onExitEffects: []
+    });
+
+    const report = validateProject(project);
+    const unreachableSceneIssue = report.issues.find((issue) => issue.code === "SCENE_UNREACHABLE");
+
+    expect(unreachableSceneIssue?.message).toBe("Scene 'Scene 2' is unreachable from 'Opening Scene'.");
+  });
 });
 
 describe("hotspot content placement", () => {

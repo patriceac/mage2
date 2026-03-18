@@ -277,12 +277,7 @@ export function App() {
     );
   }
 
-  function handleNavigateToIssue(issue: ValidationIssue) {
-    if (!project) {
-      return;
-    }
-
-    const target = resolveIssueNavigation(project, issue);
+  function handleNavigateToIssueTarget(target: IssueNavigationTarget | undefined) {
     if (!target) {
       return;
     }
@@ -295,6 +290,14 @@ export function App() {
     setSelectedDialogueNodeId(target.dialogueNodeId);
     setSelectedInventoryItemId(target.inventoryItemId);
     setStatusMessage(`Navigated to ${target.label}`);
+  }
+
+  function handleNavigateToIssue(issue: ValidationIssue) {
+    if (!project) {
+      return;
+    }
+
+    handleNavigateToIssueTarget(resolveIssueNavigation(project, issue));
   }
 
   if (!hasEditorApi) {
@@ -492,7 +495,7 @@ export function App() {
                 <h3>Issues</h3>
                 <p className="muted">
                   {validationReport.issues.length > 0
-                    ? "Click an issue to jump to the affected editor surface."
+                    ? "Use the linked names to jump to the affected editor surface when available."
                     : "No validation issues detected."}
                 </p>
               </div>
@@ -502,6 +505,7 @@ export function App() {
               <div className="validation-list">
                 {validationReport.issues.map((issue, index) => {
                   const target = resolveIssueNavigation(project, issue);
+                  const entityLabel = issue.entityId ? resolveIssueEntityLabel(project, issue, target) : undefined;
                   return (
                     <article key={`${issue.code}-${issue.entityId ?? "global"}-${index}`} className="validation-item">
                       <div className="validation-item__header">
@@ -509,20 +513,17 @@ export function App() {
                           {issue.level}
                         </span>
                         <strong>{issue.code}</strong>
-                        {issue.entityId ? <code>{issue.entityId}</code> : null}
+                        {entityLabel ? (
+                          <IssueTextLink
+                            label={entityLabel}
+                            target={target}
+                            onNavigate={handleNavigateToIssueTarget}
+                            className="validation-item__entity"
+                          />
+                        ) : null}
                       </div>
-                      <p>{issue.message}</p>
+                      <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget)}</p>
                       <p className="muted">{getIssueHint(issue)}</p>
-                      {target ? (
-                        <button
-                          type="button"
-                          className="issue-action"
-                          onClick={() => handleNavigateToIssue(issue)}
-                          title={`Open the ${target.label} editor surface related to this validation issue.`}
-                        >
-                          Go To {target.label}
-                        </button>
-                      ) : null}
                     </article>
                   );
                 })}
@@ -562,6 +563,90 @@ interface IssueNavigationTarget {
   inventoryItemId?: string;
 }
 
+interface IssueTextLinkProps {
+  label: string;
+  target?: IssueNavigationTarget;
+  onNavigate: (target: IssueNavigationTarget | undefined) => void;
+  className?: string;
+}
+
+function IssueTextLink({ label, target, onNavigate, className }: IssueTextLinkProps) {
+  if (!target) {
+    return className ? <span className={className}>{label}</span> : <>{label}</>;
+  }
+
+  const classes = className ? `issue-link ${className}` : "issue-link";
+
+  return (
+    <button
+      type="button"
+      className={classes}
+      onClick={() => onNavigate(target)}
+      title={`Open ${target.label} in the editor.`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function resolveSceneNavigationTarget(
+  project: ProjectBundle,
+  sceneId: string | undefined
+): IssueNavigationTarget | undefined {
+  if (!sceneId) {
+    return undefined;
+  }
+
+  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+  if (!scene) {
+    return undefined;
+  }
+
+  return {
+    label: scene.name,
+    tab: "scenes",
+    locationId: scene.locationId,
+    sceneId: scene.id
+  };
+}
+
+function resolveIssueEntityLabel(
+  project: ProjectBundle,
+  issue: ValidationIssue,
+  target: IssueNavigationTarget | undefined
+): string {
+  if (issue.code === "SCENE_UNREACHABLE") {
+    return resolveSceneNavigationTarget(project, issue.entityId)?.label ?? issue.entityId ?? "Unknown scene";
+  }
+
+  return target?.label ?? issue.entityId ?? "Unknown item";
+}
+
+function renderIssueMessage(
+  project: ProjectBundle,
+  issue: ValidationIssue,
+  onNavigate: (target: IssueNavigationTarget | undefined) => void
+) {
+  if (issue.code === "SCENE_UNREACHABLE") {
+    const unreachableSceneTarget = resolveSceneNavigationTarget(project, issue.entityId);
+    const startSceneTarget = resolveSceneNavigationTarget(project, project.manifest.startSceneId);
+    const unreachableSceneLabel = unreachableSceneTarget?.label ?? issue.entityId ?? "Unknown scene";
+    const startSceneLabel = startSceneTarget?.label ?? project.manifest.startSceneId;
+
+    return (
+      <>
+        Scene '
+        <IssueTextLink label={unreachableSceneLabel} target={unreachableSceneTarget} onNavigate={onNavigate} />
+        ' is unreachable from '
+        <IssueTextLink label={startSceneLabel} target={startSceneTarget} onNavigate={onNavigate} />
+        '.
+      </>
+    );
+  }
+
+  return issue.message;
+}
+
 function resolveIssueNavigation(
   project: ProjectBundle,
   issue: ValidationIssue
@@ -581,12 +666,7 @@ function resolveIssueNavigation(
 
     const scene = project.scenes.items.find((entry) => entry.id === entityId);
     if (scene) {
-      return {
-        label: scene.name,
-        tab: "scenes",
-        locationId: scene.locationId,
-        sceneId: scene.id
-      };
+      return resolveSceneNavigationTarget(project, scene.id);
     }
 
     for (const candidateScene of project.scenes.items) {

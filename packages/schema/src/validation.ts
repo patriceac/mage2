@@ -102,12 +102,14 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     }
   }
 
+  const startScene = project.scenes.items.find((entry) => entry.id === project.manifest.startSceneId);
+
   for (const scene of project.scenes.items) {
     if (!reachableScenes.has(scene.id)) {
       issues.push({
         level: "warning",
         code: "SCENE_UNREACHABLE",
-        message: `Scene '${scene.id}' is unreachable from '${project.manifest.startSceneId}'.`,
+        message: `Scene '${scene.name}' is unreachable from '${startScene?.name ?? project.manifest.startSceneId}'.`,
         entityId: scene.id
       });
     }

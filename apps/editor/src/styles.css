@@ -255,15 +255,48 @@ label {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.issue-action {
-  margin-top: 0.6rem;
-}
-
 .validation-item__header {
   display: flex;
   gap: 0.7rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.validation-item__entity {
+  font-weight: 600;
+  color: #dfe7ee;
+}
+
+.issue-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #7dd3fc;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(125, 211, 252, 0.55);
+  text-underline-offset: 0.16em;
+}
+
+.issue-link:hover {
+  color: #bae6fd;
+  text-decoration-color: currentColor;
+}
+
+.issue-link:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.validation-item__entity.issue-link {
+  color: #dfe7ee;
+  text-decoration-color: rgba(223, 231, 238, 0.45);
+}
+
+.validation-item__entity.issue-link:hover {
+  color: #7dd3fc;
 }
 
 .validation-tag {
