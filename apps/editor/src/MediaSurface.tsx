@@ -208,7 +208,6 @@ export function MediaSurface({
 
       event.preventDefault();
       event.stopPropagation();
-      onHotspotClick?.(hotspot.id);
 
       const bounds = overlay.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) {
@@ -259,15 +258,19 @@ export function MediaSurface({
         body.style.userSelect = previousUserSelect;
         dragCleanupRef.current = undefined;
 
+        // Hotspot interactions should never fall through to the scene surface,
+        // even if the cursor is outside the hotspot when the mouse button is released.
+        suppressSurfaceClickRef.current = true;
+        if (suppressSurfaceClickTimeoutRef.current !== undefined) {
+          window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
+        }
+        suppressSurfaceClickTimeoutRef.current = window.setTimeout(() => {
+          suppressSurfaceClickRef.current = false;
+          suppressSurfaceClickTimeoutRef.current = undefined;
+        }, 0);
+
         if (didDrag) {
-          suppressSurfaceClickRef.current = true;
-          if (suppressSurfaceClickTimeoutRef.current !== undefined) {
-            window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
-          }
-          suppressSurfaceClickTimeoutRef.current = window.setTimeout(() => {
-            suppressSurfaceClickRef.current = false;
-            suppressSurfaceClickTimeoutRef.current = undefined;
-          }, 0);
+          onHotspotClick?.(hotspot.id);
         }
       };
 

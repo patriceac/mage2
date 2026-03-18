@@ -34,6 +34,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
+  const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -260,7 +261,11 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   }
 
   return (
-    <div className="panel-grid panel-grid--scenes">
+    <div
+      className={
+        selectedHotspot ? "panel-grid panel-grid--scenes" : "panel-grid panel-grid--scenes panel-grid--single"
+      }
+    >
       <section className="panel scenes-panel">
         <div className="panel__toolbar scenes-panel__toolbar">
           <div className="stack-inline scenes-panel__selectors">
@@ -633,30 +638,25 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         </section>
       </section>
 
-      <aside className="panel">
-        <h3>Hotspot Inspector</h3>
-        <p className="muted">
-          These hotspot shapes are clickable interaction regions over the scene. Select one to edit its
-          bounds, timing, and behavior. Drag the shape or its orange handles in the preview for quick edits,
-          or use the bounds fields below for precise values.
-        </p>
-        {currentScene.hotspots
-          .filter((hotspot) => !selectedHotspotId || hotspot.id === selectedHotspotId)
-          .map((hotspot) => (
-            <article
-              key={hotspot.id}
-              className={hotspot.id === selectedHotspotId ? "list-card list-card--selected" : "list-card"}
-            >
+      {selectedHotspot ? (
+        <aside className="panel">
+          <h3>Hotspot Inspector</h3>
+          <p className="muted">
+            These hotspot shapes are clickable interaction regions over the scene. Select one to edit its
+            bounds, timing, and behavior. Drag the shape or its orange handles in the preview for quick edits,
+            or use the bounds fields below for precise values.
+          </p>
+          <article key={selectedHotspot.id} className="list-card list-card--selected">
               <label title="Visible hotspot title shown in the editor and runtime.">
                 <span className="field-label--inset">Name</span>
                 <input
-                  value={hotspot.name}
+                  value={selectedHotspot.name}
                   title="Visible hotspot title shown in the editor and runtime."
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
                         .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === hotspot.id);
+                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                       if (target) {
                         target.name = event.target.value;
                         draft.strings.values[target.labelTextId] = event.target.value;
@@ -668,12 +668,14 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               <label title="Optional secondary text shown inside this hotspot under the main label.">
                 <span className="field-label--inset">Comment</span>
                 <input
-                  value={hotspot.commentTextId ? project.strings.values[hotspot.commentTextId] ?? "" : ""}
+                  value={
+                    selectedHotspot.commentTextId ? project.strings.values[selectedHotspot.commentTextId] ?? "" : ""
+                  }
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
                         .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === hotspot.id);
+                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                       if (!target) {
                         return;
                       }
@@ -698,13 +700,13 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                     <input
                       type="number"
                       step="0.01"
-                      value={formatHotspotCoordinate(hotspot[field])}
+                      value={formatHotspotCoordinate(selectedHotspot[field])}
                       title={tooltip}
                       onChange={(event) =>
                         mutateProject((draft) => {
                           const target = draft.scenes.items
                             .find((entry) => entry.id === currentScene.id)
-                            ?.hotspots.find((entry) => entry.id === hotspot.id);
+                            ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                           if (target) {
                             const nextGeometry = applyHotspotBounds(
                               {
@@ -739,13 +741,13 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                   <span className="field-label--inset">Start (ms)</span>
                   <input
                     type="number"
-                    value={hotspot.startMs}
+                    value={selectedHotspot.startMs}
                     title="Time in milliseconds when this hotspot becomes clickable."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
                           .find((entry) => entry.id === currentScene.id)
-                          ?.hotspots.find((entry) => entry.id === hotspot.id);
+                          ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                         if (target) {
                           target.startMs = Number(event.target.value);
                         }
@@ -757,13 +759,13 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                   <span className="field-label--inset">End (ms)</span>
                   <input
                     type="number"
-                    value={hotspot.endMs}
+                    value={selectedHotspot.endMs}
                     title="Time in milliseconds when this hotspot stops being clickable."
                     onChange={(event) =>
                       mutateProject((draft) => {
                         const target = draft.scenes.items
                           .find((entry) => entry.id === currentScene.id)
-                          ?.hotspots.find((entry) => entry.id === hotspot.id);
+                          ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                         if (target) {
                           target.endMs = Number(event.target.value);
                         }
@@ -775,12 +777,12 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               <label title="Scene that should open when this hotspot is activated.">
                 <span className="field-label--inset">Target Scene</span>
                 <select
-                  value={hotspot.targetSceneId ?? ""}
+                  value={selectedHotspot.targetSceneId ?? ""}
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
                         .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === hotspot.id);
+                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                       if (target) {
                         target.targetSceneId = event.target.value || undefined;
                       }
@@ -798,12 +800,12 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
                 <span className="field-label--inset">Required Item IDs</span>
                 <input
-                  value={hotspot.requiredItemIds.join(", ")}
+                  value={selectedHotspot.requiredItemIds.join(", ")}
                   onChange={(event) =>
                     mutateProject((draft) => {
                       const target = draft.scenes.items
                         .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === hotspot.id);
+                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                       if (target) {
                         target.requiredItemIds = event.target.value
                           .split(",")
@@ -816,14 +818,14 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               </label>
               <JsonField
                 label="Conditions JSON"
-                value={JSON.stringify(hotspot.conditions, null, 2)}
+                value={JSON.stringify(selectedHotspot.conditions, null, 2)}
                 tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
                 labelClassName="field-label--inset"
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
                       .find((entry) => entry.id === currentScene.id)
-                      ?.hotspots.find((entry) => entry.id === hotspot.id);
+                      ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                     if (target) {
                       target.conditions = parseJson(nextValue, target.conditions);
                     }
@@ -832,23 +834,23 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               />
               <JsonField
                 label="Effects JSON"
-                value={JSON.stringify(hotspot.effects, null, 2)}
+                value={JSON.stringify(selectedHotspot.effects, null, 2)}
                 tooltip="Advanced JSON effect list that runs after this hotspot is activated."
                 labelClassName="field-label--inset"
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
                       .find((entry) => entry.id === currentScene.id)
-                      ?.hotspots.find((entry) => entry.id === hotspot.id);
+                      ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                     if (target) {
                       target.effects = parseJson(nextValue, target.effects);
                     }
                   })
                 }
               />
-            </article>
-          ))}
-      </aside>
+          </article>
+        </aside>
+      ) : null}
     </div>
   );
 }

@@ -370,6 +370,10 @@ label {
   grid-template-columns: 1.7fr 1fr;
 }
 
+.panel-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .panel {
   border-radius: 24px;
   padding: 1rem;
