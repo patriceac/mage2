@@ -437,7 +437,7 @@ function DeleteSceneDialog({
 
         {mode === "rewire" ? (
           <label>
-            Replacement Scene
+            <span className="field-label--inset">Replacement Scene</span>
             <select value={replacementSceneId} onChange={(event) => setReplacementSceneId(event.target.value)}>
               <option value="">Select a replacement scene</option>
               {replacementCandidates.map((scene) => {

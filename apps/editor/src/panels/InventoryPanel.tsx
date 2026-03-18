@@ -34,21 +34,24 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
             key={item.id}
             className={item.id === selectedInventoryItemId ? "list-card list-card--selected" : "list-card"}
           >
-            <input
-              value={item.name}
-              title="Internal name used to identify this inventory item in the editor."
-              onFocus={() => setSelectedInventoryItemId(item.id)}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const target = draft.inventory.items.find((entry) => entry.id === item.id);
-                  if (target) {
-                    target.name = event.target.value;
-                  }
-                })
-              }
-            />
             <label>
-              Display Text
+              <span className="field-label--inset">Name</span>
+              <input
+                value={item.name}
+                title="Internal name used to identify this inventory item in the editor."
+                onFocus={() => setSelectedInventoryItemId(item.id)}
+                onChange={(event) =>
+                  mutateProject((draft) => {
+                    const target = draft.inventory.items.find((entry) => entry.id === item.id);
+                    if (target) {
+                      target.name = event.target.value;
+                    }
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span className="field-label--inset">Display Text</span>
               <input
                 value={project.strings.values[item.textId] ?? ""}
                 title="Player-facing item label pulled from the string table."
@@ -61,7 +64,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
               />
             </label>
             <label>
-              Description
+              <span className="field-label--inset">Description</span>
               <textarea
                 value={project.strings.values[item.descriptionTextId ?? ""] ?? ""}
                 title="Longer inspection text shown when the player looks at this item."
@@ -84,7 +87,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
         <div className="string-table">
           {Object.entries(project.strings.values).map(([textId, value]) => (
             <label key={textId}>
-              <span>{textId}</span>
+              <span className="field-label--inset">{textId}</span>
               <textarea
                 value={value}
                 title={`Edit the localized string stored under ${textId}.`}

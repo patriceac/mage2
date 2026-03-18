@@ -265,7 +265,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         <div className="panel__toolbar scenes-panel__toolbar">
           <div className="stack-inline scenes-panel__selectors">
             <label title="Choose which world location owns the currently selected scene.">
-              Location
+              <span className="field-label--inset">Location</span>
               <select
                 value={currentScene.locationId}
                 onChange={(event) =>
@@ -296,7 +296,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               </select>
             </label>
             <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
-              Scene
+              <span className="field-label--inset">Scene</span>
               <select
                 value={currentScene.id}
                 onChange={(event) => {
@@ -326,7 +326,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         </div>
 
         <label title="Readable editor name for the current scene.">
-          Scene Name
+          <span className="field-label--inset">Scene Name</span>
           <input
             value={currentScene.name}
             onChange={(event) =>
@@ -341,7 +341,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         </label>
 
         <label title="Background media shown for this scene in the editor and runtime.">
-          Background Asset
+          <span className="field-label--inset">Background Asset</span>
           <select
             value={currentScene.backgroundAssetId}
             onChange={(event) =>
@@ -450,6 +450,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               label="On Enter Effects JSON"
               value={JSON.stringify(currentScene.onEnterEffects, null, 2)}
               tooltip="JSON effect list that runs automatically when the player enters this scene."
+              labelClassName="field-label--inset"
               onCommit={(nextValue) =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -463,6 +464,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               label="On Exit Effects JSON"
               value={JSON.stringify(currentScene.onExitEffects, null, 2)}
               tooltip="JSON effect list that runs automatically when the player leaves this scene."
+              labelClassName="field-label--inset"
               onCommit={(nextValue) =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
@@ -645,7 +647,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               key={hotspot.id}
               className={hotspot.id === selectedHotspotId ? "list-card list-card--selected" : "list-card"}
             >
-              <div className="panel__toolbar">
+              <label title="Visible hotspot title shown in the editor and runtime.">
+                <span className="field-label--inset">Name</span>
                 <input
                   value={hotspot.name}
                   title="Visible hotspot title shown in the editor and runtime."
@@ -661,17 +664,9 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                     })
                   }
                 />
-                <button
-                  type="button"
-                  className="button-danger"
-                  title="Delete this hotspot and remove its interaction region from the scene. Shortcut: Delete when selected."
-                  onClick={() => deleteHotspot(hotspot.id)}
-                >
-                  Delete
-                </button>
-              </div>
+              </label>
               <label title="Optional secondary text shown inside this hotspot under the main label.">
-                Comment
+                <span className="field-label--inset">Comment</span>
                 <input
                   value={hotspot.commentTextId ? project.strings.values[hotspot.commentTextId] ?? "" : ""}
                   onChange={(event) =>
@@ -692,14 +687,14 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               <div className="four-grid">
                 {(
                   [
-                    ["x", "Bounds X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
-                    ["y", "Bounds Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
-                    ["width", "Bounds Width", "Hotspot bounds width as a normalized percentage of the scene surface."],
-                    ["height", "Bounds Height", "Hotspot bounds height as a normalized percentage of the scene surface."]
+                    ["x", "X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
+                    ["y", "Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
+                    ["width", "W", "Hotspot bounds width as a normalized percentage of the scene surface."],
+                    ["height", "H", "Hotspot bounds height as a normalized percentage of the scene surface."]
                   ] as const
                 ).map(([field, label, tooltip]) => (
                   <label key={field} title={tooltip}>
-                    {label}
+                    <span className="field-label--inset">{label}</span>
                     <input
                       type="number"
                       step="0.01"
@@ -741,7 +736,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
               </div>
               <div className="stack-inline">
                 <label title="Time in milliseconds when this hotspot becomes clickable.">
-                  Start (ms)
+                  <span className="field-label--inset">Start (ms)</span>
                   <input
                     type="number"
                     value={hotspot.startMs}
@@ -759,7 +754,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                   />
                 </label>
                 <label title="Time in milliseconds when this hotspot stops being clickable.">
-                  End (ms)
+                  <span className="field-label--inset">End (ms)</span>
                   <input
                     type="number"
                     value={hotspot.endMs}
@@ -778,7 +773,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 </label>
               </div>
               <label title="Scene that should open when this hotspot is activated.">
-                Target Scene
+                <span className="field-label--inset">Target Scene</span>
                 <select
                   value={hotspot.targetSceneId ?? ""}
                   onChange={(event) =>
@@ -801,7 +796,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 </select>
               </label>
               <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
-                Required Item IDs
+                <span className="field-label--inset">Required Item IDs</span>
                 <input
                   value={hotspot.requiredItemIds.join(", ")}
                   onChange={(event) =>
@@ -823,6 +818,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 label="Conditions JSON"
                 value={JSON.stringify(hotspot.conditions, null, 2)}
                 tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
+                labelClassName="field-label--inset"
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
@@ -838,6 +834,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 label="Effects JSON"
                 value={JSON.stringify(hotspot.effects, null, 2)}
                 tooltip="Advanced JSON effect list that runs after this hotspot is activated."
+                labelClassName="field-label--inset"
                 onCommit={(nextValue) =>
                   mutateProject((draft) => {
                     const target = draft.scenes.items
@@ -894,16 +891,18 @@ function JsonField({
   label,
   value,
   tooltip,
+  labelClassName,
   onCommit
 }: {
   label: string;
   value: string;
   tooltip?: string;
+  labelClassName?: string;
   onCommit: (nextValue: string) => void;
 }) {
   return (
     <label title={tooltip}>
-      {label}
+      {labelClassName ? <span className={labelClassName}>{label}</span> : label}
       <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} title={tooltip} />
     </label>
   );

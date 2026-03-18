@@ -143,7 +143,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
         {currentDialogue ? (
           <>
             <label title="Readable editor name for this dialogue tree.">
-              Dialogue Name
+              <span className="field-label--inset">Dialogue Name</span>
               <input
                 value={currentDialogue.name}
                 title="Readable editor name for this dialogue tree."
@@ -158,7 +158,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
               />
             </label>
             <label title="Select which node acts as the entry point when this dialogue begins.">
-              Start Node
+              <span className="field-label--inset">Start Node</span>
               <select
                 value={currentDialogue.startNodeId}
                 title="Select which node acts as the entry point when this dialogue begins."
@@ -185,7 +185,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                 className={node.id === selectedDialogueNodeId ? "list-card list-card--selected" : "list-card"}
               >
                 <label>
-                  Speaker
+                  <span className="field-label--inset">Speaker</span>
                   <input
                     value={node.speaker}
                     title="Speaker name displayed for this dialogue node."
@@ -201,7 +201,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   />
                 </label>
                 <label>
-                  Line
+                  <span className="field-label--inset">Line</span>
                   <textarea
                     value={project.strings.values[node.textId] ?? ""}
                     title="Dialogue line text spoken by this node."
@@ -214,7 +214,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   />
                 </label>
                 <label title="Fallback node to visit after this line when no explicit choice is selected.">
-                  Next Node
+                  <span className="field-label--inset">Next Node</span>
                   <select
                     value={node.nextNodeId ?? ""}
                     title="Fallback node to visit after this line when no explicit choice is selected."
@@ -242,6 +242,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   label="Node Effects JSON"
                   value={JSON.stringify(node.effects, null, 2)}
                   tooltip="Advanced JSON effect list that runs when this dialogue node is entered."
+                  labelClassName="field-label--inset"
                   onCommit={(nextValue) =>
                     mutateProject((draft) => {
                       const target = findNode(draft, currentDialogue.id, node.id);
@@ -333,7 +334,7 @@ function ChoiceEditor({
   return (
     <div className="choice-editor">
       <label title="Text shown to the player for this choice.">
-        Choice Text
+        <span className="field-label--inset">Choice Text</span>
         <input
           value={project.strings.values[choice.textId] ?? ""}
           title="Text shown to the player for this choice."
@@ -342,7 +343,7 @@ function ChoiceEditor({
         />
       </label>
       <label title="Node that should be opened when the player selects this choice.">
-        Next Node
+        <span className="field-label--inset">Next Node</span>
         <select
           value={choice.nextNodeId ?? ""}
           title="Node that should be opened when the player selects this choice."
@@ -361,12 +362,14 @@ function ChoiceEditor({
         label="Conditions JSON"
         value={JSON.stringify(choice.conditions, null, 2)}
         tooltip="Advanced JSON condition list that must pass before this choice appears."
+        labelClassName="field-label--inset"
         onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
       />
       <JsonField
         label="Effects JSON"
         value={JSON.stringify(choice.effects, null, 2)}
         tooltip="Advanced JSON effect list that runs after the player selects this choice."
+        labelClassName="field-label--inset"
         onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
       />
     </div>
@@ -377,16 +380,18 @@ function JsonField({
   label,
   value,
   tooltip,
+  labelClassName,
   onCommit
 }: {
   label: string;
   value: string;
   tooltip?: string;
+  labelClassName?: string;
   onCommit: (nextValue: string) => void;
 }) {
   return (
     <label title={tooltip}>
-      {label}
+      {labelClassName ? <span className={labelClassName}>{label}</span> : label}
       <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} title={tooltip} />
     </label>
   );

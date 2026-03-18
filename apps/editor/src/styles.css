@@ -869,6 +869,21 @@ label {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.four-grid > label {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+}
+
+.field-label--inset {
+  display: block;
+  padding-left: 0.8rem;
+}
+
+.four-grid > label > input {
+  margin-top: 0;
+}
+
 .cue-row {
   grid-template-columns: 0.7fr 0.7fr 1.6fr;
 }

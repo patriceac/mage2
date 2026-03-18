@@ -114,7 +114,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
           <>
             <h3>{currentLocation.name}</h3>
             <label>
-              Name
+              <span className="field-label--inset">Name</span>
               <input
                 value={currentLocation.name}
                 title="Editable display name for the selected location node."

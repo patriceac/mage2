@@ -326,7 +326,7 @@ export function App() {
             exports from one project folder.
           </p>
           <label>
-            Project Name
+            <span className="field-label--inset">Project Name</span>
             <input
               value={newProjectName}
               onChange={(event) => setNewProjectName(event.target.value)}
