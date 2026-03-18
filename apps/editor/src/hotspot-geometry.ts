@@ -10,6 +10,8 @@ export type HotspotGeometry = Pick<Hotspot, "x" | "y" | "width" | "height" | "po
 export type HotspotDragHandle = "move" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
 
 export const MIN_HOTSPOT_SIZE = 0.01;
+export const HOTSPOT_COORDINATE_DECIMALS = 2;
+const HOTSPOT_COORDINATE_PRECISION_FACTOR = 10 ** HOTSPOT_COORDINATE_DECIMALS;
 
 export function applyHotspotDrag(
   geometry: HotspotGeometry,
@@ -204,19 +206,23 @@ function normalizeBounds(bounds: HotspotBounds): HotspotBounds {
 
 function roundGeometry(geometry: HotspotGeometry): HotspotGeometry {
   return {
-    x: roundToPrecision(geometry.x),
-    y: roundToPrecision(geometry.y),
-    width: roundToPrecision(geometry.width),
-    height: roundToPrecision(geometry.height),
+    x: roundHotspotCoordinate(geometry.x),
+    y: roundHotspotCoordinate(geometry.y),
+    width: roundHotspotCoordinate(geometry.width),
+    height: roundHotspotCoordinate(geometry.height),
     polygon: geometry.polygon?.map((point) => ({
-      x: roundToPrecision(point.x),
-      y: roundToPrecision(point.y)
+      x: roundHotspotCoordinate(point.x),
+      y: roundHotspotCoordinate(point.y)
     }))
   };
 }
 
-function roundToPrecision(value: number): number {
-  return Math.round(value * 10000) / 10000;
+export function roundHotspotCoordinate(value: number): number {
+  return Math.round(value * HOTSPOT_COORDINATE_PRECISION_FACTOR) / HOTSPOT_COORDINATE_PRECISION_FACTOR;
+}
+
+export function formatHotspotCoordinate(value: number): string {
+  return roundHotspotCoordinate(value).toFixed(HOTSPOT_COORDINATE_DECIMALS);
 }
 
 function clamp(value: number, min: number, max: number): number {

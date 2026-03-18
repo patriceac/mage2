@@ -10,6 +10,7 @@ import type {
   Scene
 } from "@mage2/schema";
 import { createRectangleHotspotPolygon, resolveHotspotBounds } from "@mage2/schema";
+import { roundHotspotCoordinate } from "./hotspot-geometry";
 
 export interface AssetReferenceSummary {
   sceneBackgrounds: Array<{
@@ -536,14 +537,15 @@ function createHotspot(
   const hotspotId = createId("hotspot");
   const textId = `text.${hotspotId}.label`;
   const hotspotName = `Hotspot ${nextHotspotNumber}`;
+  const roundedBounds = roundHotspotBounds(bounds);
 
   ensureString(project, textId, hotspotName);
   const hotspot: Hotspot = {
     id: hotspotId,
     name: hotspotName,
     labelTextId: textId,
-    ...bounds,
-    polygon: createRectangleHotspotPolygon(bounds),
+    ...roundedBounds,
+    polygon: createRectangleHotspotPolygon(roundedBounds),
     startMs: 0,
     endMs: 30000,
     requiredItemIds: [],
@@ -556,12 +558,12 @@ function createHotspot(
 }
 
 function resolveHotspotBoundsFromCenter(centerX: number, centerY: number) {
-  return {
+  return roundHotspotBounds({
     x: clamp(centerX - DEFAULT_HOTSPOT_WIDTH / 2, 0, 1 - DEFAULT_HOTSPOT_WIDTH),
     y: clamp(centerY - DEFAULT_HOTSPOT_HEIGHT / 2, 0, 1 - DEFAULT_HOTSPOT_HEIGHT),
     width: DEFAULT_HOTSPOT_WIDTH,
     height: DEFAULT_HOTSPOT_HEIGHT
-  };
+  });
 }
 
 function findBestHotspotBounds(hotspots: Hotspot[]) {
@@ -598,7 +600,7 @@ function createHotspotCandidateCenters(size: number): number[] {
   const centers = new Set<number>([minimum, 0.5, maximum]);
 
   for (let value = minimum; value <= maximum + HOTSPOT_SCORE_EPSILON; value += HOTSPOT_AUTO_PLACEMENT_STEP) {
-    centers.add(Number(value.toFixed(4)));
+    centers.add(roundHotspotCoordinate(value));
   }
 
   return [...centers]
@@ -735,6 +737,20 @@ function expandRectangle(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function roundHotspotBounds(bounds: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
+  return {
+    x: roundHotspotCoordinate(bounds.x),
+    y: roundHotspotCoordinate(bounds.y),
+    width: roundHotspotCoordinate(bounds.width),
+    height: roundHotspotCoordinate(bounds.height)
+  };
 }
 
 interface HotspotPlacementScore {

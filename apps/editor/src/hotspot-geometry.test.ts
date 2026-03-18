@@ -146,7 +146,7 @@ describe("applyHotspotBounds", () => {
       width: 0.24,
       height: 0.24,
       polygon: [
-        { x: 0.3267, y: 0.325 },
+        { x: 0.33, y: 0.32 },
         { x: 0.34, y: 0.1 },
         { x: 0.34, y: 0.34 },
         { x: 0.1, y: 0.34 }

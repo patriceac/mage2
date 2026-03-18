@@ -81,6 +81,27 @@ describe("addHotspot", () => {
     expect((hotspot?.x ?? 0) + (hotspot?.width ?? 0)).toBeLessThanOrEqual(1);
     expect((hotspot?.y ?? 0) + (hotspot?.height ?? 0)).toBeLessThanOrEqual(1);
   });
+
+  it("rounds created hotspot bounds to two decimals", () => {
+    const project = createDefaultProjectBundle("Hotspot precision");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspot(project, scene.id, 0.8061, 0.4906);
+
+    expect(hotspot).toMatchObject({
+      x: 0.73,
+      y: 0.41,
+      width: 0.16,
+      height: 0.16,
+      polygon: [
+        { x: 0.73, y: 0.41 },
+        { x: 0.89, y: 0.41 },
+        { x: 0.89, y: 0.57 },
+        { x: 0.73, y: 0.57 }
+      ]
+    });
+  });
 });
 
 describe("addHotspotAtBestAvailablePosition", () => {

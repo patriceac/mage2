@@ -12,7 +12,7 @@ import {
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
 } from "../project-helpers";
-import { applyHotspotBounds, type HotspotGeometry } from "../hotspot-geometry";
+import { applyHotspotBounds, formatHotspotCoordinate, type HotspotGeometry } from "../hotspot-geometry";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
@@ -698,7 +698,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                     <input
                       type="number"
                       step="0.01"
-                      value={hotspot[field]}
+                      value={formatHotspotCoordinate(hotspot[field])}
                       title={tooltip}
                       onChange={(event) =>
                         mutateProject((draft) => {
