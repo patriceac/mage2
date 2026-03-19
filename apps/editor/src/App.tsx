@@ -3,10 +3,18 @@ import { type ProjectBundle, type ValidationIssue, validateProject } from "@mage
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
 import { InventoryPanel } from "./panels/InventoryPanel";
+import { LocalizationPanel } from "./panels/LocalizationPanel";
 import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
 import { useDialogs } from "./dialogs";
+import {
+  getIssueHint,
+  resolveIssueEntityLabel,
+  resolveIssueNavigation,
+  resolveSceneNavigationTarget
+} from "./issue-navigation";
+import type { EditorNavigationTarget } from "./navigation-target";
 import { cloneProject } from "./project-helpers";
 import {
   type RecentProjectSummary,
@@ -23,6 +31,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "assets", label: "Assets" },
   { id: "dialogue", label: "Dialogue" },
   { id: "inventory", label: "Inventory" },
+  { id: "localization", label: "Localization" },
   { id: "playtest", label: "Playtest" }
 ];
 
@@ -31,7 +40,8 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   world: "Arrange locations on the world map and manage the scenes inside each location.",
   scenes: "Edit scene media, hotspots, subtitles, and scene-level wiring.",
   dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
-  inventory: "Create inventory items and edit the string table used across the project.",
+  inventory: "Create inventory items and edit the player-facing text tied to each item.",
+  localization: "Review project text, missing references, and context before future translation work.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
 
@@ -51,7 +61,8 @@ export function App() {
     setSelectedDialogueId,
     setSelectedHotspotId,
     setSelectedDialogueNodeId,
-    setSelectedInventoryItemId
+    setSelectedInventoryItemId,
+    setSelectedTextId
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
@@ -277,7 +288,7 @@ export function App() {
     );
   }
 
-  function handleNavigateToIssueTarget(target: IssueNavigationTarget | undefined) {
+  function handleNavigateToIssueTarget(target: EditorNavigationTarget | undefined) {
     if (!target) {
       return;
     }
@@ -289,15 +300,8 @@ export function App() {
     setSelectedDialogueId(target.dialogueId);
     setSelectedDialogueNodeId(target.dialogueNodeId);
     setSelectedInventoryItemId(target.inventoryItemId);
+    setSelectedTextId(target.textId);
     setStatusMessage(`Navigated to ${target.label}`);
-  }
-
-  function handleNavigateToIssue(issue: ValidationIssue) {
-    if (!project) {
-      return;
-    }
-
-    handleNavigateToIssueTarget(resolveIssueNavigation(project, issue));
   }
 
   if (!hasEditorApi) {
@@ -464,6 +468,9 @@ export function App() {
             ) : null}
             {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "inventory" ? <InventoryPanel project={project} mutateProject={mutateProject} /> : null}
+            {activeTab === "localization" ? (
+              <LocalizationPanel project={project} mutateProject={mutateProject} />
+            ) : null}
             {activeTab === "playtest" ? <PlaytestPanel project={project} /> : null}
           </main>
         </div>
@@ -552,21 +559,10 @@ function getInitialRecentProjects(): RecentProjectSummary[] {
   return [];
 }
 
-interface IssueNavigationTarget {
-  label: string;
-  tab: EditorTab;
-  locationId?: string;
-  sceneId?: string;
-  hotspotId?: string;
-  dialogueId?: string;
-  dialogueNodeId?: string;
-  inventoryItemId?: string;
-}
-
 interface IssueTextLinkProps {
   label: string;
-  target?: IssueNavigationTarget;
-  onNavigate: (target: IssueNavigationTarget | undefined) => void;
+  target?: EditorNavigationTarget;
+  onNavigate: (target: EditorNavigationTarget | undefined) => void;
   className?: string;
 }
 
@@ -589,43 +585,10 @@ function IssueTextLink({ label, target, onNavigate, className }: IssueTextLinkPr
   );
 }
 
-function resolveSceneNavigationTarget(
-  project: ProjectBundle,
-  sceneId: string | undefined
-): IssueNavigationTarget | undefined {
-  if (!sceneId) {
-    return undefined;
-  }
-
-  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
-  if (!scene) {
-    return undefined;
-  }
-
-  return {
-    label: scene.name,
-    tab: "scenes",
-    locationId: scene.locationId,
-    sceneId: scene.id
-  };
-}
-
-function resolveIssueEntityLabel(
-  project: ProjectBundle,
-  issue: ValidationIssue,
-  target: IssueNavigationTarget | undefined
-): string {
-  if (issue.code === "SCENE_UNREACHABLE") {
-    return resolveSceneNavigationTarget(project, issue.entityId)?.label ?? issue.entityId ?? "Unknown scene";
-  }
-
-  return target?.label ?? issue.entityId ?? "Unknown item";
-}
-
 function renderIssueMessage(
   project: ProjectBundle,
   issue: ValidationIssue,
-  onNavigate: (target: IssueNavigationTarget | undefined) => void
+  onNavigate: (target: EditorNavigationTarget | undefined) => void
 ) {
   if (issue.code === "SCENE_UNREACHABLE") {
     const unreachableSceneTarget = resolveSceneNavigationTarget(project, issue.entityId);
@@ -645,161 +608,4 @@ function renderIssueMessage(
   }
 
   return issue.message;
-}
-
-function resolveIssueNavigation(
-  project: ProjectBundle,
-  issue: ValidationIssue
-): IssueNavigationTarget | undefined {
-  const { entityId } = issue;
-
-  if (entityId) {
-    const location = project.locations.items.find((entry) => entry.id === entityId);
-    if (location) {
-      return {
-        label: location.name,
-        tab: "world",
-        locationId: location.id,
-        sceneId: location.sceneIds[0]
-      };
-    }
-
-    const scene = project.scenes.items.find((entry) => entry.id === entityId);
-    if (scene) {
-      return resolveSceneNavigationTarget(project, scene.id);
-    }
-
-    for (const candidateScene of project.scenes.items) {
-      const hotspot = candidateScene.hotspots.find((entry) => entry.id === entityId);
-      if (hotspot) {
-        return {
-          label: hotspot.name,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id,
-          hotspotId: hotspot.id
-        };
-      }
-
-      if (candidateScene.subtitleTracks.some((track) => track.id === entityId)) {
-        return {
-          label: `${candidateScene.name} subtitles`,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id
-        };
-      }
-      if (candidateScene.subtitleTracks.some((track) => track.cues.some((cue) => cue.id === entityId))) {
-        return {
-          label: `${candidateScene.name} subtitles`,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id
-        };
-      }
-    }
-
-    const inventoryItem = project.inventory.items.find((entry) => entry.id === entityId);
-    if (inventoryItem) {
-      return {
-        label: inventoryItem.name,
-        tab: "inventory",
-        inventoryItemId: inventoryItem.id
-      };
-    }
-
-    const dialogue = project.dialogues.items.find((entry) => entry.id === entityId);
-    if (dialogue) {
-      return {
-        label: dialogue.name,
-        tab: "dialogue",
-        dialogueId: dialogue.id
-      };
-    }
-
-    for (const candidateDialogue of project.dialogues.items) {
-      const node = candidateDialogue.nodes.find((entry) => entry.id === entityId);
-      if (node) {
-        return {
-          label: `${candidateDialogue.name} / ${node.id}`,
-          tab: "dialogue",
-          dialogueId: candidateDialogue.id,
-          dialogueNodeId: node.id
-        };
-      }
-
-      const owningNode = candidateDialogue.nodes.find((nodeEntry) =>
-        nodeEntry.choices.some((choice) => choice.id === entityId)
-      );
-      if (owningNode) {
-        return {
-          label: `${candidateDialogue.name} / ${owningNode.id}`,
-          tab: "dialogue",
-          dialogueId: candidateDialogue.id,
-          dialogueNodeId: owningNode.id
-        };
-      }
-    }
-  }
-
-  switch (issue.code) {
-    case "MISSING_START_LOCATION":
-      return {
-        label: "start location",
-        tab: "world",
-        locationId: project.manifest.startLocationId,
-        sceneId: project.manifest.startSceneId
-      };
-    case "MISSING_START_SCENE":
-      return {
-        label: "start scene",
-        tab: "scenes",
-        sceneId: project.manifest.startSceneId
-      };
-    case "SCENE_BACKGROUND_MISSING":
-      return {
-        label: "scene media",
-        tab: "scenes",
-        sceneId: project.manifest.startSceneId
-      };
-    case "HOTSPOT_DIALOGUE_MISSING":
-    case "EFFECT_DIALOGUE_MISSING":
-    case "DIALOGUE_START_NODE_MISSING":
-    case "DIALOGUE_NEXT_NODE_MISSING":
-    case "DIALOGUE_CHOICE_TARGET_MISSING":
-      return {
-        label: "dialogue",
-        tab: "dialogue"
-      };
-    case "HOTSPOT_ITEM_MISSING":
-    case "CONDITION_ITEM_MISSING":
-    case "EFFECT_ITEM_MISSING":
-      return {
-        label: "inventory",
-        tab: "inventory"
-      };
-    default:
-      return undefined;
-  }
-}
-
-function getIssueHint(issue: ValidationIssue): string {
-  switch (issue.code) {
-    case "SCENE_BACKGROUND_MISSING":
-      return "Import media in Assets, then assign a background asset in the Scenes tab.";
-    case "HOTSPOT_TARGET_SCENE_MISSING":
-    case "EFFECT_SCENE_MISSING":
-      return "Create the target scene first, then update the scene link or effect.";
-    case "HOTSPOT_ITEM_MISSING":
-    case "CONDITION_ITEM_MISSING":
-    case "EFFECT_ITEM_MISSING":
-      return "Create the inventory item in the Inventory tab or remove the item reference.";
-    case "HOTSPOT_DIALOGUE_MISSING":
-    case "EFFECT_DIALOGUE_MISSING":
-      return "Create the dialogue tree in the Dialogue tab or clear the broken reference.";
-    case "SCENE_UNREACHABLE":
-      return "Add a path from the start scene or another reachable scene if this content should be playable.";
-    default:
-      return "Open the related editor tab and correct the broken reference or timing.";
-  }
 }

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { ProjectBundle } from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
-export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "playtest";
+export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
 
 interface EditorState {
   projectDir?: string;
@@ -16,6 +16,7 @@ interface EditorState {
   selectedHotspotId?: string;
   selectedDialogueNodeId?: string;
   selectedInventoryItemId?: string;
+  selectedTextId?: string;
   playheadMs: number;
   setProjectContext: (project: ProjectBundle, projectDir: string) => void;
   updateProject: (project: ProjectBundle) => void;
@@ -28,6 +29,7 @@ interface EditorState {
   setSelectedHotspotId: (selectedHotspotId?: string) => void;
   setSelectedDialogueNodeId: (selectedDialogueNodeId?: string) => void;
   setSelectedInventoryItemId: (selectedInventoryItemId?: string) => void;
+  setSelectedTextId: (selectedTextId?: string) => void;
   setPlayheadMs: (playheadMs: number) => void;
 }
 
@@ -38,7 +40,8 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
     selectedDialogueId: state?.selectedDialogueId ?? project.dialogues.items[0]?.id,
     selectedHotspotId: state?.selectedHotspotId,
     selectedDialogueNodeId: state?.selectedDialogueNodeId,
-    selectedInventoryItemId: state?.selectedInventoryItemId
+    selectedInventoryItemId: state?.selectedInventoryItemId,
+    selectedTextId: state?.selectedTextId
   };
 }
 
@@ -84,6 +87,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedHotspotId: undefined,
       selectedDialogueNodeId: undefined,
       selectedInventoryItemId: undefined,
+      selectedTextId: undefined,
       playheadMs: 0
     }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -93,5 +97,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelectedHotspotId: (selectedHotspotId) => set({ selectedHotspotId }),
   setSelectedDialogueNodeId: (selectedDialogueNodeId) => set({ selectedDialogueNodeId }),
   setSelectedInventoryItemId: (selectedInventoryItemId) => set({ selectedInventoryItemId }),
+  setSelectedTextId: (selectedTextId) => set({ selectedTextId }),
   setPlayheadMs: (playheadMs) => set({ playheadMs })
 }));
