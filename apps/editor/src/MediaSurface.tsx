@@ -19,6 +19,10 @@ interface MediaSurfaceProps {
   asset?: Asset;
   hotspots?: Hotspot[];
   strings?: Record<string, string>;
+  hotspotAppearance?: "editor" | "runtime" | "hidden";
+  showHotspotLabels?: boolean;
+  showHotspotTooltips?: boolean;
+  showSurfaceTooltips?: boolean;
   loopVideo?: boolean;
   playheadMs?: number;
   onPlayheadMsChange?: (playheadMs: number) => void;
@@ -33,6 +37,10 @@ export function MediaSurface({
   asset,
   hotspots = [],
   strings,
+  hotspotAppearance = "editor",
+  showHotspotLabels = true,
+  showHotspotTooltips = true,
+  showSurfaceTooltips = true,
   loopVideo = false,
   playheadMs,
   onPlayheadMsChange,
@@ -291,11 +299,13 @@ export function MediaSurface({
       className={className ? `media-surface ${className}` : "media-surface"}
       onClick={handleClick}
       title={
-        onSurfaceClick
-          ? editableHotspots
-            ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
-            : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position."
-          : "Scene preview with active hotspots overlaid on the selected media."
+        showSurfaceTooltips
+          ? onSurfaceClick
+            ? editableHotspots
+              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
+              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position."
+            : "Scene preview with active hotspots overlaid on the selected media."
+          : undefined
       }
     >
       {asset && assetUrl ? (
@@ -308,7 +318,7 @@ export function MediaSurface({
             muted
             playsInline
             className="media-surface__media"
-            title="Preview the selected video asset directly inside the editor."
+            title={showSurfaceTooltips ? "Preview the selected video asset directly inside the editor." : undefined}
             onLoadedMetadata={(event) => {
               syncVideoFromPlayhead(event.currentTarget);
               syncPlayheadFromVideo(event.currentTarget);
@@ -321,12 +331,16 @@ export function MediaSurface({
             src={assetUrl}
             alt={asset.name}
             className="media-surface__media"
-            title="Preview the selected image asset directly inside the editor."
+            title={showSurfaceTooltips ? "Preview the selected image asset directly inside the editor." : undefined}
           />
         ) : (
           <div
             className="media-surface__placeholder"
-            title="The selected asset is audio or another non-visual file, so the editor cannot draw a frame preview."
+            title={
+              showSurfaceTooltips
+                ? "The selected asset is audio or another non-visual file, so the editor cannot draw a frame preview."
+                : undefined
+            }
           >
             Non-visual asset selected
           </div>
@@ -334,7 +348,11 @@ export function MediaSurface({
       ) : (
         <div
           className="media-surface__placeholder"
-          title="Import media in the Assets tab and assign one as the scene background to preview it here."
+          title={
+            showSurfaceTooltips
+              ? "Import media in the Assets tab and assign one as the scene background to preview it here."
+              : undefined
+          }
         >
           Import media and assign it to this scene.
         </div>
@@ -349,15 +367,18 @@ export function MediaSurface({
             key={hotspot.id}
             hotspot={hotspot}
             strings={strings}
+            appearance={hotspotAppearance}
             editable={editableHotspots}
             selected={hotspot.id === selectedHotspotId}
+            showLabels={showHotspotLabels}
+            showTooltips={showHotspotTooltips}
             onClick={(event) => {
               event.stopPropagation();
               onHotspotClick?.(hotspot.id);
             }}
             onMoveStart={startHotspotDrag(hotspot, "move")}
             onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
-            title={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
+            ariaLabel={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
               onSurfaceClick ? "select and edit" : "activate"
             } this hotspot.`}
           />
@@ -376,29 +397,36 @@ interface MediaSurfaceClickEvent {
 interface HotspotButtonProps {
   hotspot: Hotspot;
   strings?: Record<string, string>;
+  appearance: "editor" | "runtime" | "hidden";
   editable: boolean;
   selected: boolean;
+  showLabels: boolean;
+  showTooltips: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
   onMoveStart: React.MouseEventHandler<HTMLButtonElement>;
   onResizeStart: (handle: Exclude<HotspotDragHandle, "move">) => React.MouseEventHandler<HTMLSpanElement>;
-  title: string;
+  ariaLabel: string;
 }
 
 function HotspotButton({
   hotspot,
   strings,
+  appearance,
   editable,
   selected,
+  showLabels,
+  showTooltips,
   onClick,
   onMoveStart,
   onResizeStart,
-  title
+  ariaLabel
 }: HotspotButtonProps) {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const clipPath = resolveHotspotClipPath(hotspot);
   const contentBox = resolveRelativeHotspotContentBox(hotspot);
   const handlePositions = resolveHotspotHandlePositions(hotspot);
+  const [tooltipText, setTooltipText] = useState<string>();
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -415,26 +443,27 @@ function HotspotButton({
       }}
     >
       <button
-        className="hotspot__body"
+        className={resolveHotspotBodyClassName(appearance)}
         onClick={onClick}
         onMouseDown={editable ? onMoveStart : undefined}
         style={{ clipPath }}
-        title={title}
+        aria-label={ariaLabel}
+        title={showLabels && showTooltips ? tooltipText : undefined}
         type="button"
       >
-        {hotspot.name || comment ? (
-          <span
-            className="hotspot__content"
+        {showLabels && (hotspot.name || comment) ? (
+          <HotspotLabelContent
+            titleText={hotspot.name}
+            commentText={comment}
+            classNamePrefix="hotspot"
             style={{
               left: `${contentBox.x * 100}%`,
               top: `${contentBox.y * 100}%`,
               width: `${contentBox.width * 100}%`,
               height: `${contentBox.height * 100}%`
             }}
-          >
-            {hotspot.name ? <span className="hotspot__title">{hotspot.name}</span> : null}
-            {comment ? <OverflowingHotspotComment text={comment} className="hotspot__comment" /> : null}
-          </span>
+            onTooltipTextChange={setTooltipText}
+          />
         ) : null}
       </button>
 
@@ -459,15 +488,115 @@ function HotspotButton({
 }
 
 function resolveHotspotTitle(hotspot: Hotspot, strings?: Record<string, string>): string {
-  void strings;
-  return hotspot.name;
+  const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
+  return hotspot.name || comment || hotspot.id;
 }
 
 function normalizeHotspotText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
-function OverflowingHotspotComment({ text, className }: { text: string; className: string }) {
+function HotspotLabelContent({
+  titleText,
+  commentText,
+  classNamePrefix,
+  style,
+  onTooltipTextChange
+}: {
+  titleText?: string;
+  commentText?: string;
+  classNamePrefix: string;
+  style: React.CSSProperties;
+  onTooltipTextChange: (tooltipText: string | undefined) => void;
+}) {
+  const [isTitleTruncated, setIsTitleTruncated] = useState(false);
+  const [isCommentTruncated, setIsCommentTruncated] = useState(false);
+
+  useEffect(() => {
+    onTooltipTextChange(buildHotspotTooltip(titleText, commentText, isTitleTruncated, isCommentTruncated));
+  }, [commentText, isCommentTruncated, isTitleTruncated, onTooltipTextChange, titleText]);
+
+  return (
+    <span className={`${classNamePrefix}__content`} style={style}>
+      {titleText ? (
+        <OverflowAwareHotspotTitle
+          text={titleText}
+          className={`${classNamePrefix}__title`}
+          onTruncationChange={setIsTitleTruncated}
+        />
+      ) : null}
+      {commentText ? (
+        <OverflowingHotspotComment
+          text={commentText}
+          className={`${classNamePrefix}__comment`}
+          onTruncationChange={setIsCommentTruncated}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function OverflowAwareHotspotTitle({
+  text,
+  className,
+  onTruncationChange
+}: {
+  text: string;
+  className: string;
+  onTruncationChange: (isTruncated: boolean) => void;
+}) {
+  const titleRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const title = titleRef.current;
+    if (!title) {
+      return;
+    }
+
+    let frame = 0;
+
+    const updateTruncation = () => {
+      onTruncationChange(title.scrollWidth > title.clientWidth + 1 || title.scrollHeight > title.clientHeight + 1);
+    };
+
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updateTruncation);
+    };
+
+    scheduleUpdate();
+
+    const observer = new ResizeObserver(scheduleUpdate);
+    observer.observe(title);
+
+    void document.fonts.ready.then(() => {
+      if (title.isConnected) {
+        scheduleUpdate();
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [onTruncationChange, text]);
+
+  return (
+    <span ref={titleRef} className={className}>
+      {text}
+    </span>
+  );
+}
+
+function OverflowingHotspotComment({
+  text,
+  className,
+  onTruncationChange
+}: {
+  text: string;
+  className: string;
+  onTruncationChange: (isTruncated: boolean) => void;
+}) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [displayText, setDisplayText] = useState(text);
@@ -484,12 +613,14 @@ function OverflowingHotspotComment({ text, className }: { text: string; classNam
     const updateDisplayText = () => {
       if (container.clientHeight <= 0 || container.clientWidth <= 0) {
         setDisplayText(text);
+        onTruncationChange(false);
         return;
       }
 
       measure.textContent = text;
       if (textFits(measure)) {
         setDisplayText(text);
+        onTruncationChange(false);
         return;
       }
 
@@ -505,7 +636,9 @@ function OverflowingHotspotComment({ text, className }: { text: string; classNam
         }
       }
 
-      setDisplayText(low > 0 ? truncateHotspotComment(text, low) : "...");
+      const nextDisplayText = low > 0 ? truncateHotspotComment(text, low) : "...";
+      setDisplayText(nextDisplayText);
+      onTruncationChange(nextDisplayText !== text);
     };
 
     const scheduleUpdate = () => {
@@ -528,7 +661,7 @@ function OverflowingHotspotComment({ text, className }: { text: string; classNam
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [text]);
+  }, [onTruncationChange, text]);
 
   return (
     <span ref={containerRef} className={`${className}-shell`}>
@@ -555,6 +688,19 @@ function truncateHotspotComment(text: string, length: number): string {
   return `${truncated || rawTruncated || text.slice(0, length).trim()}...`;
 }
 
+function buildHotspotTooltip(
+  titleText: string | undefined,
+  commentText: string | undefined,
+  isTitleTruncated: boolean,
+  isCommentTruncated: boolean
+): string | undefined {
+  if (!((titleText && isTitleTruncated) || (commentText && isCommentTruncated))) {
+    return undefined;
+  }
+
+  return [titleText, commentText].filter(Boolean).join("\n");
+}
+
 function resolveHotspotClassName(selected: boolean, editable: boolean): string {
   const classNames = ["hotspot"];
 
@@ -567,6 +713,18 @@ function resolveHotspotClassName(selected: boolean, editable: boolean): string {
   }
 
   return classNames.join(" ");
+}
+
+function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden"): string {
+  if (appearance === "runtime") {
+    return "hotspot__body hotspot__body--runtime";
+  }
+
+  if (appearance === "hidden") {
+    return "hotspot__body hotspot__body--hidden";
+  }
+
+  return "hotspot__body";
 }
 
 function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{

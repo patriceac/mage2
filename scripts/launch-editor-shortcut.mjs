@@ -3,24 +3,22 @@ import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import editorAppMetadata from "../apps/editor/app-metadata.json" with { type: "json" };
+import {
+  assertCanonicalWindowsLaunchShortcuts,
+  formatWindowsLaunchShortcutReport,
+  getCanonicalPackagedEditorExePath,
+  repairWindowsLaunchShortcuts
+} from "./editor-windows-launch-targets.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const packagedExePath = path.join(
-  repoRoot,
-  "output",
-  "packaging",
-  "editor-win",
-  "dist",
-  "win-unpacked",
-  `${editorAppMetadata.executableName}.exe`
-);
+const packagedExePath = getCanonicalPackagedEditorExePath(repoRoot);
 const trackedPaths = [
   "package.json",
   "package-lock.json",
   "tsconfig.base.json",
   path.join("build", "icon.ico"),
+  path.join("scripts", "editor-windows-launch-targets.mjs"),
   path.join("scripts", "package-editor-win.mjs"),
   path.join("apps", "editor", "electron"),
   path.join("apps", "editor", "src"),
@@ -68,6 +66,10 @@ async function main() {
   if (!existsSync(packagedExePath)) {
     throw new Error(`Could not find packaged editor at ${packagedExePath}.`);
   }
+
+  const shortcutReport = assertCanonicalWindowsLaunchShortcuts(await repairWindowsLaunchShortcuts({ repoRootPath: repoRoot }));
+  console.log(formatWindowsLaunchShortcutReport(shortcutReport));
+  console.log(`Launching packaged editor from ${packagedExePath}`);
 
   const child = spawn(packagedExePath, [], {
     cwd: path.dirname(packagedExePath),

@@ -1,13 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPlayerController } from "@mage2/player";
 import {
   createInitialSaveState,
   parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
-  resolveRelativeHotspotContentBox,
   type BuildManifest,
   type ExportProjectData,
+  type Hotspot,
   parseBuildManifest
 } from "@mage2/schema";
 
@@ -24,6 +24,7 @@ export function App() {
   const [content, setContent] = useState<ExportProjectData>();
   const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
   const [playheadMs, setPlayheadMs] = useState(0);
+  const [showHotspots, setShowHotspots] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
   const runtimeVideoRef = useRef<HTMLVideoElement>(null);
@@ -189,6 +190,17 @@ export function App() {
             >
               Restart
             </button>
+            <label
+              className="runtime-hotspot-visibility-toggle"
+              title="Show translucent hotspot regions for debugging. Labels remain hidden."
+            >
+              <input
+                type="checkbox"
+                checked={showHotspots}
+                onChange={(event) => setShowHotspots(event.target.checked)}
+              />
+              <span>Show hotspots</span>
+            </label>
           </div>
         </header>
 
@@ -211,47 +223,18 @@ export function App() {
 
           <div className="runtime-media__overlay">
             {visibleHotspots.map((hotspot) => {
-              const bounds = resolveHotspotBounds(hotspot);
-              const contentBox = resolveRelativeHotspotContentBox(hotspot);
-
               return (
-                <button
+                <RuntimeHotspotButton
                   key={hotspot.id}
-                  type="button"
-                  className="runtime-hotspot"
-                  style={{
-                    left: `${bounds.x * 100}%`,
-                    top: `${bounds.y * 100}%`,
-                    width: `${bounds.width * 100}%`,
-                    height: `${bounds.height * 100}%`,
-                    clipPath: resolveHotspotClipPath(hotspot)
-                  }}
-                  onClick={() => {
+                  hotspot={hotspot}
+                  showHotspots={showHotspots}
+                  strings={content.strings}
+                  onActivate={() => {
                     controller.selectHotspot(hotspot.id, playheadMs);
                     setSnapshot(controller.getSnapshot());
                     setPlayheadMs(0);
                   }}
-                >
-                  {(hotspot.name || (hotspot.commentTextId && content.strings[hotspot.commentTextId]?.trim())) ? (
-                    <span
-                      className="runtime-hotspot__content"
-                      style={{
-                        left: `${contentBox.x * 100}%`,
-                        top: `${contentBox.y * 100}%`,
-                        width: `${contentBox.width * 100}%`,
-                        height: `${contentBox.height * 100}%`
-                      }}
-                    >
-                      {hotspot.name ? <span className="runtime-hotspot__title">{hotspot.name}</span> : null}
-                      {hotspot.commentTextId && normalizeHotspotText(content.strings[hotspot.commentTextId]) ? (
-                        <OverflowingHotspotComment
-                          text={normalizeHotspotText(content.strings[hotspot.commentTextId])}
-                          className="runtime-hotspot__comment"
-                        />
-                      ) : null}
-                    </span>
-                  ) : null}
-                </button>
+                />
               );
             })}
           </div>
@@ -322,94 +305,41 @@ export function App() {
   );
 }
 
+function RuntimeHotspotButton({
+  hotspot,
+  showHotspots,
+  strings,
+  onActivate
+}: {
+  hotspot: Hotspot;
+  showHotspots: boolean;
+  strings: Record<string, string>;
+  onActivate: () => void;
+}) {
+  const bounds = resolveHotspotBounds(hotspot);
+
+  return (
+    <button
+      type="button"
+      className={showHotspots ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden"}
+      aria-label={`${resolveRuntimeHotspotTitle(hotspot, strings)}: activate this hotspot.`}
+      style={{
+        left: `${bounds.x * 100}%`,
+        top: `${bounds.y * 100}%`,
+        width: `${bounds.width * 100}%`,
+        height: `${bounds.height * 100}%`,
+        clipPath: resolveHotspotClipPath(hotspot)
+      }}
+      onClick={onActivate}
+    />
+  );
+}
+
 function normalizeHotspotText(value: string | undefined): string {
   return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
-function OverflowingHotspotComment({ text, className }: { text: string; className: string }) {
-  const containerRef = useRef<HTMLSpanElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [displayText, setDisplayText] = useState(text);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const measure = measureRef.current;
-    if (!container || !measure) {
-      return;
-    }
-
-    let frame = 0;
-
-    const updateDisplayText = () => {
-      if (container.clientHeight <= 0 || container.clientWidth <= 0) {
-        setDisplayText(text);
-        return;
-      }
-
-      measure.textContent = text;
-      if (textFits(measure)) {
-        setDisplayText(text);
-        return;
-      }
-
-      let low = 0;
-      let high = text.length;
-      while (low < high) {
-        const mid = Math.ceil((low + high) / 2);
-        measure.textContent = truncateHotspotComment(text, mid);
-        if (textFits(measure)) {
-          low = mid;
-        } else {
-          high = mid - 1;
-        }
-      }
-
-      setDisplayText(low > 0 ? truncateHotspotComment(text, low) : "...");
-    };
-
-    const scheduleUpdate = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(updateDisplayText);
-    };
-
-    scheduleUpdate();
-
-    const observer = new ResizeObserver(scheduleUpdate);
-    observer.observe(container);
-
-    void document.fonts.ready.then(() => {
-      if (container.isConnected) {
-        scheduleUpdate();
-      }
-    });
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [text]);
-
-  return (
-    <span ref={containerRef} className={`${className}-shell`}>
-      <span className={className}>{displayText}</span>
-      <span ref={measureRef} aria-hidden="true" className={`${className} ${className}--measure`} />
-    </span>
-  );
-}
-
-function textFits(element: HTMLSpanElement): boolean {
-  return element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
-}
-
-function truncateHotspotComment(text: string, length: number): string {
-  if (length >= text.length) {
-    return text;
-  }
-
-  const rawTruncated = text.slice(0, length).trimEnd();
-  const wordBoundary = rawTruncated.replace(/\s+\S*$/, "").trimEnd();
-  const truncated =
-    wordBoundary.length >= Math.max(6, Math.floor(rawTruncated.length * 0.7)) ? wordBoundary : rawTruncated;
-
-  return `${truncated || rawTruncated || text.slice(0, length).trim()}...`;
+function resolveRuntimeHotspotTitle(hotspot: Hotspot, strings: Record<string, string>): string {
+  const comment = hotspot.commentTextId ? normalizeHotspotText(strings[hotspot.commentTextId]) : "";
+  return hotspot.name || comment || hotspot.id;
 }

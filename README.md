@@ -49,8 +49,8 @@ On Windows, you can also launch the editor with:
 launch-editor.cmd
 ```
 
-That shortcut-friendly launcher starts the packaged `MAGE2 Editor.exe` from `output/packaging/editor-win/dist/win-unpacked/`.
-If the packaged app is missing or stale, it rebuilds the Windows package first so taskbar pinning stays attached to MAGE2 instead of raw Electron.
+User-facing parity is defined by the packaged `MAGE2 Editor.exe` at `output/packaging/editor-win/dist/win-unpacked/`.
+That shortcut-friendly launcher rebuilds the packaged app when it is missing or stale, repairs the Desktop and Start Menu shortcuts to that canonical executable, repairs the pinned taskbar entry if it already exists, and then launches the packaged app.
 
 If you want to launch it without a visible console window, use:
 
@@ -73,12 +73,22 @@ npm run package:editor:win
 ```
 
 That command writes the packaged artifacts to `output/packaging/editor-win/dist/`, including a `win-unpacked` app folder and an NSIS installer.
+It also refreshes the known Windows shortcuts so Desktop, Start Menu, and any existing taskbar pin continue to resolve to the canonical packaged executable.
+
+To verify that the packaged app, desktop shortcut, and taskbar/start menu aliases all resolve to the same executable, use:
+
+```bash
+npm run verify:editor:windows-launch
+```
+
+That Windows-only smoke gate repackages the editor, repairs and validates the known shortcuts, launches the packaged app with Playwright, opens a recent project, switches to `Scenes`, and writes a screenshot plus a JSON report under `output/playwright/`.
 
 ## Development notes
 
 - `npm run dev:editor` starts the Electron editor with the Vite renderer and watched Electron entrypoints.
 - `npm run dev:runtime` starts the standalone runtime web app.
 - `npm run build` compiles the shared packages first, then the runtime and editor apps.
+- `launch-editor-dev.cmd` is a debugging-only launcher and is not valid for desktop/taskbar parity claims because Windows treats it as raw Electron.
 - The starter project template intentionally begins with placeholder content, so validation will report missing scene media until real assets are imported.
 
 ## Export flow

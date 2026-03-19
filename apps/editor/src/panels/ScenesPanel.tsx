@@ -371,6 +371,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
           loopVideo={currentScene.backgroundVideoLoop}
           hotspots={currentScene.hotspots}
           strings={project.strings.values}
+          showSurfaceTooltips={false}
+          showHotspotTooltips={false}
           playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
           onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
           selectedHotspotId={selectedHotspotId}

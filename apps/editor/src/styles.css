@@ -434,6 +434,11 @@ label {
   gap: 1rem 1.25rem;
 }
 
+.playtest-panel__toolbar {
+  align-items: end;
+  gap: 1rem 1.25rem;
+}
+
 .scenes-panel__selectors {
   align-items: flex-start;
 }
@@ -451,7 +456,8 @@ label {
   flex-wrap: wrap;
 }
 
-.scene-video-loop-toggle {
+.scene-video-loop-toggle,
+.playtest-hotspot-visibility-toggle {
   display: inline-grid;
   grid-template-columns: 1.4rem auto;
   align-items: center;
@@ -464,7 +470,8 @@ label {
   color: #d6e1ea;
 }
 
-.scene-video-loop-toggle input {
+.scene-video-loop-toggle input,
+.playtest-hotspot-visibility-toggle input {
   -webkit-appearance: none;
   appearance: none;
   display: grid;
@@ -481,7 +488,8 @@ label {
   cursor: pointer;
 }
 
-.scene-video-loop-toggle input::before {
+.scene-video-loop-toggle input::before,
+.playtest-hotspot-visibility-toggle input::before {
   content: "";
   width: 0.38rem;
   height: 0.72rem;
@@ -494,22 +502,26 @@ label {
     transform 120ms ease;
 }
 
-.scene-video-loop-toggle input:checked {
+.scene-video-loop-toggle input:checked,
+.playtest-hotspot-visibility-toggle input:checked {
   border-color: #f6c177;
   background: #f6c177;
 }
 
-.scene-video-loop-toggle input:checked::before {
+.scene-video-loop-toggle input:checked::before,
+.playtest-hotspot-visibility-toggle input:checked::before {
   opacity: 1;
   transform: translateY(-0.04rem) rotate(45deg) scale(1);
 }
 
-.scene-video-loop-toggle input:focus-visible {
+.scene-video-loop-toggle input:focus-visible,
+.playtest-hotspot-visibility-toggle input:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.9);
   outline-offset: 2px;
 }
 
-.scene-video-loop-toggle span {
+.scene-video-loop-toggle span,
+.playtest-hotspot-visibility-toggle span {
   line-height: 1.25;
 }
 
@@ -695,9 +707,44 @@ label {
   overflow: hidden;
 }
 
+.hotspot__body--runtime {
+  padding: 0;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(125, 211, 252, 0.04);
+}
+
+.hotspot__body--runtime:hover,
+.hotspot__body--runtime:focus-visible {
+  border-color: rgba(125, 211, 252, 0.42);
+  background: rgba(125, 211, 252, 0.1);
+}
+
+.hotspot__body--runtime:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.72);
+}
+
+.hotspot__body--hidden,
+.hotspot__body--hidden:hover,
+.hotspot__body--hidden:focus-visible {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  outline: none;
+}
+
 .hotspot--selected .hotspot__body {
   border-color: #f6c177;
   background: rgba(246, 193, 119, 0.28);
+}
+
+.hotspot--selected .hotspot__body--runtime {
+  border-color: rgba(125, 211, 252, 0.42);
+  background: rgba(125, 211, 252, 0.1);
+}
+
+.hotspot--selected .hotspot__body--hidden {
+  border-color: transparent;
+  background: transparent;
 }
 
 .hotspot--editable .hotspot__body {
@@ -729,11 +776,12 @@ label {
 }
 
 .hotspot__title {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
   font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.2;
@@ -742,9 +790,12 @@ label {
 
 .hotspot__comment-shell {
   position: relative;
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  height: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -760,6 +811,7 @@ label {
   max-width: 100%;
   word-break: break-word;
   overflow-wrap: anywhere;
+  text-align: inherit;
 }
 
 .hotspot__comment {

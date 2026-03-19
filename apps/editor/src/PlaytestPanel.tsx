@@ -14,6 +14,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
+  const [showHotspots, setShowHotspots] = useState(false);
 
   useEffect(() => {
     const nextController = createPlayerController(project);
@@ -33,7 +34,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   return (
     <div className="panel-grid panel-grid--playtest">
       <section className="panel">
-        <div className="panel__toolbar">
+        <div className="panel__toolbar playtest-panel__toolbar">
           <label>
             Playhead
             <input
@@ -75,12 +76,25 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           >
             Load Slot
           </button>
+          <label
+            className="playtest-hotspot-visibility-toggle"
+            title="Show translucent hotspot regions in playtest for debugging. Labels remain hidden so playtest matches runtime."
+          >
+            <input
+              type="checkbox"
+              checked={showHotspots}
+              onChange={(event) => setShowHotspots(event.target.checked)}
+            />
+            <span>Show hotspots</span>
+          </label>
         </div>
 
         <MediaSurface
           asset={sceneAsset}
           loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
+          hotspotAppearance={showHotspots ? "runtime" : "hidden"}
+          showHotspotLabels={false}
           strings={project.strings.values}
           playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
           onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}

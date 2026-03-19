@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { build, Platform, Arch } from "electron-builder";
 import editorAppMetadata from "../apps/editor/app-metadata.json" with { type: "json" };
+import {
+  assertCanonicalWindowsLaunchShortcuts,
+  formatWindowsLaunchShortcutReport,
+  repairWindowsLaunchShortcuts
+} from "./editor-windows-launch-targets.mjs";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +31,8 @@ const zodPackageJson = await readInstalledPackageJson("zod");
 
 await prepareStage();
 await packageWindowsApp();
+const shortcutReport = assertCanonicalWindowsLaunchShortcuts(await repairWindowsLaunchShortcuts({ repoRootPath: repoRoot }));
+console.log(formatWindowsLaunchShortcutReport(shortcutReport));
 
 async function prepareStage() {
   await rm(stageRoot, { recursive: true, force: true });
