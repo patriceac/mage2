@@ -1,6 +1,6 @@
 {
   "packageName": "mage2-editor",
-  "appId": "com.mage2.editor",
+  "appId": "com.mage2.editor.v2",
   "productName": "MAGE2 Editor",
   "executableName": "MAGE2 Editor",
   "author": "MAGE2",

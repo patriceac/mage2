@@ -124,6 +124,14 @@ async function packageWindowsApp() {
         {
           from: path.join(appStageDir, "resources", "runtime-web"),
           to: "runtime-web"
+        },
+        {
+          from: path.join(buildResourcesDir, "icon.ico"),
+          to: "icon.ico"
+        },
+        {
+          from: path.join(buildResourcesDir, "icon.png"),
+          to: "icon.png"
         }
       ],
       asar: true,

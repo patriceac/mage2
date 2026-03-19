@@ -1,6 +1,7 @@
 import path from "node:path";
 import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
 import { deleteManagedAssetFiles, generateProxy, importAssetsToProject, parseSubtitleFiles } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
@@ -19,6 +20,7 @@ let mainWindow: BrowserWindow | null = null;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
 const APP_NAME = appMetadata.productName;
 const APP_ID = appMetadata.appId;
+const WINDOW_ICON_FILENAME = "icon.png";
 
 app.setName(APP_NAME);
 
@@ -31,6 +33,7 @@ function createWindow(): void {
     loadWindowState(app.getPath("userData")),
     screen.getAllDisplays().map((display) => display.workArea)
   );
+  const windowIconPath = resolveWindowIconPath();
 
   mainWindow = new BrowserWindow({
     width: restoredWindowState.width,
@@ -44,6 +47,7 @@ function createWindow(): void {
     minWidth: 1280,
     minHeight: 840,
     backgroundColor: "#0b1117",
+    ...(windowIconPath ? { icon: windowIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -98,6 +102,14 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+function resolveWindowIconPath(): string | undefined {
+  const candidatePath = app.isPackaged
+    ? path.join(process.resourcesPath, WINDOW_ICON_FILENAME)
+    : path.resolve(__dirname, "..", "..", "..", "build", WINDOW_ICON_FILENAME);
+
+  return existsSync(candidatePath) ? candidatePath : undefined;
+}
 
 function registerWindowStatePersistence(window: BrowserWindow): void {
   let saveTimer: NodeJS.Timeout | undefined;
