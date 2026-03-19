@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard está iniciando..."
+   },
+   "adg_is_not_installed": {
+      "message": "O AdGuard não está instalado"
+   },
+   "adg_is_not_running": {
+      "message": "O AdGuard não está sendo executado"
+   },
+   "adg_is_not_updated": {
+      "message": "O AdGuard não está atualizado"
+   },
+   "adg_is_paused": {
+      "message": "A proteção do AdGuard está em pausa"
+   },
+   "adg_protection": {
+      "message": "Proteção do AdGuard"
+   },
+   "adg_settings": {
+      "message": "Configurações do AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "O assistente não está atualizado"
+   },
+   "block_ads": {
+      "message": "Bloquear anúncios neste site"
+   },
+   "cert_absent": {
+      "message": "A filtragem HTTPS não foi realizada neste site"
+   },
+   "cert_expired": {
+      "message": "O AdGuard não pôde verificar o certificado deste site, pois o certificado de raiz expirou"
+   },
+   "contact_support": {
+      "message": "Suporte"
+   },
+   "context_block_site_ads": {
+      "message": "Bloquear anúncios neste site..."
+   },
+   "context_complaint_website": {
+      "message": "Reportar um problema..."
+   },
+   "context_disable_protection": {
+      "message": "Pausar proteção do AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "Retomar proteção do AdGuard"
+   },
+   "context_open_log": {
+      "message": "Registro de filtragem..."
+   },
+   "context_open_settings": {
+      "message": "Configurações do AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "O AdGuard não pode ser executado neste domínio"
+   },
+   "context_site_filtering_off": {
+      "message": "Desativar filtragem neste site"
+   },
+   "context_site_filtering_on": {
+      "message": "Ativar filtragem neste site"
+   },
+   "context_site_protection_disabled": {
+      "message": "Proteção do AdGuard está pausada"
+   },
+   "description": {
+      "message": "Extensão do AdGuard para desktop. Gerencie a filtragem e oculte elementos irritantes com apenas dois cliques."
+   },
+   "disabled": {
+      "message": "Desativado neste site"
+   },
+   "enable": {
+      "message": "Ativar"
+   },
+   "enabled": {
+      "message": "Ativado neste site"
+   },
+   "expired": {
+      "message": "Expirado"
+   },
+   "filtering_exception": {
+      "message": "A filtragem está desativada porque pode afetar o desempenho do site."
+   },
+   "get_adguard": {
+      "message": "Obter o AdGuard"
+   },
+   "https_filtering": {
+      "message": "Filtragem HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "Aumenta a qualidade de bloqueio de anúncios"
+   },
+   "more_info": {
+      "message": "Mais informações"
+   },
+   "name": {
+      "message": "Assistente do AdGuard para navegador"
+   },
+   "not_filtering_https": {
+      "message": "Por padrão, não filtramos o tráfego HTTPS para o sistema de pagamento e sites bancários. Você mesmo pode ativar a filtragem: toque no \"cadeado\" amarelo na esquerda."
+   },
+   "not_secure": {
+      "message": "Não seguro"
+   },
+   "nothing_to_block_here": {
+      "message": "Não para bloquear aqui"
+   },
+   "open_filtering_log": {
+      "message": "Abrir registro de filtragem"
+   },
+   "options_context_menu_title": {
+      "message": "Mostrar no menu contextual do navegador"
+   },
+   "pause_filtering": {
+      "message": "Não filtrar durante 30 segundos"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "A proteção está desativada."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Comprar"
+   },
+   "popup_trial_expired_title": {
+      "message": "Versão de avaliação expirada"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "As atualizações não estão disponíveis."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Você tem certeza que deseja remover o Assistente do AdGuard para navegador?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Ao instalar este complemento, você concorda com nossa \u003Cprivacy>política de privacidade\u003C/privacy> e \u003Cterms>termos de uso\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Cada vez que você abre uma nova guia, o complemento se comunica com o aplicativo independente e solicita informações sobre o status da página atual. Para fazer isso, ele envia a URL da página atual para o aplicativo independente."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Esta extensão de navegador complementar para \u003Clink>aplicativos para computador do AdGuard\u003C/link> oferece acesso no navegador a recursos como bloqueio de elemento personalizado, lista de permissões de sites e envio de relatórios."
+   },
+   "post_install_consent_title": {
+      "message": "Obrigado por instalar o Assistente do AdGuard para navegador!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Aceitar"
+   },
+   "post_install_page_title": {
+      "message": "Obrigado por instalar o Assistente do AdGuard para navegador!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Desinstalar"
+   },
+   "protection_is_disabled": {
+      "message": "A proteção está desativada"
+   },
+   "protection_is_enabled": {
+      "message": "A proteção está ativada"
+   },
+   "reinstall": {
+      "message": "Reinstalar"
+   },
+   "reload_page": {
+      "message": "Recarregar página"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Recarregue esta página para retomar a filtragem"
+   },
+   "report_site": {
+      "message": "Reportar um problema"
+   },
+   "reset_custom_rules": {
+      "message": "Remover todas as regras do usuário para esta página"
+   },
+   "run_adg": {
+      "message": "Executar o AdGuard"
+   },
+   "secure_page": {
+      "message": "Página segura"
+   },
+   "site_not_using_private_protection": {
+      "message": "O site não usa uma conexão segura. Alguém pode ser capaz de ver ou alterar as informações que você enviar ou receber através do site."
+   },
+   "something_went_wrong": {
+      "message": "Algo deu errado"
+   },
+   "update": {
+      "message": "Atualizar"
+   },
+   "verified_by": {
+      "message": "Verificado por:"
+   },
+   "website_cert_is_expired": {
+      "message": "O certificado do site expirou"
+   }
+}

@@ -1,0 +1,155 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard käivitab..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard pole valesti installitud või konfigureeritud"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard ei tööta"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuardit ei värskendatud"
+   },
+   "adg_is_paused": {
+      "message": "AdGuardi kaitse on peatatud"
+   },
+   "adg_protection": {
+      "message": "AdGuard kaitse"
+   },
+   "adg_settings": {
+      "message": "AdGuardi seaded"
+   },
+   "assistant_is_not_updated": {
+      "message": "Assistenti ei värskendatud"
+   },
+   "block_ads": {
+      "message": "Blokeeri sellel veebisaidil reklaamid"
+   },
+   "cert_absent": {
+      "message": "Selle veebisaidi jaoks ei tehtud HTTPS-i filtreerimist"
+   },
+   "cert_expired": {
+      "message": "AdGuard ei saanud selle veebisaidi sertifikaati kinnitada, kuna juursertifikaat on aegunud"
+   },
+   "contact_support": {
+      "message": "Võtke ühendust tugiteenusega"
+   },
+   "context_block_site_ads": {
+      "message": "Blokeeri reklaamid sellel leheküljel..."
+   },
+   "context_complaint_website": {
+      "message": "Teavita probleemist..."
+   },
+   "context_disable_protection": {
+      "message": "Peata AdGuardi kaitse"
+   },
+   "context_enable_protection": {
+      "message": "Jätka AdGuardi kaitset"
+   },
+   "context_open_log": {
+      "message": "Filtreerimise logi..."
+   },
+   "context_open_settings": {
+      "message": "AdGuardi seaded..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard ei saa sellel domeenil töötada"
+   },
+   "context_site_filtering_off": {
+      "message": "Keela filtreerimine sellel leheküljel"
+   },
+   "context_site_filtering_on": {
+      "message": "Luba filtreerimine sellel leheküljel"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuardi kaitse on peatatud"
+   },
+   "description": {
+      "message": "Laiendus AdGuard töölauarakendusele. Haldab otse brauserist filtreerimist, peidab tüütuid elemente kahe klõpsuga."
+   },
+   "disabled": {
+      "message": "Keelatud sellel veebisaidil"
+   },
+   "enable": {
+      "message": "Luba"
+   },
+   "enabled": {
+      "message": "Sellel veebisaidil lubatud"
+   },
+   "expired": {
+      "message": "Aegunud"
+   },
+   "get_adguard": {
+      "message": "Hankige AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS-i filtreerimine"
+   },
+   "increase_ab_block_quality": {
+      "message": "Tõstab reklaamide blokeerimise kvaliteeti"
+   },
+   "more_info": {
+      "message": "Rohkem informatsiooni"
+   },
+   "name": {
+      "message": "AdGuard Brauseri Assistent"
+   },
+   "not_filtering_https": {
+      "message": "Vaikimisi ei filtreerita me HTTPS-i liiklust maksesüsteemi ja pankade veebisaitide jaoks. Filtreerimise saate ise lubada: koputage vasakul asuvat kollast lukku."
+   },
+   "not_secure": {
+      "message": "Pole kindel"
+   },
+   "nothing_to_block_here": {
+      "message": "Siin pole midagi blokeerida"
+   },
+   "open_filtering_log": {
+      "message": "Avage filtreerimislogi"
+   },
+   "pause_filtering": {
+      "message": "Ärge filtreerige 30 sekundit"
+   },
+   "protection_is_disabled": {
+      "message": "Kaitse on keelatud"
+   },
+   "protection_is_enabled": {
+      "message": "Kaitse on lubatud"
+   },
+   "reinstall": {
+      "message": "Installige uuesti"
+   },
+   "reload_page": {
+      "message": "Laadige leht uuesti"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Filtreerimise jätkamiseks laadige see leht uuesti üles"
+   },
+   "report_site": {
+      "message": "Teatage sellest veebisaidist"
+   },
+   "reset_custom_rules": {
+      "message": "Eemalda kõik selle lehe kasutajareeglid"
+   },
+   "run_adg": {
+      "message": "Käivitage AdGuard"
+   },
+   "secure_page": {
+      "message": "Turvaline leht"
+   },
+   "site_not_using_private_protection": {
+      "message": "Sait ei kasuta privaatset ühendust. Keegi võib-olla võib näha või muuta teie poolt saidi kaudu saadavat või saadavat teavet."
+   },
+   "something_went_wrong": {
+      "message": "Midagi läks valesti"
+   },
+   "update": {
+      "message": "Värskendus"
+   },
+   "verified_by": {
+      "message": "Kontrollitud:"
+   },
+   "website_cert_is_expired": {
+      "message": "Veebisaidi sertifikaat on aegunud"
+   }
+}

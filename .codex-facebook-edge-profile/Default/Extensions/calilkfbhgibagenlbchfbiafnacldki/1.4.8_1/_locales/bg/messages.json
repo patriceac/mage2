@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard стартира..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard не е инсталирана или е неправилно конфигурирана"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard не е стартирана"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard не е обновена"
+   },
+   "adg_is_paused": {
+      "message": "Защитата на AdGuard е на пауза"
+   },
+   "adg_protection": {
+      "message": "Защита на Adguard"
+   },
+   "adg_settings": {
+      "message": "Настройки на Adguard"
+   },
+   "assistant_is_not_updated": {
+      "message": "Асистентът не е обновен"
+   },
+   "block_ads": {
+      "message": "Блокирай рекламите на този сайт"
+   },
+   "cert_absent": {
+      "message": "Zа този уебсайт не е извършено HTTPS филтриране"
+   },
+   "cert_expired": {
+      "message": "AdGuard не можа да потвърди сертификата на този уебсайт, тъй като основният сертификат е изтекъл"
+   },
+   "contact_support": {
+      "message": "Свържете се с еподдръжката"
+   },
+   "context_block_site_ads": {
+      "message": "Блокиране на рекламите в този уебсайт..."
+   },
+   "context_complaint_website": {
+      "message": "Докладвайте за проблем..."
+   },
+   "context_disable_protection": {
+      "message": "Спиране на защитата на AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "Възобновяване на защитата на AdGuard"
+   },
+   "context_open_log": {
+      "message": "Филтриране на дневника..."
+   },
+   "context_open_settings": {
+      "message": "Настройки на AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard не може да работи в този домейн"
+   },
+   "context_site_filtering_off": {
+      "message": "Деактивиране на филтрирането в този уебсайт"
+   },
+   "context_site_filtering_on": {
+      "message": "Активиране на филтрирането в този уебсайт"
+   },
+   "context_site_protection_disabled": {
+      "message": "Защитата на AdGuard е спряна на пауза"
+   },
+   "description": {
+      "message": "ЗАДАЧИ"
+   },
+   "disabled": {
+      "message": "Деактивирана на този уебсайт"
+   },
+   "enable": {
+      "message": "Включи"
+   },
+   "enabled": {
+      "message": "Активирана на този уебсайт"
+   },
+   "expired": {
+      "message": "Изтекъл"
+   },
+   "filtering_exception": {
+      "message": "Филтрирането е деактивирано, тъй като може да повлияе на работата на уебсайта."
+   },
+   "get_adguard": {
+      "message": "Вземете AdGuard"
+   },
+   "https_filtering": {
+      "message": "Филтриране на HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "Повишава качеството на блокиране на реклами"
+   },
+   "more_info": {
+      "message": "Допълнителна информация"
+   },
+   "name": {
+      "message": "AdGuard Асистент за блокиране на реклами в браузъра"
+   },
+   "not_filtering_https": {
+      "message": "По подразбиране не филтрираме HTTPS трафика за платежните системи и банковите уебсайтове. Можете да активирате филтрирането сами: докоснете жълтото „заключване“ отляво."
+   },
+   "not_secure": {
+      "message": "Не е подсигурен"
+   },
+   "nothing_to_block_here": {
+      "message": "Тук няма нищо за блокиране"
+   },
+   "open_filtering_log": {
+      "message": "Отвори дневника на филтрирането"
+   },
+   "options_context_menu_title": {
+      "message": "Показване в контекстното меню на браузъра"
+   },
+   "pause_filtering": {
+      "message": "Не филтрирайте в продължение на 30 секунди"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Защитата е деактивирана."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Купи"
+   },
+   "popup_trial_expired_title": {
+      "message": "Пробният период е изтекъл"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Актуализациите не са налични."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Сигурни ли сте, че искате да премахнете AdGuard Browser Assistant?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "С инсталирането на тази добавка се съгласявате с нашата \u003Cprivacy>Политика за поверителност\u003C/privacy> и \u003Cterms>Условия за ползване\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Всеки път, когато отворите нов таб, добавката се свързва със самостоятелното приложение и изисква информация за текущото състояние на страницата. За да направи това, тя изпраща URL адреса на текущата страница към самостоятелното приложение."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Това придружаващо разширение за браузър за \u003Clink>AdGuard приложения за настолни компютри\u003C/link> предлага достъп в браузъра до такива функции като блокиране на персонализирани елементи, създаване на списъци с разрешени уебсайтове и подаване на отчети."
+   },
+   "post_install_consent_title": {
+      "message": "Благодарим за инсталирането на AdGuard Browser Assistant!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Съгласен съм"
+   },
+   "post_install_page_title": {
+      "message": "Благодарим за инсталирането на AdGuard Browser Assistant!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Деинсталиране"
+   },
+   "protection_is_disabled": {
+      "message": "Защитата е деактивирана"
+   },
+   "protection_is_enabled": {
+      "message": "Защитата е включена"
+   },
+   "reinstall": {
+      "message": "Преинсталирай"
+   },
+   "reload_page": {
+      "message": "Презареждане на страницата"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Презаредете тази страница, за да възобновите филтрирането"
+   },
+   "report_site": {
+      "message": "Съобщете за проблем"
+   },
+   "reset_custom_rules": {
+      "message": "Премахване на всички потребителски правила за тази страница"
+   },
+   "run_adg": {
+      "message": "Стартирай AdGuard"
+   },
+   "secure_page": {
+      "message": "Защитена страница"
+   },
+   "site_not_using_private_protection": {
+      "message": "Сайтът не използва сигурна връзка. Възможно е някой да може да види или да промени информацията, която изпращате или получавате чрез сайта."
+   },
+   "something_went_wrong": {
+      "message": "Нещо се обърка"
+   },
+   "update": {
+      "message": "Обнови"
+   },
+   "verified_by": {
+      "message": "Проверена от:"
+   },
+   "website_cert_is_expired": {
+      "message": "Сертификатът за сайта е изтекъл"
+   }
+}

@@ -1,0 +1,113 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard begin..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard is nie geïnstalleer nie, of is verkeerd ingestel nie"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard loop nie"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard is nie opgedateer nie"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard-beskerming word onderbreek"
+   },
+   "adg_protection": {
+      "message": "AdGuard Beskerming"
+   },
+   "adg_settings": {
+      "message": "AdGuard Instellings"
+   },
+   "assistant_is_not_updated": {
+      "message": "Assistent word nie opgedateer nie"
+   },
+   "block_ads": {
+      "message": "Blokkeer advertensies op hierdie webwerf"
+   },
+   "cert_absent": {
+      "message": "HTTPS-filtering is nie vir hierdie webwerf uitgevoer nie"
+   },
+   "cert_expired": {
+      "message": "AdGuard kon nie die sertifikaat van hierdie webwerf verifieer nie omdat die wortelsertifikaat verval het"
+   },
+   "description": {
+      "message": "Extension for the AdGuard desktop app. Manages filtering right from the browser, hides annoying elements in two clicks."
+   },
+   "disabled": {
+      "message": "Gestremd op hierdie webwerf"
+   },
+   "enable": {
+      "message": "Aktiveer"
+   },
+   "enabled": {
+      "message": "Op hierdie webwerf geaktiveer"
+   },
+   "expired": {
+      "message": "Verval"
+   },
+   "get_adguard": {
+      "message": "Kry AdGuard hier"
+   },
+   "https_filtering": {
+      "message": "HTTPS word gefilter"
+   },
+   "increase_ab_block_quality": {
+      "message": "Verhoog die gehalte van advertensieblokkering"
+   },
+   "more_info": {
+      "message": "Meer inligting"
+   },
+   "name": {
+      "message": "AdGuard Blaaierassistent"
+   },
+   "not_filtering_https": {
+      "message": "Ons filtreer standaard nie HTTPS-verkeer vir die betaalstelsel en bankwebwerwe nie. U kan die filter self inskakel: tik op die geel \"slot\" aan die linkerkant."
+   },
+   "not_secure": {
+      "message": "Nie veilig nie"
+   },
+   "nothing_to_block_here": {
+      "message": "Niks om hier te blok nie"
+   },
+   "open_filtering_log": {
+      "message": "Maak die filterlogboek oop"
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Aankoop"
+   },
+   "popup_trial_expired_title": {
+      "message": "Toets tydperk is verval"
+   },
+   "protection_is_disabled": {
+      "message": "Beskerming is gedeaktiveer"
+   },
+   "protection_is_enabled": {
+      "message": "Beskerming is geaktiveer"
+   },
+   "reinstall": {
+      "message": "Herinstalleer"
+   },
+   "report_site": {
+      "message": "Rapporteer probleem"
+   },
+   "run_adg": {
+      "message": "Hardloop AdGuard"
+   },
+   "secure_page": {
+      "message": "Veilige bladsy"
+   },
+   "something_went_wrong": {
+      "message": "Iets het verkeerd geloop"
+   },
+   "update": {
+      "message": "Opdateer"
+   },
+   "verified_by": {
+      "message": "Bevestig deur:"
+   },
+   "website_cert_is_expired": {
+      "message": "Webwerf sertifikaat is verval"
+   }
+}

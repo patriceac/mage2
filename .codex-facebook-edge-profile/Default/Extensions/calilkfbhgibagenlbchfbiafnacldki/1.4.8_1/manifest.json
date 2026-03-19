@@ -1,0 +1,31 @@
+{
+   "action": {
+      "default_icon": {
+         "19": "assets/images/icons/green-19.png",
+         "38": "assets/images/icons/green-38.png"
+      },
+      "default_popup": "popup.html",
+      "default_title": "__MSG_name__"
+   },
+   "author": "Adguard Software Ltd",
+   "background": {
+      "service_worker": "background.js"
+   },
+   "default_locale": "en",
+   "description": "__MSG_description__",
+   "icons": {
+      "128": "assets/images/icons/green-128.png",
+      "16": "assets/images/icons/green-16.png",
+      "48": "assets/images/icons/green-48.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsXMHmiO/mDCpYs+KAn41uF7kwSR+XkS5DoCxsDy8+dTDylQZTRhlAyYRdK+B700+EKSlDh1Sf75pFBWTN9zCt+TIZVYJyd46n2fP2Ox8/X6DRG+tTmLRNnURwZhY5drUvBjjZqJK9WNI4cbe1snM7+zIi/b5SOG57Xm1gPy6zLlA4YLHPhcTwuESdTFrWhdnupGyvT156xkpqRoGtaKcRBv08rIZ2s4+WMWWxN4C8hX7ZskiWv2SUa3xrwJEj9BFsKadjSD2UUYEL5qEZjO59OfcU0zndoVgG7QFKBpYn5YxY4ieocpi6wmQGOkNL0GZh6WUWVcZ5jgDfm439/PpgwIDAQAB",
+   "manifest_version": 3,
+   "minimum_edge_version": "88",
+   "name": "__MSG_name__",
+   "options_ui": {
+      "page": "options-ui.html"
+   },
+   "permissions": [ "nativeMessaging", "tabs", "activeTab", "contextMenus", "storage", "scripting" ],
+   "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx",
+   "version": "1.4.8"
+}

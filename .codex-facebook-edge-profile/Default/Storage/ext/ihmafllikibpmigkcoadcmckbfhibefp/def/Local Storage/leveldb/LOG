@@ -1,0 +1,4 @@
+2026/03/19-03:13:46.078 41c0 Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Storage\ext\ihmafllikibpmigkcoadcmckbfhibefp\def\Local Storage\leveldb since it was missing.
+2026/03/19-03:13:46.161 41c0 Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Storage\ext\ihmafllikibpmigkcoadcmckbfhibefp\def\Local Storage\leveldb/MANIFEST-000001
+2026/03/19-03:13:46.162 41c0 Recovering log #3
+2026/03/19-03:13:46.163 41c0 Reusing old log D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Storage\ext\ihmafllikibpmigkcoadcmckbfhibefp\def\Local Storage\leveldb/000003.log 

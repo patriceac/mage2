@@ -1,0 +1,182 @@
+{
+   "adg_is_launching": {
+      "message": "اَدگارد (AdGuard) در حال راه‌اندازی است..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard نصب نشده یا به طور صحیح پیکربندی نشده است"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard در اِجرا نیست"
+   },
+   "adg_is_not_updated": {
+      "message": "اَدگارد (AdGuard) به‌هنگام‌سازی نشده است"
+   },
+   "adg_is_paused": {
+      "message": "حفاظت AdGuard متوقف شده است"
+   },
+   "adg_protection": {
+      "message": "حفاظت AdGuard"
+   },
+   "adg_settings": {
+      "message": "تنظیمات AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "دستیار بروز رسانی نشده است"
+   },
+   "block_ads": {
+      "message": "مسدودسازی تبلیغات در این وب‌گاه"
+   },
+   "cert_absent": {
+      "message": "فیلترینگ HTTPS برای این سایت اجرا نشده است"
+   },
+   "cert_expired": {
+      "message": "AdGuard نمیتواند گواهینامه این سایت را تایید کند چون ریشه گواهینامه منقضی شده است"
+   },
+   "contact_support": {
+      "message": "تماس با پشتیبانی"
+   },
+   "context_complaint_website": {
+      "message": "گزارش یک مشکل..."
+   },
+   "context_disable_protection": {
+      "message": "وقفه حفاظت AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "ادامه محافظت اَدگارد"
+   },
+   "context_open_log": {
+      "message": "رویدادنگاری پالایش..."
+   },
+   "context_open_settings": {
+      "message": "تنظیمات اَدگارد..."
+   },
+   "context_site_filtering_off": {
+      "message": "غیر فعال‌سازی پالایش در این تارنما"
+   },
+   "context_site_filtering_on": {
+      "message": "فعال‌سازی پالایش در این تارنما"
+   },
+   "context_site_protection_disabled": {
+      "message": "محافظت اَدگارد متوقف شده است"
+   },
+   "description": {
+      "message": "افزونه ای برای برنامه دسکتاپ AdGuard. مدیریت فیلترینگ مستقیم از مرورگر،پنهان کردن عناصر آزار دهنده در دو کلیک."
+   },
+   "disabled": {
+      "message": "در این وبسایت غیر فعال شده"
+   },
+   "enable": {
+      "message": "فعال‌سازی"
+   },
+   "enabled": {
+      "message": "در این وبسایت فعال شده"
+   },
+   "expired": {
+      "message": "منقضی شده"
+   },
+   "get_adguard": {
+      "message": "دریافت AdGuard"
+   },
+   "https_filtering": {
+      "message": "فیلترینگ HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "افزایش کیفیت مسدودسازی تبلیغ"
+   },
+   "more_info": {
+      "message": "اطلاعات بیشتر"
+   },
+   "name": {
+      "message": "دستیار مرورگر AdGuard"
+   },
+   "not_filtering_https": {
+      "message": "به طور پیش‌فرض، ما انتقال اطلاعات از طریق شیوه‌نامه‌ی انتقال فرامتن ایمن (شافما) [HTTPS] را برای سامانه‌ی پرداخت و وب‌گاه‌های بانکی تفکیک نمی‌کنیم. شما می‌توانید تفکیک اطلاعات را خودتان فعال نمایید: روی «قفل» زرد در سمت چپ ضربه بزنید."
+   },
+   "not_secure": {
+      "message": "امن نیست"
+   },
+   "nothing_to_block_here": {
+      "message": "اینجا چیزی برای مسدود کردن نیست"
+   },
+   "open_filtering_log": {
+      "message": "بازکردن وقایع فیلترینگ"
+   },
+   "options_context_menu_title": {
+      "message": "نمایش در منوی زمینه مرورگر"
+   },
+   "pause_filtering": {
+      "message": "به مدت 30 ثانیه فیلتر نکن"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "محافظت غیرفعال است."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "خرید"
+   },
+   "popup_trial_expired_title": {
+      "message": "ارزیابی منقضی شده است"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "به‌روزرسانی‌ها در دسترس نیستند."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "آیا بابت حذف دستیار مرورگر اَدگارد اطمینان دارید؟"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "با نصب این افزونه، شما با \u003Cprivacy>سیاست حریم خصوصی\u003C/privacy> و \u003Cterms>شرایط استفاده\u003C/terms> ما موافقت می‌نمایید."
+   },
+   "post_install_consent_title": {
+      "message": "بابت نصب دستیار مرورگر اَدگارد سپاس‌گزاریم!"
+   },
+   "post_install_page_agree_button": {
+      "message": "موافقت می‌کنم"
+   },
+   "post_install_page_title": {
+      "message": "بابت نصب دستیار مرورگر اَدگارد سپاس‌گزاریم!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "حذف برنامه"
+   },
+   "protection_is_disabled": {
+      "message": "محفوظ‌نگه‌دار غیر فعال شده است"
+   },
+   "protection_is_enabled": {
+      "message": "محفوظ‌نگه‌دار فعال شده است"
+   },
+   "reinstall": {
+      "message": "نصب مجدد"
+   },
+   "reload_page": {
+      "message": "بارگیری مجدد صفحه"
+   },
+   "reload_to_resume_filtering": {
+      "message": "برای از سرگیری پالایش، این صفحه را مجددا بارگیری کنید"
+   },
+   "report_site": {
+      "message": "گزارش یک مشکل"
+   },
+   "reset_custom_rules": {
+      "message": "حذف تمام رویه‌های کاربر برای این صفحه"
+   },
+   "run_adg": {
+      "message": "اِجرای AdGuard"
+   },
+   "secure_page": {
+      "message": "صفحه امن"
+   },
+   "site_not_using_private_protection": {
+      "message": "این تارنما از اتصال امن استفاده نمی‌کند. ممکن است شخصی بتواند اطلاعاتی را که از طریق این تارنما ارسال یا دریافت می‌کنید، دیده یا تغییر دهد."
+   },
+   "something_went_wrong": {
+      "message": "مشکلی پیش آمد"
+   },
+   "update": {
+      "message": "بروز رسانی"
+   },
+   "verified_by": {
+      "message": "تایید شده توسط:"
+   },
+   "website_cert_is_expired": {
+      "message": "گواهینامه سایت منقضی شده است"
+   }
+}

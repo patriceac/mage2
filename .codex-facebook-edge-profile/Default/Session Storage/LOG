@@ -1,0 +1,4 @@
+2026/03/19-03:13:53.886 41c0 Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Session Storage since it was missing.
+2026/03/19-03:13:53.945 41c0 Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Session Storage/MANIFEST-000001
+2026/03/19-03:13:53.946 41c0 Recovering log #3
+2026/03/19-03:13:53.947 41c0 Reusing old log D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Session Storage/000003.log 

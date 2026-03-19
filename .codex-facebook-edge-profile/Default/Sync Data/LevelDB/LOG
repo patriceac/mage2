@@ -1,0 +1,7 @@
+2026/03/19-03:13:45.800 629c Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Sync Data\LevelDB since it was missing.
+2026/03/19-03:13:45.827 629c Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/03/19-03:13:45.827 629c Recovering log #3
+2026/03/19-03:13:45.831 629c Reusing old log D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Sync Data\LevelDB/000003.log 
+2026/03/19-03:13:51.949 7b94 Level-0 table #5: started
+2026/03/19-03:13:51.959 7b94 Level-0 table #5: 171042 bytes OK
+2026/03/19-03:13:51.966 7b94 Delete type=0 #3

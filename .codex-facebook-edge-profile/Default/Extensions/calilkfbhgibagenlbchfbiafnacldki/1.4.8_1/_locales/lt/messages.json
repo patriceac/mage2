@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard paleidžiamas..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard neįdiegta arba neteisingai sukonfigūruota"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard nėra paleidžiamas"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard nėra atnaujintas"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard apsauga pristabdyta"
+   },
+   "adg_protection": {
+      "message": "AdGuard apsauga"
+   },
+   "adg_settings": {
+      "message": "AdGuard nustatymai"
+   },
+   "assistant_is_not_updated": {
+      "message": "Asistentas nėra atnaujintas"
+   },
+   "block_ads": {
+      "message": "Blokuoti reklamus šioje svetainėje"
+   },
+   "cert_absent": {
+      "message": "HTTPS filtravimas šioje svetainėje nebuvo atlikta"
+   },
+   "cert_expired": {
+      "message": "AdGuard negalėjo patvirtinti šios svetainės sertifikato nes Root sertifikatas baigėsi"
+   },
+   "contact_support": {
+      "message": "Susisiekti su pagalba"
+   },
+   "context_block_site_ads": {
+      "message": "Blokuoti reklamus šioje svetainėje..."
+   },
+   "context_complaint_website": {
+      "message": "Pranešti apie problemą..."
+   },
+   "context_disable_protection": {
+      "message": "Pristabdyti AdGuard apsaugą"
+   },
+   "context_enable_protection": {
+      "message": "Pratęsti AdGuard apsaugą"
+   },
+   "context_open_log": {
+      "message": "Įrašo filtravimas..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard nustatymai..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard negali veikti šitame domene"
+   },
+   "context_site_filtering_off": {
+      "message": "Išjungti filtravimą šioje svetainėje"
+   },
+   "context_site_filtering_on": {
+      "message": "Įjungti filtravimą šioje svetainėje"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard apsauga pristabdyta"
+   },
+   "description": {
+      "message": "AdGuard darbalaukio programos plėtinys. Valdo filtravimą tiesiai iš naršyklės, paslepia erzinančius elementus dviem paspaudimais."
+   },
+   "disabled": {
+      "message": "Išjungta šioje svetainėje"
+   },
+   "enable": {
+      "message": "Įjungti"
+   },
+   "enabled": {
+      "message": "Įjungta šioje svetainėje"
+   },
+   "expired": {
+      "message": "Pasibaigęs"
+   },
+   "filtering_exception": {
+      "message": "Filtravimas išjungtas, nes tai gali turėti įtakos svetainės veikimui."
+   },
+   "get_adguard": {
+      "message": "Gauti AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS filtravimas"
+   },
+   "increase_ab_block_quality": {
+      "message": "Padidina reklamų blokavimo kokybę"
+   },
+   "more_info": {
+      "message": "Daugiau informacijos"
+   },
+   "name": {
+      "message": "AdGuard naršyklės asistentas"
+   },
+   "not_filtering_https": {
+      "message": "Pagal numatytasius nustatymus, mes nefiltruojame HTTPS srauto apmokėjimų sistemoms ir bankų svetainėms. Tu gali įjungti filtravimą rankiniu būdu: paspausk geltoną „užraktą“ kairėje."
+   },
+   "not_secure": {
+      "message": "Nesaugu"
+   },
+   "nothing_to_block_here": {
+      "message": "Nėra čia ką blokuoti"
+   },
+   "open_filtering_log": {
+      "message": "Atidaryti filtravimo įrašą"
+   },
+   "options_context_menu_title": {
+      "message": "Rodyti naršyklės kontekstiniame meniu"
+   },
+   "pause_filtering": {
+      "message": "Nefiltruoti 30 sekundžių"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Apsauga išjungta."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Nusipirkti"
+   },
+   "popup_trial_expired_title": {
+      "message": "Bandomasis laikotarpis baigėsi"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Atnaujinimai nepasiekiami."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Ar tikrai nori pašalinti AdGuard naršyklės asistentą?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Įdiegdamas (-a) šį priedą sutinki su mūsų \u003Cprivacy>Privatumo politika\u003C/privacy> ir \u003Cterms>Naudojimo sąlygomis\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Kiekvieną kartą, kai atidarai naują skirtuką, papildinys susisiekia su atskira programa ir prašo informacijos apie dabartinę puslapio būseną. Kad tai padarytų, jis siunčia dabartinio puslapio URL adresą į atskirą programą."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Šis papildomas naršyklės plėtinys, skirtas \u003Clink>AdGuard darbalaukio programoms\u003C/link>, teikia naršyklės prieigą prie tokių funkcijų kaip pasirenkamųjų elementų blokavimą, svetainių įtraukimas į leidžiamų svetainių sąrašus ir ataskaitų pateikimus."
+   },
+   "post_install_consent_title": {
+      "message": "Ačiū, kad įsidiegei AdGuard naršyklės asistentą!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Sutinku"
+   },
+   "post_install_page_title": {
+      "message": "Ačiū, kad įsidiegei AdGuard naršyklės asistentą!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Pašalinti"
+   },
+   "protection_is_disabled": {
+      "message": "Apsauga išjungta"
+   },
+   "protection_is_enabled": {
+      "message": "Apsauga įjungta"
+   },
+   "reinstall": {
+      "message": "Iš naujo įdiegti"
+   },
+   "reload_page": {
+      "message": "Perkrauti puslapį"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Perkrauk šį puslapį, kad tęstum filtravimą"
+   },
+   "report_site": {
+      "message": "Pranešti apie problemą"
+   },
+   "reset_custom_rules": {
+      "message": "Pašalinti visus naudotojo taisykles šitame puslapyje"
+   },
+   "run_adg": {
+      "message": "Paleisti AdGuard"
+   },
+   "secure_page": {
+      "message": "Saugus puslapis"
+   },
+   "site_not_using_private_protection": {
+      "message": "Ši svetainė nenaudoja saugaus ryšio. Kas nors gali pamatyti arba pakeisti informaciją kurią siunti ar gauni per svetainę."
+   },
+   "something_went_wrong": {
+      "message": "Kažkas nutiko negerai"
+   },
+   "update": {
+      "message": "Atnaujinti"
+   },
+   "verified_by": {
+      "message": "Patvirtino:"
+   },
+   "website_cert_is_expired": {
+      "message": "Svetainės sertifikatas pasibaigęs"
+   }
+}

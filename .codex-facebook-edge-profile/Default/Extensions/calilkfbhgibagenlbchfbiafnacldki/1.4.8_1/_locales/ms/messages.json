@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard sedang dilancarkan..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard tidak dipasang atau ditetapkan dengan betul"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard tidak dijalankan"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard tidak dikemaskini"
+   },
+   "adg_is_paused": {
+      "message": "Perlindungan AdGuard dihenti sebentar"
+   },
+   "adg_protection": {
+      "message": "Perlindungan AdGuard"
+   },
+   "adg_settings": {
+      "message": "Tetapan AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "Pembantu tidak dikemaskini"
+   },
+   "block_ads": {
+      "message": "Halang iklan di laman ini"
+   },
+   "cert_absent": {
+      "message": "Saringan HTTPS tidak dilakukan pada laman ini"
+   },
+   "cert_expired": {
+      "message": "AdGuard tidak dapat mengesahkan sijil laman ini disebabkan sijil pentadbir telah luput"
+   },
+   "contact_support": {
+      "message": "Hubungi sokongan"
+   },
+   "context_block_site_ads": {
+      "message": "Sekat iklan di laman web ini..."
+   },
+   "context_complaint_website": {
+      "message": "Laporkan sebarang masalah..."
+   },
+   "context_disable_protection": {
+      "message": "Hentikan perlindungan Adguard"
+   },
+   "context_enable_protection": {
+      "message": "Mulakan perlindungan AdGuard"
+   },
+   "context_open_log": {
+      "message": "Log penapis..."
+   },
+   "context_open_settings": {
+      "message": "Tetapan AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard tidak dapat dijalankan di laman web ini"
+   },
+   "context_site_filtering_off": {
+      "message": "Nyahaktifkan penapisan di laman web ini"
+   },
+   "context_site_filtering_on": {
+      "message": "Aktifkan penyaringan di laman web ini"
+   },
+   "context_site_protection_disabled": {
+      "message": "Perlindungan AdGuard dihentikan"
+   },
+   "description": {
+      "message": "Penyambung untuk aplikasi desktop AdGuard. Uuruskan saringan terus dari dalam pelayar, Sembunyi elemen menjengkelkan dalam dua klik."
+   },
+   "disabled": {
+      "message": "Nyahaktifkan di laman ini"
+   },
+   "enable": {
+      "message": "Aktifkan"
+   },
+   "enabled": {
+      "message": "Aktifkan di laman ini"
+   },
+   "expired": {
+      "message": "Luput"
+   },
+   "filtering_exception": {
+      "message": "Penapisan_pengecualian."
+   },
+   "get_adguard": {
+      "message": "Dapatkan AdGuard"
+   },
+   "https_filtering": {
+      "message": "Penyaringan HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "Tambahkan kualiti halangan iklan"
+   },
+   "more_info": {
+      "message": "Lebih Maklumat"
+   },
+   "name": {
+      "message": "Pembantu Pelayar AdGuard"
+   },
+   "not_filtering_https": {
+      "message": "Secara lalai, kami tidak menyaring trafik HTTPS untuk sistem pembayaran dan laman bank. Anda boleh aktifkan saringan ini sendiri: tekan \"kunci\" kuning di sebelah kiri."
+   },
+   "not_secure": {
+      "message": "Tidak selamat"
+   },
+   "nothing_to_block_here": {
+      "message": "Tiada apa untuk dihalang disini"
+   },
+   "open_filtering_log": {
+      "message": "Buka log penyaringan"
+   },
+   "options_context_menu_title": {
+      "message": "Tunjukkan dalam menu konteks pelayar"
+   },
+   "pause_filtering": {
+      "message": "Jangan tapis selama 30 saat"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Perlindungan telah dinyahaktifkan."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Pembelian"
+   },
+   "popup_trial_expired_title": {
+      "message": "Tempoh percubaan telah tamat"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Kemas kini tidak tersedia."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Adakah anda pasti mahu mengalih keluar Pembantu Penyemak Imbas AdGuard?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Dengan memasang alat tambahan ini, anda bersetuju dengan \u003Cprivacy>Dasar Privasi\u003C/privacy> dan \u003Cterms>Syarat Penggunaan\u003C/terms> kami."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Setiap kali anda membuka tab baharu, add-on ini berkomunikasi dengan app kendiri dan membuat request maklumat tentang status page semasa. Untuk melakukannya, ia akan send URL page semasa kepada app kendiri."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Penyambung pelayar ini untuk \u003Clink>aplikasi desktop AdGuard\u003C/link> menawarkan akses dalam pelayar kepada ciri-ciri seperti penyekatan unsur tersuai, membenarkan laman web, dan menghantar laporan."
+   },
+   "post_install_consent_title": {
+      "message": "Terima Kasih kerana telah memasang AdGuard Browser Assistant!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Bersetuju"
+   },
+   "post_install_page_title": {
+      "message": "Terima Kasih kerana telah memasang AdGuard Browser Assistant!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Nyahpasang"
+   },
+   "protection_is_disabled": {
+      "message": "Perlindungan dinyahaktif"
+   },
+   "protection_is_enabled": {
+      "message": "Perlindungan diaktifkan"
+   },
+   "reinstall": {
+      "message": "Pasang semula"
+   },
+   "reload_page": {
+      "message": "Muat semula halaman"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Muat semula halaman ini untuk meneruskan penapisan"
+   },
+   "report_site": {
+      "message": "Laporkan isu"
+   },
+   "reset_custom_rules": {
+      "message": "Tetap semula peraturan khusus untuk laman ini"
+   },
+   "run_adg": {
+      "message": "Jalankan AdGuard"
+   },
+   "secure_page": {
+      "message": "Laman selamat"
+   },
+   "site_not_using_private_protection": {
+      "message": "Laman ini tidak menggunakan sambungan peribadi. Seseorang mungkin boleh lihat atau ubah maklumat yang anda hantar atau terima melalui laman ini."
+   },
+   "something_went_wrong": {
+      "message": "Berlaku sesuatu ralat"
+   },
+   "update": {
+      "message": "Kemaskini"
+   },
+   "verified_by": {
+      "message": "Disahkan oleh:"
+   },
+   "website_cert_is_expired": {
+      "message": "Sijil laman telah luput"
+   }
+}

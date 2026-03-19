@@ -1,0 +1,32 @@
+{
+   "adg_is_launching": {
+      "message": "অ্যাডগার্ড চালু হচ্ছে..."
+   },
+   "adg_protection": {
+      "message": "অ্যাডগার্ড সুরক্ষা"
+   },
+   "adg_settings": {
+      "message": "অ্যাডগার্ড সেটিংস"
+   },
+   "description": {
+      "message": "Extension for the AdGuard desktop app. Manages filtering right from the browser, hides annoying elements in two clicks."
+   },
+   "https_filtering": {
+      "message": "HTTPS ফিল্টারিং"
+   },
+   "name": {
+      "message": "AdGuard Browser Assistant"
+   },
+   "reinstall": {
+      "message": "পুনরায় ইনস্টল করুন"
+   },
+   "report_site": {
+      "message": "একটি সমস্যা রিপোর্ট করুন"
+   },
+   "reset_custom_rules": {
+      "message": "এই পেজের সকল কাস্টম নিয়ম পুন:স্থাপন করুন"
+   },
+   "update": {
+      "message": "আপডেট"
+   }
+}

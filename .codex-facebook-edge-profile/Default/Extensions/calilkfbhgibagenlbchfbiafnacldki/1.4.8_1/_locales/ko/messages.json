@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard 실행 중..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard가 설치되지 않았거나 정상적으로 설정되어있지 않습니다."
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard가 실행 중이지 않습니다"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard가 업데이트되지 않았습니다"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard 보호가 일시 정지됨"
+   },
+   "adg_protection": {
+      "message": "AdGuard 보호"
+   },
+   "adg_settings": {
+      "message": "AdGuard 설정"
+   },
+   "assistant_is_not_updated": {
+      "message": "어시스턴트가 업데이트되지 않았습니다"
+   },
+   "block_ads": {
+      "message": "이 웹사이트에서 광고 차단"
+   },
+   "cert_absent": {
+      "message": "이 웹사이트에 대한 HTTPS 필터링이 실행되지 않았습니다."
+   },
+   "cert_expired": {
+      "message": "최상위 인증서가 만료되었기 때문에 AdGuard에서 이 웹사이트의 인증서를 검증할 수 없습니다"
+   },
+   "contact_support": {
+      "message": "고객 지원"
+   },
+   "context_block_site_ads": {
+      "message": "이 웹사이트에서 광고 차단..."
+   },
+   "context_complaint_website": {
+      "message": "버그 신고하기"
+   },
+   "context_disable_protection": {
+      "message": "AdGuard 보호 일시 정지"
+   },
+   "context_enable_protection": {
+      "message": "AdGuard 보호 재시작"
+   },
+   "context_open_log": {
+      "message": "필터링 로그..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard 설정..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "이 도메인에서는 AdGuard를 실행할 수 없습니다"
+   },
+   "context_site_filtering_off": {
+      "message": "이 웹사이트에서 필터링 끄기"
+   },
+   "context_site_filtering_on": {
+      "message": "이 웹사이트에서 필터링 켜기"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard 보호가 일시 정지됨"
+   },
+   "description": {
+      "message": "AdGuard 데스크탑 앱을 위한 확장 프로그램입니다. 브라우저에서 바로 필터링을 관리하고, 두 번의 클릭으로 방해 요소를 숨겨보세요."
+   },
+   "disabled": {
+      "message": "이 웹사이트에서 비활성화됨"
+   },
+   "enable": {
+      "message": "활성화"
+   },
+   "enabled": {
+      "message": "이 웹사이트에서 활성화됨"
+   },
+   "expired": {
+      "message": "만료"
+   },
+   "filtering_exception": {
+      "message": "웹사이트 성능에 영향을 줄 수 있으므로 필터링이 비활성화되었습니다."
+   },
+   "get_adguard": {
+      "message": "AdGuard 설치"
+   },
+   "https_filtering": {
+      "message": "HTTPS 필터링"
+   },
+   "increase_ab_block_quality": {
+      "message": "광고 차단 품질을 향상시키는데 도움을 줍니다."
+   },
+   "more_info": {
+      "message": "추가 정보"
+   },
+   "name": {
+      "message": "AdGuard 브라우저 어시스턴트"
+   },
+   "not_filtering_https": {
+      "message": "우리는 기본적으로 결제 시스템과 은행 웹사이트의 HTTPS 트래픽을 필터링하지 않습니다. 직접 활성화해서 필터링할 수 있습니다: 좌측의 노랑색 \"자물쇠\"를 눌러주세요."
+   },
+   "not_secure": {
+      "message": "안전하지 않음"
+   },
+   "nothing_to_block_here": {
+      "message": "차단할 요소가 없습니다"
+   },
+   "open_filtering_log": {
+      "message": "필터링 로그 열기"
+   },
+   "options_context_menu_title": {
+      "message": "브라우저 콘텍스트 메뉴에 표시"
+   },
+   "pause_filtering": {
+      "message": "30초 동안 차단 일시정지"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "보호가 비활성화되었습니다."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "구입"
+   },
+   "popup_trial_expired_title": {
+      "message": "체험판이 만료되었습니다!"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "업데이트를 사용할 수 없습니다."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "AdGuard 어시스턴트를 제거하시겠습니까?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "애드온 프로그램을 설치하면 \u003Cprivacy>개인정보취급방침\u003C/privacy> 및 \u003Cterms>이용 약관\u003C/terms>에 동의하는 것입니다."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "새 탭을 열 때마다 애드온 프로그램은 앱과 통신하고 현재 페이지 상태에 대한 정보를 요청합니다. 페이지 상태에 대한 정보를 요청하려면 현재 페이지의 URL을 앱으로 보냅니다."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "\u003Clink>AdGuard 데스크톱 앱\u003C/link>와 함께하는 애드온 프로그램입니다. 브라우저 내부에서 사용자 지정 요소 차단, 허용 목록에 사이트를 추가, 리포트 전송과 같은 기능을 제공합니다."
+   },
+   "post_install_consent_title": {
+      "message": "AdGuard 어시스턴트를 설치해 주셔서 감사합니다!"
+   },
+   "post_install_page_agree_button": {
+      "message": "동의"
+   },
+   "post_install_page_title": {
+      "message": "AdGuard 어시스턴트를 설치해 주셔서 감사합니다!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "제거"
+   },
+   "protection_is_disabled": {
+      "message": "보호 비활성화"
+   },
+   "protection_is_enabled": {
+      "message": "보호 활성화"
+   },
+   "reinstall": {
+      "message": "재설치"
+   },
+   "reload_page": {
+      "message": "페이지 새로고침"
+   },
+   "reload_to_resume_filtering": {
+      "message": "필터링을 재개하려면 이 페이지를 새로고침"
+   },
+   "report_site": {
+      "message": "문제 신고하기"
+   },
+   "reset_custom_rules": {
+      "message": "이 페이지에 대한 모든 사용자 규칙 초기화"
+   },
+   "run_adg": {
+      "message": "AdGuard 실행"
+   },
+   "secure_page": {
+      "message": "안전한 연결"
+   },
+   "site_not_using_private_protection": {
+      "message": "이 사이트는 안전하지 않습니다. 다른 사람이 이 사이트의 정보를 감시, 변조 또는 접속할 수 있습니다."
+   },
+   "something_went_wrong": {
+      "message": "오류가 발생하였습니다."
+   },
+   "update": {
+      "message": "업데이트"
+   },
+   "verified_by": {
+      "message": "인증자:"
+   },
+   "website_cert_is_expired": {
+      "message": "웹사이트 인증서가 만료됨"
+   }
+}

@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard đang chạy..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard chưa được cài hoặc được tinh chỉnh sai"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard chưa được khởi động"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard chưa được cập nhật"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard tạm dừng bảo vệ"
+   },
+   "adg_protection": {
+      "message": "Sự bảo vệ của AdGuard"
+   },
+   "adg_settings": {
+      "message": "Cài đặt AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "Trợ lý AdGuard cần được cập nhật"
+   },
+   "block_ads": {
+      "message": "Chặn quảng cáo trên website này"
+   },
+   "cert_absent": {
+      "message": "Bộ lọc HTTPS không chạy được đối với trang web này"
+   },
+   "cert_expired": {
+      "message": "AdGuard không thể xác minh chứng chỉ của trang này do chứng chỉ gốc đã hết hạn"
+   },
+   "contact_support": {
+      "message": "Liên hệ hỗ trợ"
+   },
+   "context_block_site_ads": {
+      "message": "Chặn quảng cáo trên trang web này..."
+   },
+   "context_complaint_website": {
+      "message": "Báo lỗi..."
+   },
+   "context_disable_protection": {
+      "message": "Tạm dừng trình bảo vệ của AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "Tiếp tục trình bảo vệ của AdGuard"
+   },
+   "context_open_log": {
+      "message": "Mở nhật ký lọc..."
+   },
+   "context_open_settings": {
+      "message": "Cài đặt AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard không thể hoạt động trên tên miền này"
+   },
+   "context_site_filtering_off": {
+      "message": "Vô hiệu hóa bộ lọc trên trang web này"
+   },
+   "context_site_filtering_on": {
+      "message": "Vô hiệu hóa bộ lọc trên trang web này"
+   },
+   "context_site_protection_disabled": {
+      "message": "Trình bảo vệ AdGuard đã tạm dừng"
+   },
+   "description": {
+      "message": "Tiện ích đi kèm của ứng dụng AdGuard trên máy tính. Quản lý tốt việc lọc trên trình duyệt, ẩn những thứ phiền phức trong hai click."
+   },
+   "disabled": {
+      "message": "Đã được tắt ở trang này"
+   },
+   "enable": {
+      "message": "Kích hoạt"
+   },
+   "enabled": {
+      "message": "Đã được bật ở trang này"
+   },
+   "expired": {
+      "message": "Đã hết hạn"
+   },
+   "filtering_exception": {
+      "message": "Tính năng lọc bị vô hiệu hóa vì nó có thể ảnh hưởng đến hiệu suất của trang web."
+   },
+   "get_adguard": {
+      "message": "Tải AdGuard"
+   },
+   "https_filtering": {
+      "message": "Bộ lọc HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "Cải thiện việc chặn quảng cáo"
+   },
+   "more_info": {
+      "message": "Tìm hiểu thêm"
+   },
+   "name": {
+      "message": "Trợ lý duyệt của AdGuard"
+   },
+   "not_filtering_https": {
+      "message": "Mặc định chúng tôi không lọc lưu thông HTTPS cho các hệ thống thanh toán và trang web của ngân hàng. Bạn có thể tự bật bộ lọc: nhấn vào hình khoá màu vàng ở bên trái."
+   },
+   "not_secure": {
+      "message": "Không bảo mật"
+   },
+   "nothing_to_block_here": {
+      "message": "Không có gì để chặn ở đây"
+   },
+   "open_filtering_log": {
+      "message": "Mở nhật ký lọc"
+   },
+   "options_context_menu_title": {
+      "message": "Hiện trong menu ngữ cảnh trình duyệt"
+   },
+   "pause_filtering": {
+      "message": "Không lọc trong 30 giây"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Bảo vệ bị vô hiệu hóa."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Mua"
+   },
+   "popup_trial_expired_title": {
+      "message": "Bản dùng thử đã hết hạn"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Cập nhật không có sẵn."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Bạn có chắc chắn muốn xóa Trợ lý Trình duyệt AdGuard không?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Bằng cách cài đặt tiện ích bổ sung này, bạn đồng ý với \u003Cprivacy>Chính sách Bảo mật\u003C/privacy> và \u003Cterms>Điều khoản Sử dụng\u003C/terms> của chúng tôi."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Mỗi khi bạn mở một tab mới, tiện ích bổ sung sẽ giao tiếp với ứng dụng độc lập và yêu cầu thông tin về trạng thái trang hiện tại. Để làm điều đó, nó sẽ gửi URL của trang hiện tại đến ứng dụng độc lập."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Tiện ích mở rộng trình duyệt đồng hành này dành cho \u003Clink>ứng dụng AdGuard trên máy tính để bàn\u003C/link> cung cấp quyền truy cập trong trình duyệt vào các tính năng như chặn phần tử tùy chỉnh, cho phép trang web và gửi báo cáo."
+   },
+   "post_install_consent_title": {
+      "message": "Cảm ơn bạn đã cài đặt Hỗ trợ trình duyệt AdGuard!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Đồng ý"
+   },
+   "post_install_page_title": {
+      "message": "Cảm ơn bạn đã cài đặt Hỗ trợ trình duyệt AdGuard!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Gỡ cài đặt"
+   },
+   "protection_is_disabled": {
+      "message": "Bảo vệ không được khởi động"
+   },
+   "protection_is_enabled": {
+      "message": "Bảo vệ được khởi động"
+   },
+   "reinstall": {
+      "message": "Cài đặt lại"
+   },
+   "reload_page": {
+      "message": "Tải lại trang"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Tải lại trang này để tiếp tục lọc"
+   },
+   "report_site": {
+      "message": "Báo lỗi"
+   },
+   "reset_custom_rules": {
+      "message": "Xóa tất cả các quy tắc người dùng cho trang này"
+   },
+   "run_adg": {
+      "message": "Khởi động Adguard"
+   },
+   "secure_page": {
+      "message": "Trang bảo mật tốt"
+   },
+   "site_not_using_private_protection": {
+      "message": "Trang không sử dụng kết nối bảo mật. Ai đó có thể xem hoặc thay đổi thông tin bạn cung cấp cho trang hoặc nhận được từ trang."
+   },
+   "something_went_wrong": {
+      "message": "Đã xảy ra lỗi"
+   },
+   "update": {
+      "message": "Cập nhật"
+   },
+   "verified_by": {
+      "message": "Được chứng nhận bởi:"
+   },
+   "website_cert_is_expired": {
+      "message": "Chứng chỉ của trang đã hết hạn"
+   }
+}

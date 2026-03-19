@@ -1,0 +1,6 @@
+2026/03/19-03:13:47.948 9cb0 Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Asset Store\assets.db since it was missing.
+2026/03/19-03:13:48.012 9cb0 Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\Asset Store\assets.db/MANIFEST-000001
+2026/03/19-03:13:48.013 9cb0 Recovering log #3
+2026/03/19-03:13:48.026 9cb0 Level-0 table #3: started
+2026/03/19-03:13:48.175 9cb0 Level-0 table #3: 338947 bytes OK
+2026/03/19-03:13:48.239 9cb0 Delete type=0 #3

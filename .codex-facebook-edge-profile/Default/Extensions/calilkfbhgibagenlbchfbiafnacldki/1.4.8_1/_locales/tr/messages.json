@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard başlatılıyor..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard kurulu değil veya yanlış yapılandırılmış"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard çalışmıyor"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard güncel değil"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard koruması duraklatıldı"
+   },
+   "adg_protection": {
+      "message": "AdGuard Koruması"
+   },
+   "adg_settings": {
+      "message": "AdGuard Ayarları"
+   },
+   "assistant_is_not_updated": {
+      "message": "Asistan güncel değil"
+   },
+   "block_ads": {
+      "message": "Bu sitede reklam engelle"
+   },
+   "cert_absent": {
+      "message": "Bu web sitesi için HTTPS filtrelemesi gerçekleştirilmedi"
+   },
+   "cert_expired": {
+      "message": "AdGuard, root sertifikanın süresi dolduğundan bu sitenin sertifikasını doğrulayamadı"
+   },
+   "contact_support": {
+      "message": "Destek ile iletişime geç"
+   },
+   "context_block_site_ads": {
+      "message": "Bu sitede reklam engelle..."
+   },
+   "context_complaint_website": {
+      "message": "Bir sorun bildir..."
+   },
+   "context_disable_protection": {
+      "message": "AdGuard korumasını duraklat"
+   },
+   "context_enable_protection": {
+      "message": "AdGuard korumasını sürdür"
+   },
+   "context_open_log": {
+      "message": "Filtreleme günlüğü..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard ayarları..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard bu alan adında çalışamaz"
+   },
+   "context_site_filtering_off": {
+      "message": "Bu sitede filtrelemeyi devre dışı bırak"
+   },
+   "context_site_filtering_on": {
+      "message": "Bu sitede filtrelemeyi etkinleştir"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard koruması duraklatıldı"
+   },
+   "description": {
+      "message": "AdGuard masaüstü uygulaması uzantısı. Filtrelemeyi doğrudan tarayıcıdan yönetir, can sıkıcı öğeleri iki tıklamayla gizler."
+   },
+   "disabled": {
+      "message": "Bu sitede devre dışı bırakıldı"
+   },
+   "enable": {
+      "message": "ETKİNLEŞTİR"
+   },
+   "enabled": {
+      "message": "Bu sitede etkinleştirildi"
+   },
+   "expired": {
+      "message": "Sona erdi"
+   },
+   "filtering_exception": {
+      "message": "Sitenin performansını etkileyebileceği için filtreleme devre dışı bırakıldı."
+   },
+   "get_adguard": {
+      "message": "AdGuard'ı edinin"
+   },
+   "https_filtering": {
+      "message": "HTTPS filtreleme"
+   },
+   "increase_ab_block_quality": {
+      "message": "Reklam engelleme kalitesini artırır"
+   },
+   "more_info": {
+      "message": "Daha fazla bilgi"
+   },
+   "name": {
+      "message": "AdGuard Tarayıcı Asistanı"
+   },
+   "not_filtering_https": {
+      "message": "Varsayılan olarak, ödeme sistemleri ve banka sitelerin kullandığı HTTPS trafiğini filtrelemiyoruz. İsterseniz filtrelemeyi etkinleştirebilirsiniz: soldaki sarı \"kilit\" simgeye tıklayın."
+   },
+   "not_secure": {
+      "message": "Güvenli değil"
+   },
+   "nothing_to_block_here": {
+      "message": "Burada engellenebilecek bir şey yok"
+   },
+   "open_filtering_log": {
+      "message": "Filtreleme günlüğünü aç"
+   },
+   "options_context_menu_title": {
+      "message": "Tarayıcının sağ tık menüsünde göster"
+   },
+   "pause_filtering": {
+      "message": "30 saniyeliğine filtreleme yapma"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Koruma devre dışı bırakıldı."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Satın al"
+   },
+   "popup_trial_expired_title": {
+      "message": "Deneme süresi sona erdi"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Güncellemeler kullanılamıyor."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "AdGuard Tarayıcı Asistanı kaldırmak istediğinizden emin misiniz?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Bu eklentiyi yükleyerek \u003Cprivacy>Gizlilik Politikamızı\u003C/privacy> ve \u003Cterms>Kullanım Şartlarımızı\u003C/terms> kabul etmiş olursunuz."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Her yeni sekme açtığınızda, eklenti bağımsız uygulamayla iletişim kurar ve mevcut sayfa durumu hakkında bilgi ister. Bunu yapmak için mevcut sayfanın URL bağlantısını bağımsız uygulamaya gönderir."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "\u003Clink>AdGuard masaüstü uygulamalarına\u003C/link> yönelik bu tamamlayıcı tarayıcı uzantısı, özel öğe engelleme, siteleri izin listesine ekleme ve rapor gönderme gibi özelliklere tarayıcı içi erişim sunar."
+   },
+   "post_install_consent_title": {
+      "message": "AdGuard Tarayıcı Asistanı yüklediğiniz için teşekkürler!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Kabul et"
+   },
+   "post_install_page_title": {
+      "message": "AdGuard Tarayıcı Asistanı yüklediğiniz için teşekkürler!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Kaldır"
+   },
+   "protection_is_disabled": {
+      "message": "Koruma devre dışı"
+   },
+   "protection_is_enabled": {
+      "message": "Koruma etkin"
+   },
+   "reinstall": {
+      "message": "Tekrar yükle"
+   },
+   "reload_page": {
+      "message": "Sayfayı yenile"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Filtrelemeye devam etmek için sayfayı yenile"
+   },
+   "report_site": {
+      "message": "Bir sorun bildir"
+   },
+   "reset_custom_rules": {
+      "message": "Bu sayfa için tüm kullanıcı kurallarını kaldır"
+   },
+   "run_adg": {
+      "message": "AdGuard'ı Çalıştır"
+   },
+   "secure_page": {
+      "message": "Güvenli sayfa"
+   },
+   "site_not_using_private_protection": {
+      "message": "Bu site güvenli bir bağlantı kullanmıyor. Birisi site aracılığıyla gönderdiğiniz veya aldığınız bilgileri görebilir veya değiştirebilir."
+   },
+   "something_went_wrong": {
+      "message": "Bir şeyler ters gitti"
+   },
+   "update": {
+      "message": "Güncelle"
+   },
+   "verified_by": {
+      "message": "Doğrulandı:"
+   },
+   "website_cert_is_expired": {
+      "message": "Web site sertifikası sona ermiş"
+   }
+}

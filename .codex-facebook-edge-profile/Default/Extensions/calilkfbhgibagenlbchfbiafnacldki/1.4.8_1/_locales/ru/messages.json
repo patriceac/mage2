@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard загружается..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard не установлен или настроен неправильно"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard не запущен"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard не обновлён"
+   },
+   "adg_is_paused": {
+      "message": "Защита AdGuard приостановлена"
+   },
+   "adg_protection": {
+      "message": "Защита AdGuard"
+   },
+   "adg_settings": {
+      "message": "Настройки AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "Помощник не обновлён"
+   },
+   "block_ads": {
+      "message": "Блокировать рекламу на этом сайте"
+   },
+   "cert_absent": {
+      "message": "HTTPS-фильтрация не была выполнена для этого сайта"
+   },
+   "cert_expired": {
+      "message": "AdGuard не может проверить сертификат этого сайта, т. к. срок действия корневого сертификата истёк"
+   },
+   "contact_support": {
+      "message": "Написать в поддержку"
+   },
+   "context_block_site_ads": {
+      "message": "Блокировать рекламу на этом сайте..."
+   },
+   "context_complaint_website": {
+      "message": "Сообщить о проблеме..."
+   },
+   "context_disable_protection": {
+      "message": "Приостановить защиту AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "Возобновить защиту AdGuard"
+   },
+   "context_open_log": {
+      "message": "Журнал фильтрации..."
+   },
+   "context_open_settings": {
+      "message": "Настройки AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard не работает на этом домене"
+   },
+   "context_site_filtering_off": {
+      "message": "Отключить фильтрацию на этом сайте"
+   },
+   "context_site_filtering_on": {
+      "message": "Включить фильтрацию на этом сайте"
+   },
+   "context_site_protection_disabled": {
+      "message": "Защита AdGuard приостановлена"
+   },
+   "description": {
+      "message": "Расширение к десктопной программе AdGuard. Помогает управлять фильтрацией прямо в браузере."
+   },
+   "disabled": {
+      "message": "Защита выключена\nна этом сайте"
+   },
+   "enable": {
+      "message": "Включить"
+   },
+   "enabled": {
+      "message": "Защита включена\nна этом сайте"
+   },
+   "expired": {
+      "message": "Истёк"
+   },
+   "filtering_exception": {
+      "message": "Фильтрация отключена, так как это может повлиять на работу сайта."
+   },
+   "get_adguard": {
+      "message": "Получить AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS-фильтрация"
+   },
+   "increase_ab_block_quality": {
+      "message": "Улучшает качество блокировки"
+   },
+   "more_info": {
+      "message": "Узнать больше"
+   },
+   "name": {
+      "message": "Браузерный помощник AdGuard"
+   },
+   "not_filtering_https": {
+      "message": "По умолчанию мы не фильтруем HTTPS-трафик платёжных систем и банковских веб-сайтов. Вы можете включить фильтрацию самостоятельно: нажмите на жёлтый значок замка слева."
+   },
+   "not_secure": {
+      "message": "Не защищён"
+   },
+   "nothing_to_block_here": {
+      "message": "Здесь нечего блокировать"
+   },
+   "open_filtering_log": {
+      "message": "Открыть журнал фильтрации"
+   },
+   "options_context_menu_title": {
+      "message": "Показать в контекстном меню браузера"
+   },
+   "pause_filtering": {
+      "message": "Не фильтровать 30 секунд"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Защита отключена."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Купить"
+   },
+   "popup_trial_expired_title": {
+      "message": "Пробный период истёк"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Обновления недоступны."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Вы уверены, что хотите удалить Браузерный помощник AdGuard?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Устанавливая это расширение, вы принимаете нашу \u003Cprivacy>Политику конфиденциальности\u003C/privacy> и \u003Cterms>Условия использования\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Каждый раз, когда вы открываете новую вкладку, расширение обращается к приложению и запрашивает информацию о текущем статусе страницы. Чтобы сделать это, оно отправляет приложению URL-адрес страницы."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Дополнительное браузерное расширение для \u003Clink>десктопных приложений AdGuard\u003C/link> позволяет блокировать отдельные элементы на странице, добавлять сайты в белый список и отправлять отчёты."
+   },
+   "post_install_consent_title": {
+      "message": "Спасибо, что установили Браузерный помощник AdGuard!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Согласиться"
+   },
+   "post_install_page_title": {
+      "message": "Спасибо, что установили Браузерный помощник AdGuard!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Удалить"
+   },
+   "protection_is_disabled": {
+      "message": "Защита выключена"
+   },
+   "protection_is_enabled": {
+      "message": "Защита включена"
+   },
+   "reinstall": {
+      "message": "Переустановить"
+   },
+   "reload_page": {
+      "message": "Перезагрузить страницу"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Перезагрузите страницу, чтобы восстановить фильтрацию"
+   },
+   "report_site": {
+      "message": "Сообщить о проблеме"
+   },
+   "reset_custom_rules": {
+      "message": "Удалить правила для сайта"
+   },
+   "run_adg": {
+      "message": "Запустить AdGuard"
+   },
+   "secure_page": {
+      "message": "Защищённая страница"
+   },
+   "site_not_using_private_protection": {
+      "message": "Этот сайт не использует защищённое подключение. Кто-нибудь может увидеть или изменить данные, которыми вы обмениваетесь с этим сайтом."
+   },
+   "something_went_wrong": {
+      "message": "Что-то пошло не так"
+   },
+   "update": {
+      "message": "Обновить"
+   },
+   "verified_by": {
+      "message": "Проверено:"
+   },
+   "website_cert_is_expired": {
+      "message": "Сертификат сайта истёк"
+   }
+}

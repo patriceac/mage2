@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "Adguard लॉन्च हो रहा है"
+   },
+   "adg_is_not_installed": {
+      "message": "Adguard गलत तरीके से स्थापित या कॉन्फ़िगर नहीं किया गया है"
+   },
+   "adg_is_not_running": {
+      "message": "Adguard नहीं चल रहा है"
+   },
+   "adg_is_not_updated": {
+      "message": "Adguard अपडेट नहीं किया गया है"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard सुरक्षा रोक दी गई है"
+   },
+   "adg_protection": {
+      "message": "Adguard सुरक्षा"
+   },
+   "adg_settings": {
+      "message": "Adguard समायोजन"
+   },
+   "assistant_is_not_updated": {
+      "message": "Adguard अपडेट नहीं है"
+   },
+   "block_ads": {
+      "message": "वेबसाइट पर विज्ञापनों को अवरुद्ध करें"
+   },
+   "cert_absent": {
+      "message": "इस वेबसाइट के लिए HTTPS फ़िल्टरिंग का प्रदर्शन नहीं किया गया था"
+   },
+   "cert_expired": {
+      "message": "AdGuard इस वेबसाइट के प्रमाणपत्र को सत्यापित नहीं कर सका क्योंकि रूट प्रमाणपत्र की समय सीमा समाप्त हो गई है"
+   },
+   "contact_support": {
+      "message": "सहयोग टीम से संपर्क करें"
+   },
+   "context_block_site_ads": {
+      "message": "इस वेबसाइट पर विज्ञापन ब्लॉक करें..."
+   },
+   "context_complaint_website": {
+      "message": "समस्या की रिपोर्ट करें..."
+   },
+   "context_disable_protection": {
+      "message": "AdGuard सुरक्षा रोकें"
+   },
+   "context_enable_protection": {
+      "message": "AdGuard सुरक्षा फिर से शुरू करें"
+   },
+   "context_open_log": {
+      "message": "फ़िल्टरिंग लॉग..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard सेटिंग्स..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard इस डोमेन पर नहीं चल सकता है"
+   },
+   "context_site_filtering_off": {
+      "message": "इस वेबसाइट पर फ़िल्टरिंग अक्षम करें"
+   },
+   "context_site_filtering_on": {
+      "message": "इस वेबसाइट पर फ़िल्टरिंग सक्षम करें"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard सुरक्षा रोक दी गई है"
+   },
+   "description": {
+      "message": "AdGuard डेस्कटॉप ऐप के लिए एक्सटेंशन। ब्राउज़र से दाएं फ़िल्टर करने का प्रबंधन करता है, दो क्लिक में कष्टप्रद तत्वों को छुपाता है।"
+   },
+   "disabled": {
+      "message": "इस वेबसाइट पर अक्षम"
+   },
+   "enable": {
+      "message": "सक्षम"
+   },
+   "enabled": {
+      "message": "इस वेबसाइट पर सक्षम है"
+   },
+   "expired": {
+      "message": "समय सीमा समाप्त"
+   },
+   "filtering_exception": {
+      "message": "फ़िल्टरिंग अक्षम है क्योंकि यह वेबसाइट के कार्य को प्रभावित कर सकता है।"
+   },
+   "get_adguard": {
+      "message": "Adguard स्थापित करें"
+   },
+   "https_filtering": {
+      "message": "HTTPS फ़िल्टरिंग"
+   },
+   "increase_ab_block_quality": {
+      "message": "विज्ञापन अवरोधन की गुणवत्ता बढ़ाएं"
+   },
+   "more_info": {
+      "message": "अधिक जानकारी"
+   },
+   "name": {
+      "message": "Adguard ब्राउज़र सहायक"
+   },
+   "not_filtering_https": {
+      "message": "डिफ़ॉल्ट रूप से, हम भुगतान प्रणाली और बैंक वेबसाइटों के लिए HTTPS ट्रैफ़िक को फ़िल्टर नहीं करते हैं। आप अपने आप को फ़िल्टर करने में सक्षम कर सकते हैं: बाईं ओर पीले \"लॉक\" पर टैप करें।"
+   },
+   "not_secure": {
+      "message": "सुरक्षित नहीं है"
+   },
+   "nothing_to_block_here": {
+      "message": "यहां ब्लॉक करने के लिए कुछ भी नहीं"
+   },
+   "open_filtering_log": {
+      "message": "फ़िल्टरिंग लॉग खोलें"
+   },
+   "options_context_menu_title": {
+      "message": "ब्राउज़र संदर्भ मेनू में दिखाएं"
+   },
+   "pause_filtering": {
+      "message": "30 सेकंड के लिए फ़िल्टर न करें"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "प्रोटेक्शन बंद है"
+   },
+   "popup_trial_expired_purchase": {
+      "message": "खरीदें"
+   },
+   "popup_trial_expired_title": {
+      "message": "ट्रायल समाप्त हो गया हैं"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "अद्यतन अनुपलब्ध हैं।"
+   },
+   "post_install_confirm_uninstall": {
+      "message": "क्या आप वास्तव में AdGuard Browser Assistant को हटाना चाहते हैं?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "इस ऐड-ऑन को स्थापित करके, आप हमारे \u003Cprivacy>गोपनीयता नीति\u003C/privacy> और \u003Cterms>उपयोग की शर्तों\u003C/terms>से सहमत हैं।"
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "हर बार जब आप एक नया टैब खोलते हैं, तो ऐड-ऑन स्टैंडअलोन ऐप के साथ संचार करता है और वर्तमान पृष्ठ स्थिति के बारे में जानकारी का अनुरोध करता है। ऐसा करने के लिए, यह स्टैंडअलोन ऐप को वर्तमान पृष्ठ के यूआरएल को भेजता है।"
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "\u003Clink>AdGuard डेस्कटॉप ऐप\u003C/link> के लिए यह सहयोगी ब्राउज़र एक्सटेंशन कस्टम एलिमेंट ब्लॉकिंग, वेबसाइटों को अनुमति देने और रिपोर्ट सबमिट करने जैसी सुविधाओं के लिए इन-ब्राउज़र एक्सेस प्रदान करता है।"
+   },
+   "post_install_consent_title": {
+      "message": "AdGuard Browser Assistant इंस्टॉल करने के लिए धन्यवाद!"
+   },
+   "post_install_page_agree_button": {
+      "message": "सहमत"
+   },
+   "post_install_page_title": {
+      "message": "AdGuard Browser Assistant इंस्टॉल करने के लिए धन्यवाद!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "स्थापना रद्द करें"
+   },
+   "protection_is_disabled": {
+      "message": "सुरक्षा अक्षम है"
+   },
+   "protection_is_enabled": {
+      "message": "संरक्षण क्रियाशील है"
+   },
+   "reinstall": {
+      "message": "पुनर्स्थापना"
+   },
+   "reload_page": {
+      "message": "पृष्ठ पुनः लोड करें"
+   },
+   "reload_to_resume_filtering": {
+      "message": "फ़िल्टरिंग को फिर से शुरू करने के लिए पुनः लोड करें"
+   },
+   "report_site": {
+      "message": "इस वेबसाइट की रिपोर्ट करें"
+   },
+   "reset_custom_rules": {
+      "message": "इस पेज के लिए उपयोगकर्ता नियम रिसेट करें"
+   },
+   "run_adg": {
+      "message": "AdGuard चलाएं"
+   },
+   "secure_page": {
+      "message": "सुरक्षित पृष्ठ"
+   },
+   "site_not_using_private_protection": {
+      "message": "साइट सुरक्षित कनेक्शन का उपयोग नहीं कर रही है. कोई व्यक्ति आपके द्वारा साइट के माध्यम से भेजी या प्राप्त की गई जानकारी को देख या बदल सकता है।"
+   },
+   "something_went_wrong": {
+      "message": "कुछ गलत हो गया"
+   },
+   "update": {
+      "message": "अपडेट करें"
+   },
+   "verified_by": {
+      "message": "के द्वारा सत्यापित:"
+   },
+   "website_cert_is_expired": {
+      "message": "वेबसाइट का प्रमाणपत्र समाप्त हो गया है"
+   }
+}

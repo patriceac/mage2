@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard pornește..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard nu este instalat sau este configurat incorect"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard nu este pornit"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard nu este actualizat"
+   },
+   "adg_is_paused": {
+      "message": "Protecția AdGuard este în pauză"
+   },
+   "adg_protection": {
+      "message": "Protecție AdGuard"
+   },
+   "adg_settings": {
+      "message": "Setări AdGuard"
+   },
+   "assistant_is_not_updated": {
+      "message": "Asistentul nu este actualizat"
+   },
+   "block_ads": {
+      "message": "Blocați pub pe acest site"
+   },
+   "cert_absent": {
+      "message": "Filtrarea HTTPS nu s-a efectuat pe acest site web"
+   },
+   "cert_expired": {
+      "message": "AdGuard nu poate verifica certificatul acestui site web deoarece certificatul root a expirat"
+   },
+   "contact_support": {
+      "message": "Contactați Asistența"
+   },
+   "context_block_site_ads": {
+      "message": "Blocați reclame pe acest site..."
+   },
+   "context_complaint_website": {
+      "message": "Raportați o problemă..."
+   },
+   "context_disable_protection": {
+      "message": "Întrerupeți protecția AdGuard"
+   },
+   "context_enable_protection": {
+      "message": "Reporniți protecția AdGuard"
+   },
+   "context_open_log": {
+      "message": "Jurnal de filtrare..."
+   },
+   "context_open_settings": {
+      "message": "Setări AdGuard..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard nu poate rula pe acest domeniu"
+   },
+   "context_site_filtering_off": {
+      "message": "Dezactivați filtrarea pe acest site"
+   },
+   "context_site_filtering_on": {
+      "message": "Activați filtrarea pe acest site"
+   },
+   "context_site_protection_disabled": {
+      "message": "Protecția AdGuard este în pauză"
+   },
+   "description": {
+      "message": "Extensia pentru programul desktop AdGuard. Gerează filtrarea în browser, ascunde elemente enervante în două click-uri."
+   },
+   "disabled": {
+      "message": "Dezactivat pe acest site"
+   },
+   "enable": {
+      "message": "Activați"
+   },
+   "enabled": {
+      "message": "Activat pe acest site"
+   },
+   "expired": {
+      "message": "Expirat"
+   },
+   "filtering_exception": {
+      "message": "Filtrarea este dezactivată deoarece poate afecta performanța site-ului."
+   },
+   "get_adguard": {
+      "message": "Obține AdGuard"
+   },
+   "https_filtering": {
+      "message": "Filtrare HTTPS"
+   },
+   "increase_ab_block_quality": {
+      "message": "Mărește calitatea blocării reclamelor"
+   },
+   "more_info": {
+      "message": "Alte informații"
+   },
+   "name": {
+      "message": "Asistent Browser AdGuard"
+   },
+   "not_filtering_https": {
+      "message": "În mod implicit, nu filtrăm traficul HTTPS pentru sisteme de plăți și site-uri web bancare. Puteți activa filtrarea manual tapând pe \"lacătul\" galben din stânga."
+   },
+   "not_secure": {
+      "message": "Nesecurizat"
+   },
+   "nothing_to_block_here": {
+      "message": "Nimic de blocat aici"
+   },
+   "open_filtering_log": {
+      "message": "Deschide jurnal filtrare"
+   },
+   "options_context_menu_title": {
+      "message": "Afișare în meniul contextual al browserului"
+   },
+   "pause_filtering": {
+      "message": "Nu filtra pentru 30 de secunde"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Protecție este dezactivată."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Cumpărați"
+   },
+   "popup_trial_expired_title": {
+      "message": "Proba a expirat"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Nu sunt disponibile actualizări."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Sunteți sigur că doriți să eliminați Asistentul Browser AdGuard?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Prin instalarea acestui supliment, sunteți de acord cu \u003Cprivacy>Politica de confidențialitate\u003C/privacy> și \u003Cterms>Termenii de utilizare\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "De fiecare dată când deschideți o filă nouă, extensia intră în comunicație cu aplicația autonomă și solicită informații despre starea actuală a paginii. În acest scop, ea trimite adresa URL a paginii curente către aplicația autonomă."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Această extensie de browser însoțitoare pentru \u003Clink>aplicațiile desktop AdGuard\u003C/link> oferă acces în browser la caracteristici precum blocarea elementelor personalizate, listarea de site-uri web autorizate și trimiterea de rapoarte."
+   },
+   "post_install_consent_title": {
+      "message": "Vă mulțumim pentru instalarea Asistentului Browser AdGuard!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Accept"
+   },
+   "post_install_page_title": {
+      "message": "Vă mulțumim pentru instalarea Asistentului Browser AdGuard!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Dezinstalare"
+   },
+   "protection_is_disabled": {
+      "message": "Protecție dezactivată"
+   },
+   "protection_is_enabled": {
+      "message": "Protecție activată"
+   },
+   "reinstall": {
+      "message": "Reinstalați"
+   },
+   "reload_page": {
+      "message": "Reîncarcă pagina"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Reîncărcați pagina pentru a relua filtrarea"
+   },
+   "report_site": {
+      "message": "Raportați o problemă"
+   },
+   "reset_custom_rules": {
+      "message": "Eliminați toate regulile de utilizator pentru această pagină"
+   },
+   "run_adg": {
+      "message": "Porniți AdGuard"
+   },
+   "secure_page": {
+      "message": "Pagină sigură"
+   },
+   "site_not_using_private_protection": {
+      "message": "Site-ul nu utilizează o conexiune securizată. Cineva ar putea vedea sau altera informația trimisă sau primită prin acest site."
+   },
+   "something_went_wrong": {
+      "message": "Ceva nu a mers bine"
+   },
+   "update": {
+      "message": "Actualizați"
+   },
+   "verified_by": {
+      "message": "Verificat de:"
+   },
+   "website_cert_is_expired": {
+      "message": "Certificatul site-ului a expirat"
+   }
+}

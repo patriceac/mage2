@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard 正在启动…"
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard未安装或配置不正确"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard 未运行！"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard 未被更新"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard已暂停防护"
+   },
+   "adg_protection": {
+      "message": "AdGuard保护"
+   },
+   "adg_settings": {
+      "message": "AdGuard 设置"
+   },
+   "assistant_is_not_updated": {
+      "message": "助手未更新"
+   },
+   "block_ads": {
+      "message": "拦截此网站上的广告"
+   },
+   "cert_absent": {
+      "message": "HTTPS过滤未在该网站上执行"
+   },
+   "cert_expired": {
+      "message": "因根证书过期，AdGuard无法验证该站点的证书"
+   },
+   "contact_support": {
+      "message": "联系支持"
+   },
+   "context_block_site_ads": {
+      "message": "拦截此网站上的广告..."
+   },
+   "context_complaint_website": {
+      "message": "报告问题..."
+   },
+   "context_disable_protection": {
+      "message": "暂停 AdGuard 防护"
+   },
+   "context_enable_protection": {
+      "message": "继续 AdGuard 防护"
+   },
+   "context_open_log": {
+      "message": "过滤日志..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard 设置..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard 无法运行于此域"
+   },
+   "context_site_filtering_off": {
+      "message": "关闭此网站过滤"
+   },
+   "context_site_filtering_on": {
+      "message": "开启此网站过滤"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard 防护已暂停"
+   },
+   "description": {
+      "message": "用于 AdGuard 桌面端应用程序的扩展。直接从浏览器管理过滤，轻按几个键就可以隐藏恼人的元素。"
+   },
+   "disabled": {
+      "message": "在该网站上禁用"
+   },
+   "enable": {
+      "message": "启用"
+   },
+   "enabled": {
+      "message": "在此网站上启用"
+   },
+   "expired": {
+      "message": "已过期"
+   },
+   "filtering_exception": {
+      "message": "由于可能会干扰本网站的正常运行，过滤功能已禁用。"
+   },
+   "get_adguard": {
+      "message": "获取AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS 过滤"
+   },
+   "increase_ab_block_quality": {
+      "message": "提高广告拦截质量"
+   },
+   "more_info": {
+      "message": "更多信息"
+   },
+   "name": {
+      "message": "AdGuard浏览器助手"
+   },
+   "not_filtering_https": {
+      "message": "我们默认不过滤支付系统和银行网站的HTTPS流量。您可自行启用过滤：点击左侧的黄色“锁”"
+   },
+   "not_secure": {
+      "message": "不安全"
+   },
+   "nothing_to_block_here": {
+      "message": "没有可阻拦的东西"
+   },
+   "open_filtering_log": {
+      "message": "打开过滤日志"
+   },
+   "options_context_menu_title": {
+      "message": "在浏览器右键菜单中显示"
+   },
+   "pause_filtering": {
+      "message": "暂停过滤 30 秒"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "保护已禁用"
+   },
+   "popup_trial_expired_purchase": {
+      "message": "购买"
+   },
+   "popup_trial_expired_title": {
+      "message": "试用期已满"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "更新不可用。"
+   },
+   "post_install_confirm_uninstall": {
+      "message": "您确定要删除 AdGuard 浏览器助手吗？"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "安装此附加组件，即代表您同意我们的\u003Cprivacy>隐私政策\u003C/privacy>和\u003Cterms>使用条款\u003C/terms>。"
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "每次您打开一个新标签，附加组件都会与独立的应用程序通信，并请求有关当前页面状态的信息。为了做到这一点，它将当前页面的 URL 发送给独立的应用程序。"
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "这款 \u003Clink>AdGuard 桌面应用\u003C/link> 的的配套浏览器扩展允许用户在浏览器内使用自定义元素拦截、将网站列入白名单或发送报告等功能。"
+   },
+   "post_install_consent_title": {
+      "message": "感谢安装 AdGuard 浏览器助手！"
+   },
+   "post_install_page_agree_button": {
+      "message": "同意"
+   },
+   "post_install_page_title": {
+      "message": "感谢安装 AdGuard 浏览器助手！"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "卸载"
+   },
+   "protection_is_disabled": {
+      "message": "防护已禁用"
+   },
+   "protection_is_enabled": {
+      "message": "保护已开启"
+   },
+   "reinstall": {
+      "message": "重新安装"
+   },
+   "reload_page": {
+      "message": "重新加载页面"
+   },
+   "reload_to_resume_filtering": {
+      "message": "重新加载此页面以继续过滤"
+   },
+   "report_site": {
+      "message": "报告错误"
+   },
+   "reset_custom_rules": {
+      "message": "移除用于此网页上的所有用户规则"
+   },
+   "run_adg": {
+      "message": "运行 AdGuard"
+   },
+   "secure_page": {
+      "message": "安全页面"
+   },
+   "site_not_using_private_protection": {
+      "message": "此网站链接不安全。某些人可以查看或更改您通过网站发送或获取的信息。"
+   },
+   "something_went_wrong": {
+      "message": "发生错误"
+   },
+   "update": {
+      "message": "更新"
+   },
+   "verified_by": {
+      "message": "由 验证"
+   },
+   "website_cert_is_expired": {
+      "message": "网站证书过期"
+   }
+}

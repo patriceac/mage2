@@ -11,7 +11,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
   const selectedInventoryItemId = useEditorStore((state) => state.selectedInventoryItemId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
   return (
-    <div className="panel-grid panel-grid--inventory">
+    <div className="panel-grid panel-grid--single">
       <section className="panel">
         <div className="panel__toolbar">
           <h3>Inventory Items</h3>
@@ -54,7 +54,7 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
               <span className="field-label--inset">Display Text</span>
               <input
                 value={project.strings.values[item.textId] ?? ""}
-                title="Player-facing item label pulled from the string table."
+                title="Player-facing item label stored in project text."
                 onFocus={() => setSelectedInventoryItemId(item.id)}
                 onChange={(event) =>
                   mutateProject((draft) => {
@@ -81,26 +81,6 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
           </article>
         ))}
       </section>
-
-      <aside className="panel">
-        <h3>String Table</h3>
-        <div className="string-table">
-          {Object.entries(project.strings.values).map(([textId, value]) => (
-            <label key={textId}>
-              <span className="field-label--inset">{textId}</span>
-              <textarea
-                value={value}
-                title={`Edit the localized string stored under ${textId}.`}
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    draft.strings.values[textId] = event.target.value;
-                  })
-                }
-              />
-            </label>
-          ))}
-        </div>
-      </aside>
     </div>
   );
 }

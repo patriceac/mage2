@@ -1,0 +1,24 @@
+{
+   "content_scripts": [ {
+      "all_frames": true,
+      "js": [ "before.js" ],
+      "matches": [ "\u003Call_urls>" ],
+      "run_at": "document_start"
+   }, {
+      "all_frames": true,
+      "js": [ "after.js" ],
+      "matches": [ "\u003Call_urls>" ],
+      "run_at": "document_end"
+   } ],
+   "description": "Prevents actions (like alerts) when navigating away from a page.",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlL4dbP28wc6BWSyQRva31DVTjHlMqg/+whg9h3ywOWgGvhdZdjF27sTTxFD/SA86/Vz9ix/7QAZEzlsupONz5J7i0/Gon767yQpCSGPLkZshH/5g/gbnH5seATB1cg395ThgJ3qwCqpqbtTMdJLdWrFAx/R2VjF5Jo1vyjpjAuc+XOKJ7V3MmYNq6ML+1AhJcilU2/8qXE+7wqZKhpNf0vTxH8QP6zqIjEmOlZDOOSBDijiR69iOjc+grRBVoT9g6v4e5OE+Wm5UjoUJbvJat7uUIgxdYrD2ukyNF7/TymZ+vZYZbOFS21zxi2mMvss1lZBaGaFop0BPGbiHVeeFDQIDAQAB",
+   "manifest_version": 3,
+   "name": "Let Me Out",
+   "short_name": "letmeout",
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "1.4",
+   "web_accessible_resources": [ {
+      "matches": [ "\u003Call_urls>" ],
+      "resources": [ "before.inject.js", "after.inject.js" ]
+   } ]
+}

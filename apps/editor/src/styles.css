@@ -361,6 +361,7 @@ label {
 .panel-grid--assets,
 .panel-grid--world,
 .panel-grid--inventory,
+.panel-grid--localization,
 .panel-grid--dialogue,
 .panel-grid--playtest {
   grid-template-columns: 2fr 1fr;
@@ -587,6 +588,121 @@ label {
 
 .list-card--compact {
   gap: 0.5rem;
+}
+
+.localization-panel,
+.localization-context {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.localization-panel__header {
+  align-items: start;
+}
+
+.localization-panel__summary,
+.localization-entry__summary,
+.localization-entry__orphan,
+.localization-context__note,
+.localization-context__empty {
+  margin: 0;
+}
+
+.localization-entry {
+  gap: 0.9rem;
+}
+
+.localization-entry__header,
+.localization-context__headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.localization-entry__select {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #dfe7ee;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.localization-entry__select:hover {
+  background: none;
+  color: #7dd3fc;
+}
+
+.localization-entry__select:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.localization-entry__select code,
+.localization-context__text-id {
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.88rem;
+}
+
+.localization-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.72rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.localization-status--missing {
+  background: rgba(251, 113, 133, 0.16);
+  color: #fecdd3;
+}
+
+.localization-status--referenced {
+  background: rgba(125, 211, 252, 0.16);
+  color: #b6eaff;
+}
+
+.localization-status--orphaned {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c4d1db;
+}
+
+.localization-entry__actions {
+  align-items: flex-start;
+}
+
+.localization-entry__jump,
+.localization-context__jump {
+  border-radius: 16px;
+  text-align: left;
+}
+
+.localization-context__body {
+  display: grid;
+  gap: 1rem;
+}
+
+.localization-context__meta {
+  margin: 0;
+}
+
+.localization-context__usages {
+  max-height: 34rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.localization-context__usage-header {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .list-card--selected {
@@ -1574,6 +1690,7 @@ label {
   .panel-grid--assets,
   .panel-grid--world,
   .panel-grid--inventory,
+  .panel-grid--localization,
   .panel-grid--dialogue,
   .panel-grid--playtest,
   .panel-grid--scenes,

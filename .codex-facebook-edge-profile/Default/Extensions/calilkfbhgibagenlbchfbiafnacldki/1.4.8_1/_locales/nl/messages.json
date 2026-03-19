@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard wordt opgestart"
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard is niet geïnstalleerd of niet juist geconfigureerd"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard is niet actief"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard is niet bijgewerkt"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard bescherming is gepauzeerd"
+   },
+   "adg_protection": {
+      "message": "AdGuard-bescherming"
+   },
+   "adg_settings": {
+      "message": "AdGuard Instellingen"
+   },
+   "assistant_is_not_updated": {
+      "message": "Assistent is niet bijgewerkt"
+   },
+   "block_ads": {
+      "message": "Advertenties blokkeren op deze website"
+   },
+   "cert_absent": {
+      "message": "HTTPS filtering niet uitgevoerd voor deze website"
+   },
+   "cert_expired": {
+      "message": "AdGuard kon het website certificaat niet verifiëren omdat het root certificaat vervallen is"
+   },
+   "contact_support": {
+      "message": "Contact met support opnemen"
+   },
+   "context_block_site_ads": {
+      "message": "Advertenties blokkeren op deze website..."
+   },
+   "context_complaint_website": {
+      "message": "Een probleem rapporteren..."
+   },
+   "context_disable_protection": {
+      "message": "AdGuard-bescherming pauzeren"
+   },
+   "context_enable_protection": {
+      "message": "AdGuard-bescherming hervatten"
+   },
+   "context_open_log": {
+      "message": "Filterlogboek..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard instellingen..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard kan niet worden uitgevoerd op dit domein"
+   },
+   "context_site_filtering_off": {
+      "message": "Filters uitschakelen op deze website"
+   },
+   "context_site_filtering_on": {
+      "message": "Filters inschakelen op deze website"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard-bescherming is gepauzeerd"
+   },
+   "description": {
+      "message": "Uitbreiding voor AdGuard desktop app. Filtering beheren vanuit je browser, vervelende elementen verbergen met 2 muisklikken."
+   },
+   "disabled": {
+      "message": "Uitgeschakeld op deze website"
+   },
+   "enable": {
+      "message": "Inschakelen"
+   },
+   "enabled": {
+      "message": "Ingeschakeld op deze website"
+   },
+   "expired": {
+      "message": "Niet meer geldig"
+   },
+   "filtering_exception": {
+      "message": "Filteren is uitgeschakeld omdat dit de prestaties van de website kan beïnvloeden."
+   },
+   "get_adguard": {
+      "message": "AdGuard aanschaffen"
+   },
+   "https_filtering": {
+      "message": "HTTPS filtering"
+   },
+   "increase_ab_block_quality": {
+      "message": "Vermindert de kwaliteit van het blokkeren van advertenties"
+   },
+   "more_info": {
+      "message": "Meer informatie"
+   },
+   "name": {
+      "message": "AdGuard Browser Assistent"
+   },
+   "not_filtering_https": {
+      "message": "Standaard filteren we geen HTTPS verkeer voor betaalsystemen en bank websites Je kan zelf het filteren inschakelen door op het gele slotje links te klikken."
+   },
+   "not_secure": {
+      "message": "Niet veilig"
+   },
+   "nothing_to_block_here": {
+      "message": "Niets om te blokkeren"
+   },
+   "open_filtering_log": {
+      "message": "Filterlogboek openen"
+   },
+   "options_context_menu_title": {
+      "message": "Weergeven in het browsercontextmenu"
+   },
+   "pause_filtering": {
+      "message": "Niet filteren gedurende 30 seconden"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Bescherming is uitgeschakeld."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Kopen"
+   },
+   "popup_trial_expired_title": {
+      "message": "Proefperiode is verlopen"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Updates zijn niet beschikbaar."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Weet je zeker dat je AdGuard-browserassistent wilt verwijderen?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Door deze uitbreiding te installeren, ga je akkoord met ons \u003Cprivacy>Privacybeleid\u003C/privacy> en de \u003Cterms>Gebruiksvoorwaarden\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Elke keer dat je een nieuw tabblad opent, communiceert de uitbreiding met de zelfstandige app en vraagt om informatie over de huidige paginastatus. Om dat te doen, stuurt het de URL van de huidige pagina naar de zelfstandige app."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Deze begeleidende browseruitbreiding voor \u003Clink>AdGuard desktop-apps\u003C/link> biedt in-browser toegang tot functies zoals het blokkeren van aangepaste elementen, het toelaten van websites en het indienen van rapporten."
+   },
+   "post_install_consent_title": {
+      "message": "Bedankt voor het installeren van de AdGuard-browserassistent!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Mee eens"
+   },
+   "post_install_page_title": {
+      "message": "Bedankt voor het installeren van de AdGuard-browserassistent!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Verwijderen"
+   },
+   "protection_is_disabled": {
+      "message": "Bescherming is uitgeschakeld"
+   },
+   "protection_is_enabled": {
+      "message": "Bescherming is ingeschakeld"
+   },
+   "reinstall": {
+      "message": "Herinstalleren"
+   },
+   "reload_page": {
+      "message": "Pagina vernieuwen"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Deze pagina vernieuwen om filtering te hervatten"
+   },
+   "report_site": {
+      "message": "Rapporteer een probleem"
+   },
+   "reset_custom_rules": {
+      "message": "Alle gebruikersregels voor deze site verwijderen"
+   },
+   "run_adg": {
+      "message": "AdGuard starten"
+   },
+   "secure_page": {
+      "message": "Beveiligde pagina"
+   },
+   "site_not_using_private_protection": {
+      "message": "Deze site gebruikt geen veilige verbinding. Iemand kan de informatie die je zendt naar of verkrijgt van deze site bekijken en wijzigen."
+   },
+   "something_went_wrong": {
+      "message": "Er ging iets verkeerd"
+   },
+   "update": {
+      "message": "Bijwerken"
+   },
+   "verified_by": {
+      "message": "Gecontroleerd door:"
+   },
+   "website_cert_is_expired": {
+      "message": "Website certificaat is niet meer geldig"
+   }
+}

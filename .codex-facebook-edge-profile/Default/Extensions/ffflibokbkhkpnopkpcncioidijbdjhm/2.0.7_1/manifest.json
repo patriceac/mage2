@@ -1,0 +1,44 @@
+{
+   "action": {
+      "default_icon": {
+         "128": "icons/disabled128.png",
+         "16": "icons/disabled16.png",
+         "300": "icons/disabled300.png",
+         "48": "icons/disabled48.png"
+      },
+      "default_popup": "html/popup.html",
+      "default_title": "__MSG_extName__"
+   },
+   "author": "Unblock Right Click",
+   "background": {
+      "service_worker": "js/background.js"
+   },
+   "content_scripts": [ {
+      "all_frames": true,
+      "js": [ "js/content.js" ],
+      "match_about_blank": true,
+      "matches": [ "http://*/*", "https://*/*" ],
+      "run_at": "document_start"
+   } ],
+   "default_locale": "en",
+   "description": "__MSG_extShortDesc__",
+   "host_permissions": [ "\u003Call_urls>" ],
+   "icons": {
+      "128": "icons/icon128.png",
+      "16": "icons/icon16.png",
+      "300": "icons/icon300.png",
+      "48": "icons/icon48.png"
+   },
+   "incognito": "split",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6PYsmx7VxrOdhjn/+X0PWELNE4L7f1pmuADo1fvWPxSaEh8HmhxGh9V0DTs/nCh6kkGueuyNeNsRbBnDpjyBmKv35cDCzY+LsFRfrI9ycksxCAq/NmysuhFAhV1dI8aqjXi5/5opi1D1AltqdZ7Eb/ws0OTJrgrUaTRXsd+AlLMEPG5Sdsn0e0oGu8iZWc1mp0kLDWSDgG3kzYp2CfM7y7ROkUgbsGjzxqyyTXq6fhN6nC2xiQc+y5PlBQMFpZwTSypKqN+w6Sl0v7xfQAoSvSd3AD095x9hfLJ+XmNn3GCPNZf+TPLcAZ0QV1FVRNP+5eJY+xEe8tXxnGCtvKII1wIDAQAB",
+   "manifest_version": 3,
+   "minimum_chrome_version": "88.0",
+   "name": "__MSG_extName__",
+   "permissions": [ "alarms", "declarativeNetRequest", "scripting", "storage" ],
+   "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx",
+   "version": "2.0.7",
+   "web_accessible_resources": [ {
+      "matches": [ "\u003Call_urls>" ],
+      "resources": [ "/web_accessible_resources/*" ]
+   } ]
+}

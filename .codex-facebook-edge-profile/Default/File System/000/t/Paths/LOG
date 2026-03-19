@@ -1,0 +1,4 @@
+2026/03/19-03:13:53.912 7b94 Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\File System\000\t\Paths since it was missing.
+2026/03/19-03:13:53.945 7b94 Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\File System\000\t\Paths/MANIFEST-000001
+2026/03/19-03:13:53.945 7b94 Recovering log #3
+2026/03/19-03:13:53.945 7b94 Reusing old log D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\File System\000\t\Paths/000003.log 

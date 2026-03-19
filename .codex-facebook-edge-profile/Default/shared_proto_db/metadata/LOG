@@ -1,0 +1,4 @@
+2026/03/19-03:13:45.963 28e4 Creating DB D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\shared_proto_db\metadata since it was missing.
+2026/03/19-03:13:46.084 28e4 Reusing MANIFEST D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\shared_proto_db\metadata/MANIFEST-000001
+2026/03/19-03:13:46.085 28e4 Recovering log #3
+2026/03/19-03:13:46.085 28e4 Reusing old log D:\Disk\Dev\MAGE2\.codex-facebook-edge-profile\Default\shared_proto_db\metadata/000003.log 

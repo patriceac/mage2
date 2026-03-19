@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "Az AdGuard indul..."
+   },
+   "adg_is_not_installed": {
+      "message": "Az AdGuard nincs telepítve, vagy nincs megfelelően beállítva"
+   },
+   "adg_is_not_running": {
+      "message": "Az AdGuard nincs elindítva"
+   },
+   "adg_is_not_updated": {
+      "message": "Az AdGuard nincs frissítve"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard védelem szüneteltetve"
+   },
+   "adg_protection": {
+      "message": "AdGuard védelem"
+   },
+   "adg_settings": {
+      "message": "AdGuard beállítások"
+   },
+   "assistant_is_not_updated": {
+      "message": "Az Asszisztens nincs frissítve"
+   },
+   "block_ads": {
+      "message": "Hirdetések blokkolása ezen az oldalon"
+   },
+   "cert_absent": {
+      "message": "Nincs HTTPS szűrés alkalmazva ezen a webhelyen"
+   },
+   "cert_expired": {
+      "message": "Az AdGuard nem tudta ellenőrizni a webhely tanúsítványát, mivel a gyökértanúsítvány lejárt"
+   },
+   "contact_support": {
+      "message": "Kapcsolatfelvétel"
+   },
+   "context_block_site_ads": {
+      "message": "Hirdetések blokkolása ezen az oldalon..."
+   },
+   "context_complaint_website": {
+      "message": "Probléma bejelentése..."
+   },
+   "context_disable_protection": {
+      "message": "AdGuard védelem szüneteltetése"
+   },
+   "context_enable_protection": {
+      "message": "AdGuard védelem folytatása"
+   },
+   "context_open_log": {
+      "message": "Szűrési napló..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard beállítások..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "Az AdGuard nem tud futni ezen a domainen"
+   },
+   "context_site_filtering_off": {
+      "message": "Szűrés kikapcsolása ezen az oldalon"
+   },
+   "context_site_filtering_on": {
+      "message": "Szűrés bekapcsolása ezen az oldalon"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard védelem szüneteltetve"
+   },
+   "description": {
+      "message": "Bővítmény az AdGuard asztali alkalmazáshoz. Könnyedén kezelheti a szűrést a böngészőből, valamint elrejthet elemeket két kattintással."
+   },
+   "disabled": {
+      "message": "Kikapcsolva ezen az oldalon"
+   },
+   "enable": {
+      "message": "Bekapcsolás"
+   },
+   "enabled": {
+      "message": "Bekapcsolva ezen az oldalon"
+   },
+   "expired": {
+      "message": "Lejárt"
+   },
+   "filtering_exception": {
+      "message": "A szűrés le van tiltva, mivel befolyásolhatja a weboldal teljesítményét."
+   },
+   "get_adguard": {
+      "message": "AdGuard beszerzése"
+   },
+   "https_filtering": {
+      "message": "HTTPS szűrés"
+   },
+   "increase_ab_block_quality": {
+      "message": "Javítja a blokkolás minőségét"
+   },
+   "more_info": {
+      "message": "További információk"
+   },
+   "name": {
+      "message": "AdGuard Böngésző Asszisztens"
+   },
+   "not_filtering_https": {
+      "message": "Alapértelmezés szerint nem szűrjük a HTTPS forgalmat a fizetési rendszerek és a bankok webhelyein. Ha Ön szeretné engedélyezni a szűrést, érintse meg a sárga \"lakatot\" a bal oldalon."
+   },
+   "not_secure": {
+      "message": "Nem biztonságos"
+   },
+   "nothing_to_block_here": {
+      "message": "Itt nincs semmi blokkolható"
+   },
+   "open_filtering_log": {
+      "message": "Szűrési napló megnyitása"
+   },
+   "options_context_menu_title": {
+      "message": "Megjelenítés a böngésző helyi menüjében"
+   },
+   "pause_filtering": {
+      "message": "Szüneteltetés 30 másodpercig"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Védelem kikapcsolva."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Vásárlás"
+   },
+   "popup_trial_expired_title": {
+      "message": "A próbaverzió lejárt"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "A frissítések nem érhetők el."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Biztosan eltávolítja az AdGuard Böngésző Asszisztens alkalmazást?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "A kiegészítő telepítésével Ön elfogadja az \u003Cprivacy>Adatvédelmi Irányelveinket\u003C/privacy> és a \u003Cterms>Felhasználási feltételeinket\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Minden alkalommal, amikor új lapot nyit meg, a bővítmény kommunikál az önálló alkalmazással, és információkat kér az oldal aktuális állapotáról. Ennek érdekében elküldi az aktuális oldal URL-jét az önálló alkalmazásnak."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Ez a kiegészítő, az \u003Clink>AdGuard asztali alkalmazásokhoz\u003C/link> böngészőn belüli hozzáférést biztosít olyan funkciókhoz, mint az egyéni elemek blokkolása, a webhelyek engedélyezési listája és a jelentések benyújtása."
+   },
+   "post_install_consent_title": {
+      "message": "Köszönjük, hogy telepítette az AdGuard Böngésző Asszisztens alkalmazást!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Elfogad"
+   },
+   "post_install_page_title": {
+      "message": "Köszönjük, hogy telepítette az AdGuard Böngésző Asszisztens alkalmazást!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Eltávolít"
+   },
+   "protection_is_disabled": {
+      "message": "Védelem kikapcsolva"
+   },
+   "protection_is_enabled": {
+      "message": "Védelem bekapcsolva"
+   },
+   "reinstall": {
+      "message": "Újratelepítés"
+   },
+   "reload_page": {
+      "message": "Oldal újratöltése"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Oldal újratöltése a szűrés folytatásához"
+   },
+   "report_site": {
+      "message": "Probléma bejelentése"
+   },
+   "reset_custom_rules": {
+      "message": "Felhasználói szabályok törlése ezen az oldalon"
+   },
+   "run_adg": {
+      "message": "AdGuard indítása"
+   },
+   "secure_page": {
+      "message": "Biztonságos oldal"
+   },
+   "site_not_using_private_protection": {
+      "message": "A webhely nem használ biztonságos kapcsolatot. Bárki láthatja vagy módosíthatja azokat az információkat, amiket a webhelynek küld, vagy attól fogad."
+   },
+   "something_went_wrong": {
+      "message": "Valami hiba történt"
+   },
+   "update": {
+      "message": "Frissítés"
+   },
+   "verified_by": {
+      "message": "Hitelesítette:"
+   },
+   "website_cert_is_expired": {
+      "message": "A webhely tanusítványa lejárt"
+   }
+}

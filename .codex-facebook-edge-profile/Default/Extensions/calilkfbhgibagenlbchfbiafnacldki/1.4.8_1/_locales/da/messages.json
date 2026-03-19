@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard starter..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard er ikke installeret eller er forkert opsat"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard kører ikke"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard er ikke opdateret"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard-beskyttelse sat på pause"
+   },
+   "adg_protection": {
+      "message": "AdGuard-beskyttelse"
+   },
+   "adg_settings": {
+      "message": "AdGuard-indstillinger"
+   },
+   "assistant_is_not_updated": {
+      "message": "Assistenten er ikke opdateret"
+   },
+   "block_ads": {
+      "message": "Blokér annoncer på dette websted"
+   },
+   "cert_absent": {
+      "message": "HTTPS-filtrering blev ikke udført på dette websted"
+   },
+   "cert_expired": {
+      "message": "AdGuard kunne ikke bekræfte dette websteds certifikat, da root-certifikatet er udløbet"
+   },
+   "contact_support": {
+      "message": "Kontakt support"
+   },
+   "context_block_site_ads": {
+      "message": "Blokér annoncer på dette websted..."
+   },
+   "context_complaint_website": {
+      "message": "Rapportér et problem..."
+   },
+   "context_disable_protection": {
+      "message": "Sæt AdGuard-beskyttelse på pause"
+   },
+   "context_enable_protection": {
+      "message": "Genoptag AdGuard-beskyttelse"
+   },
+   "context_open_log": {
+      "message": "Filtreringslog..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard-indstillinger..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard kan ikke køre på dette domæne"
+   },
+   "context_site_filtering_off": {
+      "message": "Deaktivér filtrering på dette websted"
+   },
+   "context_site_filtering_on": {
+      "message": "Aktivér filtrering på dette websted"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard-beskyttelse er på pause"
+   },
+   "description": {
+      "message": "Udvidelse til AdGuards computerprogram. Håndterer filtrering direkte fra browseren, skjuler irriterende elementer i to klik."
+   },
+   "disabled": {
+      "message": "Deaktiveret på dette websted"
+   },
+   "enable": {
+      "message": "Aktivér"
+   },
+   "enabled": {
+      "message": "Aktiveret på dette websted"
+   },
+   "expired": {
+      "message": "Udløbet"
+   },
+   "filtering_exception": {
+      "message": "Filtrering er deaktiveret, da det kan påvirke brugeroplevelsen af webstedet."
+   },
+   "get_adguard": {
+      "message": "Få AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS-filtrering"
+   },
+   "increase_ab_block_quality": {
+      "message": "Øger kvaliteten af adblocking"
+   },
+   "more_info": {
+      "message": "Mere information"
+   },
+   "name": {
+      "message": "AdGuard Browser Assistent"
+   },
+   "not_filtering_https": {
+      "message": "Som standard filtrerer AdGuard ikke HTTPS-trafikken for betalingssystemer og bankwebsteder. Du kan dog aktivere filtreringen ved at trykke på den gule \"lås\" til venstre."
+   },
+   "not_secure": {
+      "message": "Ikke sikker"
+   },
+   "nothing_to_block_here": {
+      "message": "Intet at blokere her"
+   },
+   "open_filtering_log": {
+      "message": "Åbn filtreringsloggen"
+   },
+   "options_context_menu_title": {
+      "message": "Vis i browserens kontekstmenu"
+   },
+   "pause_filtering": {
+      "message": "Filtrér ikke i 30 sekunder"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Beskyttelse er deaktiveret."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Køb"
+   },
+   "popup_trial_expired_title": {
+      "message": "Prøveperiode udløbet"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Opdateringer er utilgængelige."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Sikker på, at du vil fjerne AdGuard Browser Assistent?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Ved at installere denne tilføjelse accepterer du vores \u003Cprivacy>Fortrolighedspolitik\u003C/privacy> og \u003Cterms>Vilkår for Brug\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Hver gang en ny fane åbnes, kommunikerer tilføjelsen med den enkeltstående app og anmoder om oplysninger om den aktuelle sidestatus. Den sender til dette formål den aktuelle side-URL til den enkeltstående app."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Denne ledsagende browserudvidelse til \u003Clink>AdGuard computer-apps\u003C/link> tilbyder browserfunktioner såsom tilpasset blokering af elementer, hvidlistning af websteder og rapportindsendelse."
+   },
+   "post_install_consent_title": {
+      "message": "Tak for installation af AdGuard Browser Assistent!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Acceptér"
+   },
+   "post_install_page_title": {
+      "message": "Tak for installation af AdGuard Browser Assistent!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Afinstallér"
+   },
+   "protection_is_disabled": {
+      "message": "Beskyttelse er deaktiveret"
+   },
+   "protection_is_enabled": {
+      "message": "Beskyttelse er aktiveret"
+   },
+   "reinstall": {
+      "message": "Geninstallér"
+   },
+   "reload_page": {
+      "message": "Genindlæs side"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Genindlæs denne side for at genoptage filtreringen"
+   },
+   "report_site": {
+      "message": "Rapportér et problem"
+   },
+   "reset_custom_rules": {
+      "message": "Slet alle tilpassede regler for denne side"
+   },
+   "run_adg": {
+      "message": "Kør AdGuard"
+   },
+   "secure_page": {
+      "message": "Sikker side"
+   },
+   "site_not_using_private_protection": {
+      "message": "Webstedet bruger ikke en sikker forbindelse. Andre kan muligvis se eller ændre de oplysninger, du sender eller modtager via webstedet."
+   },
+   "something_went_wrong": {
+      "message": "Noget gik galt"
+   },
+   "update": {
+      "message": "Opdatér"
+   },
+   "verified_by": {
+      "message": "Bekræftet af:"
+   },
+   "website_cert_is_expired": {
+      "message": "Webstedscertifikat er udløbet"
+   }
+}

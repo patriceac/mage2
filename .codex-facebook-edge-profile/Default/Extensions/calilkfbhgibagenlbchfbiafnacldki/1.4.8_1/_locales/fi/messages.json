@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard käynnistyy..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard ei ole asennettu, tai se on määritetty väärin"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard ei ole käynnissä"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard ei ole ajan tasalla"
+   },
+   "adg_is_paused": {
+      "message": "AdGuardin suojaus on pysäytetty"
+   },
+   "adg_protection": {
+      "message": "AdGuardin suojaus"
+   },
+   "adg_settings": {
+      "message": "AdGuardin asetukset"
+   },
+   "assistant_is_not_updated": {
+      "message": "Avustaja ei ole ajan tasalla"
+   },
+   "block_ads": {
+      "message": "Estä mainoksia tältä sivustolta"
+   },
+   "cert_absent": {
+      "message": "HTTPS-suodatusta ei suoritettu tälle sivustolle"
+   },
+   "cert_expired": {
+      "message": "AdGuard ei voinut vahvistaa verkkosivuston varmennetta, koska juurivarmenne on erääntynyt."
+   },
+   "contact_support": {
+      "message": "Ota yhteyttä asiakaspalveluun"
+   },
+   "context_block_site_ads": {
+      "message": "Estä mainoksia tältä sivustolta..."
+   },
+   "context_complaint_website": {
+      "message": "Ilmoita ongelmasta..."
+   },
+   "context_disable_protection": {
+      "message": "Pysäytä AdGuardin suojaus"
+   },
+   "context_enable_protection": {
+      "message": "Palauta AdGuardin suojaus"
+   },
+   "context_open_log": {
+      "message": "Suodatushistoria..."
+   },
+   "context_open_settings": {
+      "message": "AdGuardin asetukset..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard ei voi toimia tällä verkkotunnuksella"
+   },
+   "context_site_filtering_off": {
+      "message": "Älä suodata tätä sivustoa"
+   },
+   "context_site_filtering_on": {
+      "message": "Suodata tämä sivusto"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuardin suojaus on pysäytetty"
+   },
+   "description": {
+      "message": "AdGuard-työpöytäsovelluksen laajennus. Hallinnoi suodatusta suoraan selaimesta ja piilottaa ärsyttävät elementit parilla painalluksella."
+   },
+   "disabled": {
+      "message": "Sivustoa ei suodateta"
+   },
+   "enable": {
+      "message": "Ota käyttöön"
+   },
+   "enabled": {
+      "message": "Sivusto suodatetaan"
+   },
+   "expired": {
+      "message": "Erääntynyt"
+   },
+   "filtering_exception": {
+      "message": "Suodatus on poistettu käytöstä, koska se saattaa vaikuttaa sivuston toimintaan."
+   },
+   "get_adguard": {
+      "message": "Hanki AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS-suodatus"
+   },
+   "increase_ab_block_quality": {
+      "message": "Parantaa mainosten eston laatua"
+   },
+   "more_info": {
+      "message": "Lisätietoja"
+   },
+   "name": {
+      "message": "AdGuard Avustaja"
+   },
+   "not_filtering_https": {
+      "message": "Oletuksena HTTPS-liikennettä ei suodateta maksujärjestelmissä eikä pankkisivustoilla. Voit ottaa suodatuksen itse käyttöön painamalla vasemmalla olevaa keltaista \"lukkoa\"."
+   },
+   "not_secure": {
+      "message": "Suojaamaton"
+   },
+   "nothing_to_block_here": {
+      "message": "Täällä ei ole mitään estettävää"
+   },
+   "open_filtering_log": {
+      "message": "Avaa suodatushistoria"
+   },
+   "options_context_menu_title": {
+      "message": "Näytä selaimen kontekstivalikossa"
+   },
+   "pause_filtering": {
+      "message": "Pysäytä suodatus 30 sekunnin ajaksi"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Suojaus ei ole käytössä."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Osta"
+   },
+   "popup_trial_expired_title": {
+      "message": "Kokeilujakso on päättynyt"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Päivitykset eivät ole käytettävissä."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Haluatko varmasti poistaa AdGuard Avustajan?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Asentamalla laajennuksen, hyväksyt \u003Cprivacy>tietosuojakäytännön\u003C/privacy> ja \u003Cterms>käyttöehdot\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Aina kun avaat uuden välilehden, laajennus viestii työpöytäsovelluksen kanssa pyytäen tietoja nykyisen sivun tilasta. Tätä varten laajennus lähettää sivun URL-osoitteen sovellukselle."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Oheislaajennus \u003Clink>AdGuardin työpöytäohjelmistoille\u003C/link> mahdollistaa toimintojen hallinnan suoraan selaimesta. Sillä voit mm. valita sivulta estettäviä elementtejä, lisätä sivustoja sallittujen listalle sekä lähettää raportteja."
+   },
+   "post_install_consent_title": {
+      "message": "Kiitokset AdGuard Avustajan asennuksesta!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Hyväksy"
+   },
+   "post_install_page_title": {
+      "message": "Kiitokset AdGuard Avustajan asennuksesta!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Poista asennus"
+   },
+   "protection_is_disabled": {
+      "message": "Suojaus on pysäytetty"
+   },
+   "protection_is_enabled": {
+      "message": "Suojaus on käytössä"
+   },
+   "reinstall": {
+      "message": "Asenna uudelleen"
+   },
+   "reload_page": {
+      "message": "Päivitä sivu"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Päivitä sivu jatkaaksesi suodatusta"
+   },
+   "report_site": {
+      "message": "Ilmoita ongelmasta"
+   },
+   "reset_custom_rules": {
+      "message": "Tyhjennä sivulle luodut käyttäjän säännöt"
+   },
+   "run_adg": {
+      "message": "Käynnistä AdGuard"
+   },
+   "secure_page": {
+      "message": "Salattu sivu"
+   },
+   "site_not_using_private_protection": {
+      "message": "Tämä sivusto ei käytä salattua yhteyttä. Joku saattaa nähdä tai muuttaa tietoa, jota lähetät tai vastaanotat sivuston välityksellä."
+   },
+   "something_went_wrong": {
+      "message": "Jokin meni pieleen"
+   },
+   "update": {
+      "message": "Päivitä"
+   },
+   "verified_by": {
+      "message": "Todentaja:"
+   },
+   "website_cert_is_expired": {
+      "message": "Verkkosivuston varmenne on erääntynyt"
+   }
+}

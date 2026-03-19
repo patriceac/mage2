@@ -1,0 +1,197 @@
+{
+    "name": {
+        "message": "AdGuard pomoćnik za preglednike"
+    },
+    "description": {
+        "message": "Proširenje za aplikaciju Adgarde Desktop. Upravlja filtriranjem direktno iz pregledača, sakriva iritirajuće elemente na dva klika."
+    },
+    "adg_is_not_installed": {
+        "message": "AdGuard nije instaliran ili neispravno konfigurusan"
+    },
+    "get_adguard": {
+        "message": "Nabavi AdGuard"
+    },
+    "adg_is_not_updated": {
+        "message": "AdGuard nije ažuriran"
+    },
+    "update": {
+        "message": "Ažuriraj"
+    },
+    "adg_is_not_running": {
+        "message": "AdGuard nije pokrenut"
+    },
+    "run_adg": {
+        "message": "Pokreni AdGuard"
+    },
+    "adg_is_paused": {
+        "message": "AdGuard zaštita je pauzirana"
+    },
+    "adg_is_launching": {
+        "message": "AdGuard se pokreće"
+    },
+    "enable": {
+        "message": "Uključi"
+    },
+    "assistant_is_not_updated": {
+        "message": "Pomoćnik nije ažuriran"
+    },
+    "something_went_wrong": {
+        "message": "Nešto je pošlo naopako"
+    },
+    "reinstall": {
+        "message": "Ponovo instaliraj"
+    },
+    "https_filtering": {
+        "message": "HTTPS filtriranje"
+    },
+    "increase_ab_block_quality": {
+        "message": "Povećava kvalitet blokiranja reklama"
+    },
+    "verified_by": {
+        "message": "Potvrđeno od:"
+    },
+    "more_info": {
+        "message": "Više informacija"
+    },
+    "adg_protection": {
+        "message": "AdGuard zaštita"
+    },
+    "adg_settings": {
+        "message": "AdGuard postavke"
+    },
+    "pause_filtering": {
+        "message": "Ne filtriraj u narednih 30 sekundi"
+    },
+    "block_ads": {
+        "message": "Blokiraj reklame na ovom sajtu"
+    },
+    "open_filtering_log": {
+        "message": "Otvori dnevnik filtriranja"
+    },
+    "report_site": {
+        "message": "Prijavi problem"
+    },
+    "reset_custom_rules": {
+        "message": "Resetuj sva korisnička pravila za ovu stranicu"
+    },
+    "cert_expired": {
+        "message": "AdGuard ne može da potvrdi verodostojnost sertifikata ovog sajta jer je root sertifikat istekao"
+    },
+    "cert_absent": {
+        "message": "HTTPS filtriranje nije izvršeno nad ovim sajtom"
+    },
+    "site_not_using_private_protection": {
+        "message": "Sajt ne koristi privatnu vezu. neko će možda moći da vidi ili promeni informacije koje šaljete ili primate preko sajta."
+    },
+    "not_secure": {
+        "message": "Nije bezbedno"
+    },
+    "nothing_to_block_here": {
+        "message": "Ovde nema ničeg za blokiranje"
+    },
+    "secure_page": {
+        "message": "Bezbedna stranica"
+    },
+    "reload_page": {
+        "message": "Ponovo učitaj stranicu"
+    },
+    "reload_to_resume_filtering": {
+        "message": "Ponovo učitajte ovu stranicu za nastavak filtriranja"
+    },
+    "not_filtering_https": {
+        "message": "Podrazumevano, ne filtriramo HTTPS saobraćaj za platne sisteme i sajtove banaka. Možete uključiti filtriranje: dodirnite na žuti \"katanac\" na levoj strani."
+    },
+    "disabled": {
+        "message": "Isključeno na ovom sajtu"
+    },
+    "enabled": {
+        "message": "Uključeno na ovom sajtu"
+    },
+    "filtering_exception": {
+        "message": "Filtriranje je onemogućeno jer može uticati na performanse Veb lokacije."
+    },
+    "protection_is_enabled": {
+        "message": "Zaštita je uključena"
+    },
+    "protection_is_disabled": {
+        "message": "Zaštita je isključena"
+    },
+    "website_cert_is_expired": {
+        "message": "Sertifikat sajta je istekao"
+    },
+    "expired": {
+        "message": "Istekla"
+    },
+    "contact_support": {
+        "message": "Kontaktiraj podršku"
+    },
+    "context_site_filtering_on": {
+        "message": "Uključi filtriranje na ovom sajtu"
+    },
+    "context_site_filtering_off": {
+        "message": "Isključi filtriranje na ovom sajtu"
+    },
+    "context_block_site_ads": {
+        "message": "Blokiraj reklame na ovoj sajtu..."
+    },
+    "context_complaint_website": {
+        "message": "Prijavi problem..."
+    },
+    "context_site_filtering_disabled": {
+        "message": "AdGuard ne može da radi na ovom domenu"
+    },
+    "context_disable_protection": {
+        "message": "Pauziraj AdGuard zaštitu"
+    },
+    "context_enable_protection": {
+        "message": "Nastavi AdGuard zaštitu"
+    },
+    "context_site_protection_disabled": {
+        "message": "AdGuard zaštita je pauzirana"
+    },
+    "context_open_settings": {
+        "message": "AdGuard postavke..."
+    },
+    "context_open_log": {
+        "message": "Dnevnik prečišćavanja..."
+    },
+    "post_install_confirm_uninstall": {
+        "message": "Jeste li sigurni da želite da uklonite AdGuard pomoćnika preglednika?"
+    },
+    "post_install_consent_title": {
+        "message": "Hvala vam što ste instalirali AdGuard pomoćnika za preglednike!"
+    },
+    "post_install_consent_short_app_desc": {
+        "message": "Pridruženo proširenje za preglednike za AdGuard [aplikacije radne površine](). Nudi pristup iz preglednika mogućnostima kao što su prilagođeno blokiranje elemenata, dodavanje sajta na belu listu ili slanje prijave."
+    },
+    "post_install_consent_sent_info_desc": {
+        "message": "Svaki put kada otvorite novu karticu, dodatak komunicira sa samostalnom aplikacijom i zahteva informacije o trenutnom statusu stranice. Da bi to uradila, šalje URL adresu trenutne stranice samostalnoj aplikaciji."
+    },
+    "post_install_consent_policy_urls": {
+        "message": "Instaliranjem ovog proširenja, slažete se sa našom <privacy>politikom privatnosti</privacy> i <terms>uslovima korišćenja</terms>."
+    },
+    "post_install_page_title": {
+        "message": "Hvala vam što ste instalirali AdGuard pomoćnika za preglednike!"
+    },
+    "post_install_page_agree_button": {
+        "message": "Slažem se"
+    },
+    "post_install_page_uninstall_button": {
+        "message": "Deinstaliraj"
+    },
+    "options_context_menu_title": {
+        "message": "Prikaži u kontekstnom meniju preglednika"
+    },
+    "popup_trial_expired_title": {
+        "message": "Probni period je istekao"
+    },
+    "popup_trial_expired_protection_disabled": {
+        "message": "Zaštita je isključena."
+    },
+    "popup_trial_expired_updates_unavailable": {
+        "message": "Ažuriranja nisu dostupna."
+    },
+    "popup_trial_expired_purchase": {
+        "message": "Kupi"
+    }
+}

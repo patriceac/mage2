@@ -1,0 +1,197 @@
+{
+   "adg_is_launching": {
+      "message": "AdGuard se pokreće..."
+   },
+   "adg_is_not_installed": {
+      "message": "AdGuard nije instaliran ili pravilno postavljen"
+   },
+   "adg_is_not_running": {
+      "message": "AdGuard nije pokrenut"
+   },
+   "adg_is_not_updated": {
+      "message": "AdGuard nije ažuriran"
+   },
+   "adg_is_paused": {
+      "message": "AdGuard zaštita je pauzirana"
+   },
+   "adg_protection": {
+      "message": "AdGuard Zaštita"
+   },
+   "adg_settings": {
+      "message": "AdGuard Postavke"
+   },
+   "assistant_is_not_updated": {
+      "message": "Pomoćnik nije ažuriran"
+   },
+   "block_ads": {
+      "message": "Blokiraj oglase na ovoj web stranici"
+   },
+   "cert_absent": {
+      "message": "HTTPS filtriranje nije izvršeno za ovu web stranicu"
+   },
+   "cert_expired": {
+      "message": "AdGuard nije mogao potvrditi certifikat ove web stranice, jer je root certifikat istekao"
+   },
+   "contact_support": {
+      "message": "Kontaktirajte podršku"
+   },
+   "context_block_site_ads": {
+      "message": "Blokiraj oglase na ovoj web stranici..."
+   },
+   "context_complaint_website": {
+      "message": "Prijavite problem..."
+   },
+   "context_disable_protection": {
+      "message": "Pauziraj AdGuard zaštitu"
+   },
+   "context_enable_protection": {
+      "message": "Nastavi AdGuard zaštitu"
+   },
+   "context_open_log": {
+      "message": "Zapisnik filtriranja..."
+   },
+   "context_open_settings": {
+      "message": "AdGuard postavke..."
+   },
+   "context_site_filtering_disabled": {
+      "message": "AdGuard se ne može pokrenuti na ovoj domeni"
+   },
+   "context_site_filtering_off": {
+      "message": "Onemogući filtriranje na ovoj web stranici"
+   },
+   "context_site_filtering_on": {
+      "message": "Omogući filtriranje na ovoj web stranici"
+   },
+   "context_site_protection_disabled": {
+      "message": "AdGuard zaštita je pauzirana"
+   },
+   "description": {
+      "message": "Proširenje AdGuard programa za blokiranje oglasa. Upravlja filtriranjem izravno iz preglednika, skriva dosadne elemente u dva klika."
+   },
+   "disabled": {
+      "message": "Onemogućeno na ovoj stranici"
+   },
+   "enable": {
+      "message": "Omogući"
+   },
+   "enabled": {
+      "message": "Omogućeno na ovoj stranici"
+   },
+   "expired": {
+      "message": "Isteklo"
+   },
+   "filtering_exception": {
+      "message": "Filtriranje je onemogućeno jer može utjecati na rad web stranice."
+   },
+   "get_adguard": {
+      "message": "Nabavi AdGuard"
+   },
+   "https_filtering": {
+      "message": "HTTPS filtriranje"
+   },
+   "increase_ab_block_quality": {
+      "message": "Povećava kvalitetu blokiranja oglasa"
+   },
+   "more_info": {
+      "message": "Više informacija"
+   },
+   "name": {
+      "message": "AdGuard Pomoćnik preglednika"
+   },
+   "not_filtering_https": {
+      "message": "Prema zadanom, ne filtriramo HTTPS promet za platne sustave i web stranice banki. Možete sami omogućiti filtriranje: pritisnite žuti \"lokot\" s lijeve strane."
+   },
+   "not_secure": {
+      "message": "Nije sigurno"
+   },
+   "nothing_to_block_here": {
+      "message": "Ništa za blokirati ovdje"
+   },
+   "open_filtering_log": {
+      "message": "Otvori zapisnik filtriranja"
+   },
+   "options_context_menu_title": {
+      "message": "Prikaži u ikontekstnom izborniku preglednika"
+   },
+   "pause_filtering": {
+      "message": "Ne filtriraj idućih 30 sekundi"
+   },
+   "popup_trial_expired_protection_disabled": {
+      "message": "Zaštita je isključena."
+   },
+   "popup_trial_expired_purchase": {
+      "message": "Kupi"
+   },
+   "popup_trial_expired_title": {
+      "message": "Probno razdoblje je isteklo"
+   },
+   "popup_trial_expired_updates_unavailable": {
+      "message": "Ažuriranja nisu dostupna."
+   },
+   "post_install_confirm_uninstall": {
+      "message": "Jeste li sigurni da želite ukloniti AdGuard Browser Assistant?"
+   },
+   "post_install_consent_policy_urls": {
+      "message": "Instaliravajući ovaj dodatak, prhvačate naša \u003Cprivacy>pravila privatnosti\u003C/privacy> i \u003Cterms>uvjete korištenja\u003C/terms>."
+   },
+   "post_install_consent_sent_info_desc": {
+      "message": "Svaki puta kada otvorite novu karticu, dodatak komunicira sa vanjskom aplikacijom i dohvaća informaciju o stanju trenutne stranice. Kako bi to učinio, isti šalje adresu web stranie vanjskoj aplikaciji."
+   },
+   "post_install_consent_short_app_desc": {
+      "message": "Ovo dodatno proširenje za \u003Clink>AdGuard aplikacije za računala\u003C/link> omogućuje pristup značajkama u pregledniku poput blokiranja prilagođenih elemenata, stavljanje elemenata na bijelu listu, i prijavljivanje grešaka."
+   },
+   "post_install_consent_title": {
+      "message": "Hvala vam što ste instalirali AdGuard Browser Assistant!"
+   },
+   "post_install_page_agree_button": {
+      "message": "Prihvati"
+   },
+   "post_install_page_title": {
+      "message": "Hvala vam što ste instalirali AdGuard Browser Assistant!"
+   },
+   "post_install_page_uninstall_button": {
+      "message": "Ukloni"
+   },
+   "protection_is_disabled": {
+      "message": "Zaštita je onemogućena"
+   },
+   "protection_is_enabled": {
+      "message": "Zaštita je omogućena"
+   },
+   "reinstall": {
+      "message": "Ponovo instaliraj"
+   },
+   "reload_page": {
+      "message": "Ponovno učitaj stranicu"
+   },
+   "reload_to_resume_filtering": {
+      "message": "Ponovno učitajte stranicu za nastavak filtriranja"
+   },
+   "report_site": {
+      "message": "Prijavite problem"
+   },
+   "reset_custom_rules": {
+      "message": "Izbriši sva prilagođena pravila za ovu stranicu"
+   },
+   "run_adg": {
+      "message": "Pokreni AdGuard"
+   },
+   "secure_page": {
+      "message": "Sigurna stranica"
+   },
+   "site_not_using_private_protection": {
+      "message": "Web stranica ne koristi sigurnu vezu. Netko bi mogao vidjeti ili promijeniti informacije koje šaljete ili dobivate na web stranici."
+   },
+   "something_went_wrong": {
+      "message": "Nešto je pošlo po zlu"
+   },
+   "update": {
+      "message": "Ažuriraj"
+   },
+   "verified_by": {
+      "message": "Potvrdio:"
+   },
+   "website_cert_is_expired": {
+      "message": "Certifikat web stranice je istekao"
+   }
+}
