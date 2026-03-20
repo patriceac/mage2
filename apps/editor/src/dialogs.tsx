@@ -45,6 +45,16 @@ interface ConfirmDialogOptions {
   tone?: "default" | "danger";
 }
 
+interface PromptTextDialogOptions {
+  title: string;
+  description?: string;
+  label: string;
+  initialValue?: string;
+  placeholder?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}
+
 interface DirectoryDialogOptions {
   title: string;
   description?: string;
@@ -82,6 +92,7 @@ export type DeleteSceneDialogResult =
 
 interface DialogContextValue {
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
+  promptText: (options: PromptTextDialogOptions) => Promise<string | undefined>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
@@ -93,6 +104,11 @@ type DialogRequest =
       kind: "confirm";
       options: ConfirmDialogOptions;
       resolve: (value: boolean) => void;
+    }
+  | {
+      kind: "prompt-text";
+      options: PromptTextDialogOptions;
+      resolve: (value: string | undefined) => void;
     }
   | {
       kind: "close-project";
@@ -126,6 +142,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       confirm: (options) =>
         new Promise<boolean>((resolve) => {
           setDialogQueue((currentQueue) => [...currentQueue, { kind: "confirm", options, resolve }]);
+        }),
+      promptText: (options) =>
+        new Promise<string | undefined>((resolve) => {
+          setDialogQueue((currentQueue) => [...currentQueue, { kind: "prompt-text", options, resolve }]);
         }),
       confirmCloseProject: (projectName) =>
         new Promise<"save" | "discard" | "cancel">((resolve) => {
@@ -163,6 +183,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           }}
           onCancel={() => {
             activeDialog.resolve(false);
+            dismissActiveDialog();
+          }}
+        />
+      ) : null}
+      {activeDialog?.kind === "prompt-text" ? (
+        <PromptTextDialog
+          options={activeDialog.options}
+          onResolve={(value) => {
+            activeDialog.resolve(value);
             dismissActiveDialog();
           }}
         />
@@ -249,6 +278,57 @@ function ConfirmDialog({
       }
     >
       <div className="dialog-stack">{options.body}</div>
+    </DialogFrame>
+  );
+}
+
+function PromptTextDialog({
+  options,
+  onResolve
+}: {
+  options: PromptTextDialogOptions;
+  onResolve: (value: string | undefined) => void;
+}) {
+  const [value, setValue] = useState(options.initialValue ?? "");
+  const trimmedValue = value.trim();
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!trimmedValue) {
+      return;
+    }
+
+    onResolve(value);
+  }
+
+  return (
+    <DialogFrame
+      title={options.title}
+      description={options.description}
+      wide={false}
+      onCancel={() => onResolve(undefined)}
+      footer={
+        <div className="dialog-actions">
+          <button type="button" className="button-secondary" onClick={() => onResolve(undefined)}>
+            {options.cancelLabel ?? "Cancel"}
+          </button>
+          <button type="submit" form="prompt-text-dialog-form" className="button-accent" disabled={!trimmedValue}>
+            {options.confirmLabel ?? "Continue"}
+          </button>
+        </div>
+      }
+    >
+      <form id="prompt-text-dialog-form" className="dialog-stack" onSubmit={handleSubmit}>
+        <label>
+          <span className="field-label--inset">{options.label}</span>
+          <input
+            value={value}
+            placeholder={options.placeholder}
+            autoFocus
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </label>
+      </form>
     </DialogFrame>
   );
 }
