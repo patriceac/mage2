@@ -125,9 +125,21 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
   }
 
   async function handleAddLocale() {
-    const nextLocale = window.prompt("Add locale", "");
-    const normalizedLocale = nextLocale?.trim();
+    const nextLocale = await dialogs.promptText({
+      title: "Add Locale",
+      description: "Add a locale code like en, fr, or pt-BR. Existing source text is copied into the new locale as a starting point.",
+      label: "Locale Code",
+      placeholder: "fr",
+      confirmLabel: "Add Locale",
+      cancelLabel: "Cancel"
+    });
+    const normalizedLocale = normalizeLocaleInput(nextLocale);
     if (!normalizedLocale) {
+      return;
+    }
+
+    if (supportedLocales.includes(normalizedLocale)) {
+      setActiveLocale(normalizedLocale);
       return;
     }
 
@@ -420,4 +432,9 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
       </aside>
     </div>
   );
+}
+
+export function normalizeLocaleInput(input: string | undefined): string | undefined {
+  const normalized = input?.trim().replace(/_/g, "-");
+  return normalized ? normalized : undefined;
 }
