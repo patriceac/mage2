@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Asset, Scene } from "@mage2/schema";
+import { getLocalizedAssetVariant } from "./localized-project";
 
 interface AssetPreviewProps {
   asset?: Asset;
+  locale?: string;
   interactive?: boolean;
   allowSourceFallback?: boolean;
 }
@@ -12,11 +14,12 @@ interface ScenePreviewCardProps {
   scene?: Scene;
   locationName?: string;
   asset?: Asset;
+  locale?: string;
   emptyTitle?: string;
   emptyBody?: string;
 }
 
-export function AssetPreview({ asset, interactive = true, allowSourceFallback = false }: AssetPreviewProps) {
+export function AssetPreview({ asset, locale, interactive = true, allowSourceFallback = false }: AssetPreviewProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [posterUrl, setPosterUrl] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -32,7 +35,8 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
         return;
       }
 
-      const sourcePath = asset.proxyPath ?? (allowSourceFallback ? asset.sourcePath : undefined);
+      const variant = getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "");
+      const sourcePath = variant?.proxyPath ?? (allowSourceFallback ? variant?.sourcePath : undefined);
       if (!sourcePath) {
         setAssetUrl(undefined);
         setPosterUrl(undefined);
@@ -45,8 +49,8 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
       try {
         const nextAssetUrl = await window.editorApi.pathToFileUrl(sourcePath);
         const nextPosterUrl =
-          asset.posterPath && asset.posterPath !== sourcePath
-            ? await window.editorApi.pathToFileUrl(asset.posterPath)
+          variant?.posterPath && variant.posterPath !== sourcePath
+            ? await window.editorApi.pathToFileUrl(variant.posterPath)
             : undefined;
 
         if (!cancelled) {
@@ -67,7 +71,7 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
     return () => {
       cancelled = true;
     };
-  }, [allowSourceFallback, asset?.id, asset?.kind, asset?.proxyPath, asset?.posterPath, asset?.sourcePath]);
+  }, [allowSourceFallback, asset, locale]);
 
   if (!asset) {
     return (
@@ -87,11 +91,11 @@ export function AssetPreview({ asset, interactive = true, allowSourceFallback = 
     );
   }
 
-  if (!asset.proxyPath && !allowSourceFallback) {
+  if (!getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "")?.proxyPath && !allowSourceFallback) {
     return (
-      <div className="asset-preview asset-preview--placeholder" title={`Generate a proxy to preview ${asset.name}.`}>
-        <strong>Proxy required</strong>
-        <span>Generate a proxy to preview this asset.</span>
+      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
+        <strong>Preview unavailable</strong>
+        <span>No preview file is available for this locale variant.</span>
       </div>
     );
   }
@@ -153,6 +157,7 @@ export function ScenePreviewCard({
   scene,
   locationName,
   asset,
+  locale,
   emptyTitle = "No scene selected",
   emptyBody = "Pick another scene to preview it here."
 }: ScenePreviewCardProps) {
@@ -174,7 +179,7 @@ export function ScenePreviewCard({
         <p className="dialog-eyebrow">{label}</p>
         <h3>{scene.name}</h3>
       </div>
-      <AssetPreview asset={asset} interactive={false} allowSourceFallback />
+      <AssetPreview asset={asset} locale={locale} interactive={false} allowSourceFallback />
       <div className="scene-preview-card__meta">
         <p>{locationName ?? "Unknown location"}</p>
         <p>

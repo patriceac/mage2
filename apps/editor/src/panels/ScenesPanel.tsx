@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { MediaSurface } from "../MediaSurface";
-import { type ProjectBundle, validateProject } from "@mage2/schema";
+import { getLocaleStringValues, type ProjectBundle, validateProject } from "@mage2/schema";
 import { SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-project";
 import {
   addHotspot,
   addHotspotAtBestAvailablePosition,
@@ -37,11 +38,14 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const setSelectedHotspotId = useEditorStore((state) => state.setSelectedHotspotId);
   const setPlayheadMs = useEditorStore((state) => state.setPlayheadMs);
   const updateProject = useEditorStore((state) => state.updateProject);
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
+  const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
   const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
+  const localeStrings = getLocaleStringValues(project, activeLocale);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -381,9 +385,10 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
         <MediaSurface
           asset={currentAsset}
+          locale={activeLocale}
           loopVideo={currentScene.backgroundVideoLoop}
           hotspots={currentScene.hotspots}
-          strings={project.strings.values}
+          strings={localeStrings}
           showSurfaceTooltips={false}
           showHotspotTooltips={false}
           playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
@@ -456,8 +461,8 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
           <input
             type="range"
             min={0}
-            max={currentAsset?.durationMs ?? 30000}
-            value={Math.min(playheadMs, currentAsset?.durationMs ?? 30000)}
+            max={currentAssetVariant?.durationMs ?? 30000}
+            value={Math.min(playheadMs, currentAssetVariant?.durationMs ?? 30000)}
             title="Scrub through the current scene asset to line up hotspot timing and subtitle cues."
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
@@ -619,7 +624,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                         />
                         <textarea
                           rows={2}
-                          value={project.strings.values[cue.textId] ?? ""}
+                          value={localeStrings[cue.textId] ?? ""}
                           title="Subtitle text shown to the player during this cue."
                           onChange={(event) =>
                             mutateProject((draft) => {
@@ -628,7 +633,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                                 ?.subtitleTracks.find((entry) => entry.id === track.id)
                                 ?.cues.find((entry) => entry.id === cue.id);
                               if (target) {
-                                draft.strings.values[target.textId] = event.target.value;
+                                setEditorLocalizedText(draft, activeLocale, target.textId, event.target.value);
                               }
                             })
                           }
@@ -683,7 +688,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                 <span className="field-label--inset">Comment</span>
                 <input
                   value={
-                    selectedHotspot.commentTextId ? project.strings.values[selectedHotspot.commentTextId] ?? "" : ""
+                    selectedHotspot.commentTextId ? localeStrings[selectedHotspot.commentTextId] ?? "" : ""
                   }
                   onChange={(event) =>
                     mutateProject((draft) => {
@@ -695,7 +700,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                       }
 
                       target.commentTextId ??= `text.${target.id}.comment`;
-                      draft.strings.values[target.commentTextId] = event.target.value;
+                      setEditorLocalizedText(draft, activeLocale, target.commentTextId, event.target.value);
                     })
                   }
                 />

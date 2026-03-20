@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import type { Asset, ProjectBundle } from "@mage2/schema";
+import { normalizeSupportedLocales, type Asset, type ProjectBundle } from "@mage2/schema";
 import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { getLocaleCompletenessStatus, getLocalizedAssetVariant } from "../localized-project";
 import {
   addAssetRoots,
   cloneProject,
@@ -32,7 +33,11 @@ export function AssetsPanel({
   setBusyLabel
 }: AssetsPanelProps) {
   const dialogs = useDialogs();
-  const assetsMissingProxy = project.assets.assets.filter((entry) => !entry.proxyPath);
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
+  const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
+  const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
+  const supportedLocales = normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
   );
@@ -58,6 +63,7 @@ export function AssetsPanel({
       setBusyLabel("Importing assets");
       const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
         projectDir,
+        activeLocale,
         project.assets.assets,
         importFilePaths
       );
@@ -93,11 +99,96 @@ export function AssetsPanel({
     }
   }
 
+  async function handleImportVariant(asset: Asset) {
+    const filePaths = await dialogs.pickFiles({
+      title: `${getLocalizedAssetVariant(asset, activeLocale) ? "Replace" : "Add"} ${activeLocale} Variant`,
+      description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
+      initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
+      confirmLabel: "Use This File",
+      allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Updating localized asset");
+      const updatedAsset = await window.editorApi.importAssetVariant(projectDir, asset, activeLocale, filePath);
+      const nextProject = cloneProject(project);
+      const index = nextProject.assets.assets.findIndex((entry) => entry.id === asset.id);
+      if (index >= 0) {
+        nextProject.assets.assets[index] = updatedAsset;
+      }
+      addAssetRoots(nextProject, [updatedAsset]);
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      setSavedProject(result.project);
+      setStatusMessage(`${getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added"} ${activeLocale} variant for ${asset.name}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Variant import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
+  async function handleRemoveVariant(asset: Asset) {
+    const variant = getLocalizedAssetVariant(asset, activeLocale);
+    if (!variant) {
+      return;
+    }
+
+    if (Object.keys(asset.variants).length <= 1) {
+      setStatusMessage(`Delete ${asset.name} entirely if you want to remove its only locale variant.`);
+      return;
+    }
+
+    const confirmed = await dialogs.confirm({
+      title: `Remove ${activeLocale} variant from ${asset.name}?`,
+      body: <p>This removes the stored file and generated proxies for the selected locale variant only.</p>,
+      confirmLabel: "Remove Variant",
+      cancelLabel: "Keep Variant",
+      tone: "danger"
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Removing localized asset");
+      const nextProject = cloneProject(project);
+      const target = nextProject.assets.assets.find((entry) => entry.id === asset.id);
+      if (!target) {
+        throw new Error("Asset is no longer present.");
+      }
+      delete target.variants[activeLocale];
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      await window.editorApi.deleteManagedAssetVariantFiles(projectDir, asset, activeLocale, result.project.assets.assets);
+      setSavedProject(result.project);
+      setStatusMessage(`Removed ${activeLocale} variant from ${asset.name}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Variant removal failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
   async function handleImportAssets() {
     const filePaths = await dialogs.pickFiles({
       title: "Import Assets",
       description: "Select video, image, or audio files to add to the current project.",
-      initialPath: resolveAssetImportInitialPath(project) ?? useEditorStore.getState().projectDir,
+      initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
       confirmLabel: "Import Selected Files",
       allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
     });
@@ -254,76 +345,28 @@ export function AssetsPanel({
     await importAssetPaths(filePaths);
   }
 
-  async function handleGenerateProxies(assetId?: string) {
-    const projectDir = useEditorStore.getState().projectDir;
-    if (!projectDir) {
-      return;
-    }
-
-    const assets = assetId
-      ? project.assets.assets.filter((entry) => entry.id === assetId && !entry.proxyPath)
-      : assetsMissingProxy;
-    if (assets.length === 0) {
-      setStatusMessage("No assets require proxy generation.");
-      return;
-    }
-
-    try {
-      setBusyLabel("Generating proxies");
-      const updatedAssets: Asset[] = [];
-      for (const asset of assets) {
-        updatedAssets.push(await window.editorApi.generateProxy(projectDir, asset));
-      }
-
-      const nextProject = cloneProject(project);
-      for (const updatedAsset of updatedAssets) {
-        const index = nextProject.assets.assets.findIndex((entry) => entry.id === updatedAsset.id);
-        if (index >= 0) {
-          nextProject.assets.assets[index] = updatedAsset;
-        }
-      }
-
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      setSavedProject(result.project);
-      setStatusMessage(
-        result.validationReport.valid
-          ? `Generated ${updatedAssets.length} prox${updatedAssets.length === 1 ? "y" : "ies"}.`
-          : `Generated ${updatedAssets.length} prox${updatedAssets.length === 1 ? "y" : "ies"} and saved with ${
-              result.validationReport.issues.length
-            } validation issue(s).`
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Proxy generation failed: ${message}`);
-    } finally {
-      setBusyLabel(undefined);
-    }
-  }
-
   return (
     <div className="panel-grid panel-grid--assets">
       <section className="panel assets-panel">
         <div className="panel__toolbar">
           <h3>Imported Media</h3>
           <div className="stack-inline">
+            <label className="localization-filter">
+              <span className="field-label--inset">Locale</span>
+              <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+                {supportedLocales.map((locale) => (
+                  <option key={locale} value={locale}>
+                    {locale}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={handleImportAssets}
-              title="Import source media files into the project and register them in the asset library."
+              title={`Import source media files as new logical assets for the ${activeLocale} locale. Preview proxies are generated automatically.`}
             >
               Add Files
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleGenerateProxies()}
-              disabled={assetsMissingProxy.length === 0}
-              title={
-                assetsMissingProxy.length === 0
-                  ? "Every imported asset already has a proxy file."
-                  : "Create lightweight proxy files for every asset that does not already have one."
-              }
-            >
-              Generate All Missing Proxies
             </button>
           </div>
         </div>
@@ -347,35 +390,63 @@ export function AssetsPanel({
             const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
             const deletionEligibility = assetDeletionEligibility.get(asset.id);
             const deleteDisabled = !deletionEligibility?.canDelete;
+            const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
+            const localeStatus = getLocaleCompletenessStatus(asset, supportedLocales);
+            const isSelected = selectedAssetId === asset.id;
 
             return (
-              <article key={asset.id} className="list-card list-card--asset">
-                <AssetPreview asset={asset} />
+              <article
+                key={asset.id}
+                className={isSelected ? "list-card list-card--asset list-card--selected" : "list-card list-card--asset"}
+                onClick={() => setSelectedAssetId(asset.id)}
+              >
+                <AssetPreview asset={asset} locale={activeLocale} />
 
                 <div className="asset-card__body">
                   <div>
                     <h4>{asset.name}</h4>
                     <p>
                       {asset.kind}
-                      {asset.durationMs ? ` / ${Math.round(asset.durationMs / 100) / 10}s` : " / still"}
-                      {asset.width && asset.height ? ` / ${asset.width}x${asset.height}` : ""}
+                      {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
+                      {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
                     </p>
-                    <p className="muted">{asset.proxyPath ? "Proxy ready" : "Proxy missing"}</p>
+                    <p className="muted">
+                      {activeVariant
+                        ? activeVariant.proxyPath
+                          ? `${activeLocale} preview ready`
+                          : `${activeLocale} preview unavailable`
+                        : `${activeLocale} variant missing`}
+                    </p>
                     <p className="muted">{formatAssetUsageSummary(referenceSummary)}</p>
+                    <p className="muted">
+                      Present: {localeStatus.present.join(", ") || "none"}.
+                      {localeStatus.missing.length > 0 ? ` Missing: ${localeStatus.missing.join(", ")}.` : ""}
+                    </p>
                   </div>
 
                   <div className="list-card__actions">
                     <button
                       type="button"
-                      onClick={() => void handleGenerateProxies(asset.id)}
-                      disabled={Boolean(asset.proxyPath)}
+                      className="button-secondary"
+                      onClick={() => void handleImportVariant(asset)}
+                      title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
+                    >
+                      {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
+                    </button>
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
+                      onClick={() => void handleRemoveVariant(asset)}
                       title={
-                        asset.proxyPath
-                          ? `${asset.name} already has a proxy file.`
-                          : `Generate the proxy file used to preview ${asset.name} inside the editor.`
+                        !activeVariant
+                          ? `${asset.name} does not have a ${activeLocale} variant to remove.`
+                          : Object.keys(asset.variants).length <= 1
+                          ? `Delete ${asset.name} entirely to remove its only remaining variant.`
+                          : `Remove only the ${activeLocale} variant from ${asset.name}.`
                       }
                     >
-                      Generate Proxy
+                      {`Remove ${activeLocale}`}
                     </button>
                     <button
                       type="button"
@@ -412,10 +483,14 @@ export function AssetsPanel({
   );
 }
 
-function resolveAssetImportInitialPath(project: ProjectBundle): string | undefined {
+function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): string | undefined {
   for (let index = project.assets.assets.length - 1; index >= 0; index -= 1) {
     const asset = project.assets.assets[index];
-    const importPath = asset.importSourcePath ?? asset.sourcePath;
+    const variant = getLocalizedAssetVariant(asset, locale) ?? Object.values(asset.variants)[0];
+    if (!variant) {
+      continue;
+    }
+    const importPath = variant.importSourcePath ?? variant.sourcePath;
     const parentPath = importPath.replace(/[\\/][^\\/]+$/, "");
     if (parentPath) {
       return parentPath;

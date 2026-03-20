@@ -39,8 +39,10 @@ describe("starter project creation", () => {
     expect(hotspot?.width).toBeCloseTo(220 / 1280);
     expect(hotspot?.height).toBeCloseTo(170 / 720);
     expect(hotspot).not.toHaveProperty("labelTextId");
-    expect(project.strings.values).not.toHaveProperty("text.hotspot.inspect");
-    expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.hotspot.inspect");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(
+      "Add real hotspots in Scenes"
+    );
     expect(starterSceneSvg).not.toContain(">Placeholder</text>");
     expect(starterSceneSvg).not.toContain("Add real hotspots");
   });
@@ -81,8 +83,12 @@ describe("subtitle project persistence", () => {
       id: "asset_visual",
       kind: "image",
       name: "placeholder.png",
-      sourcePath: path.join(projectDir, "assets", "placeholder.png"),
-      importedAt: new Date(0).toISOString()
+      variants: {
+        en: {
+          sourcePath: path.join(projectDir, "assets", "placeholder.png"),
+          importedAt: new Date(0).toISOString()
+        }
+      }
     });
     project.scenes.items[0].backgroundAssetId = "asset_visual";
     project.scenes.items[0].subtitleTracks = [
@@ -98,7 +104,7 @@ describe("subtitle project persistence", () => {
         ]
       }
     ];
-    project.strings.values["text.cue_scene.subtitle"] = "Localized text";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_scene.subtitle"] = "Localized text";
 
     await saveProjectToDirectory(projectDir, project);
 

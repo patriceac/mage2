@@ -24,24 +24,34 @@ const editorApi = {
     ipcRenderer.invoke("mage2:save-project", projectDir, project),
   importAssets: (
     projectDir: string,
+    locale: string,
     existingAssets: Asset[],
     filePaths: string[]
   ): Promise<{ importedAssets: Asset[]; duplicateFilePaths: string[] }> =>
-    ipcRenderer.invoke("mage2:import-assets", projectDir, existingAssets, filePaths),
+    ipcRenderer.invoke("mage2:import-assets", projectDir, locale, existingAssets, filePaths),
+  importAssetVariant: (projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset> =>
+    ipcRenderer.invoke("mage2:import-asset-variant", projectDir, asset, locale, filePath),
   parseSubtitleFiles: (
     filePaths: string[]
   ): Promise<{
     parsedFiles: Array<{ filePath: string; fileName: string; cues: Array<{ startMs: number; endMs: number; text: string }> }>;
     failedFiles: Array<{ filePath: string; reason: string }>;
   }> => ipcRenderer.invoke("mage2:parse-subtitles", filePaths),
-  generateProxy: (projectDir: string, asset: Asset): Promise<Asset> =>
-    ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset),
+  generateProxy: (projectDir: string, asset: Asset, locale: string): Promise<Asset> =>
+    ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset, locale),
   deleteManagedAssetFiles: (
     projectDir: string,
     asset: Asset,
     remainingAssets: Asset[]
   ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }> =>
     ipcRenderer.invoke("mage2:delete-managed-asset-files", projectDir, asset, remainingAssets),
+  deleteManagedAssetVariantFiles: (
+    projectDir: string,
+    asset: Asset,
+    locale: string,
+    remainingAssets: Asset[]
+  ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }> =>
+    ipcRenderer.invoke("mage2:delete-managed-asset-variant-files", projectDir, asset, locale, remainingAssets),
   exportProject: (projectDir: string, project: ProjectBundle) =>
     ipcRenderer.invoke("mage2:export-project", projectDir, project),
   pathToFileUrl: (inputPath: string): Promise<string> =>

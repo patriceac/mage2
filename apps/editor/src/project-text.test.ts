@@ -8,10 +8,14 @@ import {
   resolveProjectTextSelection
 } from "./project-text";
 
+function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
+  return project.strings.byLocale[project.manifest.defaultLanguage];
+}
+
 describe("collectProjectTextEntries", () => {
   it("marks referenced text that already exists in the stored values", () => {
     const project = createDefaultProjectBundle("Referenced text");
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const hotspotComment = entries.find((entry) => entry.textId === "text.hotspot.inspect.comment");
 
     expect(hotspotComment).toMatchObject({
@@ -26,9 +30,9 @@ describe("collectProjectTextEntries", () => {
   it("marks referenced text ids as missing when no stored value exists", () => {
     const project = createDefaultProjectBundle("Missing text");
     const item = addInventoryItem(project);
-    delete project.strings.values[item.textId];
+    delete getDefaultStrings(project)[item.textId];
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const inventoryName = entries.find((entry) => entry.textId === item.textId);
 
     expect(inventoryName).toMatchObject({
@@ -42,9 +46,9 @@ describe("collectProjectTextEntries", () => {
 
   it("keeps orphaned stored values visible even when nothing references them", () => {
     const project = createDefaultProjectBundle("Orphaned text");
-    project.strings.values["text.orphaned"] = "Unused copy";
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const orphaned = entries.find((entry) => entry.textId === "text.orphaned");
 
     expect(orphaned).toMatchObject({
@@ -58,12 +62,12 @@ describe("collectProjectTextEntries", () => {
   it("hides exact generated legacy scene and hotspot strings while leaving manual orphans visible", () => {
     const project = createDefaultProjectBundle("Excluded text");
     project.locations.items[0]!.descriptionTextId = "text.manual.location.description";
-    project.strings.values["text.manual.location.description"] = "Legacy location description";
-    project.strings.values[`text.${project.scenes.items[0]!.id}.overlay`] = "Generated scene overlay";
-    project.strings.values[`text.${project.scenes.items[0]!.hotspots[0]!.id}.label`] = "Generated hotspot label";
-    project.strings.values["text.manual.scene.overlay"] = "Manual scene overlay";
+    getDefaultStrings(project)["text.manual.location.description"] = "Legacy location description";
+    getDefaultStrings(project)[`text.${project.scenes.items[0]!.id}.overlay`] = "Generated scene overlay";
+    getDefaultStrings(project)[`text.${project.scenes.items[0]!.hotspots[0]!.id}.label`] = "Generated hotspot label";
+    getDefaultStrings(project)["text.manual.scene.overlay"] = "Manual scene overlay";
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const entryIds = entries.map((entry) => entry.textId);
 
     expect(entryIds).not.toContain("text.manual.location.description");
@@ -78,7 +82,7 @@ describe("collectProjectTextEntries", () => {
     const cue = createSubtitleCue(project, 0, 1200, "Opening subtitle");
     project.scenes.items[0].subtitleTracks = [{ id: "subtitle_intro", cues: [cue] }];
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const subtitleEntry = entries.find((entry) => entry.textId === cue.textId);
 
     expect(subtitleEntry).toMatchObject({
@@ -97,10 +101,10 @@ describe("collectProjectTextEntries", () => {
     const item = addInventoryItem(project);
     const sharedTextId = project.scenes.items[0].hotspots[0].commentTextId!;
 
-    delete project.strings.values[item.textId];
+    delete getDefaultStrings(project)[item.textId];
     item.textId = sharedTextId;
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
     const sharedEntry = entries.find((entry) => entry.textId === sharedTextId);
 
     expect(sharedEntry?.status).toBe("referenced");
@@ -110,10 +114,10 @@ describe("collectProjectTextEntries", () => {
   it("sorts missing entries before referenced and orphaned ones", () => {
     const project = createDefaultProjectBundle("Sorted text");
     const dialogue = addDialogueTree(project);
-    delete project.strings.values[dialogue.nodes[0].textId];
-    project.strings.values["text.orphaned"] = "Unused copy";
+    delete getDefaultStrings(project)[dialogue.nodes[0].textId];
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
 
     expect(entries[0]?.status).toBe("missing");
     expect(entries.at(-1)?.status).toBe("orphaned");
@@ -125,10 +129,10 @@ describe("filterProjectTextEntries", () => {
     const project = createDefaultProjectBundle("Search text");
     const item = addInventoryItem(project);
     item.name = "Lantern";
-    project.strings.values[item.textId] = "Lantern";
-    project.strings.values[item.descriptionTextId!] = "A trusty lantern";
-    project.strings.values["text.orphaned"] = "Unused copy";
-    const entries = collectProjectTextEntries(project);
+    getDefaultStrings(project)[item.textId] = "Lantern";
+    getDefaultStrings(project)[item.descriptionTextId!] = "A trusty lantern";
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
 
     expect(
       filterProjectTextEntries(entries, {
@@ -173,10 +177,10 @@ describe("filterProjectTextEntries", () => {
     const item = addInventoryItem(project);
     const cue = createSubtitleCue(project, 0, 1200, "Localized subtitle");
     project.scenes.items[0].subtitleTracks = [{ id: "subtitle_intro", cues: [cue] }];
-    project.strings.values["text.orphaned"] = "Unused copy";
-    delete project.strings.values[dialogue.nodes[0].textId];
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
+    delete getDefaultStrings(project)[dialogue.nodes[0].textId];
 
-    const entries = collectProjectTextEntries(project);
+    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
 
     expect(
       filterProjectTextEntries(entries, {
@@ -211,10 +215,10 @@ describe("filterProjectTextEntries", () => {
     const item = addInventoryItem(project);
     const sharedTextId = project.scenes.items[0].hotspots[0].commentTextId!;
 
-    delete project.strings.values[item.textId];
+    delete getDefaultStrings(project)[item.textId];
     item.textId = sharedTextId;
 
-    const sortedEntries = filterProjectTextEntries(collectProjectTextEntries(project), {
+    const sortedEntries = filterProjectTextEntries(collectProjectTextEntries(project, project.manifest.defaultLanguage), {
       search: "",
       status: "all",
       area: "all",
@@ -229,8 +233,8 @@ describe("filterProjectTextEntries", () => {
 describe("project text selection and cleanup", () => {
   it("keeps the selected text when it remains visible and falls back to the first visible entry otherwise", () => {
     const project = createDefaultProjectBundle("Selection");
-    project.strings.values["text.orphaned"] = "Unused copy";
-    const visibleEntries = filterProjectTextEntries(collectProjectTextEntries(project), {
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
+    const visibleEntries = filterProjectTextEntries(collectProjectTextEntries(project, project.manifest.defaultLanguage), {
       search: "unused",
       status: "all",
       area: "all",
@@ -243,16 +247,16 @@ describe("project text selection and cleanup", () => {
 
   it("deletes only orphaned stored values from the requested text ids", () => {
     const project = createDefaultProjectBundle("Delete orphaned");
-    project.strings.values["text.orphaned"] = "Unused copy";
+    getDefaultStrings(project)["text.orphaned"] = "Unused copy";
 
-    const deletedTextIds = deleteOrphanedProjectTextEntries(project, [
+    const deletedTextIds = deleteOrphanedProjectTextEntries(project, project.manifest.defaultLanguage, [
       "text.orphaned",
       "text.hotspot.inspect.comment",
       "text.missing"
     ]);
 
     expect(deletedTextIds).toEqual(["text.orphaned"]);
-    expect(project.strings.values["text.orphaned"]).toBeUndefined();
-    expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+    expect(getDefaultStrings(project)["text.orphaned"]).toBeUndefined();
+    expect(getDefaultStrings(project)["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
   });
 });

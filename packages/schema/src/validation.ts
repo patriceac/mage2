@@ -7,6 +7,7 @@ import {
   type ValidationIssue,
   type ValidationReport
 } from "./types";
+import { getLocalizedText, normalizeSupportedLocales, resolveAssetVariant } from "./localization";
 
 export function collectSceneLinks(scene: Scene): string[] {
   const links = new Set<string>();
@@ -41,10 +42,15 @@ export function collectSceneLinks(scene: Scene): string[] {
 export function validateProject(project: ProjectBundle): ValidationReport {
   const issues: ValidationIssue[] = [];
   const assetIds = new Set(project.assets.assets.map((asset) => asset.id));
+  const assetsById = new Map(project.assets.assets.map((asset) => [asset.id, asset]));
   const locationIds = new Set(project.locations.items.map((location) => location.id));
   const sceneIds = new Set(project.scenes.items.map((scene) => scene.id));
   const dialogueIds = new Set(project.dialogues.items.map((dialogue) => dialogue.id));
   const inventoryIds = new Set(project.inventory.items.map((item) => item.id));
+  const supportedLocales = normalizeSupportedLocales(
+    project.manifest.defaultLanguage,
+    project.manifest.supportedLocales
+  );
 
   if (!locationIds.has(project.manifest.startLocationId)) {
     issues.push({
@@ -76,30 +82,36 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   }
 
   for (const scene of project.scenes.items) {
-    validateScene(project, scene, assetIds, locationIds, sceneIds, dialogueIds, inventoryIds, issues);
+    validateScene(project, scene, supportedLocales, assetIds, assetsById, locationIds, sceneIds, dialogueIds, inventoryIds, issues);
   }
 
   for (const dialogue of project.dialogues.items) {
-    validateDialogue(project, dialogue, sceneIds, inventoryIds, dialogueIds, issues);
+    validateDialogue(project, dialogue, supportedLocales, sceneIds, inventoryIds, dialogueIds, issues);
   }
 
   for (const item of project.inventory.items) {
-    if (!(item.textId in project.strings.values)) {
-      issues.push({
-        level: "warning",
-        code: "INVENTORY_NAME_TEXT_MISSING",
-        message: `Inventory item '${item.id}' references missing name text '${item.textId}'.`,
-        entityId: item.id
-      });
-    }
+    validateLocalizedTextCoverage(
+      project,
+      supportedLocales,
+      item.textId,
+      "error",
+      "INVENTORY_NAME_TEXT_MISSING",
+      `Inventory item '${item.id}' references missing name text`,
+      item.id,
+      issues
+    );
 
-    if (item.descriptionTextId && !(item.descriptionTextId in project.strings.values)) {
-      issues.push({
-        level: "warning",
-        code: "INVENTORY_DESCRIPTION_TEXT_MISSING",
-        message: `Inventory item '${item.id}' references missing description text '${item.descriptionTextId}'.`,
-        entityId: item.id
-      });
+    if (item.descriptionTextId) {
+      validateLocalizedTextCoverage(
+        project,
+        supportedLocales,
+        item.descriptionTextId,
+        "error",
+        "INVENTORY_DESCRIPTION_TEXT_MISSING",
+        `Inventory item '${item.id}' references missing description text`,
+        item.id,
+        issues
+      );
     }
   }
 
@@ -144,7 +156,9 @@ export function validateProject(project: ProjectBundle): ValidationReport {
 function validateScene(
   project: ProjectBundle,
   scene: Scene,
+  supportedLocales: string[],
   assetIds: Set<string>,
+  assetsById: Map<string, ProjectBundle["assets"]["assets"][number]>,
   locationIds: Set<string>,
   sceneIds: Set<string>,
   dialogueIds: Set<string>,
@@ -167,6 +181,23 @@ function validateScene(
       message: `Scene '${scene.id}' references missing asset '${scene.backgroundAssetId}'.`,
       entityId: scene.id
     });
+  } else {
+    const asset = assetsById.get(scene.backgroundAssetId);
+    if (asset) {
+      for (const locale of supportedLocales) {
+        if (resolveAssetVariant(asset, locale)) {
+          continue;
+        }
+
+        issues.push({
+          level: "error",
+          code: "SCENE_BACKGROUND_LOCALE_MISSING",
+          message: `Asset '${asset.id}' is missing a '${locale}' variant for scene '${scene.id}'.`,
+          entityId: asset.id,
+          locale
+        });
+      }
+    }
   }
 
   for (const hotspot of scene.hotspots) {
@@ -179,13 +210,17 @@ function validateScene(
       });
     }
 
-    if (hotspot.commentTextId && !(hotspot.commentTextId in project.strings.values)) {
-      issues.push({
-        level: "warning",
-        code: "HOTSPOT_COMMENT_TEXT_MISSING",
-        message: `Hotspot '${hotspot.id}' references missing comment text '${hotspot.commentTextId}'.`,
-        entityId: hotspot.id
-      });
+    if (hotspot.commentTextId) {
+      validateLocalizedTextCoverage(
+        project,
+        supportedLocales,
+        hotspot.commentTextId,
+        "error",
+        "HOTSPOT_COMMENT_TEXT_MISSING",
+        `Hotspot '${hotspot.id}' references missing comment text`,
+        hotspot.id,
+        issues
+      );
     }
 
     if (hotspot.targetSceneId && !sceneIds.has(hotspot.targetSceneId)) {
@@ -242,21 +277,28 @@ function validateScene(
         });
       }
 
-      const subtitleText = project.strings.values[cue.textId];
-      if (!(cue.textId in project.strings.values)) {
-        issues.push({
-          level: "warning",
-          code: "SUBTITLE_TEXT_MISSING",
-          message: `Subtitle cue '${cue.id}' references missing text '${cue.textId}'.`,
-          entityId: cue.id
-        });
-      } else if (subtitleText.trim().length === 0) {
-        issues.push({
-          level: "warning",
-          code: "SUBTITLE_TEXT_EMPTY",
-          message: `Subtitle cue '${cue.id}' has no visible text.`,
-          entityId: cue.id
-        });
+      validateLocalizedTextCoverage(
+        project,
+        supportedLocales,
+        cue.textId,
+        "error",
+        "SUBTITLE_TEXT_MISSING",
+        `Subtitle cue '${cue.id}' references missing text`,
+        cue.id,
+        issues
+      );
+
+      for (const locale of supportedLocales) {
+        const subtitleText = getLocalizedText(project, locale, cue.textId);
+        if (subtitleText?.trim().length === 0) {
+          issues.push({
+            level: "warning",
+            code: "SUBTITLE_TEXT_EMPTY",
+            message: `Subtitle cue '${cue.id}' has no visible text for locale '${locale}'.`,
+            entityId: cue.id,
+            locale
+          });
+        }
       }
     }
 
@@ -274,6 +316,7 @@ function validateScene(
 function validateDialogue(
   project: ProjectBundle,
   dialogue: DialogueTree,
+  supportedLocales: string[],
   sceneIds: Set<string>,
   inventoryIds: Set<string>,
   dialogueIds: Set<string>,
@@ -290,14 +333,16 @@ function validateDialogue(
   }
 
   for (const node of dialogue.nodes) {
-    if (!(node.textId in project.strings.values)) {
-      issues.push({
-        level: "warning",
-        code: "DIALOGUE_TEXT_MISSING",
-        message: `Dialogue node '${node.id}' references missing text '${node.textId}'.`,
-        entityId: node.id
-      });
-    }
+    validateLocalizedTextCoverage(
+      project,
+      supportedLocales,
+      node.textId,
+      "error",
+      "DIALOGUE_TEXT_MISSING",
+      `Dialogue node '${node.id}' references missing text`,
+      node.id,
+      issues
+    );
 
     if (node.nextNodeId && !nodeIds.has(node.nextNodeId)) {
       issues.push({
@@ -311,14 +356,16 @@ function validateDialogue(
     validateConditionEffectRefs([], node.effects, issues, inventoryIds, sceneIds, dialogueIds, node.id);
 
     for (const choice of node.choices) {
-      if (!(choice.textId in project.strings.values)) {
-        issues.push({
-          level: "warning",
-          code: "DIALOGUE_CHOICE_TEXT_MISSING",
-          message: `Dialogue choice '${choice.id}' references missing text '${choice.textId}'.`,
-          entityId: choice.id
-        });
-      }
+      validateLocalizedTextCoverage(
+        project,
+        supportedLocales,
+        choice.textId,
+        "error",
+        "DIALOGUE_CHOICE_TEXT_MISSING",
+        `Dialogue choice '${choice.id}' references missing text`,
+        choice.id,
+        issues
+      );
 
       if (choice.nextNodeId && !nodeIds.has(choice.nextNodeId)) {
         issues.push({
@@ -384,6 +431,31 @@ function validateDialogue(
         entityId: node.id
       });
     }
+  }
+}
+
+function validateLocalizedTextCoverage(
+  project: ProjectBundle,
+  supportedLocales: string[],
+  textId: string,
+  level: ValidationIssue["level"],
+  code: string,
+  messagePrefix: string,
+  entityId: string,
+  issues: ValidationIssue[]
+): void {
+  for (const locale of supportedLocales) {
+    if (getLocalizedText(project, locale, textId) !== undefined) {
+      continue;
+    }
+
+    issues.push({
+      level,
+      code,
+      message: `${messagePrefix} '${textId}' for locale '${locale}'.`,
+      entityId,
+      locale
+    });
   }
 }
 

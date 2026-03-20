@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 
@@ -133,10 +133,7 @@ export const InventoryItemSchema = z.object({
   descriptionTextId: z.string().optional()
 });
 
-export const AssetSchema = z.object({
-  id: z.string().min(1),
-  kind: AssetKindSchema,
-  name: z.string().min(1),
+export const AssetVariantSchema = z.object({
   sourcePath: z.string().min(1),
   importSourcePath: z.string().min(1).optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
@@ -149,6 +146,13 @@ export const AssetSchema = z.object({
   importedAt: z.string().min(1)
 });
 
+export const AssetSchema = z.object({
+  id: z.string().min(1),
+  kind: AssetKindSchema,
+  name: z.string().min(1),
+  variants: z.record(z.string(), AssetVariantSchema).default({})
+});
+
 export const BuildSettingsSchema = z.object({
   outputDir: z.string().min(1).default("build"),
   includeSourceMap: z.boolean().default(false)
@@ -159,6 +163,7 @@ export const ProjectManifestSchema = z.object({
   projectId: z.string().min(1),
   projectName: z.string().min(1),
   defaultLanguage: z.string().min(1),
+  supportedLocales: z.array(z.string().min(1)).default([]),
   engineVersion: z.string().min(1),
   assetRoots: z.array(z.string()).default([]),
   startLocationId: z.string().min(1),
@@ -186,7 +191,7 @@ export const BuildManifestSchema = z.object({
   startSceneId: z.string().min(1),
   contentPath: z.string().min(1),
   validationReportPath: z.string().min(1),
-  assetMap: z.record(z.string(), z.string())
+  assetMap: z.record(z.string(), z.record(z.string(), z.string()))
 });
 
 export const AssetManifestSchema = z.object({
@@ -216,7 +221,7 @@ export const InventoryFileSchema = z.object({
 
 export const StringTableSchema = z.object({
   schemaVersion: z.number().int().positive(),
-  values: z.record(z.string(), z.string()).default({})
+  byLocale: z.record(z.string(), z.record(z.string(), z.string())).default({})
 });
 
 export const ProjectBundleSchema = z.object({
@@ -242,6 +247,7 @@ export type DialogueChoice = z.infer<typeof DialogueChoiceSchema>;
 export type DialogueNode = z.infer<typeof DialogueNodeSchema>;
 export type DialogueTree = z.infer<typeof DialogueTreeSchema>;
 export type InventoryItem = z.infer<typeof InventoryItemSchema>;
+export type AssetVariant = z.infer<typeof AssetVariantSchema>;
 export type Asset = z.infer<typeof AssetSchema>;
 export type ProjectManifest = z.infer<typeof ProjectManifestSchema>;
 export type SaveState = z.infer<typeof SaveStateSchema>;
@@ -259,6 +265,7 @@ export interface ValidationIssue {
   code: string;
   message: string;
   entityId?: string;
+  locale?: string;
 }
 
 export interface ValidationReport {
@@ -274,5 +281,5 @@ export interface ExportProjectData {
   scenes: Scene[];
   dialogues: DialogueTree[];
   inventoryItems: InventoryItem[];
-  strings: Record<string, string>;
+  strings: Record<string, Record<string, string>>;
 }

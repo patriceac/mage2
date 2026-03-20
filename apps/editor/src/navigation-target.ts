@@ -9,5 +9,7 @@ export interface EditorNavigationTarget {
   dialogueId?: string;
   dialogueNodeId?: string;
   inventoryItemId?: string;
+  assetId?: string;
   textId?: string;
+  locale?: string;
 }

@@ -1,6 +1,7 @@
 import ReactFlow, { Background, Controls, type Edge, type Node } from "reactflow";
-import { type DialogueChoice, type DialogueNode, type ProjectBundle } from "@mage2/schema";
+import { getLocaleStringValues, type DialogueChoice, type DialogueNode, type ProjectBundle } from "@mage2/schema";
 import { addDialogueTree, createId, ensureString } from "../project-helpers";
+import { setEditorLocalizedText } from "../localized-project";
 import { useEditorStore } from "../store";
 
 interface DialoguePanelProps {
@@ -13,13 +14,15 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
   const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
+  const localeStrings = getLocaleStringValues(project, activeLocale);
 
   const dialogueNodes: Node[] =
     currentDialogue?.nodes.map((node, index) => ({
       id: node.id,
       position: { x: 80 + (index % 3) * 260, y: 80 + Math.floor(index / 3) * 180 },
-      data: { label: `${node.speaker}: ${project.strings.values[node.textId] ?? node.textId}` },
+      data: { label: `${node.speaker}: ${localeStrings[node.textId] ?? node.textId}` },
       style: {
         background:
           node.id === selectedDialogueNodeId
@@ -59,7 +62,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
             id: `${choice.id}-${choice.nextNodeId}`,
             source: node.id,
             target: choice.nextNodeId,
-            label: project.strings.values[choice.textId] ?? choice.textId
+            label: localeStrings[choice.textId] ?? choice.textId
           });
         }
       }
@@ -203,12 +206,12 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                 <label>
                   <span className="field-label--inset">Line</span>
                   <textarea
-                    value={project.strings.values[node.textId] ?? ""}
+                    value={localeStrings[node.textId] ?? ""}
                     title="Dialogue line text spoken by this node."
                     onFocus={() => setSelectedDialogueNodeId(node.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
-                        draft.strings.values[node.textId] = event.target.value;
+                        setEditorLocalizedText(draft, activeLocale, node.textId, event.target.value);
                       })
                     }
                   />
@@ -259,11 +262,11 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                       key={choice.id}
                       choice={choice}
                       nodes={currentDialogue.nodes.filter((option) => option.id !== node.id)}
-                      project={project}
+                      strings={localeStrings}
                       onFocus={() => setSelectedDialogueNodeId(node.id)}
                       onTextChange={(value) =>
                         mutateProject((draft) => {
-                          draft.strings.values[choice.textId] = value;
+                          setEditorLocalizedText(draft, activeLocale, choice.textId, value);
                         })
                       }
                       onUpdate={(nextChoice) =>
@@ -319,14 +322,14 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
 function ChoiceEditor({
   choice,
   nodes,
-  project,
+  strings,
   onFocus,
   onTextChange,
   onUpdate
 }: {
   choice: DialogueChoice;
   nodes: DialogueNode[];
-  project: ProjectBundle;
+  strings: Record<string, string>;
   onFocus: () => void;
   onTextChange: (value: string) => void;
   onUpdate: (nextChoice: DialogueChoice) => void;
@@ -336,7 +339,7 @@ function ChoiceEditor({
       <label title="Text shown to the player for this choice.">
         <span className="field-label--inset">Choice Text</span>
         <input
-          value={project.strings.values[choice.textId] ?? ""}
+          value={strings[choice.textId] ?? ""}
           title="Text shown to the player for this choice."
           onFocus={onFocus}
           onChange={(event) => onTextChange(event.target.value)}

@@ -8,9 +8,11 @@ describe("resolvePlaytestInventorySummary", () => {
     const project = createDefaultProjectBundle("Playtest inventory");
     const item = addInventoryItem(project);
     item.name = "Lantern";
-    project.strings.values[item.textId] = "Localized Lantern";
+    project.strings.byLocale[project.manifest.defaultLanguage][item.textId] = "Localized Lantern";
 
-    expect(resolvePlaytestInventorySummary([item], project.strings.values)).toBe("Localized Lantern");
+    expect(
+      resolvePlaytestInventorySummary([item], project.strings.byLocale[project.manifest.defaultLanguage])
+    ).toBe("Localized Lantern");
   });
 
   it("returns Empty when there are no inventory items", () => {

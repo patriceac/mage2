@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { createPlayerController } from "@mage2/player";
-import type { InventoryItem, ProjectBundle } from "@mage2/schema";
+import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
+import { getLocalizedAssetVariant } from "./localized-project";
+import { useEditorStore } from "./store";
 
 interface PlaytestPanelProps {
   project: ProjectBundle;
 }
 
 const STORAGE_KEY = "mage2-editor-playtest-save";
+const LOCALE_STORAGE_KEY = "mage2-editor-playtest-locale";
 
 export function resolvePlaytestInventorySummary(
   items: Array<Pick<InventoryItem, "name" | "textId">>,
@@ -21,11 +24,15 @@ export function resolvePlaytestInventorySummary(
 }
 
 export function PlaytestPanel({ project }: PlaytestPanelProps) {
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
   const [controller, setController] = useState(() => createPlayerController(project));
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
   const [showHotspots, setShowHotspots] = useState(false);
+  const supportedLocales = normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales);
+  const localeStrings = getLocaleStringValues(project, activeLocale);
 
   useEffect(() => {
     const nextController = createPlayerController(project);
@@ -35,12 +42,24 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   }, [project]);
 
   useEffect(() => {
+    const storedLocale = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (storedLocale && supportedLocales.includes(storedLocale) && storedLocale !== activeLocale) {
+      setActiveLocale(storedLocale);
+    }
+  }, [activeLocale, setActiveLocale, supportedLocales]);
+
+  useEffect(() => {
+    localStorage.setItem(LOCALE_STORAGE_KEY, activeLocale);
+  }, [activeLocale]);
+
+  useEffect(() => {
     setSelectedAssetId(snapshot.scene.backgroundAssetId);
   }, [snapshot.scene.backgroundAssetId]);
 
   const sceneAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
+  const sceneAssetVariant = getLocalizedAssetVariant(sceneAsset, activeLocale);
   const visibleHotspots = controller.getVisibleHotspots(playheadMs);
-  const subtitleLines = controller.getSubtitleLines(playheadMs);
+  const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
 
   return (
     <div className="panel-grid panel-grid--playtest">
@@ -51,11 +70,21 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             <input
               type="range"
               min={0}
-              max={sceneAsset?.durationMs ?? 30000}
-              value={Math.min(playheadMs, sceneAsset?.durationMs ?? 30000)}
+              max={sceneAssetVariant?.durationMs ?? 30000}
+              value={Math.min(playheadMs, sceneAssetVariant?.durationMs ?? 30000)}
               title="Scrub through the current scene preview to inspect timing, subtitles, and hotspot visibility."
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
+          </label>
+          <label>
+            Locale
+            <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+              {supportedLocales.map((locale) => (
+                <option key={locale} value={locale}>
+                  {locale}
+                </option>
+              ))}
+            </select>
           </label>
           <button
             type="button"
@@ -102,11 +131,12 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
 
         <MediaSurface
           asset={sceneAsset}
+          locale={activeLocale}
           loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
           hotspotAppearance={showHotspots ? "runtime" : "hidden"}
           showHotspotLabels={false}
-          strings={project.strings.values}
+          strings={localeStrings}
           playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
           onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
           onHotspotClick={(hotspotId) => {
@@ -132,7 +162,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         {snapshot.activeDialogue ? (
           <div className="dialogue-box">
             <h4>{snapshot.activeDialogue.node.speaker}</h4>
-            <p>{project.strings.values[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
+            <p>{localeStrings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
 
             {snapshot.activeDialogue.choices.length > 0 ? (
               <div className="choice-list">
@@ -146,7 +176,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
                       setSnapshot(controller.getSnapshot());
                     }}
                   >
-                    {project.strings.values[choice.textId] ?? choice.textId}
+                    {localeStrings[choice.textId] ?? choice.textId}
                   </button>
                 ))}
               </div>
@@ -178,7 +208,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             <pre>{JSON.stringify(snapshot.flags, null, 2)}</pre>
           </dd>
           <dt>Inventory</dt>
-          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, project.strings.values)}</dd>
+          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, localeStrings)}</dd>
           <dt>Visited Scenes</dt>
           <dd>{snapshot.saveState.visitedSceneIds.join(", ")}</dd>
         </dl>

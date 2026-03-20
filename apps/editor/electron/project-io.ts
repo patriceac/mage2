@@ -5,6 +5,7 @@ import {
   createDefaultProjectBundle,
   parseProjectBundle,
   type Asset,
+  type AssetVariant,
   type ProjectBundle
 } from "@mage2/schema";
 
@@ -140,19 +141,25 @@ function slugify(input: string): string {
 async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle): Promise<void> {
   const assetsDir = path.join(projectDir, "assets");
   const starterAssetPath = path.join(assetsDir, STARTER_SCENE_ASSET_NAME);
+  const defaultLocale = project.manifest.defaultLanguage;
 
   await mkdir(assetsDir, { recursive: true });
   await writeFile(starterAssetPath, createStarterSceneSvg(), "utf8");
 
-  const starterAsset: Asset = {
-    id: "asset_placeholder",
-    kind: "image",
-    name: STARTER_SCENE_ASSET_NAME,
+  const starterVariant: AssetVariant = {
     sourcePath: starterAssetPath,
     sha256: await computeFileSha256(starterAssetPath),
     importedAt: new Date().toISOString(),
     width: 1280,
     height: 720
+  };
+  const starterAsset: Asset = {
+    id: "asset_placeholder",
+    kind: "image",
+    name: STARTER_SCENE_ASSET_NAME,
+    variants: {
+      [defaultLocale]: starterVariant
+    }
   };
 
   const existingAssetIndex = project.assets.assets.findIndex((asset) => asset.id === starterAsset.id);

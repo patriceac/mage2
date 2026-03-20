@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ProjectBundle } from "@mage2/schema";
+import { normalizeSupportedLocales, type ProjectBundle } from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
@@ -16,7 +16,9 @@ interface EditorState {
   selectedHotspotId?: string;
   selectedDialogueNodeId?: string;
   selectedInventoryItemId?: string;
+  selectedAssetId?: string;
   selectedTextId?: string;
+  activeLocale?: string;
   playheadMs: number;
   setProjectContext: (project: ProjectBundle, projectDir: string) => void;
   updateProject: (project: ProjectBundle) => void;
@@ -29,11 +31,14 @@ interface EditorState {
   setSelectedHotspotId: (selectedHotspotId?: string) => void;
   setSelectedDialogueNodeId: (selectedDialogueNodeId?: string) => void;
   setSelectedInventoryItemId: (selectedInventoryItemId?: string) => void;
+  setSelectedAssetId: (selectedAssetId?: string) => void;
   setSelectedTextId: (selectedTextId?: string) => void;
+  setActiveLocale: (activeLocale?: string) => void;
   setPlayheadMs: (playheadMs: number) => void;
 }
 
 function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<EditorState>) {
+  const supportedLocales = normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales);
   return {
     selectedLocationId: state?.selectedLocationId ?? project.locations.items[0]?.id,
     selectedSceneId: state?.selectedSceneId ?? project.scenes.items[0]?.id,
@@ -41,7 +46,12 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
     selectedHotspotId: state?.selectedHotspotId,
     selectedDialogueNodeId: state?.selectedDialogueNodeId,
     selectedInventoryItemId: state?.selectedInventoryItemId,
-    selectedTextId: state?.selectedTextId
+    selectedAssetId: state?.selectedAssetId ?? project.assets.assets[0]?.id,
+    selectedTextId: state?.selectedTextId,
+    activeLocale:
+      state?.activeLocale && supportedLocales.includes(state.activeLocale)
+        ? state.activeLocale
+        : project.manifest.defaultLanguage
   };
 }
 
@@ -87,7 +97,9 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedHotspotId: undefined,
       selectedDialogueNodeId: undefined,
       selectedInventoryItemId: undefined,
+      selectedAssetId: undefined,
       selectedTextId: undefined,
+      activeLocale: undefined,
       playheadMs: 0
     }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -97,6 +109,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelectedHotspotId: (selectedHotspotId) => set({ selectedHotspotId }),
   setSelectedDialogueNodeId: (selectedDialogueNodeId) => set({ selectedDialogueNodeId }),
   setSelectedInventoryItemId: (selectedInventoryItemId) => set({ selectedInventoryItemId }),
+  setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
   setSelectedTextId: (selectedTextId) => set({ selectedTextId }),
+  setActiveLocale: (activeLocale) => set({ activeLocale }),
   setPlayheadMs: (playheadMs) => set({ playheadMs })
 }));

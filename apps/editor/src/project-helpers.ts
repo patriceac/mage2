@@ -10,7 +10,12 @@ import type {
   Scene,
   SubtitleCue
 } from "@mage2/schema";
-import { createRectangleHotspotPolygon, resolveHotspotBounds } from "@mage2/schema";
+import {
+  createRectangleHotspotPolygon,
+  ensureLocaleStringValues,
+  normalizeSupportedLocales,
+  resolveHotspotBounds
+} from "@mage2/schema";
 import { roundHotspotCoordinate } from "./hotspot-geometry";
 import {
   collectOwnedGeneratedProjectTextIdsForHotspot,
@@ -100,9 +105,11 @@ export function synchronizeAssetRoots(project: ProjectBundle): void {
   const nextAssetRoots: string[] = [];
 
   for (const asset of project.assets.assets) {
-    const root = asset.sourcePath.replace(/[\\/][^\\/]+$/, "");
-    if (root && !nextAssetRoots.includes(root)) {
-      nextAssetRoots.push(root);
+    for (const variant of Object.values(asset.variants)) {
+      const root = variant.sourcePath.replace(/[\\/][^\\/]+$/, "");
+      if (root && !nextAssetRoots.includes(root)) {
+        nextAssetRoots.push(root);
+      }
     }
   }
 
@@ -111,9 +118,11 @@ export function synchronizeAssetRoots(project: ProjectBundle): void {
 
 export function addAssetRoots(project: ProjectBundle, assets: Asset[]): void {
   for (const asset of assets) {
-    const root = asset.sourcePath.replace(/[\\/][^\\/]+$/, "");
-    if (root && !project.manifest.assetRoots.includes(root)) {
-      project.manifest.assetRoots.push(root);
+    for (const variant of Object.values(asset.variants)) {
+      const root = variant.sourcePath.replace(/[\\/][^\\/]+$/, "");
+      if (root && !project.manifest.assetRoots.includes(root)) {
+        project.manifest.assetRoots.push(root);
+      }
     }
   }
 }
@@ -380,8 +389,11 @@ export function removeHotspotFromProject(
 }
 
 export function ensureString(project: ProjectBundle, textId: string, fallback: string): void {
-  if (!(textId in project.strings.values)) {
-    project.strings.values[textId] = fallback;
+  for (const locale of normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales)) {
+    const values = ensureLocaleStringValues(project, locale);
+    if (!(textId in values)) {
+      values[textId] = fallback;
+    }
   }
 }
 

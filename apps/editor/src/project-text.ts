@@ -10,6 +10,7 @@ import type {
   SubtitleTrack,
   ValidationIssue
 } from "@mage2/schema";
+import { getLocaleStringValues } from "@mage2/schema";
 import type { EditorNavigationTarget } from "./navigation-target";
 
 export type ProjectTextUsageKind =
@@ -167,7 +168,7 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
   return usages;
 }
 
-export function collectProjectTextEntries(project: ProjectBundle): ProjectTextEntry[] {
+export function collectProjectTextEntries(project: ProjectBundle, locale: string): ProjectTextEntry[] {
   const usages = collectProjectTextUsages(project);
   const usagesByTextId = new Map<string, ProjectTextUsage[]>();
 
@@ -181,7 +182,8 @@ export function collectProjectTextEntries(project: ProjectBundle): ProjectTextEn
   }
 
   const excludedTextIds = collectExcludedProjectTextIds(project);
-  const storedTextIds = Object.keys(project.strings.values).filter(
+  const localizedStrings = getLocaleStringValues(project, locale);
+  const storedTextIds = Object.keys(localizedStrings).filter(
     (textId) => !excludedTextIds.has(textId) && !matchesExcludedLegacyProjectTextPattern(textId)
   );
   const textIds = new Set<string>([...storedTextIds, ...usagesByTextId.keys()]);
@@ -189,13 +191,13 @@ export function collectProjectTextEntries(project: ProjectBundle): ProjectTextEn
   return [...textIds]
     .map((textId) => {
       const entryUsages = usagesByTextId.get(textId) ?? [];
-      const exists = Object.prototype.hasOwnProperty.call(project.strings.values, textId);
+      const exists = Object.prototype.hasOwnProperty.call(localizedStrings, textId);
       const status: ProjectTextEntryStatus =
         entryUsages.length === 0 ? "orphaned" : exists ? "referenced" : "missing";
 
       return {
         textId,
-        value: exists ? project.strings.values[textId] : "",
+        value: exists ? localizedStrings[textId] : "",
         status,
         usages: entryUsages
       };
@@ -333,8 +335,9 @@ export function resolveProjectTextSelection(
   return entries.some((entry) => entry.textId === selectedTextId) ? selectedTextId : entries[0]?.textId;
 }
 
-export function deleteOrphanedProjectTextEntries(project: ProjectBundle, textIds: string[]): string[] {
-  const entryMap = new Map(collectProjectTextEntries(project).map((entry) => [entry.textId, entry]));
+export function deleteOrphanedProjectTextEntries(project: ProjectBundle, locale: string, textIds: string[]): string[] {
+  const localizedStrings = getLocaleStringValues(project, locale);
+  const entryMap = new Map(collectProjectTextEntries(project, locale).map((entry) => [entry.textId, entry]));
   const deletedTextIds: string[] = [];
 
   for (const textId of new Set(textIds)) {
@@ -343,11 +346,11 @@ export function deleteOrphanedProjectTextEntries(project: ProjectBundle, textIds
       continue;
     }
 
-    if (!Object.prototype.hasOwnProperty.call(project.strings.values, textId)) {
+    if (!Object.prototype.hasOwnProperty.call(localizedStrings, textId)) {
       continue;
     }
 
-    delete project.strings.values[textId];
+    delete localizedStrings[textId];
     deletedTextIds.push(textId);
   }
 
@@ -359,16 +362,23 @@ export function pruneOwnedGeneratedProjectTextEntries(project: ProjectBundle, te
   const deletedTextIds: string[] = [];
 
   for (const textId of new Set(textIds)) {
-    if (!Object.prototype.hasOwnProperty.call(project.strings.values, textId)) {
-      continue;
-    }
-
     if ((referenceCounts.get(textId) ?? 0) > 0) {
       continue;
     }
 
-    delete project.strings.values[textId];
-    deletedTextIds.push(textId);
+    let deleted = false;
+    for (const localizedStrings of Object.values(project.strings.byLocale)) {
+      if (!Object.prototype.hasOwnProperty.call(localizedStrings, textId)) {
+        continue;
+      }
+
+      delete localizedStrings[textId];
+      deleted = true;
+    }
+
+    if (deleted) {
+      deletedTextIds.push(textId);
+    }
   }
 
   return deletedTextIds;
