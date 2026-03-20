@@ -33,7 +33,8 @@ export function resolveIssueNavigation(
       label: projectTextUsage.textId,
       tab: "localization",
       textId: projectTextUsage.textId,
-      locale: issue.locale ?? project.manifest.defaultLanguage
+      locale: issue.locale ?? project.manifest.defaultLanguage,
+      localizationSection: projectTextUsage.kind === "subtitleCue" ? "subtitles" : "strings"
     };
   }
 
@@ -97,11 +98,20 @@ export function resolveIssueNavigation(
 
     const asset = project.assets.assets.find((entry) => entry.id === entityId);
     if (asset) {
+      if (issue.code === "SCENE_BACKGROUND_LOCALE_MISSING") {
+        return {
+          label: asset.name,
+          tab: "localization",
+          assetId: asset.id,
+          locale: issue.locale ?? project.manifest.defaultLanguage,
+          localizationSection: "media"
+        };
+      }
+
       return {
         label: asset.name,
         tab: "assets",
-        assetId: asset.id,
-        locale: issue.locale ?? project.manifest.defaultLanguage
+        assetId: asset.id
       };
     }
 
@@ -162,9 +172,10 @@ export function resolveIssueNavigation(
     case "SCENE_BACKGROUND_LOCALE_MISSING":
       return {
         label: "localized media",
-        tab: "assets",
+        tab: "localization",
         locale: issue.locale ?? project.manifest.defaultLanguage,
-        assetId: issue.entityId
+        assetId: issue.entityId,
+        localizationSection: "media"
       };
     case "HOTSPOT_DIALOGUE_MISSING":
     case "EFFECT_DIALOGUE_MISSING":
@@ -202,18 +213,18 @@ export function resolveIssueEntityLabel(
 export function getIssueHint(issue: ValidationIssue): string {
   switch (issue.code) {
     case "HOTSPOT_COMMENT_TEXT_MISSING":
-      return "Add the missing locale entry in the Localization tab or restore it from the hotspot editor in Scenes.";
+      return "Add the missing text in Localization > Strings, or restore the default-locale value from Scenes.";
     case "SUBTITLE_TEXT_MISSING":
     case "SUBTITLE_TEXT_EMPTY":
-      return "Add the missing locale entry in the Localization tab or restore it from the subtitle editor in Scenes.";
+      return "Add the missing subtitle in Localization > Subtitles, or restore the default-locale value from Scenes.";
     case "DIALOGUE_TEXT_MISSING":
     case "DIALOGUE_CHOICE_TEXT_MISSING":
-      return "Add the missing locale entry in the Localization tab or restore it from the dialogue editor.";
+      return "Add the missing text in Localization > Strings, or restore the default-locale value from Dialogue.";
     case "INVENTORY_NAME_TEXT_MISSING":
     case "INVENTORY_DESCRIPTION_TEXT_MISSING":
-      return "Add the missing locale entry in the Localization tab or restore it from the inventory editor.";
+      return "Add the missing text in Localization > Strings, or restore the default-locale value from Inventory.";
     case "SCENE_BACKGROUND_LOCALE_MISSING":
-      return "Import or replace the missing locale media variant in the Assets tab.";
+      return "Add or replace the missing locale media variant in Localization > Media.";
     case "SCENE_BACKGROUND_MISSING":
       return "Import media in Assets, then assign a background asset in the Scenes tab.";
     case "HOTSPOT_TARGET_SCENE_MISSING":

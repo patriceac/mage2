@@ -7,11 +7,13 @@ import { useEditorStore } from "../store";
 import { LocalizationPanel, normalizeLocaleInput } from "./LocalizationPanel";
 
 describe("LocalizationPanel area filter", () => {
-  it("shows all, dialogue, inventory, and subtitles options without reintroducing scenes", () => {
+  it("keeps scenes in strings and moves subtitles into their own section", () => {
     const project = createDefaultProjectBundle("Localization filter");
 
     useEditorStore.setState({
       activeTab: "localization",
+      localizationSection: "overview",
+      localizationLocale: project.manifest.defaultLanguage,
       selectedLocationId: project.locations.items[0]?.id,
       selectedSceneId: project.scenes.items[0]?.id,
       selectedHotspotId: undefined,
@@ -25,20 +27,26 @@ describe("LocalizationPanel area filter", () => {
       React.createElement(
         DialogProvider,
         null,
-        React.createElement(LocalizationPanel, { project, mutateProject: () => {} })
+        React.createElement(LocalizationPanel, {
+          project,
+          mutateProject: () => {},
+          setSavedProject: () => {},
+          setStatusMessage: () => {},
+          setBusyLabel: () => {}
+        })
       )
     );
 
     expect(markup).toContain('value="all"');
     expect(markup).toContain(">All areas</option>");
+    expect(markup).toContain('value="scenes"');
+    expect(markup).toContain(">Scenes</option>");
     expect(markup).toContain('value="dialogue"');
     expect(markup).toContain(">Dialogue</option>");
     expect(markup).toContain('value="inventory"');
     expect(markup).toContain(">Inventory</option>");
-    expect(markup).toContain('value="subtitles"');
-    expect(markup).toContain(">Subtitles</option>");
-    expect(markup).not.toContain('value="scenes"');
-    expect(markup).not.toContain(">Scenes</option>");
+    expect(markup).not.toContain('value="subtitles"');
+    expect(markup).toContain(">Subtitles</h3>");
   });
 });
 

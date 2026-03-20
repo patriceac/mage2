@@ -18,7 +18,8 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "localization",
       textId: "text.hotspot.inspect.comment",
-      label: "text.hotspot.inspect.comment"
+      label: "text.hotspot.inspect.comment",
+      localizationSection: "strings"
     });
   });
 
@@ -37,7 +38,8 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "localization",
       textId: "text.cue_intro.subtitle",
-      label: "text.cue_intro.subtitle"
+      label: "text.cue_intro.subtitle",
+      localizationSection: "subtitles"
     });
   });
 
@@ -57,7 +59,8 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "localization",
       textId: "text.cue_intro.subtitle",
-      label: "text.cue_intro.subtitle"
+      label: "text.cue_intro.subtitle",
+      localizationSection: "subtitles"
     });
   });
 
@@ -73,7 +76,8 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "localization",
       textId: nodeTextId,
-      label: nodeTextId
+      label: nodeTextId,
+      localizationSection: "strings"
     });
   });
 
@@ -89,7 +93,8 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "localization",
       textId: choiceTextId,
-      label: choiceTextId
+      label: choiceTextId,
+      localizationSection: "strings"
     });
   });
 
@@ -111,7 +116,8 @@ describe("resolveIssueNavigation", () => {
     expect(nameTarget).toMatchObject({
       tab: "localization",
       textId: item.textId,
-      label: item.textId
+      label: item.textId,
+      localizationSection: "strings"
     });
   });
 
@@ -135,7 +141,34 @@ describe("resolveIssueNavigation", () => {
     expect(descriptionTarget).toMatchObject({
       tab: "localization",
       textId: item.descriptionTextId,
-      label: item.descriptionTextId
+      label: item.descriptionTextId,
+      localizationSection: "strings"
+    });
+  });
+
+  it("routes missing localized scene media to Localization > Media", () => {
+    const project = createDefaultProjectBundle("Localized media navigation");
+    project.manifest.supportedLocales = ["fr"];
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "image",
+      name: "Placeholder",
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+
+    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_BACKGROUND_LOCALE_MISSING");
+    const target = issue ? resolveIssueNavigation(project, issue) : undefined;
+
+    expect(target).toMatchObject({
+      tab: "localization",
+      assetId: project.scenes.items[0].backgroundAssetId,
+      locale: "fr",
+      localizationSection: "media"
     });
   });
 });

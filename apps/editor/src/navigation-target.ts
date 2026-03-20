@@ -1,4 +1,4 @@
-import type { EditorTab } from "./store";
+import type { EditorTab, LocalizationSection } from "./store";
 
 export interface EditorNavigationTarget {
   label: string;
@@ -12,4 +12,5 @@ export interface EditorNavigationTarget {
   assetId?: string;
   textId?: string;
   locale?: string;
+  localizationSection?: LocalizationSection;
 }

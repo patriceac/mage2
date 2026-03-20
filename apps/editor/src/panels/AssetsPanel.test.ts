@@ -7,7 +7,7 @@ import { useEditorStore } from "../store";
 import { AssetsPanel } from "./AssetsPanel";
 
 describe("AssetsPanel proxy UI", () => {
-  it("does not render manual proxy generation controls or prompts", () => {
+  it("keeps asset cards focused on asset details instead of localization status copy", () => {
     const project = createDefaultProjectBundle("Assets");
     const asset: Asset = {
       id: "asset_previewless",
@@ -24,8 +24,7 @@ describe("AssetsPanel proxy UI", () => {
 
     useEditorStore.setState({
       activeTab: "assets",
-      selectedAssetId: asset.id,
-      activeLocale: "en"
+      selectedAssetId: asset.id
     });
 
     const markup = renderToStaticMarkup(
@@ -44,6 +43,9 @@ describe("AssetsPanel proxy UI", () => {
     expect(markup).not.toContain("Generate Missing");
     expect(markup).not.toContain("Generate Proxy");
     expect(markup).not.toContain("proxy missing");
-    expect(markup).toContain("preview unavailable");
+    expect(markup).not.toContain("preview unavailable");
+    expect(markup).not.toContain("Present:");
+    expect(markup).not.toContain("Manage locale-specific variants");
+    expect(markup).toContain("Not currently in use.");
   });
 });

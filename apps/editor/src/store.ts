@@ -3,6 +3,7 @@ import { normalizeSupportedLocales, type ProjectBundle } from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
+export type LocalizationSection = "overview" | "strings" | "subtitles" | "media";
 
 interface EditorState {
   projectDir?: string;
@@ -18,7 +19,9 @@ interface EditorState {
   selectedInventoryItemId?: string;
   selectedAssetId?: string;
   selectedTextId?: string;
-  activeLocale?: string;
+  localizationLocale?: string;
+  playtestLocale?: string;
+  localizationSection: LocalizationSection;
   playheadMs: number;
   setProjectContext: (project: ProjectBundle, projectDir: string) => void;
   updateProject: (project: ProjectBundle) => void;
@@ -33,7 +36,9 @@ interface EditorState {
   setSelectedInventoryItemId: (selectedInventoryItemId?: string) => void;
   setSelectedAssetId: (selectedAssetId?: string) => void;
   setSelectedTextId: (selectedTextId?: string) => void;
-  setActiveLocale: (activeLocale?: string) => void;
+  setLocalizationLocale: (localizationLocale?: string) => void;
+  setPlaytestLocale: (playtestLocale?: string) => void;
+  setLocalizationSection: (localizationSection: LocalizationSection) => void;
   setPlayheadMs: (playheadMs: number) => void;
 }
 
@@ -48,16 +53,22 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
     selectedInventoryItemId: state?.selectedInventoryItemId,
     selectedAssetId: state?.selectedAssetId ?? project.assets.assets[0]?.id,
     selectedTextId: state?.selectedTextId,
-    activeLocale:
-      state?.activeLocale && supportedLocales.includes(state.activeLocale)
-        ? state.activeLocale
-        : project.manifest.defaultLanguage
+    localizationLocale:
+      state?.localizationLocale && supportedLocales.includes(state.localizationLocale)
+        ? state.localizationLocale
+        : project.manifest.defaultLanguage,
+    playtestLocale:
+      state?.playtestLocale && supportedLocales.includes(state.playtestLocale)
+        ? state.playtestLocale
+        : project.manifest.defaultLanguage,
+    localizationSection: state?.localizationSection ?? "overview"
   };
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
   hasUnsavedChanges: false,
   activeTab: "world",
+  localizationSection: "overview",
   playheadMs: 0,
   setProjectContext: (project, projectDir) =>
     set({
@@ -99,7 +110,9 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedInventoryItemId: undefined,
       selectedAssetId: undefined,
       selectedTextId: undefined,
-      activeLocale: undefined,
+      localizationLocale: undefined,
+      playtestLocale: undefined,
+      localizationSection: "overview",
       playheadMs: 0
     }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -111,6 +124,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelectedInventoryItemId: (selectedInventoryItemId) => set({ selectedInventoryItemId }),
   setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
   setSelectedTextId: (selectedTextId) => set({ selectedTextId }),
-  setActiveLocale: (activeLocale) => set({ activeLocale }),
+  setLocalizationLocale: (localizationLocale) => set({ localizationLocale }),
+  setPlaytestLocale: (playtestLocale) => set({ playtestLocale }),
+  setLocalizationSection: (localizationSection) => set({ localizationSection }),
   setPlayheadMs: (playheadMs) => set({ playheadMs })
 }));

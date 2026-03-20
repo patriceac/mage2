@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPlayerController } from "@mage2/player";
 import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
@@ -23,15 +23,26 @@ export function resolvePlaytestInventorySummary(
   return labels.join(", ") || "Empty";
 }
 
+export function resolveStoredPlaytestLocale(
+  storedLocale: string | null,
+  supportedLocales: readonly string[],
+  fallbackLocale: string
+): string {
+  return storedLocale && supportedLocales.includes(storedLocale) ? storedLocale : fallbackLocale;
+}
+
 export function PlaytestPanel({ project }: PlaytestPanelProps) {
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
-  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
+  const activeLocale = useEditorStore((state) => state.playtestLocale) ?? project.manifest.defaultLanguage;
+  const setActiveLocale = useEditorStore((state) => state.setPlaytestLocale);
   const [controller, setController] = useState(() => createPlayerController(project));
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
   const [showHotspots, setShowHotspots] = useState(false);
-  const supportedLocales = normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales);
+  const supportedLocales = useMemo(
+    () => normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales),
+    [project.manifest.defaultLanguage, project.manifest.supportedLocales]
+  );
   const localeStrings = getLocaleStringValues(project, activeLocale);
 
   useEffect(() => {
@@ -42,11 +53,15 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   }, [project]);
 
   useEffect(() => {
-    const storedLocale = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (storedLocale && supportedLocales.includes(storedLocale) && storedLocale !== activeLocale) {
-      setActiveLocale(storedLocale);
+    const nextLocale = resolveStoredPlaytestLocale(
+      localStorage.getItem(LOCALE_STORAGE_KEY),
+      supportedLocales,
+      project.manifest.defaultLanguage
+    );
+    if (nextLocale !== useEditorStore.getState().playtestLocale) {
+      setActiveLocale(nextLocale);
     }
-  }, [activeLocale, setActiveLocale, supportedLocales]);
+  }, [project.manifest.defaultLanguage, setActiveLocale, supportedLocales]);
 
   useEffect(() => {
     localStorage.setItem(LOCALE_STORAGE_KEY, activeLocale);
