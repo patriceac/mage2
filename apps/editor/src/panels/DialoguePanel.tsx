@@ -142,7 +142,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
         )}
       </section>
 
-      <aside className="panel">
+      <aside className="panel dialogue-panel__inspector">
         {currentDialogue ? (
           <>
             <label title="Readable editor name for this dialogue tree.">

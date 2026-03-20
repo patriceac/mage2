@@ -110,7 +110,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
           </div>
         </>
       ),
-      confirmLabel: isBulkDelete ? "Delete Visible Orphaned" : "Delete Orphaned Entry",
+      confirmLabel: isBulkDelete ? "Delete Orphans" : "Delete Orphaned Entry",
       cancelLabel: "Keep Entries",
       tone: "danger"
     });
@@ -180,8 +180,8 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
   return (
     <div className="panel-grid panel-grid--localization">
       <section className="panel localization-panel">
-        <div className="panel__toolbar localization-panel__header">
-          <div>
+        <div className="localization-panel__header">
+          <div className="localization-panel__toolbar-copy">
             <h3>Project Text</h3>
             <p className="muted localization-panel__summary">
               {hasActiveSearchOrFilter
@@ -191,7 +191,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
             </p>
           </div>
           <div className="localization-panel__toolbar-actions">
-            <label className="localization-filter">
+            <label className="localization-filter localization-panel__locale-filter">
               <span className="field-label--inset">Locale</span>
               <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
                 {supportedLocales.map((locale) => (
@@ -201,36 +201,29 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
                 ))}
               </select>
             </label>
-            <button type="button" className="button-secondary" onClick={() => void handleAddLocale()}>
-              Add Locale
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={activeLocale === project.manifest.defaultLanguage}
-              onClick={handleSetDefaultLocale}
-              title="Make the selected locale the project default."
-            >
-              Set Default
-            </button>
-            <button
-              type="button"
-              className="button-danger"
-              disabled={activeLocale === project.manifest.defaultLanguage}
-              onClick={() => void handleRemoveLocale()}
-              title="Remove the selected non-default locale from the project."
-            >
-              Remove Locale
-            </button>
-            <button
-              type="button"
-              className="button-danger"
-              disabled={visibleOrphanedEntries.length === 0}
-              title="Delete all orphaned entries currently visible in this filtered list."
-              onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
-            >
-              Delete Visible Orphaned
-            </button>
+            <div className="localization-panel__action-buttons">
+              <button type="button" className="button-secondary" onClick={() => void handleAddLocale()}>
+                Add Locale
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={activeLocale === project.manifest.defaultLanguage}
+                onClick={handleSetDefaultLocale}
+                title="Make the selected locale the project default."
+              >
+                Set Default
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                disabled={activeLocale === project.manifest.defaultLanguage}
+                onClick={() => void handleRemoveLocale()}
+                title="Remove the selected non-default locale from the project."
+              >
+                Remove Locale
+              </button>
+            </div>
           </div>
         </div>
 
@@ -271,96 +264,117 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
           </label>
         </div>
 
-        {visibleEntries.length > 0 ? (
-          <div className="list-stack localization-list">
-            {visibleEntries.map((entry) => {
-              const isSelected = entry.textId === activeTextId;
-              const usageAreas = [...new Set(entry.usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))];
-              return (
-                <article
-                  key={entry.textId}
-                  className={isSelected ? "list-card list-card--selected localization-entry" : "list-card localization-entry"}
-                >
-                  <div className="localization-entry__header">
-                    <button
-                      type="button"
-                      className="localization-entry__select"
-                      onClick={() => setSelectedTextId(entry.textId)}
-                      title={`Inspect the project text entry ${entry.textId}.`}
-                    >
-                      <code>{entry.textId}</code>
-                    </button>
-                    <div className="localization-entry__badges">
-                      {usageAreas.map((area) => (
-                        <span key={area} className="localization-area">
-                          {area}
-                        </span>
-                      ))}
-                      <span
-                        className={`localization-status localization-status--${entry.status}`}
-                        title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
+        <div className="localization-panel__results">
+          {visibleOrphanedEntries.length > 0 ? (
+            <div className="localization-panel__list-actions">
+              <p className="muted localization-panel__list-action-summary">
+                {visibleOrphanedEntries.length} visible orphaned entr
+                {visibleOrphanedEntries.length === 1 ? "y" : "ies"}
+              </p>
+              <button
+                type="button"
+                className="button-danger"
+                title="Delete all orphaned entries currently visible in this filtered list."
+                onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
+              >
+                Delete Orphans
+              </button>
+            </div>
+          ) : null}
+
+          {visibleEntries.length > 0 ? (
+            <div className="list-stack localization-list">
+              {visibleEntries.map((entry) => {
+                const isSelected = entry.textId === activeTextId;
+                const usageAreas = [
+                  ...new Set(entry.usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))
+                ];
+                return (
+                  <article
+                    key={entry.textId}
+                    className={isSelected ? "list-card list-card--selected localization-entry" : "list-card localization-entry"}
+                  >
+                    <div className="localization-entry__header">
+                      <button
+                        type="button"
+                        className="localization-entry__select"
+                        onClick={() => setSelectedTextId(entry.textId)}
+                        title={`Inspect the project text entry ${entry.textId}.`}
                       >
-                        {getProjectTextStatusLabel(entry.status)}
-                      </span>
-                      {entry.status === "orphaned" ? (
-                        <button
-                          type="button"
-                          className="button-danger button-danger--compact"
-                          title={`Delete the orphaned string ${entry.textId}.`}
-                          onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
+                        <code>{entry.textId}</code>
+                      </button>
+                      <div className="localization-entry__badges">
+                        {usageAreas.map((area) => (
+                          <span key={area} className="localization-area">
+                            {area}
+                          </span>
+                        ))}
+                        <span
+                          className={`localization-status localization-status--${entry.status}`}
+                          title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
                         >
-                          Delete
-                        </button>
-                      ) : null}
+                          {getProjectTextStatusLabel(entry.status)}
+                        </span>
+                        {entry.status === "orphaned" ? (
+                          <button
+                            type="button"
+                            className="button-danger button-danger--compact"
+                            title={`Delete the orphaned string ${entry.textId}.`}
+                            onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
 
-                  <p className="muted localization-entry__summary">{summarizeProjectTextUsages(entry.usages)}</p>
+                    <p className="muted localization-entry__summary">{summarizeProjectTextUsages(entry.usages)}</p>
 
-                  <label>
-                    <span className="field-label--inset">Source Text</span>
-                    <textarea
-                      value={entry.value}
-                      title={`Edit the source text stored under ${entry.textId}.`}
-                      onFocus={() => setSelectedTextId(entry.textId)}
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
-                        })
-                      }
-                    />
-                  </label>
+                    <label>
+                      <span className="field-label--inset">Source Text</span>
+                      <textarea
+                        value={entry.value}
+                        title={`Edit the source text stored under ${entry.textId}.`}
+                        onFocus={() => setSelectedTextId(entry.textId)}
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
+                          })
+                        }
+                      />
+                    </label>
 
-                  {entry.usages.length > 0 ? (
-                    <div className="pill-list localization-entry__actions">
-                      {entry.usages.map((usage, index) => (
-                        <button
-                          key={`${usage.kind}-${usage.ownerId}-${index}`}
-                          type="button"
-                          className="button-secondary localization-entry__jump"
-                          onClick={() => handleNavigate(usage.navigation, entry.textId)}
-                          title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
-                        >
-                          {formatProjectTextUsageKind(usage.kind)} - {usage.ownerLabel}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="muted localization-entry__orphan">
-                      No current references. Keep this entry for later reuse or repurpose it when you are ready.
-                    </p>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        ) : allEntries.length > 0 ? (
-          <p className="muted localization-panel__empty-state">
-            No project text entries match the current search and filters.
-          </p>
-        ) : (
-          <p className="muted">No project text entries yet.</p>
-        )}
+                    {entry.usages.length > 0 ? (
+                      <div className="pill-list localization-entry__actions">
+                        {entry.usages.map((usage, index) => (
+                          <button
+                            key={`${usage.kind}-${usage.ownerId}-${index}`}
+                            type="button"
+                            className="button-secondary localization-entry__jump"
+                            onClick={() => handleNavigate(usage.navigation, entry.textId)}
+                            title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
+                          >
+                            {formatProjectTextUsageKind(usage.kind)} - {usage.ownerLabel}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted localization-entry__orphan">
+                        No current references. Keep this entry for later reuse or repurpose it when you are ready.
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          ) : allEntries.length > 0 ? (
+            <p className="muted localization-panel__empty-state">
+              No project text entries match the current search and filters.
+            </p>
+          ) : (
+            <p className="muted">No project text entries yet.</p>
+          )}
+        </div>
       </section>
 
       <aside className="panel localization-context">
