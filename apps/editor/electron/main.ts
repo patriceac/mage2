@@ -2,7 +2,14 @@ import path from "node:path";
 import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { deleteManagedAssetFiles, generateProxy, importAssetsToProject, parseSubtitleFiles } from "@mage2/media";
+import {
+  deleteManagedAssetFiles,
+  deleteManagedAssetVariantFiles,
+  generateProxy,
+  importAssetsToProject,
+  importAssetVariantToProject,
+  parseSubtitleFiles
+} from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
 import { exportProjectBundle } from "./exporter";
@@ -204,22 +211,39 @@ function registerIpcHandlers(): void {
     };
   });
 
-  ipcMain.handle("mage2:import-assets", async (_event, projectDir: string, existingAssets: Asset[], filePaths: string[]) => {
-    return importAssetsToProject(filePaths, projectDir, existingAssets);
-  });
+  ipcMain.handle(
+    "mage2:import-assets",
+    async (_event, projectDir: string, locale: string, existingAssets: Asset[], filePaths: string[]) => {
+      return importAssetsToProject(filePaths, projectDir, locale, existingAssets);
+    }
+  );
+
+  ipcMain.handle(
+    "mage2:import-asset-variant",
+    async (_event, projectDir: string, asset: Asset, locale: string, filePath: string) => {
+      return importAssetVariantToProject(filePath, projectDir, asset, locale);
+    }
+  );
 
   ipcMain.handle("mage2:parse-subtitles", async (_event, filePaths: string[]) => {
     return parseSubtitleFiles(filePaths);
   });
 
-  ipcMain.handle("mage2:generate-proxy", async (_event, projectDir: string, asset: Asset) => {
-    return generateProxy(asset, projectDir);
+  ipcMain.handle("mage2:generate-proxy", async (_event, projectDir: string, asset: Asset, locale: string) => {
+    return generateProxy(asset, locale, projectDir);
   });
 
   ipcMain.handle(
     "mage2:delete-managed-asset-files",
     async (_event, projectDir: string, asset: Asset, remainingAssets: Asset[]) => {
       return deleteManagedAssetFiles(asset, projectDir, remainingAssets);
+    }
+  );
+
+  ipcMain.handle(
+    "mage2:delete-managed-asset-variant-files",
+    async (_event, projectDir: string, asset: Asset, locale: string, remainingAssets: Asset[]) => {
+      return deleteManagedAssetVariantFiles(asset, locale, projectDir, remainingAssets);
     }
   );
 

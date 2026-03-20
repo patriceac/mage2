@@ -2,22 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { createPlayerController } from "@mage2/player";
 import {
   createInitialSaveState,
+  normalizeSupportedLocales,
+  resolveAssetVariant,
   parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  type Asset,
   type BuildManifest,
   type ExportProjectData,
   type Hotspot,
   parseBuildManifest
 } from "@mage2/schema";
-
-interface RuntimeAsset {
-  id: string;
-  kind: "video" | "image" | "audio";
-  name: string;
-  sourcePath: string;
-  durationMs?: number;
-}
 
 export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "manifest">): {
   projectName: string;
@@ -31,6 +26,7 @@ export function App() {
   const [buildManifest, setBuildManifest] = useState<BuildManifest>();
   const [content, setContent] = useState<ExportProjectData>();
   const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
+  const [activeLocale, setActiveLocale] = useState<string>();
   const [playheadMs, setPlayheadMs] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
@@ -48,9 +44,19 @@ export function App() {
         const manifest = parseBuildManifest(await manifestResponse.json());
         const contentResponse = await fetch(`./${manifest.contentPath}`);
         const parsedContent = (await contentResponse.json()) as ExportProjectData;
+        const supportedLocales = normalizeSupportedLocales(
+          parsedContent.manifest.defaultLanguage,
+          parsedContent.manifest.supportedLocales
+        );
 
         const storageKey = `mage2-runtime-save:${manifest.projectId}`;
+        const localeStorageKey = `mage2-runtime-locale:${manifest.projectId}`;
         const storedSave = localStorage.getItem(storageKey);
+        const storedLocale = localStorage.getItem(localeStorageKey);
+        const nextLocale =
+          storedLocale && supportedLocales.includes(storedLocale)
+            ? storedLocale
+            : parsedContent.manifest.defaultLanguage;
         const loadedProject = {
           manifest: parsedContent.manifest,
           assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
@@ -58,7 +64,7 @@ export function App() {
           scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
           dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
           inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-          strings: { schemaVersion: parsedContent.schemaVersion, values: parsedContent.strings }
+          strings: { schemaVersion: parsedContent.schemaVersion, byLocale: parsedContent.strings }
         };
         const normalizedSaveState = storedSave
           ? parseSaveState({
@@ -74,6 +80,7 @@ export function App() {
         setBuildManifest(manifest);
         setContent(parsedContent);
         setController(nextController);
+        setActiveLocale(nextLocale);
         setSnapshot(nextController.getSnapshot());
         setPlayheadMs(normalizedSaveState?.playheadMs ?? 0);
       } catch (error) {
@@ -85,12 +92,20 @@ export function App() {
   }, []);
 
   const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
+  const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
+  const supportedLocales =
+    content
+      ? normalizeSupportedLocales(content.manifest.defaultLanguage, content.manifest.supportedLocales)
+      : [];
+  const locale = activeLocale ?? content?.manifest.defaultLanguage ?? "en";
+  const localeStrings = content?.strings[locale] ?? {};
   const currentAsset =
     content && snapshot
-      ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as RuntimeAsset | undefined)
+      ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)
       : undefined;
+  const currentAssetVariant = currentAsset ? resolveAssetVariant(currentAsset, locale) : undefined;
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs) : [];
-  const subtitleLines = controller ? controller.getSubtitleLines(playheadMs) : [];
+  const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
 
   useEffect(() => {
     const video = runtimeVideoRef.current;
@@ -102,7 +117,13 @@ export function App() {
     void video.play().catch(() => {
       // If autoplay is blocked, keep the runtime surface clean and leave playback stopped.
     });
-  }, [currentAsset?.id, currentAsset?.kind, currentAsset?.sourcePath, snapshot?.scene.id]);
+  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.sourcePath, snapshot?.scene.id]);
+
+  useEffect(() => {
+    if (localeStorageKey && activeLocale) {
+      localStorage.setItem(localeStorageKey, activeLocale);
+    }
+  }, [activeLocale, localeStorageKey]);
 
   if (errorMessage) {
     return (
@@ -161,7 +182,7 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, values: content.strings }
+                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
                 };
                 const nextSaveState = parseSaveState({
                   ...createInitialSaveState(loadedProject),
@@ -189,7 +210,7 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, values: content.strings }
+                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
                 });
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
@@ -209,22 +230,32 @@ export function App() {
               />
               <span>Show hotspots</span>
             </label>
+            <label className="runtime-hotspot-visibility-toggle" title="Switch the active runtime locale.">
+              <span>Locale</span>
+              <select value={locale} onChange={(event) => setActiveLocale(event.target.value)}>
+                {supportedLocales.map((entry) => (
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </header>
 
         <div className="runtime-media">
-          {currentAsset?.kind === "video" ? (
+          {currentAsset?.kind === "video" && currentAssetVariant ? (
             <video
               ref={runtimeVideoRef}
               key={`${snapshot.scene.id}:${currentAsset.id}`}
-              src={currentAsset.sourcePath}
+              src={currentAssetVariant.sourcePath}
               autoPlay
               loop={snapshot.scene.backgroundVideoLoop}
               playsInline
               className="runtime-media__asset"
             />
-          ) : currentAsset?.kind === "image" ? (
-            <img src={currentAsset.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />
+          ) : currentAsset?.kind === "image" && currentAssetVariant ? (
+            <img src={currentAssetVariant.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />
           ) : (
             <div className="runtime-media__placeholder">No playable visual asset for this scene.</div>
           )}
@@ -236,7 +267,7 @@ export function App() {
                   key={hotspot.id}
                   hotspot={hotspot}
                   showHotspots={showHotspots}
-                  strings={content.strings}
+                  strings={localeStrings}
                   onActivate={() => {
                     controller.selectHotspot(hotspot.id, playheadMs);
                     setSnapshot(controller.getSnapshot());
@@ -253,8 +284,8 @@ export function App() {
           <input
             type="range"
             min={0}
-            max={currentAsset?.durationMs ?? 30000}
-            value={Math.min(playheadMs, currentAsset?.durationMs ?? 30000)}
+            max={currentAssetVariant?.durationMs ?? 30000}
+            value={Math.min(playheadMs, currentAssetVariant?.durationMs ?? 30000)}
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
         </label>
@@ -274,7 +305,7 @@ export function App() {
         {snapshot.activeDialogue ? (
           <div className="runtime-dialogue">
             <h2>{snapshot.activeDialogue.node.speaker}</h2>
-            <p>{content.strings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
+            <p>{localeStrings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
             {snapshot.activeDialogue.choices.length > 0 ? (
               <div className="runtime-choices">
                 {snapshot.activeDialogue.choices.map((choice) => (
@@ -286,7 +317,7 @@ export function App() {
                       setSnapshot(controller.getSnapshot());
                     }}
                   >
-                    {content.strings[choice.textId] ?? choice.textId}
+                    {localeStrings[choice.textId] ?? choice.textId}
                   </button>
                 ))}
               </div>

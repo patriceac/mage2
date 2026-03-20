@@ -36,7 +36,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 ];
 
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
-  assets: "Manage imported media files and generate proxy assets for faster editing.",
+  assets: "Manage imported media files and localized variants for faster editing and previewing.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
   scenes: "Edit scene media, hotspots, subtitles, and scene-level wiring.",
   dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
@@ -62,7 +62,9 @@ export function App() {
     setSelectedHotspotId,
     setSelectedDialogueNodeId,
     setSelectedInventoryItemId,
-    setSelectedTextId
+    setSelectedAssetId,
+    setSelectedTextId,
+    setActiveLocale
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
@@ -300,7 +302,9 @@ export function App() {
     setSelectedDialogueId(target.dialogueId);
     setSelectedDialogueNodeId(target.dialogueNodeId);
     setSelectedInventoryItemId(target.inventoryItemId);
+    setSelectedAssetId(target.assetId);
     setSelectedTextId(target.textId);
+    setActiveLocale(target.locale);
     setStatusMessage(`Navigated to ${target.label}`);
   }
 

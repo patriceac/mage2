@@ -1,4 +1,5 @@
-import type { ProjectBundle } from "@mage2/schema";
+import { getLocaleStringValues, type ProjectBundle } from "@mage2/schema";
+import { setEditorLocalizedText } from "../localized-project";
 import { addInventoryItem } from "../project-helpers";
 import { useEditorStore } from "../store";
 
@@ -10,6 +11,8 @@ interface InventoryPanelProps {
 export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) {
   const selectedInventoryItemId = useEditorStore((state) => state.selectedInventoryItemId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const localeStrings = getLocaleStringValues(project, activeLocale);
   return (
     <div className="panel-grid panel-grid--single">
       <section className="panel">
@@ -53,12 +56,12 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
             <label>
               <span className="field-label--inset">Display Text</span>
               <input
-                value={project.strings.values[item.textId] ?? ""}
+                value={localeStrings[item.textId] ?? ""}
                 title="Player-facing item label stored in project text."
                 onFocus={() => setSelectedInventoryItemId(item.id)}
                 onChange={(event) =>
                   mutateProject((draft) => {
-                    draft.strings.values[item.textId] = event.target.value;
+                    setEditorLocalizedText(draft, activeLocale, item.textId, event.target.value);
                   })
                 }
               />
@@ -66,13 +69,13 @@ export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) 
             <label>
               <span className="field-label--inset">Description</span>
               <textarea
-                value={project.strings.values[item.descriptionTextId ?? ""] ?? ""}
+                value={localeStrings[item.descriptionTextId ?? ""] ?? ""}
                 title="Longer inspection text shown when the player looks at this item."
                 onFocus={() => setSelectedInventoryItemId(item.id)}
                 onChange={(event) =>
                   mutateProject((draft) => {
                     if (item.descriptionTextId) {
-                      draft.strings.values[item.descriptionTextId] = event.target.value;
+                      setEditorLocalizedText(draft, activeLocale, item.descriptionTextId, event.target.value);
                     }
                   })
                 }

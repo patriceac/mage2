@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ProjectBundle } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
+import {
+  addProjectLocale,
+  getSupportedProjectLocales,
+  removeProjectLocale,
+  setEditorLocalizedText,
+  setProjectDefaultLocale
+} from "../localized-project";
 import type { EditorNavigationTarget } from "../navigation-target";
 import {
   collectProjectTextEntries,
@@ -22,7 +29,10 @@ interface LocalizationPanelProps {
 
 export function LocalizationPanel({ project, mutateProject }: LocalizationPanelProps) {
   const dialogs = useDialogs();
-  const allEntries = collectProjectTextEntries(project);
+  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
+  const supportedLocales = getSupportedProjectLocales(project);
+  const allEntries = collectProjectTextEntries(project, activeLocale);
   const selectedTextId = useEditorStore((state) => state.selectedTextId);
   const setSelectedTextId = useEditorStore((state) => state.setSelectedTextId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
@@ -60,6 +70,9 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
 
   function handleNavigate(target: EditorNavigationTarget, textId: string) {
     setSelectedTextId(target.textId ?? textId);
+    if (target.locale) {
+      setActiveLocale(target.locale);
+    }
     setActiveTab(target.tab);
     setSelectedLocationId(target.locationId);
     setSelectedSceneId(target.sceneId);
@@ -107,7 +120,48 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     }
 
     mutateProject((draft) => {
-      deleteOrphanedProjectTextEntries(draft, textIds);
+      deleteOrphanedProjectTextEntries(draft, activeLocale, textIds);
+    });
+  }
+
+  async function handleAddLocale() {
+    const nextLocale = window.prompt("Add locale", "");
+    const normalizedLocale = nextLocale?.trim();
+    if (!normalizedLocale) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      addProjectLocale(draft, normalizedLocale);
+    });
+    setActiveLocale(normalizedLocale);
+  }
+
+  async function handleRemoveLocale() {
+    if (activeLocale === project.manifest.defaultLanguage) {
+      return;
+    }
+
+    const confirmed = await dialogs.confirm({
+      title: `Remove locale ${activeLocale}?`,
+      body: <p>This removes the locale's stored text and media variants from the project.</p>,
+      confirmLabel: "Remove Locale",
+      cancelLabel: "Keep Locale",
+      tone: "danger"
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      removeProjectLocale(draft, activeLocale);
+    });
+    setActiveLocale(project.manifest.defaultLanguage);
+  }
+
+  function handleSetDefaultLocale() {
+    mutateProject((draft) => {
+      setProjectDefaultLocale(draft, activeLocale);
     });
   }
 
@@ -120,11 +174,42 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
             <p className="muted localization-panel__summary">
               {hasActiveSearchOrFilter
                 ? `${visibleEntries.length} of ${allEntries.length} visible. `
-                : `${allEntries.length} entr${allEntries.length === 1 ? "y" : "ies"}: `}
+                : `${allEntries.length} entr${allEntries.length === 1 ? "y" : "ies"} in ${activeLocale}: `}
               {missingCount} missing, {referencedCount} referenced, {orphanedCount} orphaned.
             </p>
           </div>
           <div className="localization-panel__toolbar-actions">
+            <label className="localization-filter">
+              <span className="field-label--inset">Locale</span>
+              <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+                {supportedLocales.map((locale) => (
+                  <option key={locale} value={locale}>
+                    {locale}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="button-secondary" onClick={() => void handleAddLocale()}>
+              Add Locale
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={activeLocale === project.manifest.defaultLanguage}
+              onClick={handleSetDefaultLocale}
+              title="Make the selected locale the project default."
+            >
+              Set Default
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              disabled={activeLocale === project.manifest.defaultLanguage}
+              onClick={() => void handleRemoveLocale()}
+              title="Remove the selected non-default locale from the project."
+            >
+              Remove Locale
+            </button>
             <button
               type="button"
               className="button-danger"
@@ -228,7 +313,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
                       onFocus={() => setSelectedTextId(entry.textId)}
                       onChange={(event) =>
                         mutateProject((draft) => {
-                          draft.strings.values[entry.textId] = event.target.value;
+                          setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
                         })
                       }
                     />

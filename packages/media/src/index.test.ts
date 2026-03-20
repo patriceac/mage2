@@ -7,6 +7,7 @@ import {
   deleteManagedAssetFiles,
   hydrateAssetSha256s,
   importAssetsToProject,
+  importAssetVariantToProject,
   importAssetToProject,
   resolvePackagedExecutablePath
 } from "./index";
@@ -28,13 +29,17 @@ describe("importAssetToProject", () => {
     await mkdir(sourceDir, { recursive: true });
     await writeFile(sourcePath, sourceContent, "utf8");
 
-    const asset = await importAssetToProject(sourcePath, projectDir);
+    const asset = await importAssetToProject(sourcePath, projectDir, "en");
+    const variant = asset.variants.en;
 
     expect(asset.kind).toBe("image");
     expect(asset.name).toBe("poster.png");
-    expect(asset.sourcePath).toBe(path.join(projectDir, "assets", "poster.png"));
-    expect(asset.importSourcePath).toBe(sourcePath);
-    expect(await readFile(asset.sourcePath, "utf8")).toBe(sourceContent);
+    expect(variant?.sourcePath).toBe(path.join(projectDir, "assets", "poster.png"));
+    expect(variant?.importSourcePath).toBe(sourcePath);
+    expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.png`));
+    expect(variant?.posterPath).toBe(variant?.proxyPath);
+    expect(await readFile(variant!.sourcePath, "utf8")).toBe(sourceContent);
+    expect(await readFile(variant!.proxyPath!, "utf8")).toBe(sourceContent);
   });
 
   it("chooses a unique filename when different imports share the same basename", async () => {
@@ -50,14 +55,14 @@ describe("importAssetToProject", () => {
     await writeFile(firstSourcePath, "first image bytes", "utf8");
     await writeFile(secondSourcePath, "second image bytes", "utf8");
 
-    const firstAsset = await importAssetToProject(firstSourcePath, projectDir);
-    const secondAsset = await importAssetToProject(secondSourcePath, projectDir);
+    const firstAsset = await importAssetToProject(firstSourcePath, projectDir, "en");
+    const secondAsset = await importAssetToProject(secondSourcePath, projectDir, "en");
 
-    expect(firstAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared.png"));
-    expect(secondAsset.sourcePath).toBe(path.join(projectDir, "assets", "shared-2.png"));
+    expect(firstAsset.variants.en?.sourcePath).toBe(path.join(projectDir, "assets", "shared.png"));
+    expect(secondAsset.variants.en?.sourcePath).toBe(path.join(projectDir, "assets", "shared-2.png"));
     expect(secondAsset.name).toBe("shared-2.png");
-    expect(await readFile(firstAsset.sourcePath, "utf8")).toContain("first");
-    expect(await readFile(secondAsset.sourcePath, "utf8")).toContain("second");
+    expect(await readFile(firstAsset.variants.en!.sourcePath, "utf8")).toContain("first");
+    expect(await readFile(secondAsset.variants.en!.sourcePath, "utf8")).toContain("second");
   });
 });
 
@@ -74,11 +79,52 @@ describe("importAssetsToProject", () => {
     await writeFile(firstSourcePath, sourceContent, "utf8");
     await writeFile(duplicateSourcePath, sourceContent, "utf8");
 
-    const existingAsset = await importAssetToProject(firstSourcePath, projectDir);
-    const result = await importAssetsToProject([duplicateSourcePath], projectDir, [existingAsset]);
+    const existingAsset = await importAssetToProject(firstSourcePath, projectDir, "en");
+    const result = await importAssetsToProject([duplicateSourcePath], projectDir, "en", [existingAsset]);
 
     expect(result.importedAssets).toEqual([]);
     expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
+  });
+
+  it("generates proxy files immediately for newly imported assets", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "card.png");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, "card art", "utf8");
+
+    const result = await importAssetsToProject([sourcePath], projectDir, "en");
+    const importedAsset = result.importedAssets[0];
+    const variant = importedAsset?.variants.en;
+
+    expect(result.duplicateFilePaths).toEqual([]);
+    expect(importedAsset).toBeDefined();
+    expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${importedAsset!.id}.en.png`));
+    expect(await readFile(variant!.proxyPath!, "utf8")).toBe("card art");
+  });
+});
+
+describe("importAssetVariantToProject", () => {
+  it("creates a proxy for a newly added locale variant", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const enSourcePath = path.join(sourceDir, "poster-en.png");
+    const frSourcePath = path.join(sourceDir, "poster-fr.png");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(enSourcePath, "english art", "utf8");
+    await writeFile(frSourcePath, "french art", "utf8");
+
+    const asset = await importAssetToProject(enSourcePath, projectDir, "en");
+    const updatedAsset = await importAssetVariantToProject(frSourcePath, projectDir, asset, "fr");
+    const frVariant = updatedAsset.variants.fr;
+
+    expect(frVariant?.sourcePath).toBe(path.join(projectDir, "assets", "poster-fr.png"));
+    expect(frVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.fr.png`));
+    expect(await readFile(frVariant!.proxyPath!, "utf8")).toBe("french art");
   });
 });
 
@@ -93,13 +139,17 @@ describe("hydrateAssetSha256s", () => {
         id: "asset_legacy",
         kind: "image",
         name: "legacy.png",
-        sourcePath: assetPath,
-        importedAt: "2026-03-15T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath: assetPath,
+            importedAt: "2026-03-15T00:00:00.000Z"
+          }
+        }
       }
     ]);
 
     expect(updated).toBe(true);
-    expect(assets[0]?.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(assets[0]?.variants.en?.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 });
 
@@ -165,12 +215,18 @@ describe("deleteGeneratedProxyFiles", () => {
         id: "asset_video",
         kind: "video",
         name: "video.mp4",
-        sourcePath: path.join(projectDir, "assets", "video.mp4"),
-        proxyPath,
-        posterPath,
-        importedAt: "2026-03-14T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath: path.join(projectDir, "assets", "video.mp4"),
+            proxyPath,
+            posterPath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
       },
-      projectDir
+      projectDir,
+      new Set(),
+      "en"
     );
 
     expect(deletedPaths).toEqual([proxyPath, posterPath]);
@@ -192,11 +248,17 @@ describe("deleteGeneratedProxyFiles", () => {
         id: "asset_video",
         kind: "video",
         name: "video.mp4",
-        sourcePath: path.join(projectDir, "assets", "video.mp4"),
-        proxyPath: outsideProxyPath,
-        importedAt: "2026-03-14T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath: path.join(projectDir, "assets", "video.mp4"),
+            proxyPath: outsideProxyPath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
       },
-      projectDir
+      projectDir,
+      new Set(),
+      "en"
     );
 
     expect(deletedPaths).toEqual([]);
@@ -225,10 +287,14 @@ describe("deleteManagedAssetFiles", () => {
         id: "asset_video",
         kind: "video",
         name: "video.mp4",
-        sourcePath,
-        proxyPath,
-        posterPath,
-        importedAt: "2026-03-14T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            posterPath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
       },
       projectDir
     );
@@ -254,8 +320,12 @@ describe("deleteManagedAssetFiles", () => {
         id: "asset_primary",
         kind: "image",
         name: "shared.png",
-        sourcePath,
-        importedAt: "2026-03-14T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
       },
       projectDir,
       [
@@ -263,8 +333,12 @@ describe("deleteManagedAssetFiles", () => {
           id: "asset_secondary",
           kind: "image",
           name: "shared.png",
-          sourcePath,
-          importedAt: "2026-03-14T00:00:00.000Z"
+          variants: {
+            en: {
+              sourcePath,
+              importedAt: "2026-03-14T00:00:00.000Z"
+            }
+          }
         }
       ]
     );
@@ -288,8 +362,12 @@ describe("deleteManagedAssetFiles", () => {
         id: "asset_external",
         kind: "image",
         name: "outside.png",
-        sourcePath,
-        importedAt: "2026-03-14T00:00:00.000Z"
+        variants: {
+          en: {
+            sourcePath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
       },
       projectDir
     );

@@ -9,8 +9,12 @@ describe("player controller", () => {
       id: "asset_placeholder",
       kind: "image",
       name: "Placeholder",
-      sourcePath: "placeholder.png",
-      importedAt: new Date().toISOString()
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
     });
 
     const controller = createPlayerController(project);
@@ -24,8 +28,12 @@ describe("player controller", () => {
       id: "asset_placeholder",
       kind: "image",
       name: "Placeholder",
-      sourcePath: "placeholder.png",
-      importedAt: new Date().toISOString()
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
     });
     project.scenes.items[0].subtitleTracks = [
       {
@@ -51,16 +59,16 @@ describe("player controller", () => {
         ]
       }
     ];
-    project.strings.values["text.cue_one.subtitle"] = "First line\nSecond line";
-    project.strings.values["text.cue_two.subtitle"] = "Overlapping cue";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_one.subtitle"] = "First line\nSecond line";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_two.subtitle"] = "Overlapping cue";
 
     const controller = createPlayerController(project);
 
-    expect(controller.getSubtitleLines(500)).toEqual(["First line\nSecond line"]);
-    expect(controller.getSubtitleLines(1500)).toEqual([
+    expect(controller.getSubtitleLines(500, project.manifest.defaultLanguage)).toEqual(["First line\nSecond line"]);
+    expect(controller.getSubtitleLines(1500, project.manifest.defaultLanguage)).toEqual([
       "First line\nSecond line",
       "Overlapping cue"
     ]);
-    expect(controller.getSubtitleLines(3500)).toEqual([]);
+    expect(controller.getSubtitleLines(3500, project.manifest.defaultLanguage)).toEqual([]);
   });
 });

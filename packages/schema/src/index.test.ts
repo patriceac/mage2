@@ -20,8 +20,8 @@ describe("project defaults", () => {
 
     expect(project.locations.items[0]).not.toHaveProperty("descriptionTextId");
     expect(project.scenes.items[0]).not.toHaveProperty("overlayTextId");
-    expect(project.strings.values).not.toHaveProperty("text.location.intro");
-    expect(project.strings.values).not.toHaveProperty("text.scene.intro");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.location.intro");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.scene.intro");
   });
 });
 
@@ -39,8 +39,12 @@ describe("project validation", () => {
       id: "asset_placeholder",
       kind: "image",
       name: "Placeholder",
-      sourcePath: "placeholder.png",
-      importedAt: new Date().toISOString()
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
     });
     project.scenes.items[0].subtitleTracks = [
       {
@@ -51,8 +55,8 @@ describe("project validation", () => {
         ]
       }
     ];
-    project.strings.values["text.cue_one.subtitle"] = "First line";
-    project.strings.values["text.cue_two.subtitle"] = "Second line";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_one.subtitle"] = "First line";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_two.subtitle"] = "Second line";
 
     const report = validateProject(project);
 
@@ -60,7 +64,7 @@ describe("project validation", () => {
     expect(report.issues.some((issue) => issue.code === "SUBTITLE_OVERLAP")).toBe(false);
   });
 
-  it("reports missing subtitle text ids as warnings", () => {
+  it("reports missing subtitle text ids as errors", () => {
     const project = createDefaultProjectBundle();
     project.scenes.items[0].subtitleTracks = [
       {
@@ -73,8 +77,9 @@ describe("project validation", () => {
     const issue = report.issues.find((entry) => entry.code === "SUBTITLE_TEXT_MISSING");
 
     expect(issue).toMatchObject({
-      level: "warning",
-      entityId: "cue_missing"
+      level: "error",
+      entityId: "cue_missing",
+      locale: project.manifest.defaultLanguage
     });
   });
 
@@ -114,8 +119,10 @@ describe("project validation", () => {
       { x: 900 / 1280, y: 530 / 720 }
     ]);
     expect(hotspot).not.toHaveProperty("labelTextId");
-    expect(project.strings.values).not.toHaveProperty("text.hotspot.inspect");
-    expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.hotspot.inspect");
+    expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(
+      "Add real hotspots in Scenes"
+    );
   });
 
   it("treats hotspot targets and go-to-scene effects as reachable links", () => {
@@ -124,8 +131,12 @@ describe("project validation", () => {
       id: "asset_placeholder",
       kind: "image",
       name: "Placeholder",
-      sourcePath: "placeholder.png",
-      importedAt: new Date().toISOString()
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
     });
     project.locations.items[0]?.sceneIds.push("scene_two", "scene_three");
     project.scenes.items[0]!.hotspots[0]!.targetSceneId = "scene_two";
@@ -173,8 +184,12 @@ describe("project validation", () => {
       id: "asset_placeholder",
       kind: "image",
       name: "Placeholder",
-      sourcePath: "placeholder.png",
-      importedAt: new Date().toISOString()
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
     });
     project.locations.items[0]?.sceneIds.push("scene_bpacnlcm");
     project.scenes.items.push({

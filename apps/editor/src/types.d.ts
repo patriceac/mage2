@@ -48,10 +48,11 @@ declare global {
         project: ProjectBundle;
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
-      importAssets(projectDir: string, existingAssets: Asset[], filePaths: string[]): Promise<{
+      importAssets(projectDir: string, locale: string, existingAssets: Asset[], filePaths: string[]): Promise<{
         importedAssets: Asset[];
         duplicateFilePaths: string[];
       }>;
+      importAssetVariant(projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset>;
       parseSubtitleFiles(filePaths: string[]): Promise<{
         parsedFiles: Array<{
           filePath: string;
@@ -60,10 +61,16 @@ declare global {
         }>;
         failedFiles: Array<{ filePath: string; reason: string }>;
       }>;
-      generateProxy(projectDir: string, asset: Asset): Promise<Asset>;
+      generateProxy(projectDir: string, asset: Asset, locale: string): Promise<Asset>;
       deleteManagedAssetFiles(
         projectDir: string,
         asset: Asset,
+        remainingAssets: Asset[]
+      ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }>;
+      deleteManagedAssetVariantFiles(
+        projectDir: string,
+        asset: Asset,
+        locale: string,
         remainingAssets: Asset[]
       ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }>;
       exportProject(projectDir: string, project: ProjectBundle): Promise<{

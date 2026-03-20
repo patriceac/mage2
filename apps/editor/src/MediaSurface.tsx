@@ -8,6 +8,7 @@ import {
   type Hotspot
 } from "@mage2/schema";
 import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
+import { getLocalizedAssetVariant } from "./localized-project";
 import {
   clampPlayheadMs,
   getVideoPlayheadMs,
@@ -17,6 +18,7 @@ import {
 
 interface MediaSurfaceProps {
   asset?: Asset;
+  locale?: string;
   hotspots?: Hotspot[];
   strings?: Record<string, string>;
   hotspotAppearance?: "editor" | "runtime" | "hidden";
@@ -35,6 +37,7 @@ interface MediaSurfaceProps {
 
 export function MediaSurface({
   asset,
+  locale,
   hotspots = [],
   strings,
   hotspotAppearance = "editor",
@@ -60,6 +63,7 @@ export function MediaSurface({
   const shouldResumeLoopPlaybackRef = useRef(false);
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
+  const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +74,12 @@ export function MediaSurface({
         return;
       }
 
-      const sourcePath = asset.proxyPath ?? asset.sourcePath;
+      const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
+      if (!sourcePath) {
+        setAssetUrl(undefined);
+        return;
+      }
+
       const url = await window.editorApi.pathToFileUrl(sourcePath);
       if (!cancelled) {
         setAssetUrl(url);
@@ -81,7 +90,7 @@ export function MediaSurface({
     return () => {
       cancelled = true;
     };
-  }, [asset]);
+  }, [asset, assetVariant]);
 
   useEffect(() => {
     return () => {
@@ -128,7 +137,7 @@ export function MediaSurface({
       video.ended ||
       (Number.isFinite(video.duration) && video.currentTime >= Math.max(video.duration - 0.05, 0))
     ) {
-      const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+      const durationMs = resolvePlayableDurationMs(video.duration, assetVariant?.durationMs);
       const nextPlayheadMs = isControlledVideoPlayhead ? clampPlayheadMs(playheadMs, durationMs) : 0;
       video.currentTime = nextPlayheadMs / 1000;
     }
@@ -136,7 +145,7 @@ export function MediaSurface({
     void video.play().catch(() => {
       // If autoplay is blocked or the file cannot play, keep the surface clean and leave playback stopped.
     });
-  }, [asset?.durationMs, asset?.kind, assetUrl, isControlledVideoPlayhead, loopVideo, playheadMs]);
+  }, [asset?.kind, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead, loopVideo, playheadMs]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -144,22 +153,22 @@ export function MediaSurface({
       return;
     }
 
-    const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+    const durationMs = resolvePlayableDurationMs(video.duration, assetVariant?.durationMs);
     const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
-    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, assetVariant?.durationMs);
     if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
       return;
     }
 
     video.currentTime = nextPlayheadMs / 1000;
-  }, [asset?.durationMs, asset?.id, assetUrl, isControlledVideoPlayhead, playheadMs]);
+  }, [asset?.id, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead, playheadMs]);
 
   function syncPlayheadFromVideo(video: HTMLVideoElement) {
     if (!isControlledVideoPlayhead) {
       return;
     }
 
-    const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, assetVariant?.durationMs);
     if (!shouldSyncPlayheadMs(playheadMs, nextPlayheadMs)) {
       return;
     }
@@ -172,9 +181,9 @@ export function MediaSurface({
       return;
     }
 
-    const durationMs = resolvePlayableDurationMs(video.duration, asset.durationMs);
+    const durationMs = resolvePlayableDurationMs(video.duration, assetVariant?.durationMs);
     const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
-    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, asset.durationMs);
+    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, assetVariant?.durationMs);
     if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
       return;
     }

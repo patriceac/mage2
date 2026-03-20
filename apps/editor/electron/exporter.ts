@@ -3,8 +3,14 @@ import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
-import { copyAssetForBuild } from "@mage2/media";
-import { toExportProjectData, type BuildManifest, type ProjectBundle, validateProject } from "@mage2/schema";
+import { copyAssetVariantForBuild } from "@mage2/media";
+import {
+  normalizeSupportedLocales,
+  toExportProjectData,
+  type BuildManifest,
+  type ProjectBundle,
+  validateProject
+} from "@mage2/schema";
 
 export interface ExportResult {
   outputDirectory: string;
@@ -29,25 +35,44 @@ export async function exportProjectBundle(
 
   const mediaDirectory = path.join(outputDirectory, "media");
   await mkdir(mediaDirectory, { recursive: true });
+  const supportedLocales = normalizeSupportedLocales(
+    project.manifest.defaultLanguage,
+    project.manifest.supportedLocales
+  );
 
   const exportedAssets = await Promise.all(
     project.assets.assets.map(async (asset) => {
-      const copiedPath = await copyAssetForBuild(asset, mediaDirectory);
-      const relativePath = toPosix(path.relative(outputDirectory, copiedPath));
+      const exportedVariants = Object.fromEntries(
+        await Promise.all(
+          supportedLocales
+            .filter((locale) => asset.variants[locale])
+            .map(async (locale) => {
+              const copiedPath = await copyAssetVariantForBuild(asset, locale, mediaDirectory);
+              const relativePath = toPosix(path.relative(outputDirectory, copiedPath));
+              const variant = asset.variants[locale]!;
+              return [
+                locale,
+                {
+                  ...variant,
+                  sourcePath: relativePath,
+                  proxyPath: undefined,
+                  posterPath: undefined
+                }
+              ] as const;
+            })
+        )
+      );
 
-      return [
-        asset.id,
-        {
-          ...asset,
-          sourcePath: relativePath,
-          proxyPath: undefined,
-          posterPath: undefined
-        }
-      ] as const;
+      return [asset.id, { ...asset, variants: exportedVariants }] as const;
     })
   );
 
-  const assetMap = Object.fromEntries(exportedAssets.map(([assetId, asset]) => [assetId, asset.sourcePath]));
+  const assetMap = Object.fromEntries(
+    exportedAssets.map(([assetId, asset]) => [
+      assetId,
+      Object.fromEntries(Object.entries(asset.variants).map(([locale, variant]) => [locale, variant.sourcePath]))
+    ])
+  );
   const exportContent = {
     ...toExportProjectData(project),
     assets: exportedAssets.map(([, asset]) => asset)

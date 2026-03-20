@@ -4,6 +4,7 @@ import {
   type DialogueNode,
   type DialogueTree,
   type Effect,
+  getLocaleStringValues,
   type Hotspot,
   type InventoryItem,
   type Location,
@@ -38,7 +39,7 @@ export interface HotspotResolution {
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
   getVisibleHotspots(timeMs: number): Hotspot[];
-  getSubtitleLines(timeMs: number): string[];
+  getSubtitleLines(timeMs: number, locale: string): string[];
   enterScene(sceneId: string): void;
   selectHotspot(hotspotId: string, timeMs: number): HotspotResolution;
   startDialogue(dialogueTreeId: string): void;
@@ -253,9 +254,11 @@ export function createPlayerController(
     return resolution;
   }
 
-  function getSubtitleLines(timeMs: number): string[] {
+  function getSubtitleLines(timeMs: number, locale: string): string[] {
     const scene = getScene();
-    return scene.subtitleTracks.flatMap((track) => resolveSubtitleTrackLines(track, timeMs, project.strings.values));
+    return scene.subtitleTracks.flatMap((track) =>
+      resolveSubtitleTrackLines(track, timeMs, getLocaleStringValues(project, locale))
+    );
   }
 
   function getSnapshot(): PlayerSnapshot {

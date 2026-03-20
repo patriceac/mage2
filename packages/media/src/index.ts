@@ -5,7 +5,8 @@ import crypto from "node:crypto";
 import path from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
-import type { Asset, AssetKind } from "@mage2/schema";
+import type { Asset, AssetKind, AssetVariant } from "@mage2/schema";
+import { collectAssetVariantPaths, resolveAssetVariant } from "@mage2/schema";
 export * from "./subtitles";
 
 export interface ProbeResult {
@@ -87,21 +88,30 @@ export async function probeAsset(filePath: string): Promise<ProbeResult> {
   };
 }
 
-export async function createImportedAsset(filePath: string): Promise<Asset> {
-  return createImportedAssetRecord(filePath, filePath);
+export async function createImportedAsset(filePath: string, locale: string): Promise<Asset> {
+  return createImportedAssetRecord(filePath, filePath, locale);
 }
 
-export async function importAssetToProject(filePath: string, projectDir: string): Promise<Asset> {
+export async function importAssetToProject(filePath: string, projectDir: string, locale: string): Promise<Asset> {
   const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
-  return createImportedAssetRecord(projectAssetPath, filePath);
+  try {
+    const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale);
+    return await generateProxy(asset, locale, projectDir);
+  } catch (error) {
+    await cleanupImportedAssetCopy(projectAssetPath, filePath);
+    throw error;
+  }
 }
 
 export async function importAssetsToProject(
   filePaths: string[],
   projectDir: string,
+  locale: string,
   existingAssets: Asset[] = []
 ): Promise<ImportAssetsToProjectResult> {
-  const existingHashes = new Set((await Promise.all(existingAssets.map(resolveAssetSha256))).filter(isDefined));
+  const existingHashes = new Set(
+    (await Promise.all(existingAssets.map((asset) => collectAssetVariantSha256s(asset)))).flat().filter(isDefined)
+  );
   const seenImportHashes = new Set<string>();
   const importedAssets: Asset[] = [];
   const duplicateFilePaths: string[] = [];
@@ -115,13 +125,50 @@ export async function importAssetsToProject(
 
     seenImportHashes.add(sha256);
     const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
-    importedAssets.push(await createImportedAssetRecord(projectAssetPath, filePath, sha256));
+    try {
+      const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale, sha256);
+      importedAssets.push(await generateProxy(asset, locale, projectDir));
+    } catch (error) {
+      await cleanupImportedAssetCopy(projectAssetPath, filePath);
+      throw error;
+    }
   }
 
   return {
     importedAssets,
     duplicateFilePaths
   };
+}
+
+export async function importAssetVariantToProject(
+  filePath: string,
+  projectDir: string,
+  asset: Asset,
+  locale: string
+): Promise<Asset> {
+  const nextKind = detectAssetKind(filePath);
+  if (nextKind !== asset.kind) {
+    throw new Error(`Expected a ${asset.kind} file for '${asset.name}', but received ${nextKind}.`);
+  }
+
+  const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
+  try {
+    const variant = await createImportedAssetVariantRecord(projectAssetPath, filePath);
+    return await generateProxy(
+      {
+        ...asset,
+        variants: {
+          ...asset.variants,
+          [locale]: variant
+        }
+      },
+      locale,
+      projectDir
+    );
+  } catch (error) {
+    await cleanupImportedAssetCopy(projectAssetPath, filePath);
+    throw error;
+  }
 }
 
 export async function hydrateAssetSha256s(
@@ -131,20 +178,40 @@ export async function hydrateAssetSha256s(
 
   const hydratedAssets = await Promise.all(
     assets.map(async (asset) => {
-      if (asset.sha256) {
-        return asset;
-      }
+      let assetUpdated = false;
+      const hydratedVariants = Object.fromEntries(
+        await Promise.all(
+          Object.entries(asset.variants).map(async ([locale, variant]) => {
+            if (variant.sha256) {
+              return [locale, variant] as const;
+            }
 
-      try {
-        const sha256 = await computeFileSha256(asset.sourcePath);
+            try {
+              const sha256 = await computeFileSha256(variant.sourcePath);
+              assetUpdated = true;
+              return [
+                locale,
+                {
+                  ...variant,
+                  sha256
+                }
+              ] as const;
+            } catch {
+              return [locale, variant] as const;
+            }
+          })
+        )
+      );
+
+      if (assetUpdated) {
         updated = true;
         return {
           ...asset,
-          sha256
+          variants: hydratedVariants
         };
-      } catch {
-        return asset;
       }
+
+      return asset;
     })
   );
 
@@ -169,19 +236,176 @@ export async function computeFileSha256(filePath: string): Promise<string> {
   });
 }
 
+export async function generateProxy(asset: Asset, locale: string, projectDir: string): Promise<Asset> {
+  const variant = resolveAssetVariant(asset, locale);
+  if (!variant) {
+    throw new Error(`Asset '${asset.id}' has no '${locale}' variant.`);
+  }
+
+  const proxyDirectory = path.join(projectDir, ".mage2", "proxies");
+  await mkdir(proxyDirectory, { recursive: true });
+
+  if (asset.kind === "image") {
+    const extension = path.extname(variant.sourcePath);
+    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}${extension}`);
+    await cp(variant.sourcePath, proxyPath, { force: true });
+    return updateAssetVariant(asset, locale, {
+      ...variant,
+      proxyPath,
+      posterPath: proxyPath
+    });
+  }
+
+  if (asset.kind === "audio") {
+    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp3`);
+    await runProcess(getFfmpegPath(), [
+      "-y",
+      "-i",
+      variant.sourcePath,
+      "-vn",
+      "-codec:a",
+      "libmp3lame",
+      "-b:a",
+      "160k",
+      proxyPath
+    ]);
+    return updateAssetVariant(asset, locale, {
+      ...variant,
+      proxyPath
+    });
+  }
+
+  const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp4`);
+  const posterPath = path.join(proxyDirectory, `${asset.id}.${locale}.jpg`);
+  await runProcess(getFfmpegPath(), [
+    "-y",
+    "-i",
+    variant.sourcePath,
+    "-vf",
+    "scale='min(1280,iw)':-2",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "27",
+    "-movflags",
+    "+faststart",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    proxyPath
+  ]);
+  await runProcess(getFfmpegPath(), ["-y", "-i", variant.sourcePath, "-frames:v", "1", posterPath]);
+
+  return updateAssetVariant(asset, locale, {
+    ...variant,
+    proxyPath,
+    posterPath
+  });
+}
+
+export async function deleteGeneratedProxyFiles(
+  asset: Asset,
+  projectDir: string,
+  referencedPaths: Set<string> = new Set(),
+  locale?: string
+): Promise<string[]> {
+  const proxyDirectory = path.resolve(projectDir, ".mage2", "proxies");
+  const variants = locale ? [resolveAssetVariant(asset, locale)].filter(isDefined) : Object.values(asset.variants);
+  const candidatePaths = [
+    ...new Set(
+      variants.flatMap((variant) => [variant.proxyPath, variant.posterPath].filter((candidatePath): candidatePath is string => Boolean(candidatePath)))
+    )
+  ];
+  const deletedPaths: string[] = [];
+
+  for (const candidatePath of candidatePaths) {
+    const resolvedPath = path.resolve(candidatePath);
+    if (!isPathInsideDirectory(resolvedPath, proxyDirectory) || referencedPaths.has(resolvedPath)) {
+      continue;
+    }
+
+    await rm(resolvedPath, { force: true });
+    deletedPaths.push(resolvedPath);
+  }
+
+  return deletedPaths;
+}
+
+export async function deleteManagedAssetFiles(
+  asset: Asset,
+  projectDir: string,
+  remainingAssets: Asset[] = []
+): Promise<DeleteManagedAssetFilesResult> {
+  const referencedPaths = collectReferencedPaths(remainingAssets);
+  const deletedProxyPaths = await deleteGeneratedProxyFiles(asset, projectDir, referencedPaths);
+  const deletedSourcePaths = await deleteProjectAssetSourceFiles(asset, projectDir, referencedPaths);
+
+  return {
+    deletedProxyPaths,
+    deletedSourcePaths
+  };
+}
+
+export async function deleteManagedAssetVariantFiles(
+  asset: Asset,
+  locale: string,
+  projectDir: string,
+  remainingAssets: Asset[] = []
+): Promise<DeleteManagedAssetFilesResult> {
+  const referencedPaths = collectReferencedPaths(remainingAssets);
+  const deletedProxyPaths = await deleteGeneratedProxyFiles(asset, projectDir, referencedPaths, locale);
+  const deletedSourcePaths = await deleteProjectAssetSourceFiles(asset, projectDir, referencedPaths, locale);
+
+  return {
+    deletedProxyPaths,
+    deletedSourcePaths
+  };
+}
+
+export async function copyAssetVariantForBuild(asset: Asset, locale: string, outputDirectory: string): Promise<string> {
+  const variant = resolveAssetVariant(asset, locale);
+  if (!variant) {
+    throw new Error(`Asset '${asset.id}' has no '${locale}' variant to export.`);
+  }
+
+  await mkdir(outputDirectory, { recursive: true });
+  const sourcePath = variant.proxyPath ?? variant.sourcePath;
+  const extension = path.extname(sourcePath) || guessExtensionForKind(asset.kind);
+  const outputPath = path.join(outputDirectory, `${asset.id}.${locale}${extension}`);
+  await cp(sourcePath, outputPath, { force: true });
+  return outputPath;
+}
+
 async function createImportedAssetRecord(
   filePath: string,
   importSourcePath: string,
+  locale: string,
   sha256?: string
 ): Promise<Asset> {
-  const metadata = await stat(filePath);
   const kind = detectAssetKind(filePath);
-  const probe: ProbeResult = await probeAsset(filePath).catch(() => ({}));
 
   return {
     id: `asset_${crypto.randomUUID().replace(/-/g, "")}`,
     kind,
     name: path.basename(filePath),
+    variants: {
+      [locale]: await createImportedAssetVariantRecord(filePath, importSourcePath, sha256)
+    }
+  };
+}
+
+async function createImportedAssetVariantRecord(
+  filePath: string,
+  importSourcePath: string,
+  sha256?: string
+): Promise<AssetVariant> {
+  const metadata = await stat(filePath);
+  const probe: ProbeResult = await probeAsset(filePath).catch(() => ({}));
+
+  return {
     sourcePath: filePath,
     importSourcePath: filePath === importSourcePath ? undefined : importSourcePath,
     sha256: sha256 ?? (await computeFileSha256(filePath)),
@@ -230,117 +454,12 @@ async function resolveImportedAssetPath(filePath: string, assetDirectory: string
   }
 }
 
-export async function generateProxy(asset: Asset, projectDir: string): Promise<Asset> {
-  const proxyDirectory = path.join(projectDir, ".mage2", "proxies");
-  await mkdir(proxyDirectory, { recursive: true });
-
-  if (asset.kind === "image") {
-    const extension = path.extname(asset.sourcePath);
-    const proxyPath = path.join(proxyDirectory, `${asset.id}${extension}`);
-    await cp(asset.sourcePath, proxyPath, { force: true });
-    return {
-      ...asset,
-      proxyPath,
-      posterPath: proxyPath
-    };
+async function cleanupImportedAssetCopy(projectAssetPath: string, importSourcePath: string): Promise<void> {
+  if (path.resolve(projectAssetPath) === path.resolve(importSourcePath)) {
+    return;
   }
 
-  if (asset.kind === "audio") {
-    const proxyPath = path.join(proxyDirectory, `${asset.id}.mp3`);
-    await runProcess(getFfmpegPath(), [
-      "-y",
-      "-i",
-      asset.sourcePath,
-      "-vn",
-      "-codec:a",
-      "libmp3lame",
-      "-b:a",
-      "160k",
-      proxyPath
-    ]);
-    return {
-      ...asset,
-      proxyPath
-    };
-  }
-
-  const proxyPath = path.join(proxyDirectory, `${asset.id}.mp4`);
-  const posterPath = path.join(proxyDirectory, `${asset.id}.jpg`);
-  await runProcess(getFfmpegPath(), [
-    "-y",
-    "-i",
-    asset.sourcePath,
-    "-vf",
-    "scale='min(1280,iw)':-2",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "27",
-    "-movflags",
-    "+faststart",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    proxyPath
-  ]);
-  await runProcess(getFfmpegPath(), ["-y", "-i", asset.sourcePath, "-frames:v", "1", posterPath]);
-
-  return {
-    ...asset,
-    proxyPath,
-    posterPath
-  };
-}
-
-export async function deleteGeneratedProxyFiles(
-  asset: Asset,
-  projectDir: string,
-  referencedPaths: Set<string> = new Set()
-): Promise<string[]> {
-  const proxyDirectory = path.resolve(projectDir, ".mage2", "proxies");
-  const candidatePaths = [
-    ...new Set([asset.proxyPath, asset.posterPath].filter((candidatePath): candidatePath is string => Boolean(candidatePath)))
-  ];
-  const deletedPaths: string[] = [];
-
-  for (const candidatePath of candidatePaths) {
-    const resolvedPath = path.resolve(candidatePath);
-    if (!isPathInsideDirectory(resolvedPath, proxyDirectory) || referencedPaths.has(resolvedPath)) {
-      continue;
-    }
-
-    await rm(resolvedPath, { force: true });
-    deletedPaths.push(resolvedPath);
-  }
-
-  return deletedPaths;
-}
-
-export async function deleteManagedAssetFiles(
-  asset: Asset,
-  projectDir: string,
-  remainingAssets: Asset[] = []
-): Promise<DeleteManagedAssetFilesResult> {
-  const referencedPaths = collectReferencedPaths(remainingAssets);
-  const deletedProxyPaths = await deleteGeneratedProxyFiles(asset, projectDir, referencedPaths);
-  const deletedSourcePaths = await deleteProjectAssetSourceFiles(asset, projectDir, referencedPaths);
-
-  return {
-    deletedProxyPaths,
-    deletedSourcePaths
-  };
-}
-
-export async function copyAssetForBuild(asset: Asset, outputDirectory: string): Promise<string> {
-  await mkdir(outputDirectory, { recursive: true });
-  const sourcePath = asset.proxyPath ?? asset.sourcePath;
-  const extension = path.extname(sourcePath) || guessExtensionForKind(asset.kind);
-  const outputPath = path.join(outputDirectory, `${asset.id}${extension}`);
-  await cp(sourcePath, outputPath, { force: true });
-  return outputPath;
+  await rm(projectAssetPath, { force: true }).catch(() => {});
 }
 
 function guessExtensionForKind(kind: AssetKind): string {
@@ -357,17 +476,24 @@ function guessExtensionForKind(kind: AssetKind): string {
 async function deleteProjectAssetSourceFiles(
   asset: Asset,
   projectDir: string,
-  referencedPaths: Set<string>
+  referencedPaths: Set<string>,
+  locale?: string
 ): Promise<string[]> {
   const assetsDirectory = path.resolve(projectDir, "assets");
-  const resolvedSourcePath = path.resolve(asset.sourcePath);
+  const variants = locale ? [resolveAssetVariant(asset, locale)].filter(isDefined) : Object.values(asset.variants);
+  const deletedSourcePaths: string[] = [];
 
-  if (!isPathInsideDirectory(resolvedSourcePath, assetsDirectory) || referencedPaths.has(resolvedSourcePath)) {
-    return [];
+  for (const variant of variants) {
+    const resolvedSourcePath = path.resolve(variant.sourcePath);
+    if (!isPathInsideDirectory(resolvedSourcePath, assetsDirectory) || referencedPaths.has(resolvedSourcePath)) {
+      continue;
+    }
+
+    await rm(resolvedSourcePath, { force: true });
+    deletedSourcePaths.push(resolvedSourcePath);
   }
 
-  await rm(resolvedSourcePath, { force: true });
-  return [resolvedSourcePath];
+  return deletedSourcePaths;
 }
 
 async function runProcess(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
@@ -405,28 +531,38 @@ function collectReferencedPaths(assets: Asset[]): Set<string> {
   const referencedPaths = new Set<string>();
 
   for (const asset of assets) {
-    referencedPaths.add(path.resolve(asset.sourcePath));
-    if (asset.proxyPath) {
-      referencedPaths.add(path.resolve(asset.proxyPath));
-    }
-    if (asset.posterPath) {
-      referencedPaths.add(path.resolve(asset.posterPath));
+    for (const candidatePath of collectAssetVariantPaths(asset)) {
+      referencedPaths.add(path.resolve(candidatePath));
     }
   }
 
   return referencedPaths;
 }
 
-async function resolveAssetSha256(asset: Asset): Promise<string | undefined> {
-  if (asset.sha256) {
-    return asset.sha256;
+async function collectAssetVariantSha256s(asset: Asset): Promise<Array<string | undefined>> {
+  return Promise.all(Object.values(asset.variants).map((variant) => resolveAssetVariantSha256(variant)));
+}
+
+async function resolveAssetVariantSha256(variant: AssetVariant): Promise<string | undefined> {
+  if (variant.sha256) {
+    return variant.sha256;
   }
 
   try {
-    return await computeFileSha256(asset.sourcePath);
+    return await computeFileSha256(variant.sourcePath);
   } catch {
     return undefined;
   }
+}
+
+function updateAssetVariant(asset: Asset, locale: string, variant: AssetVariant): Asset {
+  return {
+    ...asset,
+    variants: {
+      ...asset.variants,
+      [locale]: variant
+    }
+  };
 }
 
 function isDefined<T>(value: T | undefined): value is T {

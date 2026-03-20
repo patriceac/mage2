@@ -3,10 +3,14 @@ import { createDefaultProjectBundle, validateProject } from "@mage2/schema";
 import { addDialogueTree } from "./project-helpers";
 import { resolveIssueNavigation } from "./issue-navigation";
 
+function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
+  return project.strings.byLocale[project.manifest.defaultLanguage];
+}
+
 describe("resolveIssueNavigation", () => {
   it("routes missing hotspot comment text to the Localization tab", () => {
     const project = createDefaultProjectBundle("Hotspot comment navigation");
-    delete project.strings.values[project.scenes.items[0].hotspots[0].commentTextId!];
+    delete getDefaultStrings(project)[project.scenes.items[0].hotspots[0].commentTextId!];
 
     const issue = validateProject(project).issues.find((entry) => entry.code === "HOTSPOT_COMMENT_TEXT_MISSING");
     const target = issue ? resolveIssueNavigation(project, issue) : undefined;
@@ -45,7 +49,7 @@ describe("resolveIssueNavigation", () => {
         cues: [{ id: "cue_intro", startMs: 0, endMs: 1000, textId: "text.cue_intro.subtitle" }]
       }
     ];
-    project.strings.values["text.cue_intro.subtitle"] = "";
+    getDefaultStrings(project)["text.cue_intro.subtitle"] = "";
 
     const issue = validateProject(project).issues.find((entry) => entry.code === "SUBTITLE_TEXT_EMPTY");
     const target = issue ? resolveIssueNavigation(project, issue) : undefined;
@@ -61,7 +65,7 @@ describe("resolveIssueNavigation", () => {
     const project = createDefaultProjectBundle("Dialogue line navigation");
     const dialogue = addDialogueTree(project);
     const nodeTextId = dialogue.nodes[0].textId;
-    delete project.strings.values[nodeTextId];
+    delete getDefaultStrings(project)[nodeTextId];
 
     const issue = validateProject(project).issues.find((entry) => entry.code === "DIALOGUE_TEXT_MISSING");
     const target = issue ? resolveIssueNavigation(project, issue) : undefined;
@@ -77,7 +81,7 @@ describe("resolveIssueNavigation", () => {
     const project = createDefaultProjectBundle("Dialogue choice navigation");
     const dialogue = addDialogueTree(project);
     const choiceTextId = dialogue.nodes[0].choices[0].textId;
-    delete project.strings.values[choiceTextId];
+    delete getDefaultStrings(project)[choiceTextId];
 
     const issue = validateProject(project).issues.find((entry) => entry.code === "DIALOGUE_CHOICE_TEXT_MISSING");
     const target = issue ? resolveIssueNavigation(project, issue) : undefined;
@@ -99,7 +103,7 @@ describe("resolveIssueNavigation", () => {
     };
 
     project.inventory.items.push(item);
-    project.strings.values[item.descriptionTextId] = "A trusty lantern";
+    getDefaultStrings(project)[item.descriptionTextId] = "A trusty lantern";
 
     const nameIssue = validateProject(project).issues.find((entry) => entry.code === "INVENTORY_NAME_TEXT_MISSING");
     const nameTarget = nameIssue ? resolveIssueNavigation(project, nameIssue) : undefined;
@@ -121,7 +125,7 @@ describe("resolveIssueNavigation", () => {
     };
 
     project.inventory.items.push(item);
-    project.strings.values[item.textId] = "Lantern";
+    getDefaultStrings(project)[item.textId] = "Lantern";
 
     const descriptionIssue = validateProject(project).issues.find(
       (entry) => entry.code === "INVENTORY_DESCRIPTION_TEXT_MISSING"

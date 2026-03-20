@@ -18,6 +18,10 @@ import {
   removeSceneFromProject
 } from "./project-helpers";
 
+function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
+  return project.strings.byLocale[project.manifest.defaultLanguage];
+}
+
 describe("createProjectRevision", () => {
   it("stays stable for unchanged project data and changes after edits", () => {
     const project = createDefaultProjectBundle("Revision tracking");
@@ -41,8 +45,8 @@ describe("addLocation and addScene", () => {
 
     expect(location).not.toHaveProperty("descriptionTextId");
     expect(scene).not.toHaveProperty("overlayTextId");
-    expect(project.strings.values[`text.${location.id}.description`]).toBeUndefined();
-    expect(project.strings.values[`text.${scene.id}.overlay`]).toBeUndefined();
+    expect(getDefaultStrings(project)[`text.${location.id}.description`]).toBeUndefined();
+    expect(getDefaultStrings(project)[`text.${scene.id}.overlay`]).toBeUndefined();
   });
 });
 
@@ -57,7 +61,7 @@ describe("createSubtitleCue", () => {
       endMs: 1750,
       textId: `text.${cue.id}.subtitle`
     });
-    expect(project.strings.values[cue.textId]).toBe("Localized subtitle");
+    expect(getDefaultStrings(project)[cue.textId]).toBe("Localized subtitle");
   });
 });
 
@@ -83,7 +87,7 @@ describe("addHotspot", () => {
 
     expect(hotspot?.name).toBe("Hotspot 4");
     expect(hotspot).not.toHaveProperty("labelTextId");
-    expect(project.strings.values[`text.${hotspot!.id}.label`]).toBeUndefined();
+    expect(getDefaultStrings(project)[`text.${hotspot!.id}.label`]).toBeUndefined();
     expect(
       hotspot?.polygon?.map((point) => ({
         x: Number(point.x.toFixed(2)),
@@ -169,9 +173,9 @@ describe("removeHotspotFromProject", () => {
 
     const hotspot = addHotspot(project, scene.id, 0.25, 0.25)!;
     const legacyLabelTextId = `text.${hotspot.id}.label`;
-    project.strings.values[legacyLabelTextId] = hotspot.name;
+    getDefaultStrings(project)[legacyLabelTextId] = hotspot.name;
     hotspot.commentTextId = `text.${hotspot.id}.comment`;
-    project.strings.values[hotspot.commentTextId] = "Owned comment";
+    getDefaultStrings(project)[hotspot.commentTextId] = "Owned comment";
 
     const result = removeHotspotFromProject(project, scene.id, hotspot.id);
 
@@ -179,8 +183,8 @@ describe("removeHotspotFromProject", () => {
       deleted: true,
       removedTextIds: [legacyLabelTextId, hotspot.commentTextId]
     });
-    expect(project.strings.values[legacyLabelTextId]).toBeUndefined();
-    expect(project.strings.values[hotspot.commentTextId]).toBeUndefined();
+    expect(getDefaultStrings(project)[legacyLabelTextId]).toBeUndefined();
+    expect(getDefaultStrings(project)[hotspot.commentTextId]).toBeUndefined();
   });
 
   it("preserves shared and manual hotspot text ids", () => {
@@ -190,13 +194,13 @@ describe("removeHotspotFromProject", () => {
 
     const hotspot = addHotspot(project, scene.id, 0.4, 0.4)!;
     const sharedLabelTextId = `text.${hotspot.id}.label`;
-    project.strings.values[sharedLabelTextId] = hotspot.name;
+    getDefaultStrings(project)[sharedLabelTextId] = hotspot.name;
     const item = addInventoryItem(project);
-    delete project.strings.values[item.textId];
+    delete getDefaultStrings(project)[item.textId];
     item.textId = sharedLabelTextId;
 
     hotspot.commentTextId = "text.manual.hotspot.comment";
-    project.strings.values[hotspot.commentTextId] = "Manual comment";
+    getDefaultStrings(project)[hotspot.commentTextId] = "Manual comment";
 
     const result = removeHotspotFromProject(project, scene.id, hotspot.id);
 
@@ -204,8 +208,8 @@ describe("removeHotspotFromProject", () => {
       deleted: true,
       removedTextIds: []
     });
-    expect(project.strings.values[sharedLabelTextId]).toBe("Hotspot 1");
-    expect(project.strings.values[hotspot.commentTextId]).toBe("Manual comment");
+    expect(getDefaultStrings(project)[sharedLabelTextId]).toBe("Hotspot 1");
+    expect(getDefaultStrings(project)[hotspot.commentTextId]).toBe("Manual comment");
   });
 });
 
@@ -476,25 +480,25 @@ describe("removeSceneFromProject", () => {
     const deletedScene = addScene(project, project.locations.items[0].id);
     deletedScene.hotspots = [];
     const legacyOverlayTextId = `text.${deletedScene.id}.overlay`;
-    project.strings.values[legacyOverlayTextId] = "Owned overlay";
+    getDefaultStrings(project)[legacyOverlayTextId] = "Owned overlay";
     const subtitleCue = createSubtitleCue(project, 0, 1000, "Owned subtitle");
     deletedScene.subtitleTracks = [{ id: "subtitle_deleted", cues: [subtitleCue] }];
 
     const prunedHotspot = addHotspot(project, deletedScene.id, 0.2, 0.2)!;
     const prunedLabelTextId = `text.${prunedHotspot.id}.label`;
-    project.strings.values[prunedLabelTextId] = prunedHotspot.name;
+    getDefaultStrings(project)[prunedLabelTextId] = prunedHotspot.name;
     prunedHotspot.commentTextId = `text.${prunedHotspot.id}.comment`;
-    project.strings.values[prunedHotspot.commentTextId] = "Owned comment";
+    getDefaultStrings(project)[prunedHotspot.commentTextId] = "Owned comment";
 
     const preservedHotspot = addHotspot(project, deletedScene.id, 0.5, 0.5)!;
     const sharedLabelTextId = `text.${preservedHotspot.id}.label`;
-    project.strings.values[sharedLabelTextId] = preservedHotspot.name;
+    getDefaultStrings(project)[sharedLabelTextId] = preservedHotspot.name;
     const item = addInventoryItem(project);
-    delete project.strings.values[item.textId];
+    delete getDefaultStrings(project)[item.textId];
     item.textId = sharedLabelTextId;
 
     preservedHotspot.commentTextId = "text.manual.scene.comment";
-    project.strings.values[preservedHotspot.commentTextId] = "Manual scene comment";
+    getDefaultStrings(project)[preservedHotspot.commentTextId] = "Manual scene comment";
 
     const result = removeSceneFromProject(project, deletedScene.id, { mode: "cleanup" });
 
@@ -504,12 +508,12 @@ describe("removeSceneFromProject", () => {
     );
     expect(result.removedTextIds).not.toContain(sharedLabelTextId);
     expect(result.removedTextIds).not.toContain(preservedHotspot.commentTextId);
-    expect(project.strings.values[legacyOverlayTextId]).toBeUndefined();
-    expect(project.strings.values[subtitleCue.textId]).toBeUndefined();
-    expect(project.strings.values[prunedLabelTextId]).toBeUndefined();
-    expect(project.strings.values[prunedHotspot.commentTextId!]).toBeUndefined();
-    expect(project.strings.values[sharedLabelTextId]).toBe("Hotspot 2");
-    expect(project.strings.values[preservedHotspot.commentTextId]).toBe("Manual scene comment");
+    expect(getDefaultStrings(project)[legacyOverlayTextId]).toBeUndefined();
+    expect(getDefaultStrings(project)[subtitleCue.textId]).toBeUndefined();
+    expect(getDefaultStrings(project)[prunedLabelTextId]).toBeUndefined();
+    expect(getDefaultStrings(project)[prunedHotspot.commentTextId!]).toBeUndefined();
+    expect(getDefaultStrings(project)[sharedLabelTextId]).toBe("Hotspot 2");
+    expect(getDefaultStrings(project)[preservedHotspot.commentTextId]).toBe("Manual scene comment");
   });
 });
 
@@ -518,10 +522,14 @@ function createAsset(id: string, name: string, sourcePath: string): Asset {
     id,
     kind: "image",
     name,
-    sourcePath,
-    importedAt: "2026-03-14T00:00:00.000Z",
-    width: 1280,
-    height: 720
+    variants: {
+      en: {
+        sourcePath,
+        importedAt: "2026-03-14T00:00:00.000Z",
+        width: 1280,
+        height: 720
+      }
+    }
   };
 }
 
