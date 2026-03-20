@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getLocaleStringValues, type Asset, type ProjectBundle } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
 import {
@@ -60,6 +60,16 @@ interface SubtitleSceneGroup {
   entries: SubtitleLocalizationEntry[];
 }
 
+const LOCALIZATION_SUBTABS: ReadonlyArray<{
+  id: LocalizationSection;
+  label: string;
+}> = [
+  { id: "overview", label: "Overview" },
+  { id: "strings", label: "Strings" },
+  { id: "subtitles", label: "Subtitles" },
+  { id: "media", label: "Media" }
+];
+
 export function LocalizationPanel({
   project,
   mutateProject,
@@ -89,10 +99,6 @@ export function LocalizationPanel({
   const [areaFilter, setAreaFilter] = useState<StringsAreaFilter>("all");
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
   const stringsListRef = useRef<HTMLDivElement | null>(null);
-  const overviewRef = useRef<HTMLElement | null>(null);
-  const stringsRef = useRef<HTMLElement | null>(null);
-  const subtitlesRef = useRef<HTMLElement | null>(null);
-  const mediaRef = useRef<HTMLElement | null>(null);
 
   const allStringEntries = useMemo(
     () => collectStringLocalizationEntries(project, activeLocale),
@@ -141,6 +147,10 @@ export function LocalizationPanel({
   }, [selectedTextId, setSelectedTextId, visibleStringEntries]);
 
   useEffect(() => {
+    if (localizationSection !== "strings") {
+      return;
+    }
+
     const listElement = stringsListRef.current;
     if (!listElement || !activeTextEntryId) {
       return;
@@ -169,18 +179,7 @@ export function LocalizationPanel({
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [activeTextEntryId, visibleStringEntries]);
-
-  useEffect(() => {
-    const sectionRef = resolveSectionRef(localizationSection, {
-      overview: overviewRef,
-      strings: stringsRef,
-      subtitles: subtitlesRef,
-      media: mediaRef
-    });
-
-    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [localizationSection]);
+  }, [activeTextEntryId, localizationSection, visibleStringEntries]);
 
   function handleNavigate(target: EditorNavigationTarget, textId?: string) {
     setSelectedTextId(target.textId ?? textId);
@@ -385,10 +384,10 @@ export function LocalizationPanel({
 
   return (
     <div className="localization-page">
-      <section ref={overviewRef} className="panel localization-overview localization-section">
-        <div className="panel__toolbar localization-overview__header">
+      <section className="panel localization-shell__header">
+        <div className="panel__toolbar localization-shell__header-bar">
           <div>
-            <h3>Localization Overview</h3>
+            <h3>Localization</h3>
             <p className="muted">
               Localize strings, subtitles, and media here. The rest of the editor always authors the default locale.
             </p>
@@ -438,42 +437,85 @@ export function LocalizationPanel({
               : "Edit this locale here for strings, subtitles, and media variants."}
           </span>
         </div>
-
-        <div className="localization-overview__summary-grid">
-          <article className="list-card list-card--compact localization-summary-card">
-            <strong>Strings</strong>
-            <p className="muted">
-              {allStringEntries.length} total. {stringMissingCount} missing, {stringReferencedCount} referenced,{" "}
-              {stringOrphanedCount} orphaned.
-            </p>
-            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("strings")}>
-              Review Strings
-            </button>
-          </article>
-          <article className="list-card list-card--compact localization-summary-card">
-            <strong>Subtitles</strong>
-            <p className="muted">
-              {subtitleEntries.length} cue{subtitleEntries.length === 1 ? "" : "s"}. {subtitleTranslatedCount} translated,{" "}
-              {subtitleMissingCount} missing, {subtitleEmptyCount} empty.
-            </p>
-            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("subtitles")}>
-              Review Subtitles
-            </button>
-          </article>
-          <article className="list-card list-card--compact localization-summary-card">
-            <strong>Media</strong>
-            <p className="muted">
-              {mediaCoverage.present} of {mediaCoverage.total} asset{mediaCoverage.total === 1 ? "" : "s"} ready for{" "}
-              {activeLocale}. {mediaCoverage.missing} missing.
-            </p>
-            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("media")}>
-              Review Media
-            </button>
-          </article>
-        </div>
       </section>
 
-      <section ref={stringsRef} className="panel localization-section">
+      <nav className="localization-subtab-strip" role="tablist" aria-label="Localization sections">
+        {LOCALIZATION_SUBTABS.map((section) => (
+          <button
+            key={section.id}
+            id={`localization-tab-${section.id}`}
+            type="button"
+            role="tab"
+            aria-selected={localizationSection === section.id}
+            aria-controls={`localization-panel-${section.id}`}
+            className={
+              localizationSection === section.id
+                ? "localization-subtab localization-subtab--active"
+                : "localization-subtab"
+            }
+            onClick={() => setLocalizationSection(section.id)}
+          >
+            {section.label}
+          </button>
+        ))}
+      </nav>
+
+      {localizationSection === "overview" ? (
+        <section
+          id="localization-panel-overview"
+          role="tabpanel"
+          aria-labelledby="localization-tab-overview"
+          className="panel localization-overview localization-section localization-section--active"
+        >
+          <div className="panel__toolbar localization-section__header">
+            <div>
+              <h3>Overview</h3>
+              <p className="muted">Review locale coverage and jump into the workspace you need.</p>
+            </div>
+          </div>
+
+          <div className="localization-overview__summary-grid">
+            <article className="list-card list-card--compact localization-summary-card">
+              <strong>Strings</strong>
+              <p className="muted">
+                {allStringEntries.length} total. {stringMissingCount} missing, {stringReferencedCount} referenced,{" "}
+                {stringOrphanedCount} orphaned.
+              </p>
+              <button type="button" className="button-secondary" onClick={() => setLocalizationSection("strings")}>
+                Review Strings
+              </button>
+            </article>
+            <article className="list-card list-card--compact localization-summary-card">
+              <strong>Subtitles</strong>
+              <p className="muted">
+                {subtitleEntries.length} cue{subtitleEntries.length === 1 ? "" : "s"}. {subtitleTranslatedCount} translated,{" "}
+                {subtitleMissingCount} missing, {subtitleEmptyCount} empty.
+              </p>
+              <button type="button" className="button-secondary" onClick={() => setLocalizationSection("subtitles")}>
+                Review Subtitles
+              </button>
+            </article>
+            <article className="list-card list-card--compact localization-summary-card">
+              <strong>Media</strong>
+              <p className="muted">
+                {mediaCoverage.present} of {mediaCoverage.total} asset{mediaCoverage.total === 1 ? "" : "s"} ready for{" "}
+                {activeLocale}. {mediaCoverage.missing} missing.
+              </p>
+              <button type="button" className="button-secondary" onClick={() => setLocalizationSection("media")}>
+                Review Media
+              </button>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {localizationSection === "strings" ? (
+      <section
+        id="localization-panel-strings"
+        role="tabpanel"
+        aria-labelledby="localization-tab-strings"
+        className="panel localization-section localization-section--active"
+      >
         <div className="panel__toolbar localization-section__header">
           <div>
             <h3>Strings</h3>
@@ -481,14 +523,6 @@ export function LocalizationPanel({
               Review non-subtitle text keys used by hotspots, dialogue, and inventory for the selected locale.
             </p>
           </div>
-          <button
-            type="button"
-            className={localizationSection === "strings" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
-            onClick={() => setLocalizationSection("strings")}
-            aria-pressed={localizationSection === "strings"}
-          >
-            Focus Section
-          </button>
         </div>
 
         <div className="panel-grid panel-grid--localization">
@@ -729,20 +763,20 @@ export function LocalizationPanel({
           </aside>
         </div>
       </section>
-      <section ref={subtitlesRef} className="panel localization-section">
+      ) : null}
+
+      {localizationSection === "subtitles" ? (
+      <section
+        id="localization-panel-subtitles"
+        role="tabpanel"
+        aria-labelledby="localization-tab-subtitles"
+        className="panel localization-section localization-section--active"
+      >
         <div className="panel__toolbar localization-section__header">
           <div>
             <h3>Subtitles</h3>
             <p className="muted">Translate subtitle cues here while keeping track timing in Scenes.</p>
           </div>
-          <button
-            type="button"
-            className={localizationSection === "subtitles" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
-            onClick={() => setLocalizationSection("subtitles")}
-            aria-pressed={localizationSection === "subtitles"}
-          >
-            Focus Section
-          </button>
         </div>
 
         {subtitleSceneGroups.length > 0 ? (
@@ -814,21 +848,20 @@ export function LocalizationPanel({
           <p className="muted">No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.</p>
         )}
       </section>
+      ) : null}
 
-      <section ref={mediaRef} className="panel localization-section">
+      {localizationSection === "media" ? (
+      <section
+        id="localization-panel-media"
+        role="tabpanel"
+        aria-labelledby="localization-tab-media"
+        className="panel localization-section localization-section--active"
+      >
         <div className="panel__toolbar localization-section__header">
           <div>
             <h3>Media</h3>
             <p className="muted">Add, replace, or remove locale variants for existing logical assets.</p>
           </div>
-          <button
-            type="button"
-            className={localizationSection === "media" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
-            onClick={() => setLocalizationSection("media")}
-            aria-pressed={localizationSection === "media"}
-          >
-            Focus Section
-          </button>
         </div>
 
         {project.assets.assets.length > 0 ? (
@@ -906,6 +939,7 @@ export function LocalizationPanel({
           <p className="muted">No assets yet. Import logical assets in Assets before localizing media variants here.</p>
         )}
       </section>
+      ) : null}
     </div>
   );
 }
@@ -985,13 +1019,6 @@ function getProjectLocaleAssetCoverage(project: ProjectBundle, locale: string) {
     present,
     missing: total - present
   };
-}
-
-function resolveSectionRef(
-  section: LocalizationSection,
-  refs: Record<LocalizationSection, RefObject<HTMLElement | null>>
-) {
-  return refs[section];
 }
 
 function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): string | undefined {

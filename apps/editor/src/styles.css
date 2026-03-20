@@ -636,6 +636,7 @@ label > .checkbox-list {
 .localization-page {
   display: grid;
   gap: var(--space-md);
+  align-content: start;
 }
 
 .localization-section {
@@ -644,11 +645,21 @@ label > .checkbox-list {
   scroll-margin-top: var(--space-md);
 }
 
+.localization-shell__header {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.localization-shell__header-bar,
+.localization-section__header {
+  justify-content: space-between;
+}
+
 .localization-overview {
   align-content: start;
 }
 
-.localization-overview__header,
+.localization-shell__header-bar,
 .localization-section__header,
 .localization-overview__locale-controls,
 .localization-overview__actions,
@@ -664,6 +675,44 @@ label > .checkbox-list {
 .localization-overview__locale-controls,
 .localization-overview__actions {
   align-items: end;
+}
+
+.localization-subtab-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  padding: 0.35rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.localization-subtab {
+  padding: 0.72rem 1rem;
+  border-radius: 14px;
+  border: 0;
+  background: transparent;
+  color: #9fb0be;
+  font-weight: 600;
+}
+
+.localization-subtab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.localization-subtab--active {
+  background: rgba(125, 211, 252, 0.16);
+  color: #d7f0ff;
+}
+
+.localization-subtab[aria-selected="true"] {
+  background: rgba(125, 211, 252, 0.16);
+  color: #d7f0ff;
+}
+
+.localization-section--active {
+  min-height: 0;
 }
 
 .localization-overview__notice {
@@ -685,14 +734,8 @@ label > .checkbox-list {
   align-content: start;
 }
 
-.localization-summary-card > button,
-.localization-section__jump {
+.localization-summary-card > button {
   align-self: flex-start;
-}
-
-.localization-section__jump--active {
-  background: rgba(125, 211, 252, 0.18);
-  color: #d7f0ff;
 }
 
 .localization-panel {
