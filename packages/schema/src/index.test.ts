@@ -14,6 +14,15 @@ describe("project defaults", () => {
     expect(project.scenes.items[0]).not.toHaveProperty("clipSegments");
     expect(createInitialSaveState(project)).not.toHaveProperty("currentSegmentId");
   });
+
+  it("does not seed legacy location description or scene overlay strings in starter projects", () => {
+    const project = createDefaultProjectBundle();
+
+    expect(project.locations.items[0]).not.toHaveProperty("descriptionTextId");
+    expect(project.scenes.items[0]).not.toHaveProperty("overlayTextId");
+    expect(project.strings.values).not.toHaveProperty("text.location.intro");
+    expect(project.strings.values).not.toHaveProperty("text.scene.intro");
+  });
 });
 
 describe("project validation", () => {
@@ -24,7 +33,7 @@ describe("project validation", () => {
     expect(report.issues.some((issue) => issue.code === "SCENE_BACKGROUND_MISSING")).toBe(true);
   });
 
-  it("allows overlapping subtitle cues while still preserving inline cue text", () => {
+  it("allows overlapping subtitle cues when they resolve through string-backed text ids", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({
       id: "asset_placeholder",
@@ -37,16 +46,54 @@ describe("project validation", () => {
       {
         id: "subtitle_scene",
         cues: [
-          { id: "cue_one", startMs: 0, endMs: 2000, text: "First line" },
-          { id: "cue_two", startMs: 1000, endMs: 3000, text: "Second line" }
+          { id: "cue_one", startMs: 0, endMs: 2000, textId: "text.cue_one.subtitle" },
+          { id: "cue_two", startMs: 1000, endMs: 3000, textId: "text.cue_two.subtitle" }
         ]
       }
     ];
+    project.strings.values["text.cue_one.subtitle"] = "First line";
+    project.strings.values["text.cue_two.subtitle"] = "Second line";
 
     const report = validateProject(project);
 
     expect(report.issues.some((issue) => issue.code === "SUBTITLE_RANGE_INVALID")).toBe(false);
     expect(report.issues.some((issue) => issue.code === "SUBTITLE_OVERLAP")).toBe(false);
+  });
+
+  it("reports missing subtitle text ids as warnings", () => {
+    const project = createDefaultProjectBundle();
+    project.scenes.items[0].subtitleTracks = [
+      {
+        id: "subtitle_scene",
+        cues: [{ id: "cue_missing", startMs: 0, endMs: 2000, textId: "text.cue_missing.subtitle" }]
+      }
+    ];
+
+    const report = validateProject(project);
+    const issue = report.issues.find((entry) => entry.code === "SUBTITLE_TEXT_MISSING");
+
+    expect(issue).toMatchObject({
+      level: "warning",
+      entityId: "cue_missing"
+    });
+  });
+
+  it("reports missing inventory text warnings while ignoring legacy location and scene text fields", () => {
+    const project = createDefaultProjectBundle();
+    project.locations.items[0]!.descriptionTextId = "text.location.intro";
+    project.inventory.items.push({
+      id: "item_intro",
+      name: "Lantern",
+      textId: "text.item_intro.name",
+      descriptionTextId: "text.item_intro.description"
+    });
+
+    const report = validateProject(project);
+
+    expect(report.issues.some((issue) => issue.code === "LOCATION_DESCRIPTION_TEXT_MISSING")).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "SCENE_OVERLAY_TEXT_MISSING")).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "INVENTORY_NAME_TEXT_MISSING")).toBe(true);
+    expect(report.issues.some((issue) => issue.code === "INVENTORY_DESCRIPTION_TEXT_MISSING")).toBe(true);
   });
 
   it("aligns the starter hotspot with the placeholder scene artwork", () => {
@@ -66,7 +113,8 @@ describe("project validation", () => {
       { x: 1120 / 1280, y: 530 / 720 },
       { x: 900 / 1280, y: 530 / 720 }
     ]);
-    expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
+    expect(hotspot).not.toHaveProperty("labelTextId");
+    expect(project.strings.values).not.toHaveProperty("text.hotspot.inspect");
     expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
   });
 

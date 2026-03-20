@@ -9,10 +9,17 @@ import {
   cloneProject,
   collectSceneReferenceSummary,
   createId,
+  createSubtitleCue,
+  removeHotspotFromProject,
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
 } from "../project-helpers";
 import { applyHotspotBounds, formatHotspotCoordinate, type HotspotGeometry } from "../hotspot-geometry";
+import {
+  collectOwnedGeneratedProjectTextIdsForSubtitleCue,
+  collectOwnedGeneratedProjectTextIdsForSubtitleTrack,
+  pruneOwnedGeneratedProjectTextEntries
+} from "../project-text";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
@@ -65,7 +72,10 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         return;
       }
 
+      const track = scene.subtitleTracks.find((entry) => entry.id === trackId);
+      const removedTextIds = track ? collectOwnedGeneratedProjectTextIdsForSubtitleTrack(track) : [];
       scene.subtitleTracks = scene.subtitleTracks.filter((entry) => entry.id !== trackId);
+      pruneOwnedGeneratedProjectTextEntries(draft, removedTextIds);
     });
   }
 
@@ -78,7 +88,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
       scene.subtitleTracks.push({
         id: createId("subtitle"),
-        cues: [createSubtitleCue(0, 3000, "A subtitle cue")]
+        cues: [createSubtitleCue(draft, 0, 3000, "A subtitle cue")]
       });
     });
   }
@@ -94,7 +104,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
       const lastCue = track.cues.at(-1);
       const startMs = lastCue?.endMs ?? 0;
-      track.cues.push(createSubtitleCue(startMs, startMs + 3000, ""));
+      track.cues.push(createSubtitleCue(draft, startMs, startMs + 3000, ""));
     });
   }
 
@@ -107,7 +117,10 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         return;
       }
 
+      const cue = track.cues.find((entry) => entry.id === cueId);
+      const removedTextIds = cue ? collectOwnedGeneratedProjectTextIdsForSubtitleCue(cue) : [];
       track.cues = track.cues.filter((cue) => cue.id !== cueId);
+      pruneOwnedGeneratedProjectTextEntries(draft, removedTextIds);
     });
   }
 
@@ -135,7 +148,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
           scene.subtitleTracks.push(
             ...result.parsedFiles.map((file) => ({
               id: createId("subtitle"),
-              cues: file.cues.map((cue) => createSubtitleCue(cue.startMs, cue.endMs, cue.text))
+              cues: file.cues.map((cue) => createSubtitleCue(draft, cue.startMs, cue.endMs, cue.text))
             }))
           );
         });
@@ -159,12 +172,12 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
         return;
       }
 
-      const nextHotspots = scene.hotspots.filter((entry) => entry.id !== hotspotId);
-      if (nextHotspots.length === scene.hotspots.length) {
+      const deletion = removeHotspotFromProject(draft, currentSceneId, hotspotId);
+      if (!deletion.deleted) {
         return;
       }
 
-      scene.hotspots = nextHotspots;
+      const nextHotspots = scene.hotspots;
       if (selectedHotspotId === hotspotId) {
         setSelectedHotspotId(nextHotspots[0]?.id);
       }
@@ -606,7 +619,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                         />
                         <textarea
                           rows={2}
-                          value={cue.text}
+                          value={project.strings.values[cue.textId] ?? ""}
                           title="Subtitle text shown to the player during this cue."
                           onChange={(event) =>
                             mutateProject((draft) => {
@@ -615,7 +628,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                                 ?.subtitleTracks.find((entry) => entry.id === track.id)
                                 ?.cues.find((entry) => entry.id === cue.id);
                               if (target) {
-                                target.text = event.target.value;
+                                draft.strings.values[target.textId] = event.target.value;
                               }
                             })
                           }
@@ -661,7 +674,6 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
                         ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
                       if (target) {
                         target.name = event.target.value;
-                        draft.strings.values[target.labelTextId] = event.target.value;
                       }
                     })
                   }
@@ -863,15 +875,6 @@ function shouldIgnoreDeleteHotspotShortcut(target: EventTarget | null): boolean 
   }
 
   return Boolean(target.closest("input, textarea, select, [contenteditable='true'], [role='textbox']"));
-}
-
-function createSubtitleCue(startMs: number, endMs: number, text: string) {
-  return {
-    id: createId("cue"),
-    startMs,
-    endMs,
-    text
-  };
 }
 
 function resolveSubtitleImportStatusMessage(importedTrackCount: number, failedFileCount: number): string {

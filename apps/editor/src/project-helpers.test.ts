@@ -4,13 +4,16 @@ import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
   addScene,
+  addInventoryItem,
   addAssetRoots,
   addHotspot,
   addHotspotAtBestAvailablePosition,
   collectSceneReferenceSummary,
   countSceneReferences,
   collectAssetReferenceSummary,
+  createSubtitleCue,
   createProjectRevision,
+  removeHotspotFromProject,
   removeAssetFromProject,
   removeSceneFromProject
 } from "./project-helpers";
@@ -26,6 +29,35 @@ describe("createProjectRevision", () => {
 
     expect(unchangedRevision).toBe(initialRevision);
     expect(updatedRevision).not.toBe(initialRevision);
+  });
+});
+
+describe("addLocation and addScene", () => {
+  it("does not seed localization-backed location descriptions or scene overlays for new content", () => {
+    const project = createDefaultProjectBundle("New content");
+
+    const location = addLocation(project);
+    const scene = addScene(project, project.locations.items[0]!.id);
+
+    expect(location).not.toHaveProperty("descriptionTextId");
+    expect(scene).not.toHaveProperty("overlayTextId");
+    expect(project.strings.values[`text.${location.id}.description`]).toBeUndefined();
+    expect(project.strings.values[`text.${scene.id}.overlay`]).toBeUndefined();
+  });
+});
+
+describe("createSubtitleCue", () => {
+  it("creates string-backed subtitle cues with generated text ids", () => {
+    const project = createDefaultProjectBundle("Subtitle cue creation");
+
+    const cue = createSubtitleCue(project, 250, 1750, "Localized subtitle");
+
+    expect(cue).toMatchObject({
+      startMs: 250,
+      endMs: 1750,
+      textId: `text.${cue.id}.subtitle`
+    });
+    expect(project.strings.values[cue.textId]).toBe("Localized subtitle");
   });
 });
 
@@ -50,7 +82,8 @@ describe("addHotspot", () => {
     const hotspot = addHotspot(project, scene.id, 0.8, 0.8);
 
     expect(hotspot?.name).toBe("Hotspot 4");
-    expect(project.strings.values[hotspot!.labelTextId]).toBe("Hotspot 4");
+    expect(hotspot).not.toHaveProperty("labelTextId");
+    expect(project.strings.values[`text.${hotspot!.id}.label`]).toBeUndefined();
     expect(
       hotspot?.polygon?.map((point) => ({
         x: Number(point.x.toFixed(2)),
@@ -125,6 +158,54 @@ describe("addHotspotAtBestAvailablePosition", () => {
     const created = addHotspotAtBestAvailablePosition(project, scene.id)!;
 
     expect(getOverlapArea(resolveHotspotBounds(existing), resolveHotspotBounds(created))).toBe(0);
+  });
+});
+
+describe("removeHotspotFromProject", () => {
+  it("prunes owned generated hotspot text when it becomes unused", () => {
+    const project = createDefaultProjectBundle("Hotspot text pruning");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspot(project, scene.id, 0.25, 0.25)!;
+    const legacyLabelTextId = `text.${hotspot.id}.label`;
+    project.strings.values[legacyLabelTextId] = hotspot.name;
+    hotspot.commentTextId = `text.${hotspot.id}.comment`;
+    project.strings.values[hotspot.commentTextId] = "Owned comment";
+
+    const result = removeHotspotFromProject(project, scene.id, hotspot.id);
+
+    expect(result).toMatchObject({
+      deleted: true,
+      removedTextIds: [legacyLabelTextId, hotspot.commentTextId]
+    });
+    expect(project.strings.values[legacyLabelTextId]).toBeUndefined();
+    expect(project.strings.values[hotspot.commentTextId]).toBeUndefined();
+  });
+
+  it("preserves shared and manual hotspot text ids", () => {
+    const project = createDefaultProjectBundle("Shared hotspot text");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspot(project, scene.id, 0.4, 0.4)!;
+    const sharedLabelTextId = `text.${hotspot.id}.label`;
+    project.strings.values[sharedLabelTextId] = hotspot.name;
+    const item = addInventoryItem(project);
+    delete project.strings.values[item.textId];
+    item.textId = sharedLabelTextId;
+
+    hotspot.commentTextId = "text.manual.hotspot.comment";
+    project.strings.values[hotspot.commentTextId] = "Manual comment";
+
+    const result = removeHotspotFromProject(project, scene.id, hotspot.id);
+
+    expect(result).toMatchObject({
+      deleted: true,
+      removedTextIds: []
+    });
+    expect(project.strings.values[sharedLabelTextId]).toBe("Hotspot 1");
+    expect(project.strings.values[hotspot.commentTextId]).toBe("Manual comment");
   });
 });
 
@@ -290,6 +371,7 @@ describe("removeSceneFromProject", () => {
 
     expect(result.deleted).toBe(true);
     expect(result.removedSubtitleTrackIds).toEqual(["subtitle_deleted", "subtitle_deleted_two"]);
+    expect(result.removedTextIds).toEqual([]);
     expect(project.scenes.items.map((scene) => scene.id)).toEqual([sourceScene.id]);
     expect(project.locations.items[0].sceneIds).toEqual([sourceScene.id]);
     expect(project.manifest.startSceneId).toBe(deletedScene.id);
@@ -368,6 +450,7 @@ describe("removeSceneFromProject", () => {
 
     expect(result.deleted).toBe(true);
     expect(result.removedSubtitleTrackIds).toEqual(["subtitle_deleted"]);
+    expect(result.removedTextIds).toEqual([]);
     expect(project.manifest.startSceneId).toBe(replacementScene.id);
     expect(project.manifest.startLocationId).toBe(replacementScene.locationId);
     expect(project.locations.items.find((location) => location.id === deletedScene.locationId)?.sceneIds).toEqual([sourceScene.id]);
@@ -386,6 +469,47 @@ describe("removeSceneFromProject", () => {
     expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([
       { type: "goToScene", sceneId: replacementScene.id }
     ]);
+  });
+
+  it("prunes generated scene-owned text while preserving shared and manual text ids", () => {
+    const project = createDefaultProjectBundle("Scene text pruning");
+    const deletedScene = addScene(project, project.locations.items[0].id);
+    deletedScene.hotspots = [];
+    const legacyOverlayTextId = `text.${deletedScene.id}.overlay`;
+    project.strings.values[legacyOverlayTextId] = "Owned overlay";
+    const subtitleCue = createSubtitleCue(project, 0, 1000, "Owned subtitle");
+    deletedScene.subtitleTracks = [{ id: "subtitle_deleted", cues: [subtitleCue] }];
+
+    const prunedHotspot = addHotspot(project, deletedScene.id, 0.2, 0.2)!;
+    const prunedLabelTextId = `text.${prunedHotspot.id}.label`;
+    project.strings.values[prunedLabelTextId] = prunedHotspot.name;
+    prunedHotspot.commentTextId = `text.${prunedHotspot.id}.comment`;
+    project.strings.values[prunedHotspot.commentTextId] = "Owned comment";
+
+    const preservedHotspot = addHotspot(project, deletedScene.id, 0.5, 0.5)!;
+    const sharedLabelTextId = `text.${preservedHotspot.id}.label`;
+    project.strings.values[sharedLabelTextId] = preservedHotspot.name;
+    const item = addInventoryItem(project);
+    delete project.strings.values[item.textId];
+    item.textId = sharedLabelTextId;
+
+    preservedHotspot.commentTextId = "text.manual.scene.comment";
+    project.strings.values[preservedHotspot.commentTextId] = "Manual scene comment";
+
+    const result = removeSceneFromProject(project, deletedScene.id, { mode: "cleanup" });
+
+    expect(result.deleted).toBe(true);
+    expect(result.removedTextIds).toEqual(
+      expect.arrayContaining([legacyOverlayTextId, subtitleCue.textId, prunedLabelTextId, prunedHotspot.commentTextId!])
+    );
+    expect(result.removedTextIds).not.toContain(sharedLabelTextId);
+    expect(result.removedTextIds).not.toContain(preservedHotspot.commentTextId);
+    expect(project.strings.values[legacyOverlayTextId]).toBeUndefined();
+    expect(project.strings.values[subtitleCue.textId]).toBeUndefined();
+    expect(project.strings.values[prunedLabelTextId]).toBeUndefined();
+    expect(project.strings.values[prunedHotspot.commentTextId!]).toBeUndefined();
+    expect(project.strings.values[sharedLabelTextId]).toBe("Hotspot 2");
+    expect(project.strings.values[preservedHotspot.commentTextId]).toBe("Manual scene comment");
   });
 });
 
@@ -409,7 +533,7 @@ function createSubtitleTrack(id: string): SubtitleTrack {
         id: `${id}_cue`,
         startMs: 0,
         endMs: 1000,
-        text: `Cue for ${id}`
+        textId: `text.${id}_cue.subtitle`
       }
     ]
   };

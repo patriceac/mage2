@@ -49,7 +49,7 @@ export const SubtitleCueSchema = z.object({
   id: z.string().min(1),
   startMs: z.number().nonnegative(),
   endMs: z.number().positive(),
-  text: z.string()
+  textId: z.string().min(1)
 });
 
 export const SubtitleTrackSchema = z.object({
@@ -65,7 +65,6 @@ export const HotspotPointSchema = z.object({
 export const HotspotSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  labelTextId: z.string().min(1),
   commentTextId: z.string().min(1).optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
@@ -90,7 +89,6 @@ export const SceneSchema = z.object({
   hotspots: z.array(HotspotSchema).default([]),
   subtitleTracks: z.array(SubtitleTrackSchema).default([]),
   dialogueTreeIds: z.array(z.string()).default([]),
-  overlayTextId: z.string().optional(),
   onEnterEffects: z.array(EffectSchema).default([]),
   onExitEffects: z.array(EffectSchema).default([])
 });

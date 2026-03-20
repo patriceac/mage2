@@ -7,10 +7,21 @@ import type {
   InventoryItem,
   Location,
   ProjectBundle,
-  Scene
+  Scene,
+  SubtitleCue
 } from "@mage2/schema";
 import { createRectangleHotspotPolygon, resolveHotspotBounds } from "@mage2/schema";
 import { roundHotspotCoordinate } from "./hotspot-geometry";
+import {
+  collectOwnedGeneratedProjectTextIdsForHotspot,
+  collectOwnedGeneratedProjectTextIdsForScene,
+  getGeneratedDialogueChoiceTextId,
+  getGeneratedDialogueNodeTextId,
+  getGeneratedInventoryDescriptionTextId,
+  getGeneratedInventoryNameTextId,
+  getGeneratedSubtitleCueTextId,
+  pruneOwnedGeneratedProjectTextEntries
+} from "./project-text";
 
 export interface AssetReferenceSummary {
   sceneBackgrounds: Array<{
@@ -58,6 +69,12 @@ export interface RemoveSceneFromProjectResult {
   strategy: RemoveSceneStrategy;
   referenceSummary: SceneReferenceSummary;
   removedSubtitleTrackIds: string[];
+  removedTextIds: string[];
+}
+
+export interface RemoveHotspotFromProjectResult {
+  deleted: boolean;
+  removedTextIds: string[];
 }
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
@@ -262,6 +279,7 @@ export function removeSceneFromProject(
   const referenceSummary = collectSceneReferenceSummary(project, sceneId);
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
   const removedSubtitleTrackIds = scene ? scene.subtitleTracks.map((track) => track.id) : [];
+  const ownedGeneratedTextIds = scene ? collectOwnedGeneratedProjectTextIdsForScene(scene) : [];
 
   if (!scene) {
     return {
@@ -269,7 +287,8 @@ export function removeSceneFromProject(
       blockedReason: "scene-not-found",
       strategy,
       referenceSummary,
-      removedSubtitleTrackIds: []
+      removedSubtitleTrackIds: [],
+      removedTextIds: []
     };
   }
 
@@ -284,7 +303,8 @@ export function removeSceneFromProject(
       blockedReason: "replacement-scene-not-found",
       strategy,
       referenceSummary,
-      removedSubtitleTrackIds: []
+      removedSubtitleTrackIds: [],
+      removedTextIds: []
     };
   }
 
@@ -324,11 +344,38 @@ export function removeSceneFromProject(
     }
   }
 
+  const removedTextIds = pruneOwnedGeneratedProjectTextEntries(project, ownedGeneratedTextIds);
+
   return {
     deleted: true,
     strategy,
     referenceSummary,
-    removedSubtitleTrackIds
+    removedSubtitleTrackIds,
+    removedTextIds
+  };
+}
+
+export function removeHotspotFromProject(
+  project: ProjectBundle,
+  sceneId: string,
+  hotspotId: string
+): RemoveHotspotFromProjectResult {
+  const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+  const hotspot = scene?.hotspots.find((entry) => entry.id === hotspotId);
+
+  if (!scene || !hotspot) {
+    return {
+      deleted: false,
+      removedTextIds: []
+    };
+  }
+
+  const ownedGeneratedTextIds = collectOwnedGeneratedProjectTextIdsForHotspot(hotspot);
+  scene.hotspots = scene.hotspots.filter((entry) => entry.id !== hotspotId);
+
+  return {
+    deleted: true,
+    removedTextIds: pruneOwnedGeneratedProjectTextEntries(project, ownedGeneratedTextIds)
   };
 }
 
@@ -340,26 +387,22 @@ export function ensureString(project: ProjectBundle, textId: string, fallback: s
 
 export function addLocation(project: ProjectBundle): Location {
   const locationId = createId("location");
-  const descriptionTextId = `text.${locationId}.description`;
   const scene = addScene(project, locationId);
 
   const location: Location = {
     id: locationId,
     name: `Location ${project.locations.items.length + 1}`,
-    descriptionTextId,
     x: 180 + project.locations.items.length * 120,
     y: 160 + (project.locations.items.length % 2) * 120,
     sceneIds: [scene.id]
   };
 
-  ensureString(project, descriptionTextId, `${location.name} description`);
   project.locations.items.push(location);
   return location;
 }
 
 export function addScene(project: ProjectBundle, locationId?: string): Scene {
   const sceneId = createId("scene");
-  const overlayTextId = `text.${sceneId}.overlay`;
   const scene: Scene = {
     id: sceneId,
     locationId: locationId ?? project.locations.items[0]?.id ?? "location_intro",
@@ -369,12 +412,10 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     hotspots: [],
     subtitleTracks: [],
     dialogueTreeIds: [],
-    overlayTextId,
     onEnterEffects: [],
     onExitEffects: []
   };
 
-  ensureString(project, overlayTextId, `${scene.name} overlay`);
   project.scenes.items.push(scene);
 
   const location = project.locations.items.find((entry) => entry.id === scene.locationId);
@@ -388,8 +429,9 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
 export function addDialogueTree(project: ProjectBundle): DialogueTree {
   const treeId = createId("dialogue");
   const nodeId = createId("node");
-  const textId = `text.${nodeId}.line`;
-  const choiceTextId = `text.${nodeId}.choice`;
+  const textId = getGeneratedDialogueNodeTextId(nodeId);
+  const choiceId = createId("choice");
+  const choiceTextId = getGeneratedDialogueChoiceTextId(choiceId);
 
   const dialogue: DialogueTree = {
     id: treeId,
@@ -402,7 +444,7 @@ export function addDialogueTree(project: ProjectBundle): DialogueTree {
         textId,
         choices: [
           {
-            id: createId("choice"),
+            id: choiceId,
             textId: choiceTextId,
             conditions: [],
             effects: []
@@ -421,8 +463,8 @@ export function addDialogueTree(project: ProjectBundle): DialogueTree {
 
 export function addInventoryItem(project: ProjectBundle): InventoryItem {
   const itemId = createId("item");
-  const textId = `text.${itemId}.name`;
-  const descriptionTextId = `text.${itemId}.description`;
+  const textId = getGeneratedInventoryNameTextId(itemId);
+  const descriptionTextId = getGeneratedInventoryDescriptionTextId(itemId);
   const item: InventoryItem = {
     id: itemId,
     name: `Item ${project.inventory.items.length + 1}`,
@@ -436,13 +478,31 @@ export function addInventoryItem(project: ProjectBundle): InventoryItem {
   return item;
 }
 
+export function createSubtitleCue(
+  project: ProjectBundle,
+  startMs: number,
+  endMs: number,
+  text: string
+): SubtitleCue {
+  const cueId = createId("cue");
+  const textId = getGeneratedSubtitleCueTextId(cueId);
+
+  ensureString(project, textId, text);
+  return {
+    id: cueId,
+    startMs,
+    endMs,
+    textId
+  };
+}
+
 export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y: number): Hotspot | undefined {
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
   if (!scene) {
     return undefined;
   }
 
-  return createHotspot(project, scene, resolveHotspotBoundsFromCenter(x, y));
+  return createHotspot(scene, resolveHotspotBoundsFromCenter(x, y));
 }
 
 export function addHotspotAtBestAvailablePosition(
@@ -454,7 +514,7 @@ export function addHotspotAtBestAvailablePosition(
     return undefined;
   }
 
-  return createHotspot(project, scene, findBestHotspotBounds(scene.hotspots));
+  return createHotspot(scene, findBestHotspotBounds(scene.hotspots));
 }
 
 function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string | undefined {
@@ -524,7 +584,6 @@ function getNextHotspotNumber(scene: Scene): number {
 }
 
 function createHotspot(
-  project: ProjectBundle,
   scene: Scene,
   bounds: {
     x: number;
@@ -535,15 +594,12 @@ function createHotspot(
 ): Hotspot {
   const nextHotspotNumber = getNextHotspotNumber(scene);
   const hotspotId = createId("hotspot");
-  const textId = `text.${hotspotId}.label`;
   const hotspotName = `Hotspot ${nextHotspotNumber}`;
   const roundedBounds = roundHotspotBounds(bounds);
 
-  ensureString(project, textId, hotspotName);
   const hotspot: Hotspot = {
     id: hotspotId,
     name: hotspotName,
-    labelTextId: textId,
     ...roundedBounds,
     polygon: createRectangleHotspotPolygon(roundedBounds),
     startMs: 0,

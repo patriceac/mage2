@@ -183,12 +183,17 @@ export function resolveIssueEntityLabel(
 
 export function getIssueHint(issue: ValidationIssue): string {
   switch (issue.code) {
-    case "HOTSPOT_TEXT_MISSING":
     case "HOTSPOT_COMMENT_TEXT_MISSING":
       return "Add the missing entry in the Localization tab or restore it from the hotspot editor in Scenes.";
+    case "SUBTITLE_TEXT_MISSING":
+    case "SUBTITLE_TEXT_EMPTY":
+      return "Add the missing entry in the Localization tab or restore it from the subtitle editor in Scenes.";
     case "DIALOGUE_TEXT_MISSING":
     case "DIALOGUE_CHOICE_TEXT_MISSING":
       return "Add the missing entry in the Localization tab or restore it from the dialogue editor.";
+    case "INVENTORY_NAME_TEXT_MISSING":
+    case "INVENTORY_DESCRIPTION_TEXT_MISSING":
+      return "Add the missing entry in the Localization tab or restore it from the inventory editor.";
     case "SCENE_BACKGROUND_MISSING":
       return "Import media in Assets, then assign a background asset in the Scenes tab.";
     case "HOTSPOT_TARGET_SCENE_MISSING":

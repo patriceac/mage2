@@ -19,6 +19,14 @@ interface RuntimeAsset {
   durationMs?: number;
 }
 
+export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "manifest">): {
+  projectName: string;
+} {
+  return {
+    projectName: content.manifest.projectName
+  };
+}
+
 export function App() {
   const [buildManifest, setBuildManifest] = useState<BuildManifest>();
   const [content, setContent] = useState<ExportProjectData>();
@@ -118,14 +126,14 @@ export function App() {
     );
   }
 
+  const headerContent = resolveRuntimeHeaderContent(content);
+
   return (
     <main className="runtime-shell">
       <section className="runtime-stage">
         <header className="runtime-header">
           <div>
-            <p className="runtime-eyebrow">{content.manifest.projectName}</p>
-            <h1>{snapshot.location.name}</h1>
-            <p>{snapshot.scene.name}</p>
+            <p className="runtime-eyebrow">{headerContent.projectName}</p>
           </div>
           <div className="runtime-actions">
             <button

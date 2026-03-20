@@ -31,7 +31,6 @@ const STARTER_SCENE_HOTSPOT_BOUNDS = {
 } as const;
 
 const STARTER_HOTSPOT_NAME = "Placeholder";
-const STARTER_HOTSPOT_LABEL_TEXT_ID = "text.hotspot.inspect";
 const STARTER_HOTSPOT_COMMENT_TEXT_ID = "text.hotspot.inspect.comment";
 const STARTER_HOTSPOT_COMMENT = "Add real hotspots in Scenes";
 
@@ -41,7 +40,6 @@ export function createStarterHotspot(): Hotspot {
   return {
     id: "hotspot_inspect",
     name: STARTER_HOTSPOT_NAME,
-    labelTextId: STARTER_HOTSPOT_LABEL_TEXT_ID,
     commentTextId: STARTER_HOTSPOT_COMMENT_TEXT_ID,
     ...STARTER_SCENE_HOTSPOT_BOUNDS,
     polygon,
@@ -82,7 +80,6 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
         {
           id: locationId,
           name: "Intro",
-          descriptionTextId: "text.location.intro",
           x: 240,
           y: 140,
           sceneIds: [sceneId]
@@ -101,7 +98,6 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           hotspots: [createStarterHotspot()],
           subtitleTracks: [],
           dialogueTreeIds: [],
-          overlayTextId: "text.scene.intro",
           onEnterEffects: [],
           onExitEffects: []
         }
@@ -118,9 +114,6 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     strings: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       values: {
-        "text.location.intro": "Starting location",
-        "text.scene.intro": "Opening scene",
-        [STARTER_HOTSPOT_LABEL_TEXT_ID]: STARTER_HOTSPOT_NAME,
         [STARTER_HOTSPOT_COMMENT_TEXT_ID]: STARTER_HOTSPOT_COMMENT
       }
     }
