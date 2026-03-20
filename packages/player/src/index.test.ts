@@ -18,7 +18,7 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(35000)).toHaveLength(0);
   });
 
-  it("returns active subtitle cue text from scene-owned tracks, including overlaps and line breaks", () => {
+  it("returns active subtitle cue text from string-backed scene tracks, including overlaps and line breaks", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({
       id: "asset_placeholder",
@@ -35,7 +35,7 @@ describe("player controller", () => {
             id: "cue_one",
             startMs: 0,
             endMs: 2000,
-            text: "First line\nSecond line"
+            textId: "text.cue_one.subtitle"
           }
         ]
       },
@@ -46,11 +46,13 @@ describe("player controller", () => {
             id: "cue_two",
             startMs: 1000,
             endMs: 3000,
-            text: "Overlapping cue"
+            textId: "text.cue_two.subtitle"
           }
         ]
       }
     ];
+    project.strings.values["text.cue_one.subtitle"] = "First line\nSecond line";
+    project.strings.values["text.cue_two.subtitle"] = "Overlapping cue";
 
     const controller = createPlayerController(project);
 

@@ -38,7 +38,8 @@ describe("starter project creation", () => {
     expect(hotspot?.y).toBeCloseTo(360 / 720);
     expect(hotspot?.width).toBeCloseTo(220 / 1280);
     expect(hotspot?.height).toBeCloseTo(170 / 720);
-    expect(project.strings.values["text.hotspot.inspect"]).toBe("Placeholder");
+    expect(hotspot).not.toHaveProperty("labelTextId");
+    expect(project.strings.values).not.toHaveProperty("text.hotspot.inspect");
     expect(project.strings.values["text.hotspot.inspect.comment"]).toBe("Add real hotspots in Scenes");
     expect(starterSceneSvg).not.toContain(">Placeholder</text>");
     expect(starterSceneSvg).not.toContain("Add real hotspots");
@@ -92,11 +93,12 @@ describe("subtitle project persistence", () => {
             id: "cue_scene",
             startMs: 0,
             endMs: 1000,
-            text: "Inline text"
+            textId: "text.cue_scene.subtitle"
           }
         ]
       }
     ];
+    project.strings.values["text.cue_scene.subtitle"] = "Localized text";
 
     await saveProjectToDirectory(projectDir, project);
 

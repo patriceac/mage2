@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPlayerController } from "@mage2/player";
-import type { ProjectBundle } from "@mage2/schema";
+import type { InventoryItem, ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
 
 interface PlaytestPanelProps {
@@ -8,6 +8,17 @@ interface PlaytestPanelProps {
 }
 
 const STORAGE_KEY = "mage2-editor-playtest-save";
+
+export function resolvePlaytestInventorySummary(
+  items: Array<Pick<InventoryItem, "name" | "textId">>,
+  strings: Record<string, string>
+): string {
+  const labels = items
+    .map((item) => strings[item.textId] ?? item.name ?? item.textId)
+    .filter((label) => label.length > 0);
+
+  return labels.join(", ") || "Empty";
+}
 
 export function PlaytestPanel({ project }: PlaytestPanelProps) {
   const [controller, setController] = useState(() => createPlayerController(project));
@@ -167,7 +178,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             <pre>{JSON.stringify(snapshot.flags, null, 2)}</pre>
           </dd>
           <dt>Inventory</dt>
-          <dd>{snapshot.inventoryItems.map((item) => item.name).join(", ") || "Empty"}</dd>
+          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, project.strings.values)}</dd>
           <dt>Visited Scenes</dt>
           <dd>{snapshot.saveState.visitedSceneIds.join(", ")}</dd>
         </dl>

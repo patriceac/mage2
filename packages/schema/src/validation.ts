@@ -83,6 +83,26 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     validateDialogue(project, dialogue, sceneIds, inventoryIds, dialogueIds, issues);
   }
 
+  for (const item of project.inventory.items) {
+    if (!(item.textId in project.strings.values)) {
+      issues.push({
+        level: "warning",
+        code: "INVENTORY_NAME_TEXT_MISSING",
+        message: `Inventory item '${item.id}' references missing name text '${item.textId}'.`,
+        entityId: item.id
+      });
+    }
+
+    if (item.descriptionTextId && !(item.descriptionTextId in project.strings.values)) {
+      issues.push({
+        level: "warning",
+        code: "INVENTORY_DESCRIPTION_TEXT_MISSING",
+        message: `Inventory item '${item.id}' references missing description text '${item.descriptionTextId}'.`,
+        entityId: item.id
+      });
+    }
+  }
+
   const reachableScenes = new Set<string>();
   const stack = [project.manifest.startSceneId];
   while (stack.length > 0) {
@@ -159,15 +179,6 @@ function validateScene(
       });
     }
 
-    if (!(hotspot.labelTextId in project.strings.values)) {
-      issues.push({
-        level: "warning",
-        code: "HOTSPOT_TEXT_MISSING",
-        message: `Hotspot '${hotspot.id}' references missing text '${hotspot.labelTextId}'.`,
-        entityId: hotspot.id
-      });
-    }
-
     if (hotspot.commentTextId && !(hotspot.commentTextId in project.strings.values)) {
       issues.push({
         level: "warning",
@@ -231,7 +242,15 @@ function validateScene(
         });
       }
 
-      if (cue.text.trim().length === 0) {
+      const subtitleText = project.strings.values[cue.textId];
+      if (!(cue.textId in project.strings.values)) {
+        issues.push({
+          level: "warning",
+          code: "SUBTITLE_TEXT_MISSING",
+          message: `Subtitle cue '${cue.id}' references missing text '${cue.textId}'.`,
+          entityId: cue.id
+        });
+      } else if (subtitleText.trim().length === 0) {
         issues.push({
           level: "warning",
           code: "SUBTITLE_TEXT_EMPTY",

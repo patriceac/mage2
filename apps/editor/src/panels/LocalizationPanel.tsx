@@ -1,9 +1,16 @@
+import { useEffect, useState } from "react";
 import type { ProjectBundle } from "@mage2/schema";
+import { useDialogs } from "../dialogs";
 import type { EditorNavigationTarget } from "../navigation-target";
 import {
   collectProjectTextEntries,
+  deleteOrphanedProjectTextEntries,
+  filterProjectTextEntries,
   formatProjectTextUsageKind,
+  getProjectTextAreaLabel,
   getProjectTextStatusLabel,
+  resolveProjectTextArea,
+  resolveProjectTextSelection,
   summarizeProjectTextUsages
 } from "../project-text";
 import { useEditorStore } from "../store";
@@ -14,7 +21,8 @@ interface LocalizationPanelProps {
 }
 
 export function LocalizationPanel({ project, mutateProject }: LocalizationPanelProps) {
-  const entries = collectProjectTextEntries(project);
+  const dialogs = useDialogs();
+  const allEntries = collectProjectTextEntries(project);
   const selectedTextId = useEditorStore((state) => state.selectedTextId);
   const setSelectedTextId = useEditorStore((state) => state.setSelectedTextId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
@@ -24,12 +32,31 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "missing" | "referenced" | "orphaned">("all");
+  const [areaFilter, setAreaFilter] = useState<"all" | "dialogue" | "inventory" | "subtitles">("all");
+  const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
 
-  const activeTextId = entries.some((entry) => entry.textId === selectedTextId) ? selectedTextId : entries[0]?.textId;
-  const selectedEntry = entries.find((entry) => entry.textId === activeTextId);
-  const missingCount = entries.filter((entry) => entry.status === "missing").length;
-  const referencedCount = entries.filter((entry) => entry.status === "referenced").length;
-  const orphanedCount = entries.filter((entry) => entry.status === "orphaned").length;
+  const visibleEntries = filterProjectTextEntries(allEntries, {
+    search,
+    status: statusFilter,
+    area: areaFilter,
+    sort: sortOption
+  });
+  const activeTextId = resolveProjectTextSelection(visibleEntries, selectedTextId);
+  const selectedEntry = visibleEntries.find((entry) => entry.textId === activeTextId);
+  const missingCount = allEntries.filter((entry) => entry.status === "missing").length;
+  const referencedCount = allEntries.filter((entry) => entry.status === "referenced").length;
+  const orphanedCount = allEntries.filter((entry) => entry.status === "orphaned").length;
+  const visibleOrphanedEntries = visibleEntries.filter((entry) => entry.status === "orphaned");
+  const hasActiveSearchOrFilter = search.trim().length > 0 || statusFilter !== "all" || areaFilter !== "all";
+
+  useEffect(() => {
+    const nextSelectedTextId = resolveProjectTextSelection(visibleEntries, selectedTextId);
+    if (nextSelectedTextId !== selectedTextId) {
+      setSelectedTextId(nextSelectedTextId);
+    }
+  }, [selectedTextId, setSelectedTextId, visibleEntries]);
 
   function handleNavigate(target: EditorNavigationTarget, textId: string) {
     setSelectedTextId(target.textId ?? textId);
@@ -42,6 +69,48 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     setSelectedInventoryItemId(target.inventoryItemId);
   }
 
+  async function handleDeleteOrphanedEntries(textIds: string[]) {
+    if (textIds.length === 0) {
+      return;
+    }
+
+    const isBulkDelete = textIds.length > 1;
+    const confirmed = await dialogs.confirm({
+      title: isBulkDelete ? `Delete ${textIds.length} orphaned strings?` : `Delete ${textIds[0]}?`,
+      body: (
+        <>
+          <p>
+            {isBulkDelete
+              ? "Only the currently visible orphaned entries will be removed from the stored project text."
+              : "This orphaned entry is no longer referenced anywhere in the project and will be removed from the stored project text."}
+          </p>
+          <div className="dialog-callout">
+            <strong>Removing</strong>
+            <ul className="dialog-detail-list">
+              {textIds.slice(0, 8).map((textId) => (
+                <li key={textId}>
+                  <code>{textId}</code>
+                </li>
+              ))}
+              {textIds.length > 8 ? <li>{`${textIds.length - 8} more entry${textIds.length - 8 === 1 ? "" : "ies"}`}</li> : null}
+            </ul>
+          </div>
+        </>
+      ),
+      confirmLabel: isBulkDelete ? "Delete Visible Orphaned" : "Delete Orphaned Entry",
+      cancelLabel: "Keep Entries",
+      tone: "danger"
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      deleteOrphanedProjectTextEntries(draft, textIds);
+    });
+  }
+
   return (
     <div className="panel-grid panel-grid--localization">
       <section className="panel localization-panel">
@@ -49,16 +118,67 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
           <div>
             <h3>Project Text</h3>
             <p className="muted localization-panel__summary">
-              {entries.length} entr{entries.length === 1 ? "y" : "ies"}: {missingCount} missing, {referencedCount}{" "}
-              referenced, {orphanedCount} orphaned.
+              {hasActiveSearchOrFilter
+                ? `${visibleEntries.length} of ${allEntries.length} visible. `
+                : `${allEntries.length} entr${allEntries.length === 1 ? "y" : "ies"}: `}
+              {missingCount} missing, {referencedCount} referenced, {orphanedCount} orphaned.
             </p>
+          </div>
+          <div className="localization-panel__toolbar-actions">
+            <button
+              type="button"
+              className="button-danger"
+              disabled={visibleOrphanedEntries.length === 0}
+              title="Delete all orphaned entries currently visible in this filtered list."
+              onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
+            >
+              Delete Visible Orphaned
+            </button>
           </div>
         </div>
 
-        {entries.length > 0 ? (
+        <div className="localization-panel__controls">
+          <label className="localization-filter localization-filter--search">
+            <span className="field-label--inset">Search</span>
+            <input
+              value={search}
+              placeholder="Search text id, value, usage, or owner"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="localization-filter">
+            <span className="field-label--inset">Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+              <option value="all">All statuses</option>
+              <option value="missing">Missing</option>
+              <option value="referenced">Referenced</option>
+              <option value="orphaned">Orphaned</option>
+            </select>
+          </label>
+          <label className="localization-filter">
+            <span className="field-label--inset">Area</span>
+            <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value as typeof areaFilter)}>
+              <option value="all">All areas</option>
+              <option value="dialogue">Dialogue</option>
+              <option value="inventory">Inventory</option>
+              <option value="subtitles">Subtitles</option>
+            </select>
+          </label>
+          <label className="localization-filter">
+            <span className="field-label--inset">Sort</span>
+            <select value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)}>
+              <option value="status">Status then ID</option>
+              <option value="textId">Text ID A-Z</option>
+              <option value="mostUses">Most Uses</option>
+            </select>
+          </label>
+        </div>
+
+        {visibleEntries.length > 0 ? (
           <div className="list-stack localization-list">
-            {entries.map((entry) => {
+            {visibleEntries.map((entry) => {
               const isSelected = entry.textId === activeTextId;
+              const usageAreas = [...new Set(entry.usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))];
               return (
                 <article
                   key={entry.textId}
@@ -73,12 +193,29 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
                     >
                       <code>{entry.textId}</code>
                     </button>
-                    <span
-                      className={`localization-status localization-status--${entry.status}`}
-                      title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
-                    >
-                      {getProjectTextStatusLabel(entry.status)}
-                    </span>
+                    <div className="localization-entry__badges">
+                      {usageAreas.map((area) => (
+                        <span key={area} className="localization-area">
+                          {area}
+                        </span>
+                      ))}
+                      <span
+                        className={`localization-status localization-status--${entry.status}`}
+                        title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
+                      >
+                        {getProjectTextStatusLabel(entry.status)}
+                      </span>
+                      {entry.status === "orphaned" ? (
+                        <button
+                          type="button"
+                          className="button-danger button-danger--compact"
+                          title={`Delete the orphaned string ${entry.textId}.`}
+                          onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <p className="muted localization-entry__summary">{summarizeProjectTextUsages(entry.usages)}</p>
@@ -120,6 +257,10 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
               );
             })}
           </div>
+        ) : allEntries.length > 0 ? (
+          <p className="muted localization-panel__empty-state">
+            No project text entries match the current search and filters.
+          </p>
         ) : (
           <p className="muted">No project text entries yet.</p>
         )}
