@@ -11,7 +11,7 @@ interface InventoryPanelProps {
 export function InventoryPanel({ project, mutateProject }: InventoryPanelProps) {
   const selectedInventoryItemId = useEditorStore((state) => state.selectedInventoryItemId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const activeLocale = project.manifest.defaultLanguage;
   const localeStrings = getLocaleStringValues(project, activeLocale);
   return (
     <div className="panel-grid panel-grid--single">

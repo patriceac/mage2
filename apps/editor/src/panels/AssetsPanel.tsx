@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { normalizeSupportedLocales, type Asset, type ProjectBundle } from "@mage2/schema";
+import { type Asset, type ProjectBundle } from "@mage2/schema";
 import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
-import { getLocaleCompletenessStatus, getLocalizedAssetVariant } from "../localized-project";
+import { getLocalizedAssetVariant } from "../localized-project";
 import {
   addAssetRoots,
   cloneProject,
@@ -33,11 +33,9 @@ export function AssetsPanel({
   setBusyLabel
 }: AssetsPanelProps) {
   const dialogs = useDialogs();
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
-  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
+  const activeLocale = project.manifest.defaultLanguage;
   const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
-  const supportedLocales = normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
   );
@@ -350,25 +348,13 @@ export function AssetsPanel({
       <section className="panel assets-panel">
         <div className="panel__toolbar">
           <h3>Imported Media</h3>
-          <div className="stack-inline">
-            <label className="localization-filter">
-              <span className="field-label--inset">Locale</span>
-              <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
-                {supportedLocales.map((locale) => (
-                  <option key={locale} value={locale}>
-                    {locale}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={handleImportAssets}
-              title={`Import source media files as new logical assets for the ${activeLocale} locale. Preview proxies are generated automatically.`}
-            >
-              Add Files
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleImportAssets}
+            title={`Import source media files as new logical assets for the default locale (${activeLocale}). Preview proxies are generated automatically.`}
+          >
+            Add Files
+          </button>
         </div>
 
         <div className="list-stack">
@@ -391,7 +377,6 @@ export function AssetsPanel({
             const deletionEligibility = assetDeletionEligibility.get(asset.id);
             const deleteDisabled = !deletionEligibility?.canDelete;
             const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
-            const localeStatus = getLocaleCompletenessStatus(asset, supportedLocales);
             const isSelected = selectedAssetId === asset.id;
 
             return (
@@ -410,44 +395,10 @@ export function AssetsPanel({
                       {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
                       {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
                     </p>
-                    <p className="muted">
-                      {activeVariant
-                        ? activeVariant.proxyPath
-                          ? `${activeLocale} preview ready`
-                          : `${activeLocale} preview unavailable`
-                        : `${activeLocale} variant missing`}
-                    </p>
                     <p className="muted">{formatAssetUsageSummary(referenceSummary)}</p>
-                    <p className="muted">
-                      Present: {localeStatus.present.join(", ") || "none"}.
-                      {localeStatus.missing.length > 0 ? ` Missing: ${localeStatus.missing.join(", ")}.` : ""}
-                    </p>
                   </div>
 
                   <div className="list-card__actions">
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => void handleImportVariant(asset)}
-                      title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
-                    >
-                      {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
-                    </button>
-                    <button
-                      type="button"
-                      className="button-danger"
-                      disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
-                      onClick={() => void handleRemoveVariant(asset)}
-                      title={
-                        !activeVariant
-                          ? `${asset.name} does not have a ${activeLocale} variant to remove.`
-                          : Object.keys(asset.variants).length <= 1
-                          ? `Delete ${asset.name} entirely to remove its only remaining variant.`
-                          : `Remove only the ${activeLocale} variant from ${asset.name}.`
-                      }
-                    >
-                      {`Remove ${activeLocale}`}
-                    </button>
                     <button
                       type="button"
                       className="button-danger"

@@ -95,7 +95,7 @@ export function AssetPreview({ asset, locale, interactive = true, allowSourceFal
     return (
       <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
         <strong>Preview unavailable</strong>
-        <span>No preview file is available for this locale variant.</span>
+        <span>No preview file is available for this asset.</span>
       </div>
     );
   }

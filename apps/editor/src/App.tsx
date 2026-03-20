@@ -36,12 +36,12 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 ];
 
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
-  assets: "Manage imported media files and localized variants for faster editing and previewing.",
+  assets: "Manage the logical media library used by scenes, then handle locale variants from Localization.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
   scenes: "Edit scene media, hotspots, subtitles, and scene-level wiring.",
   dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
   inventory: "Create inventory items and edit the player-facing text tied to each item.",
-  localization: "Review project text, missing references, and context before future translation work.",
+  localization: "Manage locale coverage and edit localized strings, subtitles, and media variants in one place.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
 
@@ -64,7 +64,9 @@ export function App() {
     setSelectedInventoryItemId,
     setSelectedAssetId,
     setSelectedTextId,
-    setActiveLocale
+    setLocalizationLocale,
+    setPlaytestLocale,
+    setLocalizationSection
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
@@ -304,7 +306,14 @@ export function App() {
     setSelectedInventoryItemId(target.inventoryItemId);
     setSelectedAssetId(target.assetId);
     setSelectedTextId(target.textId);
-    setActiveLocale(target.locale);
+    if (target.tab === "localization") {
+      setLocalizationLocale(target.locale);
+      if (target.localizationSection) {
+        setLocalizationSection(target.localizationSection);
+      }
+    } else if (target.tab === "playtest") {
+      setPlaytestLocale(target.locale);
+    }
     setStatusMessage(`Navigated to ${target.label}`);
   }
 
@@ -473,7 +482,13 @@ export function App() {
             {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "inventory" ? <InventoryPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "localization" ? (
-              <LocalizationPanel project={project} mutateProject={mutateProject} />
+              <LocalizationPanel
+                project={project}
+                mutateProject={mutateProject}
+                setSavedProject={markProjectSaved}
+                setStatusMessage={setStatusMessage}
+                setBusyLabel={setBusyLabel}
+              />
             ) : null}
             {activeTab === "playtest" ? <PlaytestPanel project={project} /> : null}
           </main>

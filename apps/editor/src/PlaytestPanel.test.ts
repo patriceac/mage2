@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
 import { addInventoryItem } from "./project-helpers";
-import { resolvePlaytestInventorySummary } from "./PlaytestPanel";
+import { resolvePlaytestInventorySummary, resolveStoredPlaytestLocale } from "./PlaytestPanel";
 
 describe("resolvePlaytestInventorySummary", () => {
   it("prefers localized inventory names over plain item names", () => {
@@ -17,5 +17,16 @@ describe("resolvePlaytestInventorySummary", () => {
 
   it("returns Empty when there are no inventory items", () => {
     expect(resolvePlaytestInventorySummary([], {})).toBe("Empty");
+  });
+});
+
+describe("resolveStoredPlaytestLocale", () => {
+  it("uses the stored locale when it is supported", () => {
+    expect(resolveStoredPlaytestLocale("fr", ["en", "fr"], "en")).toBe("fr");
+  });
+
+  it("falls back to the default locale when the stored locale is missing or unsupported", () => {
+    expect(resolveStoredPlaytestLocale(null, ["en", "fr"], "en")).toBe("en");
+    expect(resolveStoredPlaytestLocale("de", ["en", "fr"], "en")).toBe("en");
   });
 });

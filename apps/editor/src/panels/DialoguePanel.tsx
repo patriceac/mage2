@@ -14,7 +14,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const activeLocale = project.manifest.defaultLanguage;
   const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
   const localeStrings = getLocaleStringValues(project, activeLocale);
 

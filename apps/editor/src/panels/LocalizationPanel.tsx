@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from "react";
-import type { ProjectBundle } from "@mage2/schema";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { getLocaleStringValues, type Asset, type ProjectBundle } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
 import {
   addProjectLocale,
+  getLocaleCompletenessStatus,
+  getLocalizedAssetVariant,
   getSupportedProjectLocales,
   removeProjectLocale,
   setEditorLocalizedText,
   setProjectDefaultLocale
 } from "../localized-project";
 import type { EditorNavigationTarget } from "../navigation-target";
+import { AssetPreview } from "../previews";
 import {
   collectProjectTextEntries,
   deleteOrphanedProjectTextEntries,
@@ -18,23 +21,61 @@ import {
   getProjectTextStatusLabel,
   resolveProjectTextArea,
   resolveProjectTextSelection,
-  summarizeProjectTextUsages
+  summarizeProjectTextUsages,
+  type ProjectTextEntry
 } from "../project-text";
-import { useEditorStore } from "../store";
+import { type LocalizationSection, useEditorStore } from "../store";
+
+type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
+type SubtitleEntryStatus = "missing" | "translated" | "empty";
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  setSavedProject: (project: ProjectBundle) => void;
+  setStatusMessage: (message: string) => void;
+  setBusyLabel: (label?: string) => void;
 }
 
-export function LocalizationPanel({ project, mutateProject }: LocalizationPanelProps) {
+interface SubtitleLocalizationEntry {
+  sceneId: string;
+  sceneName: string;
+  locationId: string;
+  trackId: string;
+  trackIndex: number;
+  cueId: string;
+  cueIndex: number;
+  textId: string;
+  startMs: number;
+  endMs: number;
+  defaultValue: string;
+  localizedValue: string;
+  status: SubtitleEntryStatus;
+  navigation: EditorNavigationTarget;
+}
+
+interface SubtitleSceneGroup {
+  sceneId: string;
+  sceneName: string;
+  entries: SubtitleLocalizationEntry[];
+}
+
+export function LocalizationPanel({
+  project,
+  mutateProject,
+  setSavedProject,
+  setStatusMessage,
+  setBusyLabel
+}: LocalizationPanelProps) {
   const dialogs = useDialogs();
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
-  const setActiveLocale = useEditorStore((state) => state.setActiveLocale);
-  const supportedLocales = getSupportedProjectLocales(project);
-  const allEntries = collectProjectTextEntries(project, activeLocale);
+  const activeLocale = useEditorStore((state) => state.localizationLocale) ?? project.manifest.defaultLanguage;
+  const setLocalizationLocale = useEditorStore((state) => state.setLocalizationLocale);
+  const localizationSection = useEditorStore((state) => state.localizationSection);
+  const setLocalizationSection = useEditorStore((state) => state.setLocalizationSection);
   const selectedTextId = useEditorStore((state) => state.selectedTextId);
   const setSelectedTextId = useEditorStore((state) => state.setSelectedTextId);
+  const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
+  const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const setSelectedLocationId = useEditorStore((state) => state.setSelectedLocationId);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
@@ -42,36 +83,66 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
+  const supportedLocales = getSupportedProjectLocales(project);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "missing" | "referenced" | "orphaned">("all");
-  const [areaFilter, setAreaFilter] = useState<"all" | "dialogue" | "inventory" | "subtitles">("all");
+  const [areaFilter, setAreaFilter] = useState<StringsAreaFilter>("all");
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
-  const localizationListRef = useRef<HTMLDivElement | null>(null);
+  const stringsListRef = useRef<HTMLDivElement | null>(null);
+  const overviewRef = useRef<HTMLElement | null>(null);
+  const stringsRef = useRef<HTMLElement | null>(null);
+  const subtitlesRef = useRef<HTMLElement | null>(null);
+  const mediaRef = useRef<HTMLElement | null>(null);
 
-  const visibleEntries = filterProjectTextEntries(allEntries, {
-    search,
-    status: statusFilter,
-    area: areaFilter,
-    sort: sortOption
-  });
-  const activeTextId = resolveProjectTextSelection(visibleEntries, selectedTextId);
-  const selectedEntry = visibleEntries.find((entry) => entry.textId === activeTextId);
-  const missingCount = allEntries.filter((entry) => entry.status === "missing").length;
-  const referencedCount = allEntries.filter((entry) => entry.status === "referenced").length;
-  const orphanedCount = allEntries.filter((entry) => entry.status === "orphaned").length;
-  const visibleOrphanedEntries = visibleEntries.filter((entry) => entry.status === "orphaned");
+  const allStringEntries = useMemo(
+    () => collectStringLocalizationEntries(project, activeLocale),
+    [activeLocale, project]
+  );
+  const visibleStringEntries = useMemo(
+    () =>
+      filterProjectTextEntries(allStringEntries, {
+        search,
+        status: statusFilter,
+        area: areaFilter,
+        sort: sortOption
+      }),
+    [allStringEntries, areaFilter, search, sortOption, statusFilter]
+  );
+  const activeTextEntryId = resolveProjectTextSelection(visibleStringEntries, selectedTextId);
+  const selectedStringEntry = visibleStringEntries.find((entry) => entry.textId === activeTextEntryId);
+  const stringMissingCount = allStringEntries.filter((entry) => entry.status === "missing").length;
+  const stringReferencedCount = allStringEntries.filter((entry) => entry.status === "referenced").length;
+  const stringOrphanedCount = allStringEntries.filter((entry) => entry.status === "orphaned").length;
+  const visibleOrphanedEntries = visibleStringEntries.filter((entry) => entry.status === "orphaned");
   const hasActiveSearchOrFilter = search.trim().length > 0 || statusFilter !== "all" || areaFilter !== "all";
 
+  const subtitleEntries = useMemo(
+    () => collectSubtitleLocalizationEntries(project, activeLocale),
+    [activeLocale, project]
+  );
+  const subtitleSceneGroups = useMemo(
+    () => groupSubtitleEntriesByScene(subtitleEntries),
+    [subtitleEntries]
+  );
+  const subtitleMissingCount = subtitleEntries.filter((entry) => entry.status === "missing").length;
+  const subtitleEmptyCount = subtitleEntries.filter((entry) => entry.status === "empty").length;
+  const subtitleTranslatedCount = subtitleEntries.filter((entry) => entry.status === "translated").length;
+  const mediaCoverage = useMemo(
+    () => getProjectLocaleAssetCoverage(project, activeLocale),
+    [activeLocale, project]
+  );
+  const isDefaultLocale = activeLocale === project.manifest.defaultLanguage;
+
   useEffect(() => {
-    const nextSelectedTextId = resolveProjectTextSelection(visibleEntries, selectedTextId);
+    const nextSelectedTextId = resolveProjectTextSelection(visibleStringEntries, selectedTextId);
     if (nextSelectedTextId !== selectedTextId) {
       setSelectedTextId(nextSelectedTextId);
     }
-  }, [selectedTextId, setSelectedTextId, visibleEntries]);
+  }, [selectedTextId, setSelectedTextId, visibleStringEntries]);
 
   useEffect(() => {
-    const listElement = localizationListRef.current;
-    if (!listElement || !activeTextId) {
+    const listElement = stringsListRef.current;
+    if (!listElement || !activeTextEntryId) {
       return;
     }
 
@@ -98,12 +169,26 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [activeTextId, visibleEntries]);
+  }, [activeTextEntryId, visibleStringEntries]);
 
-  function handleNavigate(target: EditorNavigationTarget, textId: string) {
+  useEffect(() => {
+    const sectionRef = resolveSectionRef(localizationSection, {
+      overview: overviewRef,
+      strings: stringsRef,
+      subtitles: subtitlesRef,
+      media: mediaRef
+    });
+
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [localizationSection]);
+
+  function handleNavigate(target: EditorNavigationTarget, textId?: string) {
     setSelectedTextId(target.textId ?? textId);
-    if (target.locale) {
-      setActiveLocale(target.locale);
+    if (target.tab === "localization") {
+      setLocalizationLocale(target.locale);
+      if (target.localizationSection) {
+        setLocalizationSection(target.localizationSection);
+      }
     }
     setActiveTab(target.tab);
     setSelectedLocationId(target.locationId);
@@ -112,6 +197,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     setSelectedDialogueId(target.dialogueId);
     setSelectedDialogueNodeId(target.dialogueNodeId);
     setSelectedInventoryItemId(target.inventoryItemId);
+    setSelectedAssetId(target.assetId);
   }
 
   async function handleDeleteOrphanedEntries(textIds: string[]) {
@@ -171,14 +257,14 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     }
 
     if (supportedLocales.includes(normalizedLocale)) {
-      setActiveLocale(normalizedLocale);
+      setLocalizationLocale(normalizedLocale);
       return;
     }
 
     mutateProject((draft) => {
       addProjectLocale(draft, normalizedLocale);
     });
-    setActiveLocale(normalizedLocale);
+    setLocalizationLocale(normalizedLocale);
   }
 
   async function handleRemoveLocale() {
@@ -200,7 +286,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     mutateProject((draft) => {
       removeProjectLocale(draft, activeLocale);
     });
-    setActiveLocale(project.manifest.defaultLanguage);
+    setLocalizationLocale(project.manifest.defaultLanguage);
   }
 
   function handleSetDefaultLocale() {
@@ -209,23 +295,108 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
     });
   }
 
+  async function handleImportVariant(asset: Asset) {
+    const filePaths = await dialogs.pickFiles({
+      title: `${getLocalizedAssetVariant(asset, activeLocale) ? "Replace" : "Add"} ${activeLocale} Variant`,
+      description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
+      initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
+      confirmLabel: "Use This File"
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Updating localized media");
+      const updatedAsset = await window.editorApi.importAssetVariant(projectDir, asset, activeLocale, filePath);
+      const nextProject = structuredClone(project) as ProjectBundle;
+      const index = nextProject.assets.assets.findIndex((entry) => entry.id === asset.id);
+      if (index >= 0) {
+        nextProject.assets.assets[index] = updatedAsset;
+      }
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      setSavedProject(result.project);
+      setSelectedAssetId(asset.id);
+      setStatusMessage(
+        `${getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added"} ${activeLocale} variant for ${asset.name}.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Variant import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
+  async function handleRemoveVariant(asset: Asset) {
+    const variant = getLocalizedAssetVariant(asset, activeLocale);
+    if (!variant) {
+      return;
+    }
+
+    if (Object.keys(asset.variants).length <= 1) {
+      setStatusMessage(`Delete ${asset.name} entirely in Assets if you want to remove its only locale variant.`);
+      return;
+    }
+
+    const confirmed = await dialogs.confirm({
+      title: `Remove ${activeLocale} variant from ${asset.name}?`,
+      body: <p>This removes the stored file and generated proxies for the selected locale variant only.</p>,
+      confirmLabel: "Remove Variant",
+      cancelLabel: "Keep Variant",
+      tone: "danger"
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Removing localized media");
+      const nextProject = structuredClone(project) as ProjectBundle;
+      const target = nextProject.assets.assets.find((entry) => entry.id === asset.id);
+      if (!target) {
+        throw new Error("Asset is no longer present.");
+      }
+
+      delete target.variants[activeLocale];
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      await window.editorApi.deleteManagedAssetVariantFiles(projectDir, asset, activeLocale, result.project.assets.assets);
+      setSavedProject(result.project);
+      setSelectedAssetId(asset.id);
+      setStatusMessage(`Removed ${activeLocale} variant from ${asset.name}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Variant removal failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
   return (
-    <div className="panel-grid panel-grid--localization">
-      <section className="panel localization-panel">
-        <div className="localization-panel__header">
-          <div className="localization-panel__toolbar-copy">
-            <h3>Project Text</h3>
-            <p className="muted localization-panel__summary">
-              {hasActiveSearchOrFilter
-                ? `${visibleEntries.length} of ${allEntries.length} visible. `
-                : `${allEntries.length} entr${allEntries.length === 1 ? "y" : "ies"} in ${activeLocale}: `}
-              {missingCount} missing, {referencedCount} referenced, {orphanedCount} orphaned.
+    <div className="localization-page">
+      <section ref={overviewRef} className="panel localization-overview localization-section">
+        <div className="panel__toolbar localization-overview__header">
+          <div>
+            <h3>Localization Overview</h3>
+            <p className="muted">
+              Localize strings, subtitles, and media here. The rest of the editor always authors the default locale.
             </p>
           </div>
-          <div className="localization-panel__toolbar-actions">
+          <div className="localization-overview__locale-controls">
             <label className="localization-filter localization-panel__locale-filter">
               <span className="field-label--inset">Locale</span>
-              <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+              <select value={activeLocale} onChange={(event) => setLocalizationLocale(event.target.value)}>
                 {supportedLocales.map((locale) => (
                   <option key={locale} value={locale}>
                     {locale}
@@ -233,23 +404,23 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
                 ))}
               </select>
             </label>
-            <div className="localization-panel__action-buttons">
+            <div className="localization-overview__actions">
               <button type="button" className="button-secondary" onClick={() => void handleAddLocale()}>
                 Add Locale
               </button>
               <button
                 type="button"
                 className="button-secondary"
-                disabled={activeLocale === project.manifest.defaultLanguage}
+                disabled={isDefaultLocale}
                 onClick={handleSetDefaultLocale}
-                title="Make the selected locale the project default."
+                title="Make the selected locale the project default authoring locale."
               >
                 Set Default
               </button>
               <button
                 type="button"
                 className="button-danger"
-                disabled={activeLocale === project.manifest.defaultLanguage}
+                disabled={isDefaultLocale}
                 onClick={() => void handleRemoveLocale()}
                 title="Remove the selected non-default locale from the project."
               >
@@ -259,226 +430,612 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
           </div>
         </div>
 
-        <div className="localization-panel__controls">
-          <label className="localization-filter localization-filter--search">
-            <span className="field-label--inset">Search</span>
-            <input
-              value={search}
-              placeholder="Search text id, value, usage, or owner"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-          <label className="localization-filter">
-            <span className="field-label--inset">Status</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
-              <option value="all">All statuses</option>
-              <option value="missing">Missing</option>
-              <option value="referenced">Referenced</option>
-              <option value="orphaned">Orphaned</option>
-            </select>
-          </label>
-          <label className="localization-filter">
-            <span className="field-label--inset">Area</span>
-            <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value as typeof areaFilter)}>
-              <option value="all">All areas</option>
-              <option value="dialogue">Dialogue</option>
-              <option value="inventory">Inventory</option>
-              <option value="subtitles">Subtitles</option>
-            </select>
-          </label>
-          <label className="localization-filter">
-            <span className="field-label--inset">Sort</span>
-            <select value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)}>
-              <option value="status">Status then ID</option>
-              <option value="textId">Text ID A-Z</option>
-              <option value="mostUses">Most Uses</option>
-            </select>
-          </label>
+        <div className="localization-overview__notice">
+          <strong>{isDefaultLocale ? "Default locale" : "Non-default locale"}</strong>
+          <span>
+            {isDefaultLocale
+              ? "World, Scenes, Dialogue, Inventory, and Assets author this locale directly."
+              : "Edit this locale here for strings, subtitles, and media variants."}
+          </span>
         </div>
 
-        <div className="localization-panel__results">
-          {visibleOrphanedEntries.length > 0 ? (
-            <div className="localization-panel__list-actions">
-              <p className="muted localization-panel__list-action-summary">
-                {visibleOrphanedEntries.length} visible orphaned entr
-                {visibleOrphanedEntries.length === 1 ? "y" : "ies"}
-              </p>
-              <button
-                type="button"
-                className="button-danger"
-                title="Delete all orphaned entries currently visible in this filtered list."
-                onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
-              >
-                Delete Orphans
-              </button>
-            </div>
-          ) : null}
-
-          {visibleEntries.length > 0 ? (
-            <div ref={localizationListRef} className="list-stack localization-list">
-              {visibleEntries.map((entry) => {
-                const isSelected = entry.textId === activeTextId;
-                const usageAreas = [
-                  ...new Set(entry.usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))
-                ];
-                return (
-                  <article
-                    key={entry.textId}
-                    data-text-id={entry.textId}
-                    className={isSelected ? "list-card list-card--selected localization-entry" : "list-card localization-entry"}
-                  >
-                    <div className="localization-entry__header">
-                      <button
-                        type="button"
-                        className="localization-entry__select"
-                        onClick={() => setSelectedTextId(entry.textId)}
-                        title={`Inspect the project text entry ${entry.textId}.`}
-                      >
-                        <code>{entry.textId}</code>
-                      </button>
-                      <div className="localization-entry__badges">
-                        {usageAreas.map((area) => (
-                          <span key={area} className="localization-area">
-                            {area}
-                          </span>
-                        ))}
-                        <span
-                          className={`localization-status localization-status--${entry.status}`}
-                          title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
-                        >
-                          {getProjectTextStatusLabel(entry.status)}
-                        </span>
-                        {entry.status === "orphaned" ? (
-                          <button
-                            type="button"
-                            className="button-danger button-danger--compact"
-                            title={`Delete the orphaned string ${entry.textId}.`}
-                            onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <p className="muted localization-entry__summary">{summarizeProjectTextUsages(entry.usages)}</p>
-
-                    <label>
-                      <span className="field-label--inset">Source Text</span>
-                      <textarea
-                        value={entry.value}
-                        title={`Edit the source text stored under ${entry.textId}.`}
-                        onFocus={() => setSelectedTextId(entry.textId)}
-                        onChange={(event) =>
-                          mutateProject((draft) => {
-                            setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
-                          })
-                        }
-                      />
-                    </label>
-
-                    {entry.usages.length > 0 ? (
-                      <div className="pill-list localization-entry__actions">
-                        {entry.usages.map((usage, index) => (
-                          <button
-                            key={`${usage.kind}-${usage.ownerId}-${index}`}
-                            type="button"
-                            className="button-secondary localization-entry__jump"
-                            onClick={() => handleNavigate(usage.navigation, entry.textId)}
-                            title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
-                          >
-                            {formatProjectTextUsageKind(usage.kind)} - {usage.ownerLabel}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted localization-entry__orphan">
-                        No current references. Keep this entry for later reuse or repurpose it when you are ready.
-                      </p>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          ) : allEntries.length > 0 ? (
-            <p className="muted localization-panel__empty-state">
-              No project text entries match the current search and filters.
+        <div className="localization-overview__summary-grid">
+          <article className="list-card list-card--compact localization-summary-card">
+            <strong>Strings</strong>
+            <p className="muted">
+              {allStringEntries.length} total. {stringMissingCount} missing, {stringReferencedCount} referenced,{" "}
+              {stringOrphanedCount} orphaned.
             </p>
-          ) : (
-            <p className="muted">No project text entries yet.</p>
-          )}
+            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("strings")}>
+              Review Strings
+            </button>
+          </article>
+          <article className="list-card list-card--compact localization-summary-card">
+            <strong>Subtitles</strong>
+            <p className="muted">
+              {subtitleEntries.length} cue{subtitleEntries.length === 1 ? "" : "s"}. {subtitleTranslatedCount} translated,{" "}
+              {subtitleMissingCount} missing, {subtitleEmptyCount} empty.
+            </p>
+            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("subtitles")}>
+              Review Subtitles
+            </button>
+          </article>
+          <article className="list-card list-card--compact localization-summary-card">
+            <strong>Media</strong>
+            <p className="muted">
+              {mediaCoverage.present} of {mediaCoverage.total} asset{mediaCoverage.total === 1 ? "" : "s"} ready for{" "}
+              {activeLocale}. {mediaCoverage.missing} missing.
+            </p>
+            <button type="button" className="button-secondary" onClick={() => setLocalizationSection("media")}>
+              Review Media
+            </button>
+          </article>
         </div>
       </section>
 
-      <aside className="panel localization-context">
-        <div className="panel__toolbar">
+      <section ref={stringsRef} className="panel localization-section">
+        <div className="panel__toolbar localization-section__header">
           <div>
-            <h3>Context</h3>
-            <p className="muted">Use this pane to review where the selected source text is used across the project.</p>
+            <h3>Strings</h3>
+            <p className="muted">
+              Review non-subtitle text keys used by hotspots, dialogue, and inventory for the selected locale.
+            </p>
           </div>
+          <button
+            type="button"
+            className={localizationSection === "strings" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
+            onClick={() => setLocalizationSection("strings")}
+            aria-pressed={localizationSection === "strings"}
+          >
+            Focus Section
+          </button>
         </div>
 
-        {selectedEntry ? (
-          <div className="localization-context__body">
-            <div className="localization-context__headline">
-              <code className="localization-context__text-id">{selectedEntry.textId}</code>
-              <span
-                className={`localization-status localization-status--${selectedEntry.status}`}
-                title={`This entry is ${getProjectTextStatusLabel(selectedEntry.status).toLowerCase()}.`}
-              >
-                {getProjectTextStatusLabel(selectedEntry.status)}
-              </span>
+        <div className="panel-grid panel-grid--localization">
+          <div className="localization-panel">
+            <div className="localization-panel__header">
+              <div className="localization-panel__toolbar-copy">
+                <p className="muted localization-panel__summary">
+                  {hasActiveSearchOrFilter
+                    ? `${visibleStringEntries.length} of ${allStringEntries.length} visible. `
+                    : `${allStringEntries.length} entr${allStringEntries.length === 1 ? "y" : "ies"} in ${activeLocale}. `}
+                  {stringMissingCount} missing, {stringReferencedCount} referenced, {stringOrphanedCount} orphaned.
+                </p>
+              </div>
             </div>
 
-            <p className="muted localization-context__note">
-              {selectedEntry.status === "missing"
-                ? "This text id is referenced in the project, but it does not exist in the stored source text yet. Editing it from the list will create it immediately."
-                : selectedEntry.status === "orphaned"
-                  ? "This text id is still stored in the project, but nothing currently points at it."
-                  : "This source text is already connected to one or more project surfaces."}
-            </p>
+            <div className="localization-panel__controls">
+              <label className="localization-filter localization-filter--search">
+                <span className="field-label--inset">Search</span>
+                <input
+                  value={search}
+                  placeholder="Search text id, value, usage, or owner"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <label className="localization-filter">
+                <span className="field-label--inset">Status</span>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+                  <option value="all">All statuses</option>
+                  <option value="missing">Missing</option>
+                  <option value="referenced">Referenced</option>
+                  <option value="orphaned">Orphaned</option>
+                </select>
+              </label>
+              <label className="localization-filter">
+                <span className="field-label--inset">Area</span>
+                <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value as StringsAreaFilter)}>
+                  <option value="all">All areas</option>
+                  <option value="scenes">Scenes</option>
+                  <option value="dialogue">Dialogue</option>
+                  <option value="inventory">Inventory</option>
+                </select>
+              </label>
+              <label className="localization-filter">
+                <span className="field-label--inset">Sort</span>
+                <select value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)}>
+                  <option value="status">Status then ID</option>
+                  <option value="textId">Text ID A-Z</option>
+                  <option value="mostUses">Most Uses</option>
+                </select>
+              </label>
+            </div>
 
-            <dl className="inspector-grid localization-context__meta">
-              <dt>Uses</dt>
-              <dd>{selectedEntry.usages.length}</dd>
-              <dt>Stored Value</dt>
-              <dd>{selectedEntry.value.length > 0 ? "Yes" : "Empty"}</dd>
-              <dt>Next Step</dt>
-              <dd>{selectedEntry.usages.length > 0 ? "Review usage targets below." : "Review whether this key should stay."}</dd>
-            </dl>
+            <div className="localization-panel__results">
+              {visibleOrphanedEntries.length > 0 ? (
+                <div className="localization-panel__list-actions">
+                  <p className="muted localization-panel__list-action-summary">
+                    {visibleOrphanedEntries.length} visible orphaned entr
+                    {visibleOrphanedEntries.length === 1 ? "y" : "ies"}
+                  </p>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    title="Delete all orphaned entries currently visible in this filtered list."
+                    onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
+                  >
+                    Delete Orphans
+                  </button>
+                </div>
+              ) : null}
 
-            {selectedEntry.usages.length > 0 ? (
-              <div className="list-stack localization-context__usages">
-                {selectedEntry.usages.map((usage, index) => (
-                  <article key={`${usage.kind}-${usage.ownerId}-${index}`} className="list-card list-card--compact">
-                    <div className="localization-context__usage-header">
-                      <strong>{formatProjectTextUsageKind(usage.kind)}</strong>
-                      <span className="muted">{usage.ownerLabel}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="button-secondary localization-context__jump"
-                      onClick={() => handleNavigate(usage.navigation, selectedEntry.textId)}
-                      title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
-                    >
-                      Open {usage.navigation.label}
-                    </button>
-                  </article>
-                ))}
+              {visibleStringEntries.length > 0 ? (
+                <div ref={stringsListRef} className="list-stack localization-list">
+                  {visibleStringEntries.map((entry) => {
+                    const isSelected = entry.textId === activeTextEntryId;
+                    const usageAreas = [
+                      ...new Set(entry.usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))
+                    ];
+                    const defaultValue = getLocaleStringValues(project, project.manifest.defaultLanguage)[entry.textId] ?? "";
+                    return (
+                      <article
+                        key={entry.textId}
+                        data-text-id={entry.textId}
+                        className={isSelected ? "list-card list-card--selected localization-entry" : "list-card localization-entry"}
+                      >
+                        <div className="localization-entry__header">
+                          <button
+                            type="button"
+                            className="localization-entry__select"
+                            onClick={() => setSelectedTextId(entry.textId)}
+                            title={`Inspect the project text entry ${entry.textId}.`}
+                          >
+                            <code>{entry.textId}</code>
+                          </button>
+                          <div className="localization-entry__badges">
+                            {usageAreas.map((area) => (
+                              <span key={area} className="localization-area">
+                                {area}
+                              </span>
+                            ))}
+                            <span
+                              className={`localization-status localization-status--${entry.status}`}
+                              title={`This entry is ${getProjectTextStatusLabel(entry.status).toLowerCase()}.`}
+                            >
+                              {getProjectTextStatusLabel(entry.status)}
+                            </span>
+                            {entry.status === "orphaned" ? (
+                              <button
+                                type="button"
+                                className="button-danger button-danger--compact"
+                                title={`Delete the orphaned string ${entry.textId}.`}
+                                onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <p className="muted localization-entry__summary">{summarizeProjectTextUsages(entry.usages)}</p>
+
+                        {!isDefaultLocale ? (
+                          <label>
+                            <span className="field-label--inset">{`Default (${project.manifest.defaultLanguage})`}</span>
+                            <textarea value={defaultValue} readOnly />
+                          </label>
+                        ) : null}
+
+                        <label>
+                          <span className="field-label--inset">{`Value for ${activeLocale}`}</span>
+                          <textarea
+                            value={entry.value}
+                            title={`Edit the localized text stored under ${entry.textId}.`}
+                            onFocus={() => setSelectedTextId(entry.textId)}
+                            onChange={(event) =>
+                              mutateProject((draft) => {
+                                setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
+                              })
+                            }
+                          />
+                        </label>
+
+                        {entry.usages.length > 0 ? (
+                          <div className="pill-list localization-entry__actions">
+                            {entry.usages.map((usage, index) => (
+                              <button
+                                key={`${usage.kind}-${usage.ownerId}-${index}`}
+                                type="button"
+                                className="button-secondary localization-entry__jump"
+                                onClick={() => handleNavigate(usage.navigation, entry.textId)}
+                                title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
+                              >
+                                {formatProjectTextUsageKind(usage.kind)} - {usage.ownerLabel}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="muted localization-entry__orphan">
+                            No current references. Keep this entry for later reuse or repurpose it when you are ready.
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : allStringEntries.length > 0 ? (
+                <p className="muted localization-panel__empty-state">
+                  No string entries match the current search and filters.
+                </p>
+              ) : (
+                <p className="muted">No string entries yet.</p>
+              )}
+            </div>
+          </div>
+
+          <aside className="localization-context">
+            <div className="panel__toolbar">
+              <div>
+                <h3>Usage</h3>
+                <p className="muted">Review where the selected text is used and jump back to its source surface.</p>
+              </div>
+            </div>
+
+            {selectedStringEntry ? (
+              <div className="localization-context__body">
+                <div className="localization-context__headline">
+                  <code className="localization-context__text-id">{selectedStringEntry.textId}</code>
+                  <span
+                    className={`localization-status localization-status--${selectedStringEntry.status}`}
+                    title={`This entry is ${getProjectTextStatusLabel(selectedStringEntry.status).toLowerCase()}.`}
+                  >
+                    {getProjectTextStatusLabel(selectedStringEntry.status)}
+                  </span>
+                </div>
+
+                <p className="muted localization-context__note">
+                  {selectedStringEntry.status === "missing"
+                    ? "This text id is referenced in the project, but it does not exist for the selected locale yet."
+                    : selectedStringEntry.status === "orphaned"
+                      ? "This text id is still stored in the project, but nothing currently points at it."
+                      : "This localized text is already connected to one or more project surfaces."}
+                </p>
+
+                <dl className="inspector-grid localization-context__meta">
+                  <dt>Uses</dt>
+                  <dd>{selectedStringEntry.usages.length}</dd>
+                  <dt>Stored Value</dt>
+                  <dd>{selectedStringEntry.value.length > 0 ? "Yes" : "Empty"}</dd>
+                  <dt>Next Step</dt>
+                  <dd>{selectedStringEntry.usages.length > 0 ? "Review usage targets below." : "Review whether this key should stay."}</dd>
+                </dl>
+
+                {selectedStringEntry.usages.length > 0 ? (
+                  <div className="list-stack localization-context__usages">
+                    {selectedStringEntry.usages.map((usage, index) => (
+                      <article key={`${usage.kind}-${usage.ownerId}-${index}`} className="list-card list-card--compact">
+                        <div className="localization-context__usage-header">
+                          <strong>{formatProjectTextUsageKind(usage.kind)}</strong>
+                          <span className="muted">{usage.ownerLabel}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="button-secondary localization-context__jump"
+                          onClick={() => handleNavigate(usage.navigation, selectedStringEntry.textId)}
+                          title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
+                        >
+                          Open {usage.navigation.label}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted localization-context__empty">No editor surfaces currently reference this text id.</p>
+                )}
               </div>
             ) : (
-              <p className="muted localization-context__empty">
-                No editor surfaces currently reference this text id. This pane is ready for richer preview tooling in a
-                later localization pass.
-              </p>
+              <p className="muted">Select a string entry to inspect its usage.</p>
             )}
+          </aside>
+        </div>
+      </section>
+      <section ref={subtitlesRef} className="panel localization-section">
+        <div className="panel__toolbar localization-section__header">
+          <div>
+            <h3>Subtitles</h3>
+            <p className="muted">Translate subtitle cues here while keeping track timing in Scenes.</p>
+          </div>
+          <button
+            type="button"
+            className={localizationSection === "subtitles" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
+            onClick={() => setLocalizationSection("subtitles")}
+            aria-pressed={localizationSection === "subtitles"}
+          >
+            Focus Section
+          </button>
+        </div>
+
+        {subtitleSceneGroups.length > 0 ? (
+          <div className="localization-subtitle-groups">
+            {subtitleSceneGroups.map((sceneGroup) => (
+              <article key={sceneGroup.sceneId} className="list-card localization-subtitle-group">
+                <div className="localization-subtitle-group__header">
+                  <div>
+                    <h4>{sceneGroup.sceneName}</h4>
+                    <p className="muted">
+                      {sceneGroup.entries.length} cue{sceneGroup.entries.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => handleNavigate(sceneGroup.entries[0].navigation)}
+                  >
+                    Open Scene
+                  </button>
+                </div>
+
+                <div className="localization-subtitle-group__rows">
+                  {sceneGroup.entries.map((entry) => (
+                    <article
+                      key={entry.cueId}
+                      className={selectedTextId === entry.textId ? "list-card list-card--compact list-card--selected localization-subtitle-entry" : "list-card list-card--compact localization-subtitle-entry"}
+                    >
+                      <div className="localization-subtitle-entry__header">
+                        <div>
+                          <strong>{`Track ${entry.trackIndex + 1} / Cue ${entry.cueIndex + 1}`}</strong>
+                          <p className="muted">{formatCueTiming(entry.startMs, entry.endMs)}</p>
+                        </div>
+                        <div className="localization-entry__badges">
+                          <code>{entry.textId}</code>
+                          <span className={`localization-status localization-status--${mapSubtitleStatusToClassName(entry.status)}`}>
+                            {getSubtitleStatusLabel(entry.status)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {!isDefaultLocale ? (
+                        <label>
+                          <span className="field-label--inset">{`Default (${project.manifest.defaultLanguage})`}</span>
+                          <textarea value={entry.defaultValue} readOnly />
+                        </label>
+                      ) : null}
+
+                      <label>
+                        <span className="field-label--inset">{`Value for ${activeLocale}`}</span>
+                        <textarea
+                          rows={3}
+                          value={entry.localizedValue}
+                          onFocus={() => setSelectedTextId(entry.textId)}
+                          onChange={(event) =>
+                            mutateProject((draft) => {
+                              setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
+                            })
+                          }
+                        />
+                      </label>
+                    </article>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         ) : (
-          <p className="muted">Select a project text entry to inspect its context.</p>
+          <p className="muted">No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.</p>
         )}
-      </aside>
+      </section>
+
+      <section ref={mediaRef} className="panel localization-section">
+        <div className="panel__toolbar localization-section__header">
+          <div>
+            <h3>Media</h3>
+            <p className="muted">Add, replace, or remove locale variants for existing logical assets.</p>
+          </div>
+          <button
+            type="button"
+            className={localizationSection === "media" ? "button-secondary localization-section__jump localization-section__jump--active" : "button-secondary localization-section__jump"}
+            onClick={() => setLocalizationSection("media")}
+            aria-pressed={localizationSection === "media"}
+          >
+            Focus Section
+          </button>
+        </div>
+
+        {project.assets.assets.length > 0 ? (
+          <div className="localization-media-grid">
+            {project.assets.assets.map((asset) => {
+              const isSelected = selectedAssetId === asset.id;
+              const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
+              const localeStatus = getLocaleCompletenessStatus(asset, supportedLocales);
+              return (
+                <article
+                  key={asset.id}
+                  className={isSelected ? "list-card list-card--asset list-card--selected localization-media-card" : "list-card list-card--asset localization-media-card"}
+                  onClick={() => setSelectedAssetId(asset.id)}
+                >
+                  <AssetPreview asset={asset} locale={activeLocale} allowSourceFallback />
+
+                  <div className="asset-card__body">
+                    <div>
+                      <h4>{asset.name}</h4>
+                      <p>
+                        {asset.kind}
+                        {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
+                        {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
+                      </p>
+                      <p className="muted">
+                        {activeVariant
+                          ? activeVariant.proxyPath
+                            ? `${activeLocale} preview ready`
+                            : `${activeLocale} preview unavailable`
+                          : `${activeLocale} variant missing`}
+                      </p>
+                      <p className="muted">
+                        Present: {localeStatus.present.join(", ") || "none"}.
+                        {localeStatus.missing.length > 0 ? ` Missing: ${localeStatus.missing.join(", ")}.` : ""}
+                      </p>
+                    </div>
+
+                    <div className="list-card__actions">
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleImportVariant(asset);
+                        }}
+                        title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
+                      >
+                        {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
+                      </button>
+                      <button
+                        type="button"
+                        className="button-danger"
+                        disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleRemoveVariant(asset);
+                        }}
+                        title={
+                          !activeVariant
+                            ? `${asset.name} does not have a ${activeLocale} variant to remove.`
+                            : Object.keys(asset.variants).length <= 1
+                              ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
+                              : `Remove only the ${activeLocale} variant from ${asset.name}.`
+                        }
+                      >
+                        {`Remove ${activeLocale}`}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="muted">No assets yet. Import logical assets in Assets before localizing media variants here.</p>
+        )}
+      </section>
     </div>
   );
+}
+
+function collectStringLocalizationEntries(project: ProjectBundle, locale: string): ProjectTextEntry[] {
+  return collectProjectTextEntries(project, locale).filter(
+    (entry) => !entry.usages.some((usage) => usage.kind === "subtitleCue")
+  );
+}
+
+function collectSubtitleLocalizationEntries(project: ProjectBundle, locale: string): SubtitleLocalizationEntry[] {
+  const localizedStrings = getLocaleStringValues(project, locale);
+  const defaultStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
+
+  return project.scenes.items.flatMap((scene) =>
+    scene.subtitleTracks.flatMap((track, trackIndex) =>
+      track.cues.map((cue, cueIndex) => {
+        const hasLocalizedValue = Object.prototype.hasOwnProperty.call(localizedStrings, cue.textId);
+        const localizedValue = localizedStrings[cue.textId] ?? "";
+        const status: SubtitleEntryStatus = !hasLocalizedValue
+          ? "missing"
+          : localizedValue.trim().length === 0
+            ? "empty"
+            : "translated";
+
+        return {
+          sceneId: scene.id,
+          sceneName: scene.name,
+          locationId: scene.locationId,
+          trackId: track.id,
+          trackIndex,
+          cueId: cue.id,
+          cueIndex,
+          textId: cue.textId,
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          defaultValue: defaultStrings[cue.textId] ?? "",
+          localizedValue,
+          status,
+          navigation: {
+            label: `${scene.name} subtitles`,
+            tab: "scenes",
+            locationId: scene.locationId,
+            sceneId: scene.id
+          }
+        };
+      })
+    )
+  );
+}
+
+function groupSubtitleEntriesByScene(entries: SubtitleLocalizationEntry[]): SubtitleSceneGroup[] {
+  const groups = new Map<string, SubtitleSceneGroup>();
+
+  for (const entry of entries) {
+    const group = groups.get(entry.sceneId);
+    if (group) {
+      group.entries.push(entry);
+      continue;
+    }
+
+    groups.set(entry.sceneId, {
+      sceneId: entry.sceneId,
+      sceneName: entry.sceneName,
+      entries: [entry]
+    });
+  }
+
+  return [...groups.values()];
+}
+
+function getProjectLocaleAssetCoverage(project: ProjectBundle, locale: string) {
+  const total = project.assets.assets.length;
+  const present = project.assets.assets.filter((asset) => Boolean(getLocalizedAssetVariant(asset, locale))).length;
+  return {
+    total,
+    present,
+    missing: total - present
+  };
+}
+
+function resolveSectionRef(
+  section: LocalizationSection,
+  refs: Record<LocalizationSection, RefObject<HTMLElement | null>>
+) {
+  return refs[section];
+}
+
+function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): string | undefined {
+  for (let index = project.assets.assets.length - 1; index >= 0; index -= 1) {
+    const asset = project.assets.assets[index];
+    const variant = getLocalizedAssetVariant(asset, locale) ?? Object.values(asset.variants)[0];
+    if (!variant) {
+      continue;
+    }
+
+    const importPath = variant.importSourcePath ?? variant.sourcePath;
+    const parentPath = importPath.replace(/[\\/][^\\/]+$/, "");
+    if (parentPath) {
+      return parentPath;
+    }
+  }
+
+  return undefined;
+}
+
+function getSubtitleStatusLabel(status: SubtitleEntryStatus): string {
+  switch (status) {
+    case "missing":
+      return "Missing";
+    case "translated":
+      return "Translated";
+    case "empty":
+      return "Empty";
+  }
+}
+
+function mapSubtitleStatusToClassName(status: SubtitleEntryStatus): "missing" | "referenced" | "empty" {
+  switch (status) {
+    case "missing":
+      return "missing";
+    case "translated":
+      return "referenced";
+    case "empty":
+      return "empty";
+  }
+}
+
+function formatCueTiming(startMs: number, endMs: number): string {
+  return `${startMs}ms - ${endMs}ms`;
 }
 
 export function normalizeLocaleInput(input: string | undefined): string | undefined {

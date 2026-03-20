@@ -38,7 +38,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const setSelectedHotspotId = useEditorStore((state) => state.setSelectedHotspotId);
   const setPlayheadMs = useEditorStore((state) => state.setPlayheadMs);
   const updateProject = useEditorStore((state) => state.updateProject);
-  const activeLocale = useEditorStore((state) => state.activeLocale) ?? project.manifest.defaultLanguage;
+  const activeLocale = project.manifest.defaultLanguage;
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;

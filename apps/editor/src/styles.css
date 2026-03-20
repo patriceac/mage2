@@ -633,6 +633,68 @@ label > .checkbox-list {
   gap: var(--space-md);
 }
 
+.localization-page {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.localization-section {
+  display: grid;
+  gap: var(--space-md);
+  scroll-margin-top: var(--space-md);
+}
+
+.localization-overview {
+  align-content: start;
+}
+
+.localization-overview__header,
+.localization-section__header,
+.localization-overview__locale-controls,
+.localization-overview__actions,
+.localization-overview__summary-grid,
+.localization-subtitle-group__header,
+.localization-subtitle-entry__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.localization-overview__locale-controls,
+.localization-overview__actions {
+  align-items: end;
+}
+
+.localization-overview__notice {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(125, 211, 252, 0.06);
+}
+
+.localization-overview__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  align-items: stretch;
+}
+
+.localization-summary-card {
+  align-content: start;
+}
+
+.localization-summary-card > button,
+.localization-section__jump {
+  align-self: flex-start;
+}
+
+.localization-section__jump--active {
+  background: rgba(125, 211, 252, 0.18);
+  color: #d7f0ff;
+}
+
 .localization-panel {
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 72vh;
@@ -819,6 +881,11 @@ label > .checkbox-list {
   color: #c4d1db;
 }
 
+.localization-status--empty {
+  background: rgba(246, 193, 119, 0.2);
+  color: #f6c177;
+}
+
 .localization-area {
   display: inline-flex;
   align-items: center;
@@ -875,6 +942,23 @@ label > .checkbox-list {
 .localization-context__usage-header {
   display: grid;
   gap: 0.2rem;
+}
+
+.localization-subtitle-groups,
+.localization-subtitle-group,
+.localization-subtitle-group__rows,
+.localization-media-grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.localization-subtitle-group__header,
+.localization-subtitle-entry__header {
+  justify-content: space-between;
+}
+
+.localization-subtitle-entry {
+  gap: var(--space-md);
 }
 
 .list-card--selected {
