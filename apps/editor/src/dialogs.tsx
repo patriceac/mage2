@@ -247,6 +247,10 @@ export function useDialogs(): DialogContextValue {
   return context;
 }
 
+export function shouldToggleFileSelectionOnClick(clickDetail: number): boolean {
+  return clickDetail <= 1;
+}
+
 function ConfirmDialog({
   options,
   onConfirm,
@@ -791,6 +795,10 @@ function FileBrowserDialog({
     );
   }
 
+  function resolveFileSelection(filePath: string) {
+    onResolve([filePath]);
+  }
+
   return (
     <DialogFrame
       title={options.title}
@@ -970,7 +978,7 @@ function FileBrowserDialog({
                 ? "Choose a folder that contains a valid MAGE2 project."
                 : mode === "directory"
                 ? "Choose the current folder when you reach the project location you want."
-                : "Click files to select them. Open folders to keep browsing."}
+                : "Click files to select them, or double-click a file to choose it right away. Open folders to keep browsing."}
             </span>
             {hiddenFileCount > 0 ? (
               <span>{hiddenFileCount} unsupported file{hiddenFileCount === 1 ? "" : "s"} hidden</span>
@@ -1007,13 +1015,22 @@ function FileBrowserDialog({
                       key={entry.path}
                       type="button"
                       className={isSelected ? "file-browser__entry file-browser__entry--selected" : "file-browser__entry"}
-                      onClick={() => {
+                      onClick={(event) => {
                         if (entry.kind === "directory") {
                           navigateToPath(entry.path);
                           return;
                         }
 
+                        if (!shouldToggleFileSelectionOnClick(event.detail)) {
+                          return;
+                        }
+
                         toggleFileSelection(entry.path);
+                      }}
+                      onDoubleClick={() => {
+                        if (entry.kind === "file") {
+                          resolveFileSelection(entry.path);
+                        }
                       }}
                       title={entry.path}
                     >
