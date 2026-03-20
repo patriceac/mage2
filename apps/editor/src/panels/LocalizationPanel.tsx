@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ProjectBundle } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
 import {
@@ -46,6 +46,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
   const [statusFilter, setStatusFilter] = useState<"all" | "missing" | "referenced" | "orphaned">("all");
   const [areaFilter, setAreaFilter] = useState<"all" | "dialogue" | "inventory" | "subtitles">("all");
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
+  const localizationListRef = useRef<HTMLDivElement | null>(null);
 
   const visibleEntries = filterProjectTextEntries(allEntries, {
     search,
@@ -67,6 +68,37 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
       setSelectedTextId(nextSelectedTextId);
     }
   }, [selectedTextId, setSelectedTextId, visibleEntries]);
+
+  useEffect(() => {
+    const listElement = localizationListRef.current;
+    if (!listElement || !activeTextId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const selectedCard = listElement.querySelector<HTMLElement>(".list-card--selected");
+      if (!selectedCard) {
+        return;
+      }
+
+      const listBounds = listElement.getBoundingClientRect();
+      const cardBounds = selectedCard.getBoundingClientRect();
+      const scrollMargin = 12;
+
+      if (cardBounds.top < listBounds.top + scrollMargin) {
+        listElement.scrollTop -= listBounds.top + scrollMargin - cardBounds.top;
+        return;
+      }
+
+      if (cardBounds.bottom > listBounds.bottom - scrollMargin) {
+        listElement.scrollTop += cardBounds.bottom - (listBounds.bottom - scrollMargin);
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [activeTextId, visibleEntries]);
 
   function handleNavigate(target: EditorNavigationTarget, textId: string) {
     setSelectedTextId(target.textId ?? textId);
@@ -283,7 +315,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
           ) : null}
 
           {visibleEntries.length > 0 ? (
-            <div className="list-stack localization-list">
+            <div ref={localizationListRef} className="list-stack localization-list">
               {visibleEntries.map((entry) => {
                 const isSelected = entry.textId === activeTextId;
                 const usageAreas = [
@@ -292,6 +324,7 @@ export function LocalizationPanel({ project, mutateProject }: LocalizationPanelP
                 return (
                   <article
                     key={entry.textId}
+                    data-text-id={entry.textId}
                     className={isSelected ? "list-card list-card--selected localization-entry" : "list-card localization-entry"}
                   >
                     <div className="localization-entry__header">

@@ -634,7 +634,6 @@ label > .checkbox-list {
 }
 
 .localization-panel {
-  container-type: inline-size;
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 72vh;
   max-height: clamp(32rem, calc(100vh - 15rem), 56rem);
@@ -733,6 +732,7 @@ label > .checkbox-list {
 
 .localization-entry {
   gap: var(--space-md);
+  scroll-margin-block: var(--space-sm);
 }
 
 .localization-entry__header,
