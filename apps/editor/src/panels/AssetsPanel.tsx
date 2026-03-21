@@ -160,7 +160,7 @@ export function AssetsPanel({
                 className={isSelected ? "list-card list-card--asset list-card--selected" : "list-card list-card--asset"}
                 onClick={() => setSelectedAssetId(asset.id)}
               >
-                <AssetPreview asset={asset} locale={activeLocale} />
+                <AssetPreview asset={asset} locale={activeLocale} allowSourceFallback />
 
                 <div className="asset-card__body">
                   <div>

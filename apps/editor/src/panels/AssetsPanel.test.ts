@@ -43,9 +43,10 @@ describe("AssetsPanel proxy UI", () => {
     expect(markup).not.toContain("Generate Missing");
     expect(markup).not.toContain("Generate Proxy");
     expect(markup).not.toContain("proxy missing");
-    expect(markup).not.toContain("preview unavailable");
+    expect(markup).not.toContain("Preview unavailable");
     expect(markup).not.toContain("Present:");
     expect(markup).not.toContain("Manage locale-specific variants");
+    expect(markup).toContain("Loading preview...");
     expect(markup).toContain("Not currently in use.");
   });
 });

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  copyAssetVariantForBuild,
   deleteGeneratedProxyFiles,
   deleteManagedAssetFiles,
   hydrateAssetSha256s,
@@ -78,6 +79,47 @@ describe("importAssetToProject", () => {
       "Unsupported asset file type for 'legacy.mp3'."
     );
     await expect(readFile(path.join(projectDir, "assets", "legacy.mp3"), "utf8")).rejects.toThrow();
+  });
+
+  it("renders SVG previews into PNG proxies for scene-sized art", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "scene.svg");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, createSvgMarkup(1280, 720), "utf8");
+
+    const asset = await importAssetToProject(sourcePath, projectDir, "en");
+    const variant = asset.variants.en;
+    const proxyBuffer = await readFile(variant!.proxyPath!);
+
+    expect(asset.kind).toBe("image");
+    expect(variant?.sourcePath).toBe(path.join(projectDir, "assets", "scene.svg"));
+    expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.png`));
+    expect(variant?.posterPath).toBe(variant?.proxyPath);
+    expect(variant?.width).toBe(1280);
+    expect(variant?.height).toBe(720);
+    expect(proxyBuffer.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(readPngDimensions(proxyBuffer)).toEqual({ width: 1280, height: 720 });
+  });
+
+  it("fits non-scene SVG previews inside the shared preview bounds without distortion", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "inventory.svg");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, createSvgMarkup(256, 256), "utf8");
+
+    const asset = await importAssetToProject(sourcePath, projectDir, "en");
+    const variant = asset.variants.en;
+    const proxyBuffer = await readFile(variant!.proxyPath!);
+
+    expect(variant?.width).toBe(256);
+    expect(variant?.height).toBe(256);
+    expect(readPngDimensions(proxyBuffer)).toEqual({ width: 720, height: 720 });
   });
 });
 
@@ -393,8 +435,98 @@ describe("deleteManagedAssetFiles", () => {
   });
 });
 
+describe("copyAssetVariantForBuild", () => {
+  it("exports original image sources instead of preview proxies", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const outputDir = path.join(workspaceDir, "build");
+    const assetsDir = path.join(projectDir, "assets");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const sourcePath = path.join(assetsDir, "badge.svg");
+    const proxyPath = path.join(proxyDir, "asset_badge.en.png");
+    const sourceSvg = createSvgMarkup(320, 180);
+
+    await mkdir(assetsDir, { recursive: true });
+    await mkdir(proxyDir, { recursive: true });
+    await writeFile(sourcePath, sourceSvg, "utf8");
+    await writeFile(proxyPath, "preview proxy", "utf8");
+
+    const outputPath = await copyAssetVariantForBuild(
+      {
+        id: "asset_badge",
+        kind: "image",
+        name: "badge.svg",
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            posterPath: proxyPath,
+            importedAt: "2026-03-20T00:00:00.000Z"
+          }
+        }
+      },
+      "en",
+      outputDir
+    );
+
+    expect(outputPath).toBe(path.join(outputDir, "asset_badge.en.svg"));
+    expect(await readFile(outputPath, "utf8")).toBe(sourceSvg);
+  });
+
+  it("continues exporting video proxies when they exist", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const outputDir = path.join(workspaceDir, "build");
+    const assetsDir = path.join(projectDir, "assets");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const sourcePath = path.join(assetsDir, "clip.mov");
+    const proxyPath = path.join(proxyDir, "asset_clip.en.mp4");
+
+    await mkdir(assetsDir, { recursive: true });
+    await mkdir(proxyDir, { recursive: true });
+    await writeFile(sourcePath, "source video", "utf8");
+    await writeFile(proxyPath, "proxy video", "utf8");
+
+    const outputPath = await copyAssetVariantForBuild(
+      {
+        id: "asset_clip",
+        kind: "video",
+        name: "clip.mov",
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            importedAt: "2026-03-20T00:00:00.000Z"
+          }
+        }
+      },
+      "en",
+      outputDir
+    );
+
+    expect(outputPath).toBe(path.join(outputDir, "asset_clip.en.mp4"));
+    expect(await readFile(outputPath, "utf8")).toBe("proxy video");
+  });
+});
+
 async function createTempWorkspace(): Promise<string> {
   const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "mage2-media-"));
   tempDirectories.push(workspaceDir);
   return workspaceDir;
+}
+
+function createSvgMarkup(width: number, height: number): string {
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">`,
+    `<rect width="${width}" height="${height}" fill="#12202b"/>`,
+    `<circle cx="${width / 2}" cy="${height / 2}" r="${Math.max(12, Math.min(width, height) / 4)}" fill="#7dd3fc"/>`,
+    "</svg>"
+  ].join("");
+}
+
+function readPngDimensions(buffer: Buffer): { width: number; height: number } {
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20)
+  };
 }
