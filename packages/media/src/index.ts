@@ -32,7 +32,6 @@ export interface AssetImportOptions {
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"]);
-const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"]);
 
 export function resolvePackagedExecutablePath(candidatePath: string): string {
   const unpackedPath = candidatePath.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
@@ -61,11 +60,7 @@ export function detectAssetKind(filePath: string): AssetKind {
     return "image";
   }
 
-  if (AUDIO_EXTENSIONS.has(extension)) {
-    return "audio";
-  }
-
-  return "image";
+  throw new Error(`Unsupported asset file type for '${path.basename(filePath)}'.`);
 }
 
 export async function probeAsset(filePath: string): Promise<ProbeResult> {
@@ -274,25 +269,6 @@ export async function generateProxy(asset: Asset, locale: string, projectDir: st
     });
   }
 
-  if (asset.kind === "audio") {
-    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp3`);
-    await runProcess(getFfmpegPath(), [
-      "-y",
-      "-i",
-      variant.sourcePath,
-      "-vn",
-      "-codec:a",
-      "libmp3lame",
-      "-b:a",
-      "160k",
-      proxyPath
-    ]);
-    return updateAssetVariant(asset, locale, {
-      ...variant,
-      proxyPath
-    });
-  }
-
   const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp4`);
   const posterPath = path.join(proxyDirectory, `${asset.id}.${locale}.jpg`);
   await runProcess(getFfmpegPath(), [
@@ -483,14 +459,7 @@ async function cleanupImportedAssetCopy(projectAssetPath: string, importSourcePa
 }
 
 function guessExtensionForKind(kind: AssetKind): string {
-  switch (kind) {
-    case "audio":
-      return ".mp3";
-    case "video":
-      return ".mp4";
-    default:
-      return ".png";
-  }
+  return kind === "video" ? ".mp4" : ".png";
 }
 
 async function deleteProjectAssetSourceFiles(

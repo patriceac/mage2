@@ -1075,7 +1075,6 @@ label > .checkbox-list {
   object-fit: cover;
 }
 
-.asset-preview--audio,
 .asset-preview--placeholder {
   display: grid;
   place-items: center;
@@ -1086,14 +1085,8 @@ label > .checkbox-list {
   color: #c4d1db;
 }
 
-.asset-preview--audio strong,
 .asset-preview--placeholder strong {
   color: #f7fafc;
-}
-
-.asset-preview__audio-player {
-  width: 100%;
-  max-width: 240px;
 }
 
 .media-surface {

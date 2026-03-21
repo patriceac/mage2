@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const CURRENT_SCHEMA_VERSION = 4;
 
-export const AssetKindSchema = z.enum(["video", "image", "audio"]);
+export const AssetKindSchema = z.enum(["video", "image"]);
 export const AssetCategorySchema = z.enum(["background", "inventory"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
