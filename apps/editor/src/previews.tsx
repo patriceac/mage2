@@ -134,25 +134,6 @@ export function AssetPreview({
     );
   }
 
-  if (asset.kind === "audio" && assetUrl && interactive) {
-    return (
-      <div className="asset-preview asset-preview--audio" title={`Preview ${asset.name}.`}>
-        <strong>Audio Preview</strong>
-        <span>{asset.name}</span>
-        <audio controls preload="metadata" src={assetUrl} className="asset-preview__audio-player" />
-      </div>
-    );
-  }
-
-  if (asset.kind === "audio") {
-    return (
-      <div className="asset-preview asset-preview--placeholder" title={`Audio asset ${asset.name}.`}>
-        <strong>Audio Asset</strong>
-        <span>{asset.name}</span>
-      </div>
-    );
-  }
-
   return (
     <div className="asset-preview asset-preview--placeholder" title={`Loading preview for ${asset.name}.`}>
       <strong>Loading preview...</strong>

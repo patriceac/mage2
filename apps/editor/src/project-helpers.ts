@@ -87,7 +87,7 @@ export interface RemoveHotspotFromProjectResult {
   removedTextIds: string[];
 }
 
-export type EditorAssetCategory = "background" | "inventory" | "legacy-audio";
+export type EditorAssetCategory = "background" | "inventory";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -558,10 +558,6 @@ export function addHotspotAtBestAvailablePosition(
 }
 
 export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
-  if (asset.kind === "audio" && resolveAssetCategory(asset) === undefined) {
-    return "legacy-audio";
-  }
-
   return resolveAssetCategory(asset) === "inventory" ? "inventory" : "background";
 }
 

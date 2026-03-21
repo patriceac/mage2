@@ -347,7 +347,7 @@ export function MediaSurface({
             className="media-surface__placeholder"
             title={
               showSurfaceTooltips
-                ? "The selected asset is audio or another non-visual file, so the editor cannot draw a frame preview."
+                ? "The selected asset is not a visual media file, so the editor cannot draw a frame preview."
                 : undefined
             }
           >

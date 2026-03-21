@@ -63,7 +63,7 @@ export function resolveAssetCategory(asset: Pick<Asset, "category" | "kind">): A
     return asset.category;
   }
 
-  return asset.kind === "audio" ? undefined : "background";
+  return "background";
 }
 
 export function isAssetCategory(

@@ -309,30 +309,6 @@ describe("removeAssetFromProject", () => {
     });
   });
 
-  it("allows deletion of legacy audio assets", () => {
-    const project = createDefaultProjectBundle("Legacy audio removal");
-    const legacyAudioAsset = {
-      id: "asset_legacy_audio",
-      kind: "audio" as const,
-      name: "legacy.mp3",
-      variants: {
-        en: {
-          sourcePath: "D:\\project\\assets\\legacy.mp3",
-          importedAt: "2026-03-21T00:00:00.000Z"
-        }
-      }
-    };
-
-    project.assets.assets = [legacyAudioAsset];
-    addAssetRoots(project, project.assets.assets);
-
-    const result = removeAssetFromProject(project, legacyAudioAsset.id);
-
-    expect(result.deleted).toBe(true);
-    expect(result.blockedReason).toBeUndefined();
-    expect(project.assets.assets).toEqual([]);
-    expect(project.manifest.assetRoots).toEqual([]);
-  });
 });
 
 describe("removeSceneFromProject", () => {

@@ -26,7 +26,7 @@ describe("project defaults", () => {
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.scene.intro");
   });
 
-  it("normalizes legacy visual assets to background while leaving audio uncategorized", () => {
+  it("normalizes legacy visual assets to background and drops legacy audio assets", () => {
     const parsed = parseProjectBundle({
       manifest: {
         schemaVersion: 4,
@@ -90,8 +90,8 @@ describe("project defaults", () => {
       strings: { schemaVersion: 4, byLocale: { en: {} } }
     });
 
+    expect(parsed.assets.assets).toHaveLength(1);
     expect(resolveAssetCategory(parsed.assets.assets[0]!)).toBe("background");
-    expect(resolveAssetCategory(parsed.assets.assets[1]!)).toBeUndefined();
   });
 });
 

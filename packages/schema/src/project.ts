@@ -205,7 +205,12 @@ function normalizeAssets(input: unknown, defaultLanguage: string) {
   return {
     ...rawAssets,
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    assets: rawItems.map((asset) => normalizeAsset(asset, defaultLanguage))
+    assets: rawItems
+      .filter((asset) => {
+        const rawAsset = isRecord(asset) ? asset : {};
+        return rawAsset.kind !== "audio";
+      })
+      .map((asset) => normalizeAsset(asset, defaultLanguage))
   };
 }
 
@@ -215,10 +220,7 @@ function normalizeAsset(input: unknown, defaultLanguage: string): Asset {
 
   return {
     id: typeof rawAsset.id === "string" ? rawAsset.id : "asset_invalid",
-    kind:
-      rawAsset.kind === "video" || rawAsset.kind === "image" || rawAsset.kind === "audio"
-        ? rawAsset.kind
-        : "image",
+    kind: rawAsset.kind === "video" || rawAsset.kind === "image" ? rawAsset.kind : "image",
     name: typeof rawAsset.name === "string" && rawAsset.name.length > 0 ? rawAsset.name : "Unnamed Asset",
     category: normalizeAssetCategory(rawAsset),
     variants: normalizedVariants

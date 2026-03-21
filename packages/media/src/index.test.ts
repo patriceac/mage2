@@ -64,6 +64,21 @@ describe("importAssetToProject", () => {
     expect(await readFile(firstAsset.variants.en!.sourcePath, "utf8")).toContain("first");
     expect(await readFile(secondAsset.variants.en!.sourcePath, "utf8")).toContain("second");
   });
+
+  it("rejects unsupported audio imports and cleans up the copied file", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "legacy.mp3");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, "legacy audio bytes", "utf8");
+
+    await expect(importAssetToProject(sourcePath, projectDir, "en")).rejects.toThrow(
+      "Unsupported asset file type for 'legacy.mp3'."
+    );
+    await expect(readFile(path.join(projectDir, "assets", "legacy.mp3"), "utf8")).rejects.toThrow();
+  });
 });
 
 describe("importAssetsToProject", () => {

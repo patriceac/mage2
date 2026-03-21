@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { type Asset, type ProjectBundle } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
 import { getLocalizedAssetVariant } from "../localized-project";
@@ -26,7 +26,7 @@ const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
   inventoryImages: []
 };
 
-type AssetLibraryFilter = "background" | "inventory" | "legacy-audio";
+type AssetLibraryFilter = "background" | "inventory";
 
 export function AssetsPanel({
   project,
@@ -44,14 +44,7 @@ export function AssetsPanel({
   const assetDeletionEligibility = new Map(
     project.assets.assets.map((asset) => [asset.id, evaluateAssetDeletion(project, asset.id)])
   );
-  const hasLegacyAudio = project.assets.assets.some((asset) => classifyEditorAssetCategory(asset) === "legacy-audio");
   const [assetFilter, setAssetFilter] = useState<AssetLibraryFilter>("background");
-
-  useEffect(() => {
-    if (assetFilter === "legacy-audio" && !hasLegacyAudio) {
-      setAssetFilter("background");
-    }
-  }, [assetFilter, hasLegacyAudio]);
 
   async function handleDeleteAsset(asset: Asset) {
     const projectDir = useEditorStore.getState().projectDir;
@@ -140,7 +133,6 @@ export function AssetsPanel({
             <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetLibraryFilter)}>
               <option value="background">Background</option>
               <option value="inventory">Inventory</option>
-              {hasLegacyAudio ? <option value="legacy-audio">Legacy Audio</option> : null}
             </select>
           </label>
         </div>
@@ -150,15 +142,9 @@ export function AssetsPanel({
             <strong>
               {assetFilter === "background"
                 ? "Create new background assets from Scenes."
-                : assetFilter === "inventory"
-                  ? "Create new inventory assets from Inventory."
-                  : "Legacy audio remains visible for compatibility."}
+                : "Create new inventory assets from Inventory."}
             </strong>
-            <span>
-              {assetFilter === "legacy-audio"
-                ? "These older audio assets remain visible so existing projects still load. You can delete them from this library, but locale-specific variants are still read-only."
-                : "Use Localization to manage locale-specific variants after the asset exists."}
-            </span>
+            <span>Use Localization to manage locale-specific variants after the asset exists.</span>
           </div>
 
           {visibleAssets.length > 0 ? visibleAssets.map((asset) => {
@@ -385,8 +371,6 @@ function resolveEmptyLibraryMessage(filter: AssetLibraryFilter): string {
       return "No background assets yet. Upload a background from the Scenes tab to add one here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from the Inventory tab to add one here.";
-    case "legacy-audio":
-      return "No legacy audio assets were found in this project.";
   }
 }
 
@@ -396,7 +380,5 @@ function formatAssetCategoryLabel(category: AssetLibraryFilter): string {
       return "Background";
     case "inventory":
       return "Inventory";
-    case "legacy-audio":
-      return "Legacy Audio";
   }
 }

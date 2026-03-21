@@ -29,7 +29,7 @@ import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
 type SubtitleEntryStatus = "missing" | "translated" | "empty";
-type MediaAssetFilter = "background" | "inventory" | "legacy-audio";
+type MediaAssetFilter = "background" | "inventory";
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
@@ -102,7 +102,6 @@ export function LocalizationPanel({
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
   const [mediaAssetFilter, setMediaAssetFilter] = useState<MediaAssetFilter>("background");
   const stringsListRef = useRef<HTMLDivElement | null>(null);
-  const hasLegacyAudio = project.assets.assets.some((asset) => classifyEditorAssetCategory(asset) === "legacy-audio");
 
   const allStringEntries = useMemo(
     () => collectStringLocalizationEntries(project, activeLocale),
@@ -153,12 +152,6 @@ export function LocalizationPanel({
       setSelectedTextId(nextSelectedTextId);
     }
   }, [selectedTextId, setSelectedTextId, visibleStringEntries]);
-
-  useEffect(() => {
-    if (mediaAssetFilter === "legacy-audio" && !hasLegacyAudio) {
-      setMediaAssetFilter("background");
-    }
-  }, [hasLegacyAudio, mediaAssetFilter]);
 
   useEffect(() => {
     if (localizationSection !== "strings") {
@@ -881,7 +874,6 @@ export function LocalizationPanel({
             <select value={mediaAssetFilter} onChange={(event) => setMediaAssetFilter(event.target.value as MediaAssetFilter)}>
               <option value="background">Background</option>
               <option value="inventory">Inventory</option>
-              {hasLegacyAudio ? <option value="legacy-audio">Legacy Audio</option> : null}
             </select>
           </label>
         </div>
@@ -893,7 +885,6 @@ export function LocalizationPanel({
               const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
               const localeStatus = getLocaleCompletenessStatus(asset, supportedLocales);
               const category = classifyEditorAssetCategory(asset);
-              const isLegacyAudio = category === "legacy-audio";
               return (
                 <article
                   key={asset.id}
@@ -922,44 +913,39 @@ export function LocalizationPanel({
                         Present: {localeStatus.present.join(", ") || "none"}.
                         {localeStatus.missing.length > 0 ? ` Missing: ${localeStatus.missing.join(", ")}.` : ""}
                       </p>
-                      {isLegacyAudio ? (
-                        <p className="muted">Legacy audio assets are read-only in this release.</p>
-                      ) : null}
                     </div>
 
-                    {!isLegacyAudio ? (
-                      <div className="list-card__actions">
-                        <button
-                          type="button"
-                          className="button-secondary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleImportVariant(asset);
-                          }}
-                          title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
-                        >
-                          {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
-                        </button>
-                        <button
-                          type="button"
-                          className="button-danger"
-                          disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleRemoveVariant(asset);
-                          }}
-                          title={
-                            !activeVariant
-                              ? `${asset.name} does not have a ${activeLocale} variant to remove.`
-                              : Object.keys(asset.variants).length <= 1
-                                ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
-                                : `Remove only the ${activeLocale} variant from ${asset.name}.`
-                          }
-                        >
-                          {`Remove ${activeLocale}`}
-                        </button>
-                      </div>
-                    ) : null}
+                    <div className="list-card__actions">
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleImportVariant(asset);
+                        }}
+                        title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
+                      >
+                        {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
+                      </button>
+                      <button
+                        type="button"
+                        className="button-danger"
+                        disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleRemoveVariant(asset);
+                        }}
+                        title={
+                          !activeVariant
+                            ? `${asset.name} does not have a ${activeLocale} variant to remove.`
+                            : Object.keys(asset.variants).length <= 1
+                              ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
+                              : `Remove only the ${activeLocale} variant from ${asset.name}.`
+                        }
+                      >
+                        {`Remove ${activeLocale}`}
+                      </button>
+                    </div>
                   </div>
                 </article>
               );
@@ -1042,7 +1028,7 @@ function groupSubtitleEntriesByScene(entries: SubtitleLocalizationEntry[]): Subt
 }
 
 function getProjectLocaleAssetCoverage(project: ProjectBundle, locale: string) {
-  const categoryManagedAssets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) !== "legacy-audio");
+  const categoryManagedAssets = project.assets.assets;
   const total = categoryManagedAssets.length;
   const present = categoryManagedAssets.filter((asset) => Boolean(getLocalizedAssetVariant(asset, locale))).length;
   return {
@@ -1102,8 +1088,6 @@ function formatMediaCategoryLabel(category: MediaAssetFilter): string {
       return "Background";
     case "inventory":
       return "Inventory";
-    case "legacy-audio":
-      return "Legacy Audio";
   }
 }
 
@@ -1113,8 +1097,6 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
       return "No background assets yet. Upload scene media from Scenes before localizing it here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
-    case "legacy-audio":
-      return "No legacy audio assets were found in this project.";
   }
 }
 
