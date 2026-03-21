@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   MEDIA_DIALOG_FILTER_EXTENSIONS,
   SUBTITLE_DIALOG_FILTER_EXTENSIONS,
-  classifyImportAssetPaths
+  classifyImportAssetPaths,
+  isBackgroundImportPath
 } from "./asset-file-types";
 
 describe("classifyImportAssetPaths", () => {
@@ -42,5 +43,13 @@ describe("MEDIA_DIALOG_FILTER_EXTENSIONS", () => {
 describe("SUBTITLE_DIALOG_FILTER_EXTENSIONS", () => {
   it("keeps subtitle imports separate from generic asset imports", () => {
     expect(SUBTITLE_DIALOG_FILTER_EXTENSIONS).toEqual(["srt", "vtt"]);
+  });
+});
+
+describe("isBackgroundImportPath", () => {
+  it("accepts images and videos while rejecting unsupported file types", () => {
+    expect(isBackgroundImportPath("C:\\media\\scene.mp4")).toBe(true);
+    expect(isBackgroundImportPath("C:\\media\\scene.PNG")).toBe(true);
+    expect(isBackgroundImportPath("C:\\media\\scene.txt")).toBe(false);
   });
 });

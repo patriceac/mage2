@@ -500,6 +500,49 @@ label > .checkbox-list {
   flex-wrap: wrap;
 }
 
+.scenes-panel__background-dropzone {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.scenes-panel__background-dropzone-frame {
+  position: relative;
+}
+
+.scenes-panel__background-dropzone--active .media-surface {
+  border-color: rgba(246, 193, 119, 0.92);
+  box-shadow: 0 0 0 1px rgba(246, 193, 119, 0.28);
+}
+
+.scenes-panel__background-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.45rem;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(246, 193, 119, 0.22), rgba(125, 211, 252, 0.08)),
+    rgba(10, 16, 24, 0.6);
+  color: #f7fafc;
+  text-align: center;
+  pointer-events: none;
+}
+
+.scenes-panel__background-dropzone-overlay strong {
+  font-size: 1rem;
+}
+
+.scenes-panel__background-dropzone-overlay span,
+.scenes-panel__background-dropzone-hint {
+  color: #aab9c6;
+}
+
+.scenes-panel__background-dropzone-hint {
+  margin: 0;
+}
+
 .asset-assignment-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
