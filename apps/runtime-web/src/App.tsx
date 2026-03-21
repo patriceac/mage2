@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createPlayerController } from "@mage2/player";
+import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
   createInitialSaveState,
   normalizeSupportedLocales,
@@ -51,6 +51,8 @@ export function App() {
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
   const runtimeVideoRef = useRef<HTMLVideoElement>(null);
+  const runtimeAudioRef = useRef<HTMLAudioElement>(null);
+  const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     async function loadBuild() {
@@ -123,6 +125,16 @@ export function App() {
       ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)
       : undefined;
   const currentAssetVariant = currentAsset ? resolveAssetVariant(currentAsset, locale) : undefined;
+  const sceneAudioAsset =
+    content && snapshot?.scene.sceneAudioAssetId
+      ? (content.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId) as Asset | undefined)
+      : undefined;
+  const sceneAudioVariant = sceneAudioAsset ? resolveAssetVariant(sceneAudioAsset, locale) : undefined;
+  const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
+    currentAssetVariant?.durationMs,
+    currentAsset?.kind === "image" ? snapshot?.scene.sceneAudioDelayMs ?? 0 : 0,
+    currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
+  );
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs) : [];
   const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
   const runtimeInventoryItems =
@@ -139,6 +151,64 @@ export function App() {
       // If autoplay is blocked, keep the runtime surface clean and leave playback stopped.
     });
   }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.sourcePath, snapshot?.scene.id]);
+
+  useEffect(() => {
+    const audio = runtimeAudioRef.current;
+    if (sceneAudioTimeoutRef.current !== undefined) {
+      window.clearTimeout(sceneAudioTimeoutRef.current);
+      sceneAudioTimeoutRef.current = undefined;
+    }
+
+    if (!audio) {
+      return;
+    }
+
+    const clearPlayback = () => {
+      if (sceneAudioTimeoutRef.current !== undefined) {
+        window.clearTimeout(sceneAudioTimeoutRef.current);
+        sceneAudioTimeoutRef.current = undefined;
+      }
+      audio.pause();
+      audio.currentTime = 0;
+    };
+
+    clearPlayback();
+
+    if (!sceneAudioVariant?.sourcePath || currentAsset?.kind !== "image" || !snapshot?.scene.sceneAudioAssetId) {
+      return clearPlayback;
+    }
+
+    const schedulePlayback = () => {
+      sceneAudioTimeoutRef.current = window.setTimeout(() => {
+        sceneAudioTimeoutRef.current = undefined;
+        void audio.play().catch(() => {
+          // If autoplay is blocked, leave playback stopped without interrupting runtime.
+        });
+      }, Math.max(snapshot.scene.sceneAudioDelayMs, 0));
+    };
+
+    const handleEnded = () => {
+      audio.currentTime = 0;
+      if (snapshot.scene.sceneAudioLoop) {
+        schedulePlayback();
+      }
+    };
+
+    audio.addEventListener("ended", handleEnded);
+    schedulePlayback();
+
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+      clearPlayback();
+    };
+  }, [
+    currentAsset?.kind,
+    sceneAudioVariant?.sourcePath,
+    snapshot?.scene.id,
+    snapshot?.scene.sceneAudioAssetId,
+    snapshot?.scene.sceneAudioDelayMs,
+    snapshot?.scene.sceneAudioLoop
+  ]);
 
   useEffect(() => {
     if (localeStorageKey && activeLocale) {
@@ -280,6 +350,9 @@ export function App() {
           ) : (
             <div className="runtime-media__placeholder">No playable visual asset for this scene.</div>
           )}
+          {sceneAudioVariant?.sourcePath ? (
+            <audio ref={runtimeAudioRef} src={sceneAudioVariant.sourcePath} preload="metadata" className="runtime-scene-audio" />
+          ) : null}
 
           <div className="runtime-media__overlay">
             {visibleHotspots.map((hotspot) => {
@@ -305,8 +378,8 @@ export function App() {
           <input
             type="range"
             min={0}
-            max={currentAssetVariant?.durationMs ?? 30000}
-            value={Math.min(playheadMs, currentAssetVariant?.durationMs ?? 30000)}
+            max={sceneTimelineDurationMs}
+            value={Math.min(playheadMs, sceneTimelineDurationMs)}
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
         </label>

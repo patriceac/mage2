@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { MediaSurface } from "../MediaSurface";
 import { getLocaleStringValues, type ProjectBundle, validateProject } from "@mage2/schema";
-import { BACKGROUND_IMPORT_EXTENSIONS, SUBTITLE_IMPORT_EXTENSIONS, isBackgroundImportPath } from "../asset-file-types";
+import { resolveSceneTimelineDurationMs } from "@mage2/player";
+import {
+  BACKGROUND_IMPORT_EXTENSIONS,
+  SCENE_AUDIO_IMPORT_EXTENSIONS,
+  SUBTITLE_IMPORT_EXTENSIONS,
+  isBackgroundImportPath,
+  isSceneAudioImportPath
+} from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-project";
 import {
@@ -13,6 +20,7 @@ import {
   createId,
   createSubtitleCue,
   isBackgroundAsset,
+  isSceneAudioAsset,
   removeHotspotFromProject,
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
@@ -23,6 +31,7 @@ import {
   collectOwnedGeneratedProjectTextIdsForSubtitleTrack,
   pruneOwnedGeneratedProjectTextEntries
 } from "../project-text";
+import { AssetPreview } from "../previews";
 import { useEditorStore } from "../store";
 
 interface ScenesPanelProps {
@@ -50,19 +59,30 @@ export function ScenesPanel({
   const updateProject = useEditorStore((state) => state.updateProject);
   const activeLocale = project.manifest.defaultLanguage;
   const availableBackgroundAssets = project.assets.assets.filter(isBackgroundAsset);
+  const availableSceneAudioAssets = project.assets.assets.filter(isSceneAudioAsset);
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
   const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
+  const currentSceneAudioAsset = project.assets.assets.find((entry) => entry.id === currentScene?.sceneAudioAssetId);
+  const currentSceneAudioVariant = getLocalizedAssetVariant(currentSceneAudioAsset, activeLocale);
+  const sceneSupportsAudio = currentAsset?.kind !== "video";
+  const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
+    currentAssetVariant?.durationMs,
+    sceneSupportsAudio ? currentScene?.sceneAudioDelayMs ?? 0 : 0,
+    sceneSupportsAudio ? currentSceneAudioVariant?.durationMs : undefined
+  );
   const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
+  const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
   const backgroundDropDepthRef = useRef(0);
+  const sceneAudioDropDepthRef = useRef(0);
 
   useEffect(() => {
     setPlayheadMs(0);
-  }, [currentScene?.backgroundAssetId, currentSceneId, setPlayheadMs]);
+  }, [currentScene?.backgroundAssetId, currentScene?.sceneAudioAssetId, currentScene?.sceneAudioDelayMs, currentSceneId, setPlayheadMs]);
 
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     mutateProject((draft) => {
@@ -251,6 +271,103 @@ export function ScenesPanel({
     await importBackgroundFromFilePath(filePath);
   }
 
+  async function importSceneAudioFromFilePath(filePath: string) {
+    if (!currentScene) {
+      return;
+    }
+
+    if (!sceneSupportsAudio) {
+      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Importing scene audio");
+      const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
+        projectDir,
+        activeLocale,
+        project.assets.assets,
+        [filePath],
+        "sceneAudio"
+      );
+      if (importedAssets.length === 0) {
+        if (duplicateFilePaths.length > 0) {
+          setStatusMessage("That file already exists as a scene audio asset. Choose it from the scene audio picker.");
+        } else {
+          setStatusMessage("No new scene audio asset was created.");
+        }
+        return;
+      }
+
+      const importedAsset = importedAssets[0]!;
+      const nextProject = cloneProject(project);
+      addAssetRoots(nextProject, [importedAsset]);
+      nextProject.assets.assets.push(importedAsset);
+      const scene = nextProject.scenes.items.find((entry) => entry.id === currentScene.id);
+      if (scene) {
+        scene.sceneAudioAssetId = importedAsset.id;
+        scene.sceneAudioLoop = true;
+      }
+
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      setSavedProject(result.project);
+      useEditorStore.getState().setSelectedAssetId(importedAsset.id);
+      setStatusMessage(
+        result.validationReport.valid
+          ? `Assigned ${importedAsset.name} as the scene audio for ${currentScene.name}.`
+          : `Assigned ${importedAsset.name} as the scene audio for ${currentScene.name}, saved with ${result.validationReport.issues.length} validation issue(s).`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Scene audio import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
+  async function handleImportSceneAudio() {
+    if (!currentScene) {
+      return;
+    }
+
+    if (!sceneSupportsAudio) {
+      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      return;
+    }
+
+    const filePaths = await dialogs.pickFiles({
+      title: currentSceneAudioAsset ? `Replace Scene Audio for ${currentScene.name}` : `Upload Scene Audio for ${currentScene.name}`,
+      description: "Choose an audio file to create a scene audio asset and assign it to this scene.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: currentSceneAudioAsset ? "Use as Scene Audio" : "Upload Scene Audio",
+      allowedExtensions: [...SCENE_AUDIO_IMPORT_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    await importSceneAudioFromFilePath(filePath);
+  }
+
+  function clearSceneAudio() {
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
+      if (!scene) {
+        return;
+      }
+
+      scene.sceneAudioAssetId = undefined;
+      scene.sceneAudioLoop = true;
+      scene.sceneAudioDelayMs = 0;
+    });
+  }
+
   function isFileDrag(event: React.DragEvent<HTMLElement>): boolean {
     return Array.from(event.dataTransfer.types).includes("Files");
   }
@@ -309,6 +426,67 @@ export function ScenesPanel({
     }
 
     await importBackgroundFromFilePath(filePath);
+  }
+
+  function handleSceneAudioDragEnter(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event) || !sceneSupportsAudio) {
+      return;
+    }
+
+    event.preventDefault();
+    sceneAudioDropDepthRef.current += 1;
+    setIsSceneAudioDropActive(true);
+  }
+
+  function handleSceneAudioDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event) || !sceneSupportsAudio) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!isSceneAudioDropActive) {
+      setIsSceneAudioDropActive(true);
+    }
+  }
+
+  function handleSceneAudioDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event) || !sceneSupportsAudio) {
+      return;
+    }
+
+    event.preventDefault();
+    sceneAudioDropDepthRef.current = Math.max(sceneAudioDropDepthRef.current - 1, 0);
+    if (sceneAudioDropDepthRef.current === 0) {
+      setIsSceneAudioDropActive(false);
+    }
+  }
+
+  async function handleSceneAudioDrop(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    sceneAudioDropDepthRef.current = 0;
+    setIsSceneAudioDropActive(false);
+
+    if (!sceneSupportsAudio) {
+      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      return;
+    }
+
+    const droppedFilePaths = Array.from(event.dataTransfer.files)
+      .map((file) => window.editorApi.getPathForDroppedFile(file))
+      .filter((filePath) => filePath.trim().length > 0);
+    const filePath = droppedFilePaths.find(isSceneAudioImportPath);
+
+    if (!filePath) {
+      setStatusMessage("Drop an audio file onto the scene audio panel to assign scene audio.");
+      return;
+    }
+
+    await importSceneAudioFromFilePath(filePath);
   }
 
   function deleteHotspot(hotspotId: string | undefined) {
@@ -595,6 +773,140 @@ export function ScenesPanel({
           </p>
         </div>
 
+        <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
+          <span className="field-label--inset">Scene Audio</span>
+          <div className="asset-assignment-row">
+            <select
+              value={currentScene.sceneAudioAssetId ?? ""}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                  if (!scene) {
+                    return;
+                  }
+
+                  scene.sceneAudioAssetId = event.target.value || undefined;
+                })
+              }
+            >
+              <option value="">No scene audio assigned</option>
+              {currentScene.sceneAudioAssetId &&
+              !availableSceneAudioAssets.some((asset) => asset.id === currentScene.sceneAudioAssetId) ? (
+                <option value={currentScene.sceneAudioAssetId}>Invalid scene audio selection</option>
+              ) : null}
+              {availableSceneAudioAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={!sceneSupportsAudio}
+              onClick={() => void handleImportSceneAudio()}
+              title={
+                sceneSupportsAudio
+                  ? "Create a new scene audio asset from an audio file and assign it to this scene."
+                  : "Scene audio imports are disabled while this scene uses a video background."
+              }
+            >
+              {currentSceneAudioAsset ? "Replace Scene Audio" : "Upload Scene Audio"}
+            </button>
+          </div>
+        </label>
+
+        <div
+          className={
+            isSceneAudioDropActive
+              ? "asset-dropzone asset-dropzone--active scenes-panel__scene-audio-dropzone"
+              : "asset-dropzone scenes-panel__scene-audio-dropzone"
+          }
+          onDragEnter={handleSceneAudioDragEnter}
+          onDragOver={handleSceneAudioDragOver}
+          onDragLeave={handleSceneAudioDragLeave}
+          onDrop={(event) => void handleSceneAudioDrop(event)}
+        >
+          <strong>{currentSceneAudioAsset ? "Drop to replace scene audio" : "Drop scene audio here"}</strong>
+          <span>
+            {sceneSupportsAudio
+              ? "Use an audio file to attach optional ambience or music to this image scene."
+              : "Scene audio can stay assigned for reference, but imports and playback are disabled while the background is video."}
+          </span>
+          <div className="scenes-panel__scene-audio-preview">
+            <AssetPreview
+              asset={currentSceneAudioAsset}
+              locale={activeLocale}
+              allowSourceFallback
+              emptyTitle="No scene audio"
+              emptyBody="Assign or drop an audio file here to attach optional scene audio."
+            />
+          </div>
+          <div className="scenes-panel__scene-audio-controls">
+            <div className="list-card__actions">
+              <button
+                type="button"
+                className="button-danger"
+                disabled={!currentScene.sceneAudioAssetId}
+                onClick={clearSceneAudio}
+                title={
+                  currentScene.sceneAudioAssetId
+                    ? "Remove the current scene audio assignment from this scene."
+                    : "No scene audio is currently assigned."
+                }
+              >
+                Clear Scene Audio
+              </button>
+            </div>
+            <label title="Delay before scene audio starts, and before it restarts again when looping.">
+              <span className="field-label--inset">Start Delay (ms)</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={currentScene.sceneAudioDelayMs}
+                disabled={!currentScene.sceneAudioAssetId || !sceneSupportsAudio}
+                onChange={(event) =>
+                  mutateProject((draft) => {
+                    const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                    if (scene) {
+                      scene.sceneAudioDelayMs = Math.max(0, Number(event.target.value) || 0);
+                    }
+                  })
+                }
+              />
+            </label>
+          </div>
+        </div>
+
+        {currentScene.sceneAudioAssetId ? (
+          <label
+            className="scene-video-loop-toggle"
+            title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
+          >
+            <input
+              type="checkbox"
+              checked={currentScene.sceneAudioLoop}
+              disabled={!sceneSupportsAudio}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                  if (scene) {
+                    scene.sceneAudioLoop = event.target.checked;
+                  }
+                })
+              }
+            />
+            <span>Loop scene audio with delay between restarts</span>
+          </label>
+        ) : null}
+
+        {!sceneSupportsAudio ? (
+          <p className="muted">
+            Scene audio only plays when the background is an image. Clear the scene audio or switch back to an image background to resolve validation errors.
+          </p>
+        ) : null}
+
         {currentAsset?.kind === "video" ? (
           <label
             className="scene-video-loop-toggle"
@@ -647,8 +959,8 @@ export function ScenesPanel({
           <input
             type="range"
             min={0}
-            max={currentAssetVariant?.durationMs ?? 30000}
-            value={Math.min(playheadMs, currentAssetVariant?.durationMs ?? 30000)}
+            max={sceneTimelineDurationMs}
+            value={Math.min(playheadMs, sceneTimelineDurationMs)}
             title="Scrub through the current scene asset to line up hotspot timing and subtitle cues."
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />

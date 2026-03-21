@@ -14,6 +14,8 @@ describe("project defaults", () => {
 
     expect(project.scenes.items[0]).not.toHaveProperty("defaultSegmentId");
     expect(project.scenes.items[0]).not.toHaveProperty("clipSegments");
+    expect(project.scenes.items[0]?.sceneAudioLoop).toBe(true);
+    expect(project.scenes.items[0]?.sceneAudioDelayMs).toBe(0);
     expect(createInitialSaveState(project)).not.toHaveProperty("currentSegmentId");
   });
 
@@ -26,7 +28,7 @@ describe("project defaults", () => {
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.scene.intro");
   });
 
-  it("normalizes legacy visual assets to background and drops legacy audio assets", () => {
+  it("normalizes legacy visual assets to background and legacy audio assets to scene audio", () => {
     const parsed = parseProjectBundle({
       manifest: {
         schemaVersion: 4,
@@ -90,8 +92,11 @@ describe("project defaults", () => {
       strings: { schemaVersion: 4, byLocale: { en: {} } }
     });
 
-    expect(parsed.assets.assets).toHaveLength(1);
+    expect(parsed.assets.assets).toHaveLength(2);
     expect(resolveAssetCategory(parsed.assets.assets[0]!)).toBe("background");
+    expect(resolveAssetCategory(parsed.assets.assets[1]!)).toBe("sceneAudio");
+    expect(parsed.scenes.items[0]?.sceneAudioLoop).toBe(true);
+    expect(parsed.scenes.items[0]?.sceneAudioDelayMs).toBe(0);
   });
 });
 
@@ -101,6 +106,80 @@ describe("project validation", () => {
 
     expect(report.valid).toBe(false);
     expect(report.issues.some((issue) => issue.code === "SCENE_BACKGROUND_MISSING")).toBe(true);
+  });
+
+  it("reports missing localized scene audio variants", () => {
+    const project = createDefaultProjectBundle();
+    project.manifest.supportedLocales = ["fr"];
+    project.assets.assets.push(
+      {
+        id: "asset_placeholder",
+        kind: "image",
+        name: "Placeholder",
+        variants: {
+          en: {
+            sourcePath: "placeholder.png",
+            importedAt: new Date().toISOString()
+          }
+        }
+      },
+      {
+        id: "asset_scene_audio",
+        kind: "audio",
+        name: "ambience.mp3",
+        category: "sceneAudio",
+        variants: {
+          en: {
+            sourcePath: "ambience.mp3",
+            importedAt: new Date().toISOString()
+          }
+        }
+      }
+    );
+    project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+
+    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_AUDIO_LOCALE_MISSING");
+
+    expect(issue).toMatchObject({
+      entityId: "asset_scene_audio",
+      locale: "fr",
+      level: "error"
+    });
+  });
+
+  it("rejects scene audio when the background asset is a video", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push(
+      {
+        id: "asset_video",
+        kind: "video",
+        name: "intro.mp4",
+        variants: {
+          en: {
+            sourcePath: "intro.mp4",
+            importedAt: new Date().toISOString()
+          }
+        }
+      },
+      {
+        id: "asset_scene_audio",
+        kind: "audio",
+        name: "ambience.mp3",
+        category: "sceneAudio",
+        variants: {
+          en: {
+            sourcePath: "ambience.mp3",
+            importedAt: new Date().toISOString()
+          }
+        }
+      }
+    );
+    project.scenes.items[0].backgroundAssetId = "asset_video";
+    project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+
+    expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
+      true
+    );
   });
 
   it("allows overlapping subtitle cues when they resolve through string-backed text ids", () => {
@@ -258,6 +337,8 @@ describe("project validation", () => {
         locationId: project.locations.items[0]!.id,
         name: "Second",
         backgroundAssetId: "asset_placeholder",
+        sceneAudioLoop: true,
+        sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
         hotspots: [],
         subtitleTracks: [],
@@ -270,6 +351,8 @@ describe("project validation", () => {
         locationId: project.locations.items[0]!.id,
         name: "Third",
         backgroundAssetId: "asset_placeholder",
+        sceneAudioLoop: true,
+        sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
         hotspots: [],
         subtitleTracks: [],
@@ -308,6 +391,8 @@ describe("project validation", () => {
       locationId: project.locations.items[0]!.id,
       name: "Scene 2",
       backgroundAssetId: "asset_placeholder",
+      sceneAudioLoop: true,
+      sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
       hotspots: [],
       subtitleTracks: [],

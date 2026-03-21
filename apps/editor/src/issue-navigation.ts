@@ -98,7 +98,7 @@ export function resolveIssueNavigation(
 
     const asset = project.assets.assets.find((entry) => entry.id === entityId);
     if (asset) {
-      if (issue.code === "SCENE_BACKGROUND_LOCALE_MISSING") {
+      if (issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" || issue.code === "SCENE_AUDIO_LOCALE_MISSING") {
         return {
           label: asset.name,
           tab: "localization",
@@ -164,12 +164,14 @@ export function resolveIssueNavigation(
         sceneId: project.manifest.startSceneId
       };
     case "SCENE_BACKGROUND_MISSING":
+    case "SCENE_AUDIO_MISSING":
       return {
         label: "scene media",
         tab: "scenes",
         sceneId: project.manifest.startSceneId
       };
     case "SCENE_BACKGROUND_LOCALE_MISSING":
+    case "SCENE_AUDIO_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
       return {
         label: "localized media",
@@ -200,6 +202,9 @@ export function resolveIssueNavigation(
       };
     case "SCENE_BACKGROUND_CATEGORY_INVALID":
     case "SCENE_BACKGROUND_KIND_INVALID":
+    case "SCENE_AUDIO_CATEGORY_INVALID":
+    case "SCENE_AUDIO_KIND_INVALID":
+    case "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND":
       return {
         label: "scene media",
         tab: "scenes",
@@ -242,12 +247,19 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "INVENTORY_IMAGE_CATEGORY_INVALID":
       return "Assign a valid inventory image asset in the Inventory tab.";
     case "SCENE_BACKGROUND_LOCALE_MISSING":
+    case "SCENE_AUDIO_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
       return "Add or replace the missing locale media variant in Localization > Media.";
     case "SCENE_BACKGROUND_MISSING":
     case "SCENE_BACKGROUND_CATEGORY_INVALID":
     case "SCENE_BACKGROUND_KIND_INVALID":
       return "Upload or assign a background image or video in the Scenes tab.";
+    case "SCENE_AUDIO_MISSING":
+    case "SCENE_AUDIO_CATEGORY_INVALID":
+    case "SCENE_AUDIO_KIND_INVALID":
+      return "Upload, assign, or clear the scene audio asset in the Scenes tab.";
+    case "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND":
+      return "Scene audio only works with image backgrounds. Switch the background to an image or clear the scene audio.";
     case "HOTSPOT_TARGET_SCENE_MISSING":
     case "EFFECT_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";

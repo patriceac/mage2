@@ -228,6 +228,24 @@ describe("collectAssetReferenceSummary", () => {
 
     expect(summary).toEqual({
       sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
+      sceneAudioAssignments: [],
+      inventoryImages: []
+    });
+  });
+
+  it("reports scene audio assignments separately from visual backgrounds", () => {
+    const project = createDefaultProjectBundle("Scene audio usage");
+    const scene = project.scenes.items[0];
+    const backgroundAsset = createAsset("asset_primary", "primary.png", "D:\\media\\primary.png");
+    const sceneAudioAsset = createAsset("asset_scene_audio", "ambience.mp3", "D:\\media\\ambience.mp3", "sceneAudio", "audio");
+
+    project.assets.assets = [backgroundAsset, sceneAudioAsset];
+    scene.backgroundAssetId = backgroundAsset.id;
+    scene.sceneAudioAssetId = sceneAudioAsset.id;
+
+    expect(collectAssetReferenceSummary(project, sceneAudioAsset.id)).toEqual({
+      sceneBackgrounds: [],
+      sceneAudioAssignments: [{ sceneId: scene.id, sceneName: scene.name }],
       inventoryImages: []
     });
   });
@@ -307,6 +325,25 @@ describe("removeAssetFromProject", () => {
       deleted: false,
       blockedReason: "inventory-image-in-use"
     });
+  });
+
+  it("clears scene audio assignments when deleting an in-use scene-audio asset", () => {
+    const project = createDefaultProjectBundle("Scene audio asset removal");
+    const backgroundAsset = createAsset("asset_background", "background.png", "D:\\media\\background.png");
+    const sceneAudioAsset = createAsset("asset_scene_audio", "ambience.mp3", "D:\\media\\ambience.mp3", "sceneAudio", "audio");
+
+    project.assets.assets = [backgroundAsset, sceneAudioAsset];
+    project.scenes.items[0].backgroundAssetId = backgroundAsset.id;
+    project.scenes.items[0].sceneAudioAssetId = sceneAudioAsset.id;
+
+    const result = removeAssetFromProject(project, sceneAudioAsset.id);
+
+    expect(result.deleted).toBe(true);
+    expect(result.fallbackAssetId).toBeUndefined();
+    expect(result.referenceSummary.sceneAudioAssignments).toEqual([
+      { sceneId: project.scenes.items[0].id, sceneName: project.scenes.items[0].name }
+    ]);
+    expect(project.scenes.items[0].sceneAudioAssetId).toBeUndefined();
   });
 
 });
@@ -539,11 +576,12 @@ function createAsset(
   id: string,
   name: string,
   sourcePath: string,
-  category?: "background" | "inventory"
+  category?: "background" | "inventory" | "sceneAudio",
+  kind: Asset["kind"] = "image"
 ): Asset {
   return {
     id,
-    kind: "image",
+    kind,
     name,
     category,
     variants: {

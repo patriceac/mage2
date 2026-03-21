@@ -43,6 +43,8 @@ describe("starter project creation", () => {
     expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(
       "Add real hotspots in Scenes"
     );
+    expect(starterSceneSvg).toContain('id="moonGlow"');
+    expect(starterSceneSvg).toContain('id="artifactGlow"');
     expect(starterSceneSvg).not.toContain(">Placeholder</text>");
     expect(starterSceneSvg).not.toContain("Add real hotspots");
   });

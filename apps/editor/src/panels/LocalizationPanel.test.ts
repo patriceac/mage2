@@ -55,8 +55,12 @@ vi.mock("../store", () => {
   return { useEditorStore };
 });
 
-function renderLocalizationPanel(section: LocalizationSection) {
+function renderLocalizationPanel(
+  section: LocalizationSection,
+  configureProject?: (project: ReturnType<typeof createDefaultProjectBundle>) => void
+) {
   const project = createDefaultProjectBundle("Localization filter");
+  configureProject?.(project);
 
   mockedStore.state = {
     ...mockedStore.state,
@@ -151,6 +155,27 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
     expect(markup).not.toContain(">Usage</h3>");
     expect(markup).not.toContain("Review Strings");
+  });
+
+  it("can open the scene-audio media library when a scene-audio asset is selected", () => {
+    const markup = renderLocalizationPanel("media", (project) => {
+      project.assets.assets.push({
+        id: "asset_scene_audio",
+        kind: "audio",
+        name: "ambience.mp3",
+        category: "sceneAudio",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\ambience.mp3",
+            importedAt: new Date().toISOString()
+          }
+        }
+      });
+      mockedStore.state.selectedAssetId = "asset_scene_audio";
+    });
+
+    expect(markup).toContain(">Scene Audio</option>");
+    expect(markup).toContain("Scene Audio / audio");
   });
 });
 

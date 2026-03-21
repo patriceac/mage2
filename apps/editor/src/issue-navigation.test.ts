@@ -171,4 +171,84 @@ describe("resolveIssueNavigation", () => {
       localizationSection: "media"
     });
   });
+
+  it("routes missing localized scene audio to Localization > Media", () => {
+    const project = createDefaultProjectBundle("Localized scene audio navigation");
+    project.manifest.supportedLocales = ["fr"];
+    project.assets.assets.push(
+      {
+        id: "asset_placeholder",
+        kind: "image",
+        name: "Placeholder",
+        variants: {
+          en: {
+            sourcePath: "placeholder.png",
+            importedAt: new Date().toISOString()
+          }
+        }
+      },
+      {
+        id: "asset_scene_audio",
+        kind: "audio",
+        name: "ambience.mp3",
+        category: "sceneAudio",
+        variants: {
+          en: {
+            sourcePath: "ambience.mp3",
+            importedAt: new Date().toISOString()
+          }
+        }
+      }
+    );
+    project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+
+    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_AUDIO_LOCALE_MISSING");
+    const target = issue ? resolveIssueNavigation(project, issue) : undefined;
+
+    expect(target).toMatchObject({
+      tab: "localization",
+      assetId: "asset_scene_audio",
+      locale: "fr",
+      localizationSection: "media"
+    });
+  });
+
+  it("routes scene-audio image-background violations back to Scenes", () => {
+    const project = createDefaultProjectBundle("Scene audio validation navigation");
+    project.assets.assets.push(
+      {
+        id: "asset_video",
+        kind: "video",
+        name: "intro.mp4",
+        variants: {
+          en: {
+            sourcePath: "intro.mp4",
+            importedAt: new Date().toISOString()
+          }
+        }
+      },
+      {
+        id: "asset_scene_audio",
+        kind: "audio",
+        name: "ambience.mp3",
+        category: "sceneAudio",
+        variants: {
+          en: {
+            sourcePath: "ambience.mp3",
+            importedAt: new Date().toISOString()
+          }
+        }
+      }
+    );
+    project.scenes.items[0].backgroundAssetId = "asset_video";
+    project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+
+    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND");
+    const target = issue ? resolveIssueNavigation(project, issue) : undefined;
+
+    expect(target).toMatchObject({
+      tab: "scenes",
+      sceneId: project.scenes.items[0].id
+    });
+  });
 });
