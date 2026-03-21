@@ -12,6 +12,7 @@ import {
 } from "../localized-project";
 import type { EditorNavigationTarget } from "../navigation-target";
 import { AssetPreview } from "../previews";
+import { classifyEditorAssetCategory } from "../project-helpers";
 import {
   collectProjectTextEntries,
   deleteOrphanedProjectTextEntries,
@@ -28,6 +29,7 @@ import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
 type SubtitleEntryStatus = "missing" | "translated" | "empty";
+type MediaAssetFilter = "background" | "inventory" | "legacy-audio";
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
@@ -98,7 +100,9 @@ export function LocalizationPanel({
   const [statusFilter, setStatusFilter] = useState<"all" | "missing" | "referenced" | "orphaned">("all");
   const [areaFilter, setAreaFilter] = useState<StringsAreaFilter>("all");
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
+  const [mediaAssetFilter, setMediaAssetFilter] = useState<MediaAssetFilter>("background");
   const stringsListRef = useRef<HTMLDivElement | null>(null);
+  const hasLegacyAudio = project.assets.assets.some((asset) => classifyEditorAssetCategory(asset) === "legacy-audio");
 
   const allStringEntries = useMemo(
     () => collectStringLocalizationEntries(project, activeLocale),
@@ -137,6 +141,10 @@ export function LocalizationPanel({
     () => getProjectLocaleAssetCoverage(project, activeLocale),
     [activeLocale, project]
   );
+  const visibleMediaAssets = useMemo(
+    () => project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === mediaAssetFilter),
+    [mediaAssetFilter, project.assets.assets]
+  );
   const isDefaultLocale = activeLocale === project.manifest.defaultLanguage;
 
   useEffect(() => {
@@ -145,6 +153,12 @@ export function LocalizationPanel({
       setSelectedTextId(nextSelectedTextId);
     }
   }, [selectedTextId, setSelectedTextId, visibleStringEntries]);
+
+  useEffect(() => {
+    if (mediaAssetFilter === "legacy-audio" && !hasLegacyAudio) {
+      setMediaAssetFilter("background");
+    }
+  }, [hasLegacyAudio, mediaAssetFilter]);
 
   useEffect(() => {
     if (localizationSection !== "strings") {
@@ -862,14 +876,24 @@ export function LocalizationPanel({
             <h3>Media</h3>
             <p className="muted">Add, replace, or remove locale variants for existing logical assets.</p>
           </div>
+          <label className="localization-filter localization-panel__locale-filter">
+            <span className="field-label--inset">Category</span>
+            <select value={mediaAssetFilter} onChange={(event) => setMediaAssetFilter(event.target.value as MediaAssetFilter)}>
+              <option value="background">Background</option>
+              <option value="inventory">Inventory</option>
+              {hasLegacyAudio ? <option value="legacy-audio">Legacy Audio</option> : null}
+            </select>
+          </label>
         </div>
 
-        {project.assets.assets.length > 0 ? (
+        {visibleMediaAssets.length > 0 ? (
           <div className="localization-media-grid">
-            {project.assets.assets.map((asset) => {
+            {visibleMediaAssets.map((asset) => {
               const isSelected = selectedAssetId === asset.id;
               const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
               const localeStatus = getLocaleCompletenessStatus(asset, supportedLocales);
+              const category = classifyEditorAssetCategory(asset);
+              const isLegacyAudio = category === "legacy-audio";
               return (
                 <article
                   key={asset.id}
@@ -882,6 +906,7 @@ export function LocalizationPanel({
                     <div>
                       <h4>{asset.name}</h4>
                       <p>
+                        {formatMediaCategoryLabel(category)} /{" "}
                         {asset.kind}
                         {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
                         {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
@@ -897,46 +922,51 @@ export function LocalizationPanel({
                         Present: {localeStatus.present.join(", ") || "none"}.
                         {localeStatus.missing.length > 0 ? ` Missing: ${localeStatus.missing.join(", ")}.` : ""}
                       </p>
+                      {isLegacyAudio ? (
+                        <p className="muted">Legacy audio assets are read-only in this release.</p>
+                      ) : null}
                     </div>
 
-                    <div className="list-card__actions">
-                      <button
-                        type="button"
-                        className="button-secondary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleImportVariant(asset);
-                        }}
-                        title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
-                      >
-                        {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
-                      </button>
-                      <button
-                        type="button"
-                        className="button-danger"
-                        disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleRemoveVariant(asset);
-                        }}
-                        title={
-                          !activeVariant
-                            ? `${asset.name} does not have a ${activeLocale} variant to remove.`
-                            : Object.keys(asset.variants).length <= 1
-                              ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
-                              : `Remove only the ${activeLocale} variant from ${asset.name}.`
-                        }
-                      >
-                        {`Remove ${activeLocale}`}
-                      </button>
-                    </div>
+                    {!isLegacyAudio ? (
+                      <div className="list-card__actions">
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleImportVariant(asset);
+                          }}
+                          title={`${activeVariant ? "Replace" : "Add"} the ${activeLocale} file for ${asset.name}.`}
+                        >
+                          {activeVariant ? `Replace ${activeLocale}` : `Add ${activeLocale}`}
+                        </button>
+                        <button
+                          type="button"
+                          className="button-danger"
+                          disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleRemoveVariant(asset);
+                          }}
+                          title={
+                            !activeVariant
+                              ? `${asset.name} does not have a ${activeLocale} variant to remove.`
+                              : Object.keys(asset.variants).length <= 1
+                                ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
+                                : `Remove only the ${activeLocale} variant from ${asset.name}.`
+                          }
+                        >
+                          {`Remove ${activeLocale}`}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </article>
               );
             })}
           </div>
         ) : (
-          <p className="muted">No assets yet. Import logical assets in Assets before localizing media variants here.</p>
+          <p className="muted">{resolveEmptyMediaMessage(mediaAssetFilter)}</p>
         )}
       </section>
       ) : null}
@@ -1012,8 +1042,9 @@ function groupSubtitleEntriesByScene(entries: SubtitleLocalizationEntry[]): Subt
 }
 
 function getProjectLocaleAssetCoverage(project: ProjectBundle, locale: string) {
-  const total = project.assets.assets.length;
-  const present = project.assets.assets.filter((asset) => Boolean(getLocalizedAssetVariant(asset, locale))).length;
+  const categoryManagedAssets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) !== "legacy-audio");
+  const total = categoryManagedAssets.length;
+  const present = categoryManagedAssets.filter((asset) => Boolean(getLocalizedAssetVariant(asset, locale))).length;
   return {
     total,
     present,
@@ -1063,6 +1094,28 @@ function mapSubtitleStatusToClassName(status: SubtitleEntryStatus): "missing" | 
 
 function formatCueTiming(startMs: number, endMs: number): string {
   return `${startMs}ms - ${endMs}ms`;
+}
+
+function formatMediaCategoryLabel(category: MediaAssetFilter): string {
+  switch (category) {
+    case "background":
+      return "Background";
+    case "inventory":
+      return "Inventory";
+    case "legacy-audio":
+      return "Legacy Audio";
+  }
+}
+
+function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
+  switch (filter) {
+    case "background":
+      return "No background assets yet. Upload scene media from Scenes before localizing it here.";
+    case "inventory":
+      return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
+    case "legacy-audio":
+      return "No legacy audio assets were found in this project.";
+  }
 }
 
 export function normalizeLocaleInput(input: string | undefined): string | undefined {

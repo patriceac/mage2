@@ -8,6 +8,8 @@ import { LocalizationPanel, normalizeLocaleInput } from "./LocalizationPanel";
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
+  const noopLocale = (_locale?: string) => {};
+  const noopSection = (_section: LocalizationSection) => {};
 
   return {
     state: {
@@ -22,8 +24,8 @@ const mockedStore = vi.hoisted(() => {
       selectedInventoryItemId: undefined as string | undefined,
       selectedAssetId: undefined as string | undefined,
       selectedTextId: undefined as string | undefined,
-      setLocalizationLocale: noop,
-      setLocalizationSection: noop,
+      setLocalizationLocale: noopLocale,
+      setLocalizationSection: noopSection,
       setSelectedTextId: noop,
       setSelectedAssetId: noop,
       setActiveTab: noop,
@@ -33,7 +35,7 @@ const mockedStore = vi.hoisted(() => {
       setSelectedDialogueId: noop,
       setSelectedDialogueNodeId: noop,
       setSelectedInventoryItemId: noop
-    }
+    } as any
   };
 });
 
@@ -145,7 +147,7 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain('aria-controls="localization-panel-media"');
     expect(markup).toContain('id="localization-panel-media"');
     expect(markup).toContain(">Media</h3>");
-    expect(markup).toContain("No assets yet. Import logical assets in Assets before localizing media variants here.");
+    expect(markup).toContain("No background assets yet. Upload scene media from Scenes before localizing it here.");
     expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
     expect(markup).not.toContain(">Usage</h3>");
     expect(markup).not.toContain("Review Strings");

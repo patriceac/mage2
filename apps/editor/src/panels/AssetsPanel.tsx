@@ -1,10 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { type Asset, type ProjectBundle } from "@mage2/schema";
-import { classifyImportAssetPaths, SUPPORTED_ASSET_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { getLocalizedAssetVariant } from "../localized-project";
 import {
-  addAssetRoots,
+  classifyEditorAssetCategory,
   cloneProject,
   collectAssetReferenceSummary,
   countAssetReferences,
@@ -23,8 +22,11 @@ interface AssetsPanelProps {
 }
 
 const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
-  sceneBackgrounds: []
+  sceneBackgrounds: [],
+  inventoryImages: []
 };
+
+type AssetLibraryFilter = "background" | "inventory" | "legacy-audio";
 
 export function AssetsPanel({
   project,
@@ -42,160 +44,14 @@ export function AssetsPanel({
   const assetDeletionEligibility = new Map(
     project.assets.assets.map((asset) => [asset.id, evaluateAssetDeletion(project, asset.id)])
   );
-  const dragDepthRef = useRef(0);
-  const [isDropTargetActive, setIsDropTargetActive] = useState(false);
+  const hasLegacyAudio = project.assets.assets.some((asset) => classifyEditorAssetCategory(asset) === "legacy-audio");
+  const [assetFilter, setAssetFilter] = useState<AssetLibraryFilter>("background");
 
-  async function importAssetPaths(filePaths: string[]) {
-    const { importFilePaths, rejectedFilePaths } = classifyImportAssetPaths(filePaths);
-    if (importFilePaths.length === 0) {
-      setStatusMessage(resolveNoNewImportsMessage(0, rejectedFilePaths.length));
-      return;
+  useEffect(() => {
+    if (assetFilter === "legacy-audio" && !hasLegacyAudio) {
+      setAssetFilter("background");
     }
-
-    try {
-      const projectDir = useEditorStore.getState().projectDir;
-      if (!projectDir) {
-        throw new Error("No project directory is currently open.");
-      }
-
-      setBusyLabel("Importing assets");
-      const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
-        projectDir,
-        activeLocale,
-        project.assets.assets,
-        importFilePaths
-      );
-      if (importedAssets.length === 0) {
-        setStatusMessage(resolveNoNewImportsMessage(duplicateFilePaths.length, rejectedFilePaths.length));
-        return;
-      }
-
-      const nextProject = cloneProject(project);
-      addAssetRoots(nextProject, importedAssets);
-      nextProject.assets.assets.push(...importedAssets);
-
-      if (
-        nextProject.scenes.items.length > 0 &&
-        nextProject.scenes.items[0].backgroundAssetId === "asset_placeholder"
-      ) {
-        nextProject.scenes.items[0].backgroundAssetId = importedAssets[0].id;
-      }
-
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      const skippedSummary = resolveImportSkippedSummary(duplicateFilePaths.length, rejectedFilePaths.length);
-      setSavedProject(result.project);
-      setStatusMessage(
-        result.validationReport.valid
-          ? `Imported ${importedAssets.length} asset(s).${skippedSummary}`
-          : `Imported ${importedAssets.length} asset(s), saved with ${result.validationReport.issues.length} validation issue(s).${skippedSummary}`
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Import failed: ${message}`);
-    } finally {
-      setBusyLabel(undefined);
-    }
-  }
-
-  async function handleImportVariant(asset: Asset) {
-    const filePaths = await dialogs.pickFiles({
-      title: `${getLocalizedAssetVariant(asset, activeLocale) ? "Replace" : "Add"} ${activeLocale} Variant`,
-      description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
-      initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
-      confirmLabel: "Use This File",
-      allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
-    });
-    const filePath = filePaths[0];
-    if (!filePath) {
-      return;
-    }
-
-    try {
-      const projectDir = useEditorStore.getState().projectDir;
-      if (!projectDir) {
-        throw new Error("No project directory is currently open.");
-      }
-
-      setBusyLabel("Updating localized asset");
-      const updatedAsset = await window.editorApi.importAssetVariant(projectDir, asset, activeLocale, filePath);
-      const nextProject = cloneProject(project);
-      const index = nextProject.assets.assets.findIndex((entry) => entry.id === asset.id);
-      if (index >= 0) {
-        nextProject.assets.assets[index] = updatedAsset;
-      }
-      addAssetRoots(nextProject, [updatedAsset]);
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      setSavedProject(result.project);
-      setStatusMessage(`${getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added"} ${activeLocale} variant for ${asset.name}.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Variant import failed: ${message}`);
-    } finally {
-      setBusyLabel(undefined);
-    }
-  }
-
-  async function handleRemoveVariant(asset: Asset) {
-    const variant = getLocalizedAssetVariant(asset, activeLocale);
-    if (!variant) {
-      return;
-    }
-
-    if (Object.keys(asset.variants).length <= 1) {
-      setStatusMessage(`Delete ${asset.name} entirely if you want to remove its only locale variant.`);
-      return;
-    }
-
-    const confirmed = await dialogs.confirm({
-      title: `Remove ${activeLocale} variant from ${asset.name}?`,
-      body: <p>This removes the stored file and generated proxies for the selected locale variant only.</p>,
-      confirmLabel: "Remove Variant",
-      cancelLabel: "Keep Variant",
-      tone: "danger"
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      const projectDir = useEditorStore.getState().projectDir;
-      if (!projectDir) {
-        throw new Error("No project directory is currently open.");
-      }
-
-      setBusyLabel("Removing localized asset");
-      const nextProject = cloneProject(project);
-      const target = nextProject.assets.assets.find((entry) => entry.id === asset.id);
-      if (!target) {
-        throw new Error("Asset is no longer present.");
-      }
-      delete target.variants[activeLocale];
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      await window.editorApi.deleteManagedAssetVariantFiles(projectDir, asset, activeLocale, result.project.assets.assets);
-      setSavedProject(result.project);
-      setStatusMessage(`Removed ${activeLocale} variant from ${asset.name}.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Variant removal failed: ${message}`);
-    } finally {
-      setBusyLabel(undefined);
-    }
-  }
-
-  async function handleImportAssets() {
-    const filePaths = await dialogs.pickFiles({
-      title: "Import Assets",
-      description: "Select video, image, or audio files to add to the current project.",
-      initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
-      confirmLabel: "Import Selected Files",
-      allowedExtensions: [...SUPPORTED_ASSET_EXTENSIONS]
-    });
-    if (filePaths.length === 0) {
-      return;
-    }
-
-    await importAssetPaths(filePaths);
-  }
+  }, [assetFilter, hasLegacyAudio]);
 
   async function handleDeleteAsset(asset: Asset) {
     const projectDir = useEditorStore.getState().projectDir;
@@ -223,14 +79,14 @@ export function AssetsPanel({
       return;
     }
 
-      try {
-        setBusyLabel("Deleting asset");
-        const nextProject = cloneProject(project);
-        const deletion = removeAssetFromProject(nextProject, asset.id);
-        if (!deletion.deleted) {
-          setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion.blockedReason));
-          return;
-        }
+    try {
+      setBusyLabel("Deleting asset");
+      const nextProject = cloneProject(project);
+      const deletion = removeAssetFromProject(nextProject, asset.id);
+      if (!deletion.deleted) {
+        setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion.blockedReason));
+        return;
+      }
 
       const result = await window.editorApi.saveProject(projectDir, nextProject);
       let deletedSourceFileCount = 0;
@@ -269,113 +125,47 @@ export function AssetsPanel({
       setBusyLabel(undefined);
     }
   }
-
-  function resetDropTarget() {
-    dragDepthRef.current = 0;
-    setIsDropTargetActive(false);
-  }
-
-  function isFileTransfer(event: React.DragEvent<HTMLElement>): boolean {
-    return Array.from(event.dataTransfer.types).includes("Files");
-  }
-
-  function handleDropTargetDragEnter(event: React.DragEvent<HTMLButtonElement>) {
-    if (!isFileTransfer(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepthRef.current += 1;
-    setIsDropTargetActive(true);
-  }
-
-  function handleDropTargetDragOver(event: React.DragEvent<HTMLButtonElement>) {
-    if (!isFileTransfer(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = "copy";
-    if (!isDropTargetActive) {
-      setIsDropTargetActive(true);
-    }
-  }
-
-  function handleDropTargetDragLeave(event: React.DragEvent<HTMLButtonElement>) {
-    if (!isFileTransfer(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) {
-      setIsDropTargetActive(false);
-    }
-  }
-
-  async function handleDroppedAssets(event: React.DragEvent<HTMLButtonElement>) {
-    if (!isFileTransfer(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    resetDropTarget();
-
-    const filePaths = Array.from(event.dataTransfer.files)
-      .map((file) => {
-        try {
-          return window.editorApi.getPathForDroppedFile(file);
-        } catch {
-          return "";
-        }
-      })
-      .filter(Boolean);
-
-    if (filePaths.length === 0) {
-      setStatusMessage("The drop did not include any readable files.");
-      return;
-    }
-
-    await importAssetPaths(filePaths);
-  }
+  const visibleAssets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === assetFilter);
 
   return (
     <div className="panel-grid panel-grid--assets">
       <section className="panel assets-panel">
         <div className="panel__toolbar">
-          <h3>Imported Media</h3>
-          <button
-            type="button"
-            onClick={handleImportAssets}
-            title={`Import source media files as new logical assets for the default locale (${activeLocale}). Preview proxies are generated automatically.`}
-          >
-            Add Files
-          </button>
+          <div>
+            <h3>Asset Library</h3>
+            <p className="muted">Background and inventory media are created from their owning tabs, then managed here.</p>
+          </div>
+          <label className="assets-panel__filter">
+            <span className="field-label--inset">Category</span>
+            <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetLibraryFilter)}>
+              <option value="background">Background</option>
+              <option value="inventory">Inventory</option>
+              {hasLegacyAudio ? <option value="legacy-audio">Legacy Audio</option> : null}
+            </select>
+          </label>
         </div>
 
         <div className="list-stack">
-          <button
-            type="button"
-            className={isDropTargetActive ? "asset-dropzone asset-dropzone--active" : "asset-dropzone"}
-            onClick={() => void handleImportAssets()}
-            onDragEnter={handleDropTargetDragEnter}
-            onDragOver={handleDropTargetDragOver}
-            onDragLeave={handleDropTargetDragLeave}
-            onDrop={(event) => void handleDroppedAssets(event)}
-            title="Drag supported media files here to import them, or click to browse."
-          >
-            <strong>{isDropTargetActive ? "Drop files to import them" : "Drag media here or click to browse"}</strong>
-            <span>Supports video, image, and audio files and adds them to the project asset library.</span>
-          </button>
+          <div className="asset-library-note">
+            <strong>
+              {assetFilter === "background"
+                ? "Create new background assets from Scenes."
+                : assetFilter === "inventory"
+                  ? "Create new inventory assets from Inventory."
+                  : "Legacy audio is shown for compatibility only."}
+            </strong>
+            <span>
+              {assetFilter === "legacy-audio"
+                ? "These older audio assets remain visible so existing projects still load, but they are read-only in this release."
+                : "Use Localization to manage locale-specific variants after the asset exists."}
+            </span>
+          </div>
 
-          {project.assets.assets.map((asset) => {
+          {visibleAssets.length > 0 ? visibleAssets.map((asset) => {
             const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
             const deletionEligibility = assetDeletionEligibility.get(asset.id);
-            const deleteDisabled = !deletionEligibility?.canDelete;
+            const isLegacyAudio = classifyEditorAssetCategory(asset) === "legacy-audio";
+            const deleteDisabled = isLegacyAudio || !deletionEligibility?.canDelete;
             const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
             const isSelected = selectedAssetId === asset.id;
 
@@ -391,6 +181,7 @@ export function AssetsPanel({
                   <div>
                     <h4>{asset.name}</h4>
                     <p>
+                      {formatAssetCategoryLabel(classifyEditorAssetCategory(asset))} /{" "}
                       {asset.kind}
                       {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
                       {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
@@ -405,7 +196,9 @@ export function AssetsPanel({
                       disabled={deleteDisabled}
                       onClick={() => void handleDeleteAsset(asset)}
                       title={
-                        deleteDisabled
+                        isLegacyAudio
+                          ? `${asset.name} is a legacy audio asset and is read-only in this release.`
+                          : deleteDisabled
                           ? resolveDeleteDisabledTitle(asset.name, deletionEligibility?.blockedReason)
                           : countAssetReferences(referenceSummary) > 0
                           ? `Delete ${asset.name} from the project and review its current usages before removal.`
@@ -418,7 +211,9 @@ export function AssetsPanel({
                 </div>
               </article>
             );
-          })}
+          }) : (
+            <p className="muted">{resolveEmptyLibraryMessage(assetFilter)}</p>
+          )}
         </div>
       </section>
 
@@ -434,47 +229,15 @@ export function AssetsPanel({
   );
 }
 
-function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): string | undefined {
-  for (let index = project.assets.assets.length - 1; index >= 0; index -= 1) {
-    const asset = project.assets.assets[index];
-    const variant = getLocalizedAssetVariant(asset, locale) ?? Object.values(asset.variants)[0];
-    if (!variant) {
-      continue;
-    }
-    const importPath = variant.importSourcePath ?? variant.sourcePath;
-    const parentPath = importPath.replace(/[\\/][^\\/]+$/, "");
-    if (parentPath) {
-      return parentPath;
-    }
-  }
-
-  return undefined;
-}
-
-function resolveNoNewImportsMessage(duplicateCount: number, rejectedCount: number): string {
-  const skippedSummary = resolveImportSkippedSummary(duplicateCount, rejectedCount);
-  return skippedSummary ? `No new assets were imported.${skippedSummary}` : "No new assets were imported.";
-}
-
-function resolveImportSkippedSummary(duplicateCount: number, rejectedCount: number): string {
-  const segments: string[] = [];
-
-  if (duplicateCount > 0) {
-    segments.push(`Skipped ${duplicateCount} already imported file(s).`);
-  }
-
-  if (rejectedCount > 0) {
-    segments.push(`Skipped ${rejectedCount} unsupported file(s).`);
-  }
-
-  return segments.length > 0 ? ` ${segments.join(" ")}` : "";
-}
-
 function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
   const segments: string[] = [];
 
   if (summary.sceneBackgrounds.length > 0) {
     segments.push(`${summary.sceneBackgrounds.length} scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}`);
+  }
+
+  if (summary.inventoryImages.length > 0) {
+    segments.push(`${summary.inventoryImages.length} inventory image${summary.inventoryImages.length === 1 ? "" : "s"}`);
   }
 
   return segments.length > 0 ? `In use by ${joinList(segments)}.` : "Not currently in use.";
@@ -507,13 +270,20 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
   return (
     <>
       <p>{`Delete "${assetName}" from the project library?`}</p>
-      <div className="dialog-callout">
-        <strong>Currently in use by</strong>
-        <ul className="dialog-detail-list">
+        <div className="dialog-callout">
+          <strong>Currently in use by</strong>
+          <ul className="dialog-detail-list">
           {summary.sceneBackgrounds.length > 0 ? (
             <li>
               {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
                 .map((entry) => entry.sceneName)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.inventoryImages.length > 0 ? (
+            <li>
+              {`Inventory image${summary.inventoryImages.length === 1 ? "" : "s"}: ${summary.inventoryImages
+                .map((entry) => entry.itemName)
                 .join(", ")}`}
             </li>
           ) : null}
@@ -539,6 +309,10 @@ function resolveDeleteBlockedMessage(
     return `Cannot delete ${assetName} because it is still used as a scene background and there is no replacement asset available.`;
   }
 
+  if (blockedReason === "inventory-image-in-use") {
+    return `Cannot delete ${assetName} because one or more inventory items still reference it.`;
+  }
+
   return `${assetName} could not be deleted because it is no longer present in the project.`;
 }
 
@@ -548,6 +322,10 @@ function resolveDeleteDisabledTitle(
 ): string {
   if (blockedReason === "background-in-use-without-replacement") {
     return `${assetName} cannot be deleted until another asset is available to replace its scene background usage.`;
+  }
+
+  if (blockedReason === "inventory-image-in-use") {
+    return `${assetName} cannot be deleted until it is removed from every inventory item that references it.`;
   }
 
   return `${assetName} could not be deleted because it is no longer present in the project.`;
@@ -602,4 +380,26 @@ function joinList(values: string[]): string {
   }
 
   return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+}
+
+function resolveEmptyLibraryMessage(filter: AssetLibraryFilter): string {
+  switch (filter) {
+    case "background":
+      return "No background assets yet. Upload a background from the Scenes tab to add one here.";
+    case "inventory":
+      return "No inventory assets yet. Upload an inventory image from the Inventory tab to add one here.";
+    case "legacy-audio":
+      return "No legacy audio assets were found in this project.";
+  }
+}
+
+function formatAssetCategoryLabel(category: AssetLibraryFilter): string {
+  switch (category) {
+    case "background":
+      return "Background";
+    case "inventory":
+      return "Inventory";
+    case "legacy-audio":
+      return "Legacy Audio";
+  }
 }

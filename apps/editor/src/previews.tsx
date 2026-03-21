@@ -7,6 +7,8 @@ interface AssetPreviewProps {
   locale?: string;
   interactive?: boolean;
   allowSourceFallback?: boolean;
+  emptyTitle?: string;
+  emptyBody?: string;
 }
 
 interface ScenePreviewCardProps {
@@ -19,7 +21,14 @@ interface ScenePreviewCardProps {
   emptyBody?: string;
 }
 
-export function AssetPreview({ asset, locale, interactive = true, allowSourceFallback = false }: AssetPreviewProps) {
+export function AssetPreview({
+  asset,
+  locale,
+  interactive = true,
+  allowSourceFallback = false,
+  emptyTitle = "No background asset",
+  emptyBody = "Assign an image or video to preview this scene."
+}: AssetPreviewProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [posterUrl, setPosterUrl] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -75,9 +84,9 @@ export function AssetPreview({ asset, locale, interactive = true, allowSourceFal
 
   if (!asset) {
     return (
-      <div className="asset-preview asset-preview--placeholder" title="Preview unavailable because no background asset is assigned.">
-        <strong>No background asset</strong>
-        <span>Assign an image or video to preview this scene.</span>
+      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable because ${emptyTitle.toLowerCase()} is assigned.`}>
+        <strong>{emptyTitle}</strong>
+        <span>{emptyBody}</span>
       </div>
     );
   }

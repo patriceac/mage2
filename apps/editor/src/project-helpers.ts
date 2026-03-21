@@ -14,6 +14,7 @@ import {
   createRectangleHotspotPolygon,
   ensureLocaleStringValues,
   normalizeSupportedLocales,
+  resolveAssetCategory,
   resolveHotspotBounds
 } from "@mage2/schema";
 import { roundHotspotCoordinate } from "./hotspot-geometry";
@@ -33,11 +34,15 @@ export interface AssetReferenceSummary {
     sceneId: string;
     sceneName: string;
   }>;
+  inventoryImages: Array<{
+    itemId: string;
+    itemName: string;
+  }>;
 }
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
   removedSubtitleTrackIds: string[];
@@ -81,6 +86,8 @@ export interface RemoveHotspotFromProjectResult {
   deleted: boolean;
   removedTextIds: string[];
 }
+
+export type EditorAssetCategory = "background" | "inventory" | "legacy-audio";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -132,6 +139,7 @@ export function collectAssetReferenceSummary(
   assetId: string
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
+  const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
@@ -142,13 +150,23 @@ export function collectAssetReferenceSummary(
     }
   }
 
+  for (const item of project.inventory.items) {
+    if (item.imageAssetId === assetId) {
+      inventoryImages.push({
+        itemId: item.id,
+        itemName: item.name
+      });
+    }
+  }
+
   return {
-    sceneBackgrounds
+    sceneBackgrounds,
+    inventoryImages
   };
 }
 
 export function countAssetReferences(summary: AssetReferenceSummary): number {
-  return summary.sceneBackgrounds.length;
+  return summary.sceneBackgrounds.length + summary.inventoryImages.length;
 }
 
 export function evaluateAssetDeletion(
@@ -156,13 +174,23 @@ export function evaluateAssetDeletion(
   assetId: string
 ): AssetDeletionEligibility {
   const referenceSummary = collectAssetReferenceSummary(project, assetId);
-  const fallbackAssetId = resolveFallbackAssetId(project.assets.assets, assetId);
-  const assetExists = project.assets.assets.some((asset) => asset.id === assetId);
+  const targetAsset = project.assets.assets.find((asset) => asset.id === assetId);
+  const fallbackAssetId = targetAsset ? resolveBackgroundFallbackAssetId(project.assets.assets, targetAsset) : undefined;
+  const assetExists = Boolean(targetAsset);
 
   if (!assetExists) {
     return {
       canDelete: false,
       blockedReason: "asset-not-found",
+      fallbackAssetId,
+      referenceSummary
+    };
+  }
+
+  if (referenceSummary.inventoryImages.length > 0) {
+    return {
+      canDelete: false,
+      blockedReason: "inventory-image-in-use",
       fallbackAssetId,
       referenceSummary
     };
@@ -419,7 +447,7 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     id: sceneId,
     locationId: locationId ?? project.locations.items[0]?.id ?? "location_intro",
     name: `Scene ${project.scenes.items.length + 1}`,
-    backgroundAssetId: project.assets.assets[0]?.id ?? "asset_placeholder",
+    backgroundAssetId: resolveFirstBackgroundAssetId(project.assets.assets) ?? "asset_placeholder",
     backgroundVideoLoop: false,
     hotspots: [],
     subtitleTracks: [],
@@ -529,10 +557,38 @@ export function addHotspotAtBestAvailablePosition(
   return createHotspot(scene, findBestHotspotBounds(scene.hotspots));
 }
 
-function resolveFallbackAssetId(assets: Asset[], deletedAssetId: string): string | undefined {
+export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
+  if (asset.kind === "audio" && resolveAssetCategory(asset) === undefined) {
+    return "legacy-audio";
+  }
+
+  return resolveAssetCategory(asset) === "inventory" ? "inventory" : "background";
+}
+
+export function isBackgroundAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "background" && (asset.kind === "image" || asset.kind === "video");
+}
+
+export function isInventoryImageAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "inventory" && asset.kind === "image";
+}
+
+export function resolveFirstBackgroundAssetId(assets: Asset[]): string | undefined {
   return (
-    assets.find((asset) => asset.id !== deletedAssetId && asset.id !== STARTER_PLACEHOLDER_ASSET_ID)?.id ??
-    assets.find((asset) => asset.id !== deletedAssetId)?.id
+    assets.find((asset) => asset.id !== STARTER_PLACEHOLDER_ASSET_ID && isBackgroundAsset(asset))?.id ??
+    assets.find((asset) => isBackgroundAsset(asset))?.id
+  );
+}
+
+function resolveBackgroundFallbackAssetId(assets: Asset[], deletedAsset: Asset): string | undefined {
+  if (!isBackgroundAsset(deletedAsset)) {
+    return undefined;
+  }
+
+  return (
+    assets.find((asset) => asset.id !== deletedAsset.id && asset.id !== STARTER_PLACEHOLDER_ASSET_ID && isBackgroundAsset(asset))
+      ?.id ??
+    assets.find((asset) => asset.id !== deletedAsset.id && isBackgroundAsset(asset))?.id
   );
 }
 

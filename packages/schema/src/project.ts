@@ -1,5 +1,6 @@
 import {
   type Asset,
+  type AssetCategory,
   type AssetVariant,
   type BuildManifest,
   type ExportProjectData,
@@ -219,8 +220,21 @@ function normalizeAsset(input: unknown, defaultLanguage: string): Asset {
         ? rawAsset.kind
         : "image",
     name: typeof rawAsset.name === "string" && rawAsset.name.length > 0 ? rawAsset.name : "Unnamed Asset",
+    category: normalizeAssetCategory(rawAsset),
     variants: normalizedVariants
   };
+}
+
+function normalizeAssetCategory(input: Record<string, unknown>): AssetCategory | undefined {
+  if (input.category === "background" || input.category === "inventory") {
+    return input.category;
+  }
+
+  if (input.kind === "image" || input.kind === "video") {
+    return "background";
+  }
+
+  return undefined;
 }
 
 function normalizeAssetVariants(input: Record<string, unknown>, defaultLanguage: string): Record<string, AssetVariant> {

@@ -1,4 +1,4 @@
-import type { Asset, AssetVariant, ProjectBundle } from "./types";
+import type { Asset, AssetCategory, AssetKind, AssetVariant, ProjectBundle } from "./types";
 
 export function normalizeSupportedLocales(defaultLanguage: string, supportedLocales: readonly string[] = []): string[] {
   const normalized = [defaultLanguage, ...supportedLocales]
@@ -56,6 +56,25 @@ export function hasLocalizedText(
 
 export function resolveAssetVariant(asset: Pick<Asset, "variants">, locale: string): AssetVariant | undefined {
   return asset.variants[locale];
+}
+
+export function resolveAssetCategory(asset: Pick<Asset, "category" | "kind">): AssetCategory | undefined {
+  if (asset.category === "background" || asset.category === "inventory") {
+    return asset.category;
+  }
+
+  return asset.kind === "audio" ? undefined : "background";
+}
+
+export function isAssetCategory(
+  asset: Pick<Asset, "category" | "kind">,
+  category: AssetCategory
+): boolean {
+  return resolveAssetCategory(asset) === category;
+}
+
+export function isVisualAssetKind(kind: AssetKind): kind is "image" | "video" {
+  return kind === "image" || kind === "video";
 }
 
 export function collectAssetVariantPaths(asset: Pick<Asset, "variants">): string[] {

@@ -5,8 +5,8 @@ import crypto from "node:crypto";
 import path from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
-import type { Asset, AssetKind, AssetVariant } from "@mage2/schema";
-import { collectAssetVariantPaths, resolveAssetVariant } from "@mage2/schema";
+import type { Asset, AssetCategory, AssetKind, AssetVariant } from "@mage2/schema";
+import { collectAssetVariantPaths, resolveAssetCategory, resolveAssetVariant } from "@mage2/schema";
 export * from "./subtitles";
 
 export interface ProbeResult {
@@ -24,6 +24,10 @@ export interface DeleteManagedAssetFilesResult {
 export interface ImportAssetsToProjectResult {
   importedAssets: Asset[];
   duplicateFilePaths: string[];
+}
+
+export interface AssetImportOptions {
+  category?: AssetCategory;
 }
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
@@ -88,14 +92,23 @@ export async function probeAsset(filePath: string): Promise<ProbeResult> {
   };
 }
 
-export async function createImportedAsset(filePath: string, locale: string): Promise<Asset> {
-  return createImportedAssetRecord(filePath, filePath, locale);
+export async function createImportedAsset(
+  filePath: string,
+  locale: string,
+  options: AssetImportOptions = {}
+): Promise<Asset> {
+  return createImportedAssetRecord(filePath, filePath, locale, undefined, options);
 }
 
-export async function importAssetToProject(filePath: string, projectDir: string, locale: string): Promise<Asset> {
+export async function importAssetToProject(
+  filePath: string,
+  projectDir: string,
+  locale: string,
+  options: AssetImportOptions = {}
+): Promise<Asset> {
   const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
   try {
-    const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale);
+    const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale, undefined, options);
     return await generateProxy(asset, locale, projectDir);
   } catch (error) {
     await cleanupImportedAssetCopy(projectAssetPath, filePath);
@@ -107,10 +120,15 @@ export async function importAssetsToProject(
   filePaths: string[],
   projectDir: string,
   locale: string,
-  existingAssets: Asset[] = []
+  existingAssets: Asset[] = [],
+  options: AssetImportOptions = {}
 ): Promise<ImportAssetsToProjectResult> {
+  const existingCategoryAssets =
+    options.category === undefined
+      ? existingAssets
+      : existingAssets.filter((asset) => resolveAssetCategory(asset) === options.category);
   const existingHashes = new Set(
-    (await Promise.all(existingAssets.map((asset) => collectAssetVariantSha256s(asset)))).flat().filter(isDefined)
+    (await Promise.all(existingCategoryAssets.map((asset) => collectAssetVariantSha256s(asset)))).flat().filter(isDefined)
   );
   const seenImportHashes = new Set<string>();
   const importedAssets: Asset[] = [];
@@ -126,7 +144,7 @@ export async function importAssetsToProject(
     seenImportHashes.add(sha256);
     const projectAssetPath = await copyImportedAssetFile(filePath, projectDir);
     try {
-      const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale, sha256);
+      const asset = await createImportedAssetRecord(projectAssetPath, filePath, locale, sha256, options);
       importedAssets.push(await generateProxy(asset, locale, projectDir));
     } catch (error) {
       await cleanupImportedAssetCopy(projectAssetPath, filePath);
@@ -383,7 +401,8 @@ async function createImportedAssetRecord(
   filePath: string,
   importSourcePath: string,
   locale: string,
-  sha256?: string
+  sha256?: string,
+  options: AssetImportOptions = {}
 ): Promise<Asset> {
   const kind = detectAssetKind(filePath);
 
@@ -391,6 +410,7 @@ async function createImportedAssetRecord(
     id: `asset_${crypto.randomUUID().replace(/-/g, "")}`,
     kind,
     name: path.basename(filePath),
+    category: options.category,
     variants: {
       [locale]: await createImportedAssetVariantRecord(filePath, importSourcePath, sha256)
     }

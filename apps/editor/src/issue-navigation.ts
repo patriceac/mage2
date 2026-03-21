@@ -170,6 +170,7 @@ export function resolveIssueNavigation(
         sceneId: project.manifest.startSceneId
       };
     case "SCENE_BACKGROUND_LOCALE_MISSING":
+    case "INVENTORY_IMAGE_LOCALE_MISSING":
       return {
         label: "localized media",
         tab: "localization",
@@ -189,9 +190,20 @@ export function resolveIssueNavigation(
     case "HOTSPOT_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":
     case "EFFECT_ITEM_MISSING":
+    case "INVENTORY_IMAGE_MISSING":
+    case "INVENTORY_IMAGE_ASSET_MISSING":
+    case "INVENTORY_IMAGE_KIND_INVALID":
+    case "INVENTORY_IMAGE_CATEGORY_INVALID":
       return {
         label: "inventory",
         tab: "inventory"
+      };
+    case "SCENE_BACKGROUND_CATEGORY_INVALID":
+    case "SCENE_BACKGROUND_KIND_INVALID":
+      return {
+        label: "scene media",
+        tab: "scenes",
+        sceneId: issue.entityId
       };
     default:
       return undefined;
@@ -223,10 +235,19 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "INVENTORY_NAME_TEXT_MISSING":
     case "INVENTORY_DESCRIPTION_TEXT_MISSING":
       return "Add the missing text in Localization > Strings, or restore the default-locale value from Inventory.";
+    case "INVENTORY_IMAGE_MISSING":
+      return "Upload or assign an inventory image in the Inventory tab.";
+    case "INVENTORY_IMAGE_ASSET_MISSING":
+    case "INVENTORY_IMAGE_KIND_INVALID":
+    case "INVENTORY_IMAGE_CATEGORY_INVALID":
+      return "Assign a valid inventory image asset in the Inventory tab.";
     case "SCENE_BACKGROUND_LOCALE_MISSING":
+    case "INVENTORY_IMAGE_LOCALE_MISSING":
       return "Add or replace the missing locale media variant in Localization > Media.";
     case "SCENE_BACKGROUND_MISSING":
-      return "Import media in Assets, then assign a background asset in the Scenes tab.";
+    case "SCENE_BACKGROUND_CATEGORY_INVALID":
+    case "SCENE_BACKGROUND_KIND_INVALID":
+      return "Upload or assign a background image or video in the Scenes tab.";
     case "HOTSPOT_TARGET_SCENE_MISSING":
     case "EFFECT_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";

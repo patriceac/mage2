@@ -11,6 +11,7 @@ import {
   type BuildManifest,
   type ExportProjectData,
   type Hotspot,
+  type InventoryItem,
   parseBuildManifest
 } from "@mage2/schema";
 
@@ -20,6 +21,24 @@ export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "ma
   return {
     projectName: content.manifest.projectName
   };
+}
+
+export function resolveRuntimeInventoryItems(
+  items: InventoryItem[],
+  assets: Asset[],
+  locale: string,
+  strings: Record<string, string>
+): Array<{ id: string; label: string; imageSrc?: string }> {
+  return items.map((item) => {
+    const asset = item.imageAssetId ? assets.find((entry) => entry.id === item.imageAssetId) : undefined;
+    const variant = asset ? resolveAssetVariant(asset, locale) : undefined;
+
+    return {
+      id: item.id,
+      label: strings[item.textId] ?? item.name ?? item.textId,
+      imageSrc: asset?.kind === "image" ? variant?.sourcePath : undefined
+    };
+  });
 }
 
 export function App() {
@@ -106,6 +125,8 @@ export function App() {
   const currentAssetVariant = currentAsset ? resolveAssetVariant(currentAsset, locale) : undefined;
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs) : [];
   const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
+  const runtimeInventoryItems =
+    content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
 
   useEffect(() => {
     const video = runtimeVideoRef.current;
@@ -336,8 +357,30 @@ export function App() {
         ) : null}
 
         <aside className="runtime-sidebar">
-          <h3>State</h3>
-          <pre>{JSON.stringify(snapshot.saveState, null, 2)}</pre>
+          <section className="runtime-sidebar__section">
+            <h3>Inventory</h3>
+            {runtimeInventoryItems.length > 0 ? (
+              <div className="runtime-inventory">
+                {runtimeInventoryItems.map((item) => (
+                  <article key={item.id} className="runtime-inventory__item">
+                    {item.imageSrc ? (
+                      <img src={item.imageSrc} alt={item.label} className="runtime-inventory__thumb" />
+                    ) : (
+                      <div className="runtime-inventory__thumb runtime-inventory__thumb--placeholder">No art</div>
+                    )}
+                    <strong>{item.label}</strong>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="runtime-sidebar__empty">Inventory empty.</p>
+            )}
+          </section>
+
+          <section className="runtime-sidebar__section">
+            <h3>State</h3>
+            <pre>{JSON.stringify(snapshot.saveState, null, 2)}</pre>
+          </section>
         </aside>
       </section>
     </main>

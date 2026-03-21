@@ -227,7 +227,8 @@ describe("collectAssetReferenceSummary", () => {
     const summary = collectAssetReferenceSummary(project, primaryAsset.id);
 
     expect(summary).toEqual({
-      sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }]
+      sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
+      inventoryImages: []
     });
   });
 });
@@ -290,6 +291,22 @@ describe("removeAssetFromProject", () => {
     expect(result.fallbackAssetId).toBe("asset_replacement");
     expect(project.assets.assets.map((asset) => asset.id)).toEqual(["asset_replacement"]);
     expect(scene.backgroundAssetId).toBe("asset_replacement");
+  });
+
+  it("blocks deletion when an inventory item still references the asset", () => {
+    const project = createDefaultProjectBundle("Inventory asset removal blocked");
+    const inventoryAsset = createAsset("asset_inventory", "lantern.png", "D:\\media\\lantern.png", "inventory");
+    const item = addInventoryItem(project);
+
+    project.assets.assets = [inventoryAsset];
+    item.imageAssetId = inventoryAsset.id;
+
+    const result = removeAssetFromProject(project, inventoryAsset.id);
+
+    expect(result).toMatchObject({
+      deleted: false,
+      blockedReason: "inventory-image-in-use"
+    });
   });
 });
 
@@ -517,11 +534,17 @@ describe("removeSceneFromProject", () => {
   });
 });
 
-function createAsset(id: string, name: string, sourcePath: string): Asset {
+function createAsset(
+  id: string,
+  name: string,
+  sourcePath: string,
+  category?: "background" | "inventory"
+): Asset {
   return {
     id,
     kind: "image",
     name,
+    category,
     variants: {
       en: {
         sourcePath,

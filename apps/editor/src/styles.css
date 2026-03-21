@@ -417,6 +417,19 @@ label > .checkbox-list {
   gap: var(--space-md);
 }
 
+.assets-panel__filter {
+  min-width: min(100%, 12rem);
+}
+
+.asset-library-note {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .asset-dropzone {
   display: grid;
   gap: 0.45rem;
@@ -485,6 +498,13 @@ label > .checkbox-list {
 .scenes-panel__hotspot-actions {
   align-self: start;
   flex-wrap: wrap;
+}
+
+.asset-assignment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: end;
 }
 
 .scene-video-loop-toggle,
@@ -624,6 +644,24 @@ label > .checkbox-list {
 
 .list-card--compact {
   gap: var(--space-xs);
+}
+
+.inventory-item-art {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+.inventory-item-art__preview,
+.inventory-item-art__controls {
+  display: grid;
+  gap: var(--space-sm);
+  align-content: start;
+}
+
+.inventory-item-art__preview .asset-preview {
+  min-height: 13rem;
 }
 
 .localization-panel,
@@ -2028,6 +2066,11 @@ label > .checkbox-list {
   }
 
   .list-card--asset {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-item-art,
+  .asset-assignment-row {
     grid-template-columns: 1fr;
   }
 

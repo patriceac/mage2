@@ -36,11 +36,11 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 ];
 
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
-  assets: "Manage the logical media library used by scenes, then handle locale variants from Localization.",
+  assets: "Review background and inventory assets after creating them from their owning editor tabs.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
-  scenes: "Edit scene media, hotspots, subtitles, and scene-level wiring.",
+  scenes: "Edit scene media, upload background assets, hotspots, subtitles, and scene-level wiring.",
   dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
-  inventory: "Create inventory items and edit the player-facing text tied to each item.",
+  inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
   localization: "Manage locale coverage and edit localized strings, subtitles, and media variants in one place.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
@@ -477,10 +477,24 @@ export function App() {
             {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={markProjectSaved} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
             {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "scenes" ? (
-              <ScenesPanel project={project} mutateProject={mutateProject} setStatusMessage={setStatusMessage} />
+              <ScenesPanel
+                project={project}
+                mutateProject={mutateProject}
+                setSavedProject={markProjectSaved}
+                setStatusMessage={setStatusMessage}
+                setBusyLabel={setBusyLabel}
+              />
             ) : null}
             {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
-            {activeTab === "inventory" ? <InventoryPanel project={project} mutateProject={mutateProject} /> : null}
+            {activeTab === "inventory" ? (
+              <InventoryPanel
+                project={project}
+                mutateProject={mutateProject}
+                setSavedProject={markProjectSaved}
+                setStatusMessage={setStatusMessage}
+                setBusyLabel={setBusyLabel}
+              />
+            ) : null}
             {activeTab === "localization" ? (
               <LocalizationPanel
                 project={project}

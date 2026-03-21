@@ -1,4 +1,4 @@
-import type { Asset, ProjectBundle } from "@mage2/schema";
+import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
 
 interface RecentProjectSummary {
   projectDir: string;
@@ -48,7 +48,13 @@ declare global {
         project: ProjectBundle;
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
-      importAssets(projectDir: string, locale: string, existingAssets: Asset[], filePaths: string[]): Promise<{
+      importAssets(
+        projectDir: string,
+        locale: string,
+        existingAssets: Asset[],
+        filePaths: string[],
+        category?: AssetCategory
+      ): Promise<{
         importedAssets: Asset[];
         duplicateFilePaths: string[];
       }>;

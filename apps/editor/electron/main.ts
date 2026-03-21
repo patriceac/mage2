@@ -10,7 +10,7 @@ import {
   importAssetVariantToProject,
   parseSubtitleFiles
 } from "@mage2/media";
-import { parseProjectBundle, validateProject, type Asset, type ProjectBundle } from "@mage2/schema";
+import { parseProjectBundle, validateProject, type Asset, type AssetCategory, type ProjectBundle } from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
 import { exportProjectBundle } from "./exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
@@ -213,8 +213,15 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "mage2:import-assets",
-    async (_event, projectDir: string, locale: string, existingAssets: Asset[], filePaths: string[]) => {
-      return importAssetsToProject(filePaths, projectDir, locale, existingAssets);
+    async (
+      _event,
+      projectDir: string,
+      locale: string,
+      existingAssets: Asset[],
+      filePaths: string[],
+      category?: AssetCategory
+    ) => {
+      return importAssetsToProject(filePaths, projectDir, locale, existingAssets, { category });
     }
   );
 
