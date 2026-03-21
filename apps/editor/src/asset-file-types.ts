@@ -10,9 +10,14 @@ export const MEDIA_DIALOG_FILTER_EXTENSIONS = SUPPORTED_ASSET_EXTENSIONS.map((ex
 export const SUBTITLE_DIALOG_FILTER_EXTENSIONS = SUBTITLE_IMPORT_EXTENSIONS.map((extension) => extension.slice(1));
 
 const SUPPORTED_ASSET_EXTENSION_SET = new Set<string>(SUPPORTED_ASSET_EXTENSIONS);
+const BACKGROUND_IMPORT_EXTENSION_SET = new Set<string>(BACKGROUND_IMPORT_EXTENSIONS);
 
 export function isSupportedAssetPath(filePath: string): boolean {
   return SUPPORTED_ASSET_EXTENSION_SET.has(resolveFileExtension(filePath));
+}
+
+export function isBackgroundImportPath(filePath: string): boolean {
+  return BACKGROUND_IMPORT_EXTENSION_SET.has(resolveFileExtension(filePath));
 }
 
 export function classifyImportAssetPaths(filePaths: string[]): {

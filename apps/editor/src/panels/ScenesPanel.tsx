@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MediaSurface } from "../MediaSurface";
 import { getLocaleStringValues, type ProjectBundle, validateProject } from "@mage2/schema";
-import { BACKGROUND_IMPORT_EXTENSIONS, SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
+import { BACKGROUND_IMPORT_EXTENSIONS, SUBTITLE_IMPORT_EXTENSIONS, isBackgroundImportPath } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-project";
 import {
@@ -57,6 +57,8 @@ export function ScenesPanel({
   const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
   const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
   const localeStrings = getLocaleStringValues(project, activeLocale);
+  const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
+  const backgroundDropDepthRef = useRef(0);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -176,20 +178,8 @@ export function ScenesPanel({
     }
   }
 
-  async function handleImportBackground() {
+  async function importBackgroundFromFilePath(filePath: string) {
     if (!currentScene) {
-      return;
-    }
-
-    const filePaths = await dialogs.pickFiles({
-      title: currentAsset ? `Replace Background for ${currentScene.name}` : `Upload Background for ${currentScene.name}`,
-      description: "Choose an image or video file to create a background asset and assign it to this scene.",
-      initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: currentAsset ? "Use as Background" : "Upload Background",
-      allowedExtensions: [...BACKGROUND_IMPORT_EXTENSIONS]
-    });
-    const filePath = filePaths[0];
-    if (!filePath) {
       return;
     }
 
@@ -239,6 +229,86 @@ export function ScenesPanel({
     } finally {
       setBusyLabel(undefined);
     }
+  }
+
+  async function handleImportBackground() {
+    if (!currentScene) {
+      return;
+    }
+
+    const filePaths = await dialogs.pickFiles({
+      title: currentAsset ? `Replace Background for ${currentScene.name}` : `Upload Background for ${currentScene.name}`,
+      description: "Choose an image or video file to create a background asset and assign it to this scene.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: currentAsset ? "Use as Background" : "Upload Background",
+      allowedExtensions: [...BACKGROUND_IMPORT_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    await importBackgroundFromFilePath(filePath);
+  }
+
+  function isFileDrag(event: React.DragEvent<HTMLElement>): boolean {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function handleBackgroundDragEnter(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    backgroundDropDepthRef.current += 1;
+    setIsBackgroundDropActive(true);
+  }
+
+  function handleBackgroundDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!isBackgroundDropActive) {
+      setIsBackgroundDropActive(true);
+    }
+  }
+
+  function handleBackgroundDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    backgroundDropDepthRef.current = Math.max(backgroundDropDepthRef.current - 1, 0);
+    if (backgroundDropDepthRef.current === 0) {
+      setIsBackgroundDropActive(false);
+    }
+  }
+
+  async function handleBackgroundDrop(event: React.DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    backgroundDropDepthRef.current = 0;
+    setIsBackgroundDropActive(false);
+
+    const droppedFilePaths = Array.from(event.dataTransfer.files)
+      .map((file) => window.editorApi.getPathForDroppedFile(file))
+      .filter((filePath) => filePath.trim().length > 0);
+    const filePath = droppedFilePaths.find(isBackgroundImportPath);
+
+    if (!filePath) {
+      setStatusMessage("Drop an image or video file onto the scene preview to replace the background.");
+      return;
+    }
+
+    await importBackgroundFromFilePath(filePath);
   }
 
   function deleteHotspot(hotspotId: string | undefined) {
@@ -476,31 +546,54 @@ export function ScenesPanel({
           </div>
         </label>
 
-        <MediaSurface
-          asset={currentAsset}
-          locale={activeLocale}
-          loopVideo={currentScene.backgroundVideoLoop}
-          hotspots={currentScene.hotspots}
-          strings={localeStrings}
-          showSurfaceTooltips={false}
-          showHotspotTooltips={false}
-          playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
-          onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
-          selectedHotspotId={selectedHotspotId}
-          onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
-            if (!createRequested) {
-              setSelectedHotspotId(undefined);
-              return;
-            }
+        <div
+          className={
+            isBackgroundDropActive
+              ? "scenes-panel__background-dropzone scenes-panel__background-dropzone--active"
+              : "scenes-panel__background-dropzone"
+          }
+          onDragEnter={handleBackgroundDragEnter}
+          onDragOver={handleBackgroundDragOver}
+          onDragLeave={handleBackgroundDragLeave}
+          onDrop={(event) => void handleBackgroundDrop(event)}
+        >
+          <div className="scenes-panel__background-dropzone-frame">
+            <MediaSurface
+              asset={currentAsset}
+              locale={activeLocale}
+              loopVideo={currentScene.backgroundVideoLoop}
+              hotspots={currentScene.hotspots}
+              strings={localeStrings}
+              showSurfaceTooltips={false}
+              showHotspotTooltips={false}
+              playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
+              onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
+              selectedHotspotId={selectedHotspotId}
+              onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
+                if (!createRequested) {
+                  setSelectedHotspotId(undefined);
+                  return;
+                }
 
-            mutateProject((draft) => {
-              const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
-              setSelectedHotspotId(hotspot?.id);
-            });
-          }}
-          onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
-          onHotspotChange={updateHotspotGeometry}
-        />
+                mutateProject((draft) => {
+                  const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
+                  setSelectedHotspotId(hotspot?.id);
+                });
+              }}
+              onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
+              onHotspotChange={updateHotspotGeometry}
+            />
+            {isBackgroundDropActive ? (
+              <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
+                <strong>Drop to replace background</strong>
+                <span>Use an image or video file.</span>
+              </div>
+            ) : null}
+          </div>
+          <p className="muted scenes-panel__background-dropzone-hint">
+            Drag an image or video onto the preview to replace this scene&apos;s background.
+          </p>
+        </div>
 
         {currentAsset?.kind === "video" ? (
           <label
