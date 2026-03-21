@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   MEDIA_DIALOG_FILTER_EXTENSIONS,
+  SCENE_AUDIO_IMPORT_EXTENSIONS,
   SUBTITLE_DIALOG_FILTER_EXTENSIONS,
   classifyImportAssetPaths,
-  isBackgroundImportPath
+  isBackgroundImportPath,
+  isSceneAudioImportPath
 } from "./asset-file-types";
 
 describe("classifyImportAssetPaths", () => {
@@ -11,6 +13,7 @@ describe("classifyImportAssetPaths", () => {
     const result = classifyImportAssetPaths([
       "C:\\media\\intro.mp4",
       "C:\\media\\bg.png",
+      "C:\\media\\ambience.mp3",
       "C:\\media\\readme.txt",
       "C:\\media\\INTRO.mp4",
       "C:\\media\\intro.mp4",
@@ -22,6 +25,7 @@ describe("classifyImportAssetPaths", () => {
       importFilePaths: [
         "C:\\media\\intro.mp4",
         "C:\\media\\bg.png",
+        "C:\\media\\ambience.mp3",
         "C:\\media\\INTRO.mp4",
         "C:\\media\\intro.mp4"
       ],
@@ -35,8 +39,15 @@ describe("MEDIA_DIALOG_FILTER_EXTENSIONS", () => {
   it("strips leading dots for Electron file dialog filters", () => {
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("mp4");
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("png");
-    expect(MEDIA_DIALOG_FILTER_EXTENSIONS).not.toContain("mp3");
+    expect(MEDIA_DIALOG_FILTER_EXTENSIONS).toContain("mp3");
     expect(MEDIA_DIALOG_FILTER_EXTENSIONS.some((extension) => extension.startsWith("."))).toBe(false);
+  });
+});
+
+describe("SCENE_AUDIO_IMPORT_EXTENSIONS", () => {
+  it("tracks the supported dedicated audio-import file types", () => {
+    expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".mp3");
+    expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".wav");
   });
 });
 
@@ -50,6 +61,15 @@ describe("isBackgroundImportPath", () => {
   it("accepts images and videos while rejecting unsupported file types", () => {
     expect(isBackgroundImportPath("C:\\media\\scene.mp4")).toBe(true);
     expect(isBackgroundImportPath("C:\\media\\scene.PNG")).toBe(true);
+    expect(isBackgroundImportPath("C:\\media\\scene.mp3")).toBe(false);
     expect(isBackgroundImportPath("C:\\media\\scene.txt")).toBe(false);
+  });
+});
+
+describe("isSceneAudioImportPath", () => {
+  it("accepts supported audio files while rejecting visual file types", () => {
+    expect(isSceneAudioImportPath("C:\\media\\scene.mp3")).toBe(true);
+    expect(isSceneAudioImportPath("C:\\media\\scene.WAV")).toBe(true);
+    expect(isSceneAudioImportPath("C:\\media\\scene.png")).toBe(false);
   });
 });

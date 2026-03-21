@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { createPlayerController } from "@mage2/player";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
 import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
 import { getLocalizedAssetVariant } from "./localized-project";
@@ -39,6 +39,9 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
   const [showHotspots, setShowHotspots] = useState(false);
+  const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
+  const sceneAudioRef = useRef<HTMLAudioElement>(null);
+  const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
   const supportedLocales = useMemo(
     () => normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales),
     [project.manifest.defaultLanguage, project.manifest.supportedLocales]
@@ -73,8 +76,102 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
 
   const sceneAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
   const sceneAssetVariant = getLocalizedAssetVariant(sceneAsset, activeLocale);
+  const sceneAudioAsset = snapshot.scene.sceneAudioAssetId
+    ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
+    : undefined;
+  const sceneAudioVariant = getLocalizedAssetVariant(sceneAudioAsset, activeLocale);
+  const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
+    sceneAssetVariant?.durationMs,
+    sceneAsset?.kind === "image" ? snapshot.scene.sceneAudioDelayMs : 0,
+    sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
+  );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs);
   const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSceneAudioUrl() {
+      if (!sceneAudioAsset) {
+        setSceneAudioUrl(undefined);
+        return;
+      }
+
+      const sourcePath = sceneAudioVariant?.proxyPath ?? sceneAudioVariant?.sourcePath;
+      if (!sourcePath) {
+        setSceneAudioUrl(undefined);
+        return;
+      }
+
+      const url = await window.editorApi.pathToFileUrl(sourcePath);
+      if (!cancelled) {
+        setSceneAudioUrl(url);
+      }
+    }
+
+    void loadSceneAudioUrl();
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneAudioAsset, sceneAudioVariant]);
+
+  useEffect(() => {
+    const audio = sceneAudioRef.current;
+    if (sceneAudioTimeoutRef.current !== undefined) {
+      window.clearTimeout(sceneAudioTimeoutRef.current);
+      sceneAudioTimeoutRef.current = undefined;
+    }
+
+    if (!audio) {
+      return;
+    }
+
+    const clearPlayback = () => {
+      if (sceneAudioTimeoutRef.current !== undefined) {
+        window.clearTimeout(sceneAudioTimeoutRef.current);
+        sceneAudioTimeoutRef.current = undefined;
+      }
+      audio.pause();
+      audio.currentTime = 0;
+    };
+
+    clearPlayback();
+
+    if (!sceneAudioUrl || sceneAsset?.kind !== "image" || !snapshot.scene.sceneAudioAssetId) {
+      return clearPlayback;
+    }
+
+    const schedulePlayback = () => {
+      sceneAudioTimeoutRef.current = window.setTimeout(() => {
+        sceneAudioTimeoutRef.current = undefined;
+        void audio.play().catch(() => {
+          // Keep the playtest responsive if autoplay is blocked.
+        });
+      }, Math.max(snapshot.scene.sceneAudioDelayMs, 0));
+    };
+
+    const handleEnded = () => {
+      audio.currentTime = 0;
+      if (snapshot.scene.sceneAudioLoop) {
+        schedulePlayback();
+      }
+    };
+
+    audio.addEventListener("ended", handleEnded);
+    schedulePlayback();
+
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+      clearPlayback();
+    };
+  }, [
+    sceneAudioUrl,
+    sceneAsset?.kind,
+    snapshot.scene.id,
+    snapshot.scene.sceneAudioAssetId,
+    snapshot.scene.sceneAudioDelayMs,
+    snapshot.scene.sceneAudioLoop
+  ]);
 
   return (
     <div className="panel-grid panel-grid--playtest">
@@ -85,8 +182,8 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             <input
               type="range"
               min={0}
-              max={sceneAssetVariant?.durationMs ?? 30000}
-              value={Math.min(playheadMs, sceneAssetVariant?.durationMs ?? 30000)}
+              max={sceneTimelineDurationMs}
+              value={Math.min(playheadMs, sceneTimelineDurationMs)}
               title="Scrub through the current scene preview to inspect timing, subtitles, and hotspot visibility."
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
@@ -161,6 +258,12 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
             setPlayheadMs(0);
           }}
         />
+
+        {sceneAudioUrl ? (
+          <div className="subtitle-strip">
+            <audio ref={sceneAudioRef} src={sceneAudioUrl} controls preload="metadata" className="asset-preview__audio" />
+          </div>
+        ) : null}
 
         <div className="subtitle-strip">
           {subtitleLines.length > 0 ? (

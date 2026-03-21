@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, createInitialSaveState } from "@mage2/schema";
-import { createPlayerController } from "./index";
+import { createPlayerController, resolveSceneTimelineDurationMs } from "./index";
 
 describe("player controller", () => {
   it("activates hotspots inside their timing window", () => {
@@ -70,5 +70,10 @@ describe("player controller", () => {
       "Overlapping cue"
     ]);
     expect(controller.getSubtitleLines(3500, project.manifest.defaultLanguage)).toEqual([]);
+  });
+
+  it("extends the scene timeline to cover the first delayed scene-audio pass", () => {
+    expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(30000);
+    expect(resolveSceneTimelineDurationMs(18000, 12000, 22000)).toBe(34000);
   });
 });

@@ -48,6 +48,8 @@ export interface PlayerController {
   save(): SaveState;
 }
 
+export const DEFAULT_SCENE_TIMELINE_DURATION_MS = 30000;
+
 export function createPlayerController(
   project: ProjectBundle,
   initialSaveState?: SaveState
@@ -295,4 +297,15 @@ export function resolveSubtitleTrackLines(
     .filter((cue) => timeMs >= cue.startMs && timeMs <= cue.endMs)
     .map((cue) => strings[cue.textId] ?? "")
     .filter((line) => line.trim().length > 0);
+}
+
+export function resolveSceneTimelineDurationMs(
+  visualDurationMs?: number,
+  sceneAudioDelayMs = 0,
+  sceneAudioDurationMs?: number
+): number {
+  const sceneAudioTimelineDurationMs =
+    sceneAudioDurationMs !== undefined ? Math.max(0, sceneAudioDelayMs) + sceneAudioDurationMs : 0;
+
+  return Math.max(DEFAULT_SCENE_TIMELINE_DURATION_MS, visualDurationMs ?? 0, sceneAudioTimelineDurationMs);
 }

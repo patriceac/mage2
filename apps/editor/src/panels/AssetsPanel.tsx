@@ -23,10 +23,11 @@ interface AssetsPanelProps {
 
 const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
   sceneBackgrounds: [],
+  sceneAudioAssignments: [],
   inventoryImages: []
 };
 
-type AssetLibraryFilter = "background" | "inventory";
+type AssetLibraryFilter = "background" | "inventory" | "sceneAudio";
 
 export function AssetsPanel({
   project,
@@ -38,13 +39,16 @@ export function AssetsPanel({
   const activeLocale = project.manifest.defaultLanguage;
   const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
+  const selectedAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
   const assetReferenceSummaries = new Map(
     project.assets.assets.map((asset) => [asset.id, collectAssetReferenceSummary(project, asset.id)])
   );
   const assetDeletionEligibility = new Map(
     project.assets.assets.map((asset) => [asset.id, evaluateAssetDeletion(project, asset.id)])
   );
-  const [assetFilter, setAssetFilter] = useState<AssetLibraryFilter>("background");
+  const [assetFilter, setAssetFilter] = useState<AssetLibraryFilter>(
+    selectedAsset ? classifyEditorAssetCategory(selectedAsset) : "background"
+  );
 
   async function handleDeleteAsset(asset: Asset) {
     const projectDir = useEditorStore.getState().projectDir;
@@ -132,6 +136,7 @@ export function AssetsPanel({
             <span className="field-label--inset">Category</span>
             <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetLibraryFilter)}>
               <option value="background">Background</option>
+              <option value="sceneAudio">Scene Audio</option>
               <option value="inventory">Inventory</option>
             </select>
           </label>
@@ -139,10 +144,12 @@ export function AssetsPanel({
 
         <div className="list-stack">
           <div className="asset-library-note">
-            <strong>
+              <strong>
               {assetFilter === "background"
                 ? "Create new background assets from Scenes."
-                : "Create new inventory assets from Inventory."}
+                : assetFilter === "sceneAudio"
+                  ? "Create new scene audio assets from Scenes."
+                  : "Create new inventory assets from Inventory."}
             </strong>
             <span>Use Localization to manage locale-specific variants after the asset exists.</span>
           </div>
@@ -219,6 +226,10 @@ function formatAssetUsageSummary(summary: AssetReferenceSummary): string {
     segments.push(`${summary.sceneBackgrounds.length} scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}`);
   }
 
+  if (summary.sceneAudioAssignments.length > 0) {
+    segments.push(`${summary.sceneAudioAssignments.length} scene audio assignment${summary.sceneAudioAssignments.length === 1 ? "" : "s"}`);
+  }
+
   if (summary.inventoryImages.length > 0) {
     segments.push(`${summary.inventoryImages.length} inventory image${summary.inventoryImages.length === 1 ? "" : "s"}`);
   }
@@ -246,6 +257,9 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
   if (summary.sceneBackgrounds.length > 0 && fallbackAssetName) {
     consequences.push(`Affected scene backgrounds will switch to "${fallbackAssetName}".`);
   }
+  if (summary.sceneAudioAssignments.length > 0) {
+    consequences.push("Affected scene audio assignments will be cleared.");
+  }
   consequences.push("Any generated proxy files will be deleted.");
   consequences.push("If this asset was copied into the project's assets folder, that project copy will be deleted.");
   consequences.push("The original import source file on disk will not be deleted.");
@@ -259,6 +273,13 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
           {summary.sceneBackgrounds.length > 0 ? (
             <li>
               {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
+                .map((entry) => entry.sceneName)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.sceneAudioAssignments.length > 0 ? (
+            <li>
+              {`Scene audio assignment${summary.sceneAudioAssignments.length === 1 ? "" : "s"}: ${summary.sceneAudioAssignments
                 .map((entry) => entry.sceneName)
                 .join(", ")}`}
             </li>
@@ -334,6 +355,14 @@ function resolveDeleteStatusMessage(
     );
   }
 
+  if (deletion.referenceSummary.sceneAudioAssignments.length > 0) {
+    segments.push(
+      `Cleared ${deletion.referenceSummary.sceneAudioAssignments.length} scene audio assignment${
+        deletion.referenceSummary.sceneAudioAssignments.length === 1 ? "" : "s"
+      }.`
+    );
+  }
+
   if (deletedSourceFileCount > 0) {
     segments.push(`Deleted ${deletedSourceFileCount} project asset file${deletedSourceFileCount === 1 ? "" : "s"}.`);
   }
@@ -369,6 +398,8 @@ function resolveEmptyLibraryMessage(filter: AssetLibraryFilter): string {
   switch (filter) {
     case "background":
       return "No background assets yet. Upload a background from the Scenes tab to add one here.";
+    case "sceneAudio":
+      return "No scene audio assets yet. Upload scene audio from the Scenes tab to add one here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from the Inventory tab to add one here.";
   }
@@ -378,6 +409,8 @@ function formatAssetCategoryLabel(category: AssetLibraryFilter): string {
   switch (category) {
     case "background":
       return "Background";
+    case "sceneAudio":
+      return "Scene Audio";
     case "inventory":
       return "Inventory";
   }

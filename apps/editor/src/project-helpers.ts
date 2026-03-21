@@ -34,6 +34,10 @@ export interface AssetReferenceSummary {
     sceneId: string;
     sceneName: string;
   }>;
+  sceneAudioAssignments: Array<{
+    sceneId: string;
+    sceneName: string;
+  }>;
   inventoryImages: Array<{
     itemId: string;
     itemName: string;
@@ -87,7 +91,7 @@ export interface RemoveHotspotFromProjectResult {
   removedTextIds: string[];
 }
 
-export type EditorAssetCategory = "background" | "inventory";
+export type EditorAssetCategory = "background" | "inventory" | "sceneAudio";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -139,11 +143,19 @@ export function collectAssetReferenceSummary(
   assetId: string
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
+  const sceneAudioAssignments: AssetReferenceSummary["sceneAudioAssignments"] = [];
   const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
       sceneBackgrounds.push({
+        sceneId: scene.id,
+        sceneName: scene.name
+      });
+    }
+
+    if (scene.sceneAudioAssetId === assetId) {
+      sceneAudioAssignments.push({
         sceneId: scene.id,
         sceneName: scene.name
       });
@@ -161,12 +173,13 @@ export function collectAssetReferenceSummary(
 
   return {
     sceneBackgrounds,
+    sceneAudioAssignments,
     inventoryImages
   };
 }
 
 export function countAssetReferences(summary: AssetReferenceSummary): number {
-  return summary.sceneBackgrounds.length + summary.inventoryImages.length;
+  return summary.sceneBackgrounds.length + summary.sceneAudioAssignments.length + summary.inventoryImages.length;
 }
 
 export function evaluateAssetDeletion(
@@ -234,6 +247,10 @@ export function removeAssetFromProject(
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId && fallbackAssetId) {
       scene.backgroundAssetId = fallbackAssetId;
+    }
+
+    if (scene.sceneAudioAssetId === assetId) {
+      scene.sceneAudioAssetId = undefined;
     }
   }
 
@@ -448,6 +465,8 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     locationId: locationId ?? project.locations.items[0]?.id ?? "location_intro",
     name: `Scene ${project.scenes.items.length + 1}`,
     backgroundAssetId: resolveFirstBackgroundAssetId(project.assets.assets) ?? "asset_placeholder",
+    sceneAudioLoop: true,
+    sceneAudioDelayMs: 0,
     backgroundVideoLoop: false,
     hotspots: [],
     subtitleTracks: [],
@@ -558,11 +577,22 @@ export function addHotspotAtBestAvailablePosition(
 }
 
 export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
-  return resolveAssetCategory(asset) === "inventory" ? "inventory" : "background";
+  switch (resolveAssetCategory(asset)) {
+    case "inventory":
+      return "inventory";
+    case "sceneAudio":
+      return "sceneAudio";
+    default:
+      return "background";
+  }
 }
 
 export function isBackgroundAsset(asset: Asset): boolean {
   return resolveAssetCategory(asset) === "background" && (asset.kind === "image" || asset.kind === "video");
+}
+
+export function isSceneAudioAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "sceneAudio" && asset.kind === "audio";
 }
 
 export function isInventoryImageAsset(asset: Asset): boolean {

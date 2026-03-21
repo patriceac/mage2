@@ -33,6 +33,7 @@ export interface AssetImportOptions {
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"]);
+const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".m4a", ".aac"]);
 const SVG_EXTENSION = ".svg";
 const SVG_PREVIEW_MAX_WIDTH_PX = 1280;
 const SVG_PREVIEW_MAX_HEIGHT_PX = 720;
@@ -64,6 +65,10 @@ export function detectAssetKind(filePath: string): AssetKind {
     return "image";
   }
 
+  if (AUDIO_EXTENSIONS.has(extension)) {
+    return "audio";
+  }
+
   throw new Error(`Unsupported asset file type for '${path.basename(filePath)}'.`);
 }
 
@@ -86,12 +91,13 @@ export async function probeAsset(filePath: string): Promise<ProbeResult> {
     streams?: Array<{ codec_name?: string; width?: number; height?: number; codec_type?: string }>;
   };
   const videoStream = parsed.streams?.find((stream) => stream.codec_type === "video");
+  const audioStream = parsed.streams?.find((stream) => stream.codec_type === "audio");
 
   return {
     durationMs: parsed.format?.duration ? Math.round(Number(parsed.format.duration) * 1000) : undefined,
     width: videoStream?.width,
     height: videoStream?.height,
-    codec: videoStream?.codec_name
+    codec: videoStream?.codec_name ?? audioStream?.codec_name
   };
 }
 
@@ -288,6 +294,27 @@ export async function generateProxy(asset: Asset, locale: string, projectDir: st
     });
   }
 
+  if (asset.kind === "audio") {
+    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp3`);
+    await runProcess(getFfmpegPath(), [
+      "-y",
+      "-i",
+      variant.sourcePath,
+      "-vn",
+      "-c:a",
+      "libmp3lame",
+      "-q:a",
+      "4",
+      proxyPath
+    ]);
+
+    return updateAssetVariant(asset, locale, {
+      ...variant,
+      proxyPath,
+      posterPath: undefined
+    });
+  }
+
   const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.mp4`);
   const posterPath = path.join(proxyDirectory, `${asset.id}.${locale}.jpg`);
   await runProcess(getFfmpegPath(), [
@@ -385,7 +412,8 @@ export async function copyAssetVariantForBuild(asset: Asset, locale: string, out
   }
 
   await mkdir(outputDirectory, { recursive: true });
-  const sourcePath = asset.kind === "video" ? variant.proxyPath ?? variant.sourcePath : variant.sourcePath;
+  const sourcePath =
+    asset.kind === "video" || asset.kind === "audio" ? variant.proxyPath ?? variant.sourcePath : variant.sourcePath;
   const extension = path.extname(sourcePath) || guessExtensionForKind(asset.kind);
   const outputPath = path.join(outputDirectory, `${asset.id}.${locale}${extension}`);
   await cp(sourcePath, outputPath, { force: true });
@@ -512,7 +540,15 @@ async function cleanupImportedAssetCopy(projectAssetPath: string, importSourcePa
 }
 
 function guessExtensionForKind(kind: AssetKind): string {
-  return kind === "video" ? ".mp4" : ".png";
+  if (kind === "video") {
+    return ".mp4";
+  }
+
+  if (kind === "audio") {
+    return ".mp3";
+  }
+
+  return ".png";
 }
 
 function resolveSvgPreviewFit(

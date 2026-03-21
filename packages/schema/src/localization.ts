@@ -59,11 +59,11 @@ export function resolveAssetVariant(asset: Pick<Asset, "variants">, locale: stri
 }
 
 export function resolveAssetCategory(asset: Pick<Asset, "category" | "kind">): AssetCategory | undefined {
-  if (asset.category === "background" || asset.category === "inventory") {
+  if (asset.category === "background" || asset.category === "inventory" || asset.category === "sceneAudio") {
     return asset.category;
   }
 
-  return "background";
+  return asset.kind === "audio" ? "sceneAudio" : "background";
 }
 
 export function isAssetCategory(

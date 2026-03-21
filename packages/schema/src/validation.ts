@@ -143,6 +143,8 @@ function validateScene(
   inventoryIds: Set<string>,
   issues: ValidationIssue[]
 ): void {
+  let backgroundAssetKind: ProjectBundle["assets"]["assets"][number]["kind"] | undefined;
+
   if (!locationIds.has(scene.locationId)) {
     issues.push({
       level: "error",
@@ -162,6 +164,8 @@ function validateScene(
   } else {
     const asset = assetsById.get(scene.backgroundAssetId);
     if (asset) {
+      backgroundAssetKind = asset.kind;
+
       if (resolveAssetCategory(asset) !== "background") {
         issues.push({
           level: "error",
@@ -193,6 +197,61 @@ function validateScene(
           locale
         });
       }
+    }
+  }
+
+  if (scene.sceneAudioAssetId) {
+    if (!assetIds.has(scene.sceneAudioAssetId)) {
+      issues.push({
+        level: "error",
+        code: "SCENE_AUDIO_MISSING",
+        message: `Scene '${scene.id}' references missing scene audio asset '${scene.sceneAudioAssetId}'.`,
+        entityId: scene.id
+      });
+    } else {
+      const asset = assetsById.get(scene.sceneAudioAssetId);
+      if (asset) {
+        if (resolveAssetCategory(asset) !== "sceneAudio") {
+          issues.push({
+            level: "error",
+            code: "SCENE_AUDIO_CATEGORY_INVALID",
+            message: `Scene '${scene.id}' must reference a scene audio asset, but '${scene.sceneAudioAssetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
+            entityId: scene.id
+          });
+        }
+
+        if (asset.kind !== "audio") {
+          issues.push({
+            level: "error",
+            code: "SCENE_AUDIO_KIND_INVALID",
+            message: `Scene '${scene.id}' must reference an audio asset, but '${scene.sceneAudioAssetId}' is '${asset.kind}'.`,
+            entityId: scene.id
+          });
+        }
+
+        for (const locale of supportedLocales) {
+          if (resolveAssetVariant(asset, locale)) {
+            continue;
+          }
+
+          issues.push({
+            level: "error",
+            code: "SCENE_AUDIO_LOCALE_MISSING",
+            message: `Asset '${asset.id}' is missing a '${locale}' variant for scene audio on scene '${scene.id}'.`,
+            entityId: asset.id,
+            locale
+          });
+        }
+      }
+    }
+
+    if (backgroundAssetKind && backgroundAssetKind !== "image") {
+      issues.push({
+        level: "error",
+        code: "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND",
+        message: `Scene '${scene.id}' can only use scene audio when its background asset is an image.`,
+        entityId: scene.id
+      });
     }
   }
 

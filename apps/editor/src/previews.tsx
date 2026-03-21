@@ -134,6 +134,14 @@ export function AssetPreview({
     );
   }
 
+  if (asset.kind === "audio" && assetUrl) {
+    return (
+      <div className="asset-preview asset-preview--audio" title={`Preview ${asset.name}.`}>
+        <audio src={assetUrl} controls preload="metadata" className="asset-preview__audio" />
+      </div>
+    );
+  }
+
   return (
     <div className="asset-preview asset-preview--placeholder" title={`Loading preview for ${asset.name}.`}>
       <strong>Loading preview...</strong>

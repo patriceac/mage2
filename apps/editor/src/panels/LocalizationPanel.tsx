@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getLocaleStringValues, type Asset, type ProjectBundle } from "@mage2/schema";
+import { BACKGROUND_IMPORT_EXTENSIONS, INVENTORY_IMAGE_EXTENSIONS, SCENE_AUDIO_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import {
   addProjectLocale,
@@ -29,7 +30,7 @@ import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
 type SubtitleEntryStatus = "missing" | "translated" | "empty";
-type MediaAssetFilter = "background" | "inventory";
+type MediaAssetFilter = "background" | "inventory" | "sceneAudio";
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
@@ -88,6 +89,7 @@ export function LocalizationPanel({
   const setSelectedTextId = useEditorStore((state) => state.setSelectedTextId);
   const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
+  const selectedAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const setSelectedLocationId = useEditorStore((state) => state.setSelectedLocationId);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
@@ -100,7 +102,9 @@ export function LocalizationPanel({
   const [statusFilter, setStatusFilter] = useState<"all" | "missing" | "referenced" | "orphaned">("all");
   const [areaFilter, setAreaFilter] = useState<StringsAreaFilter>("all");
   const [sortOption, setSortOption] = useState<"status" | "textId" | "mostUses">("status");
-  const [mediaAssetFilter, setMediaAssetFilter] = useState<MediaAssetFilter>("background");
+  const [mediaAssetFilter, setMediaAssetFilter] = useState<MediaAssetFilter>(
+    selectedAsset ? classifyEditorAssetCategory(selectedAsset) : "background"
+  );
   const stringsListRef = useRef<HTMLDivElement | null>(null);
 
   const allStringEntries = useMemo(
@@ -306,7 +310,8 @@ export function LocalizationPanel({
       title: `${getLocalizedAssetVariant(asset, activeLocale) ? "Replace" : "Add"} ${activeLocale} Variant`,
       description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
       initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
-      confirmLabel: "Use This File"
+      confirmLabel: "Use This File",
+      allowedExtensions: resolveAssetVariantImportExtensions(asset)
     });
     const filePath = filePaths[0];
     if (!filePath) {
@@ -873,6 +878,7 @@ export function LocalizationPanel({
             <span className="field-label--inset">Category</span>
             <select value={mediaAssetFilter} onChange={(event) => setMediaAssetFilter(event.target.value as MediaAssetFilter)}>
               <option value="background">Background</option>
+              <option value="sceneAudio">Scene Audio</option>
               <option value="inventory">Inventory</option>
             </select>
           </label>
@@ -1086,6 +1092,8 @@ function formatMediaCategoryLabel(category: MediaAssetFilter): string {
   switch (category) {
     case "background":
       return "Background";
+    case "sceneAudio":
+      return "Scene Audio";
     case "inventory":
       return "Inventory";
   }
@@ -1095,6 +1103,8 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
   switch (filter) {
     case "background":
       return "No background assets yet. Upload scene media from Scenes before localizing it here.";
+    case "sceneAudio":
+      return "No scene audio assets yet. Upload scene audio from Scenes before localizing it here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
   }
@@ -1103,4 +1113,17 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
 export function normalizeLocaleInput(input: string | undefined): string | undefined {
   const normalized = input?.trim().replace(/_/g, "-");
   return normalized ? normalized : undefined;
+}
+
+function resolveAssetVariantImportExtensions(asset: Asset): string[] {
+  switch (asset.kind) {
+    case "audio":
+      return [...SCENE_AUDIO_IMPORT_EXTENSIONS];
+    case "video":
+      return [...BACKGROUND_IMPORT_EXTENSIONS];
+    case "image":
+      return classifyEditorAssetCategory(asset) === "inventory"
+        ? [...INVENTORY_IMAGE_EXTENSIONS]
+        : [...BACKGROUND_IMPORT_EXTENSIONS];
+  }
 }

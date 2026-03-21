@@ -196,6 +196,10 @@ input[type="range"]:focus-visible {
   object-fit: cover;
 }
 
+.runtime-scene-audio {
+  display: none;
+}
+
 .runtime-media__placeholder {
   display: grid;
   place-items: center;

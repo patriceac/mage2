@@ -49,4 +49,42 @@ describe("AssetsPanel proxy UI", () => {
     expect(markup).toContain("Loading preview...");
     expect(markup).toContain("Not currently in use.");
   });
+
+  it("lists scene-audio as a first-class asset library category", () => {
+    const project = createDefaultProjectBundle("Scene audio assets");
+    const asset: Asset = {
+      id: "asset_ambience",
+      kind: "audio",
+      name: "ambience.mp3",
+      category: "sceneAudio",
+      variants: {
+        en: {
+          sourcePath: "D:\\project\\assets\\ambience.mp3",
+          importedAt: "2026-03-20T00:00:00.000Z"
+        }
+      }
+    };
+    project.assets.assets = [asset];
+
+    useEditorStore.setState({
+      activeTab: "assets",
+      selectedAssetId: asset.id
+    });
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        DialogProvider,
+        null,
+        React.createElement(AssetsPanel, {
+          project,
+          setSavedProject: () => {},
+          setStatusMessage: () => {},
+          setBusyLabel: () => {}
+        })
+      )
+    );
+
+    expect(markup).toContain(">Scene Audio</option>");
+    expect(markup).not.toContain("Create new inventory assets from Inventory.");
+  });
 });

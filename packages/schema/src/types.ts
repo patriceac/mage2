@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
-export const AssetKindSchema = z.enum(["video", "image"]);
-export const AssetCategorySchema = z.enum(["background", "inventory"]);
+export const AssetKindSchema = z.enum(["video", "image", "audio"]);
+export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("always") }),
@@ -86,6 +86,9 @@ export const SceneSchema = z.object({
   locationId: z.string().min(1),
   name: z.string().min(1),
   backgroundAssetId: z.string().min(1),
+  sceneAudioAssetId: z.string().min(1).optional(),
+  sceneAudioLoop: z.boolean().default(true),
+  sceneAudioDelayMs: z.number().nonnegative().default(0),
   backgroundVideoLoop: z.boolean().default(false),
   hotspots: z.array(HotspotSchema).default([]),
   subtitleTracks: z.array(SubtitleTrackSchema).default([]),

@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +7,7 @@ import {
   copyAssetVariantForBuild,
   deleteGeneratedProxyFiles,
   deleteManagedAssetFiles,
+  getFfmpegPath,
   hydrateAssetSha256s,
   importAssetsToProject,
   importAssetVariantToProject,
@@ -66,19 +68,41 @@ describe("importAssetToProject", () => {
     expect(await readFile(secondAsset.variants.en!.sourcePath, "utf8")).toContain("second");
   });
 
-  it("rejects unsupported audio imports and cleans up the copied file", async () => {
+  it("imports audio files and generates browser-friendly mp3 proxies", async () => {
     const workspaceDir = await createTempWorkspace();
     const sourceDir = path.join(workspaceDir, "source");
     const projectDir = path.join(workspaceDir, "project");
-    const sourcePath = path.join(sourceDir, "legacy.mp3");
+    const sourcePath = path.join(sourceDir, "ambience.wav");
 
     await mkdir(sourceDir, { recursive: true });
-    await writeFile(sourcePath, "legacy audio bytes", "utf8");
+    await createAudioFile(sourcePath);
+
+    const asset = await importAssetToProject(sourcePath, projectDir, "en");
+    const variant = asset.variants.en;
+
+    expect(asset.kind).toBe("audio");
+    expect(asset.name).toBe("ambience.wav");
+    expect(variant?.sourcePath).toBe(path.join(projectDir, "assets", "ambience.wav"));
+    expect(variant?.importSourcePath).toBe(sourcePath);
+    expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.mp3`));
+    expect(variant?.posterPath).toBeUndefined();
+    expect(variant?.durationMs).toBeGreaterThan(0);
+    expect(await readFile(variant!.proxyPath!)).not.toHaveLength(0);
+  });
+
+  it("rejects unsupported text imports and cleans up the copied file", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "notes.txt");
+
+    await mkdir(sourceDir, { recursive: true });
+    await writeFile(sourcePath, "notes", "utf8");
 
     await expect(importAssetToProject(sourcePath, projectDir, "en")).rejects.toThrow(
-      "Unsupported asset file type for 'legacy.mp3'."
+      "Unsupported asset file type for 'notes.txt'."
     );
-    await expect(readFile(path.join(projectDir, "assets", "legacy.mp3"), "utf8")).rejects.toThrow();
+    await expect(readFile(path.join(projectDir, "assets", "notes.txt"), "utf8")).rejects.toThrow();
   });
 
   it("renders SVG previews into PNG proxies for scene-sized art", async () => {
@@ -139,6 +163,27 @@ describe("importAssetsToProject", () => {
     const existingAsset = await importAssetToProject(firstSourcePath, projectDir, "en");
     const result = await importAssetsToProject([duplicateSourcePath], projectDir, "en", [existingAsset]);
 
+    expect(result.importedAssets).toEqual([]);
+    expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
+  });
+
+  it("detects duplicate scene-audio imports by content hash", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const firstSourcePath = path.join(sourceDir, "ambience-a.wav");
+    const duplicateSourcePath = path.join(sourceDir, "ambience-b.wav");
+
+    await mkdir(sourceDir, { recursive: true });
+    await createAudioFile(firstSourcePath);
+    await writeFile(duplicateSourcePath, await readFile(firstSourcePath));
+
+    const existingAsset = await importAssetToProject(firstSourcePath, projectDir, "en", { category: "sceneAudio" });
+    const result = await importAssetsToProject([duplicateSourcePath], projectDir, "en", [existingAsset], {
+      category: "sceneAudio"
+    });
+
+    expect(existingAsset.category).toBe("sceneAudio");
     expect(result.importedAssets).toEqual([]);
     expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
   });
@@ -363,6 +408,41 @@ describe("deleteManagedAssetFiles", () => {
     await expect(readFile(posterPath, "utf8")).rejects.toThrow();
   });
 
+  it("removes generated audio proxies and the copied audio source file", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const assetsDir = path.join(projectDir, "assets");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const sourcePath = path.join(assetsDir, "ambience.wav");
+    const proxyPath = path.join(proxyDir, "asset_audio.en.mp3");
+
+    await mkdir(assetsDir, { recursive: true });
+    await mkdir(proxyDir, { recursive: true });
+    await createAudioFile(sourcePath);
+    await writeFile(proxyPath, "proxy", "utf8");
+
+    const result = await deleteManagedAssetFiles(
+      {
+        id: "asset_audio",
+        kind: "audio",
+        name: "ambience.wav",
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            importedAt: "2026-03-14T00:00:00.000Z"
+          }
+        }
+      },
+      projectDir
+    );
+
+    expect(result.deletedSourcePaths).toEqual([sourcePath]);
+    expect(result.deletedProxyPaths).toEqual([proxyPath]);
+    await expect(readFile(sourcePath)).rejects.toThrow();
+    await expect(readFile(proxyPath, "utf8")).rejects.toThrow();
+  });
+
   it("keeps files that are still referenced by another asset", async () => {
     const workspaceDir = await createTempWorkspace();
     const projectDir = path.join(workspaceDir, "project");
@@ -507,12 +587,58 @@ describe("copyAssetVariantForBuild", () => {
     expect(outputPath).toBe(path.join(outputDir, "asset_clip.en.mp4"));
     expect(await readFile(outputPath, "utf8")).toBe("proxy video");
   });
+
+  it("exports audio proxies when they exist", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const projectDir = path.join(workspaceDir, "project");
+    const outputDir = path.join(workspaceDir, "build");
+    const assetsDir = path.join(projectDir, "assets");
+    const proxyDir = path.join(projectDir, ".mage2", "proxies");
+    const sourcePath = path.join(assetsDir, "ambience.wav");
+    const proxyPath = path.join(proxyDir, "asset_audio.en.mp3");
+
+    await mkdir(assetsDir, { recursive: true });
+    await mkdir(proxyDir, { recursive: true });
+    await createAudioFile(sourcePath);
+    await writeFile(proxyPath, "proxy audio", "utf8");
+
+    const outputPath = await copyAssetVariantForBuild(
+      {
+        id: "asset_audio",
+        kind: "audio",
+        name: "ambience.wav",
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            importedAt: "2026-03-20T00:00:00.000Z"
+          }
+        }
+      },
+      "en",
+      outputDir
+    );
+
+    expect(outputPath).toBe(path.join(outputDir, "asset_audio.en.mp3"));
+    expect(await readFile(outputPath, "utf8")).toBe("proxy audio");
+  });
 });
 
 async function createTempWorkspace(): Promise<string> {
   const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "mage2-media-"));
   tempDirectories.push(workspaceDir);
   return workspaceDir;
+}
+
+async function createAudioFile(filePath: string, durationSeconds = 0.6): Promise<void> {
+  await runCommand(getFfmpegPath(), [
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=880:duration=${durationSeconds}`,
+    filePath
+  ]);
 }
 
 function createSvgMarkup(width: number, height: number): string {
@@ -529,4 +655,27 @@ function readPngDimensions(buffer: Buffer): { width: number; height: number } {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20)
   };
+}
+
+async function runCommand(command: string, args: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stderr = "";
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(stderr || `${command} failed with code ${code}.`));
+    });
+  });
 }

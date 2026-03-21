@@ -22,6 +22,8 @@ const outputDir = path.join(stageRoot, "dist");
 const rootPackageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 const editorPackageJson = JSON.parse(await readFile(path.join(repoRoot, "apps", "editor", "package.json"), "utf8"));
 const mediaPackageJson = await readInstalledPackageJson("@mage2/media");
+const resvgPackageJson = await readInstalledPackageJson("@resvg/resvg-js");
+const resvgPlatformPackageJson = await readInstalledPackageJson("@resvg/resvg-js-win32-x64-msvc");
 const schemaPackageJson = await readInstalledPackageJson("@mage2/schema");
 const ffmpegPackageJson = await readInstalledPackageJson("@ffmpeg-installer/ffmpeg");
 const ffmpegPlatformPackageJson = await readInstalledPackageJson("@ffmpeg-installer/win32-x64");
@@ -65,6 +67,14 @@ async function copyRequiredBuildOutput() {
 async function copyRuntimeDependencies() {
   const packagesToCopy = [
     { packageName: "@mage2/media", entries: ["dist", "package.json"] },
+    {
+      packageName: "@resvg/resvg-js",
+      entries: ["index.js", "index.d.ts", "js-binding.js", "js-binding.d.ts", "package.json"]
+    },
+    {
+      packageName: "@resvg/resvg-js-win32-x64-msvc",
+      entries: ["resvgjs.win32-x64-msvc.node", "package.json"]
+    },
     { packageName: "@mage2/schema", entries: ["dist", "package.json"] },
     { packageName: "@ffmpeg-installer/ffmpeg", entries: ["index.js", "lib", "package.json"] },
     { packageName: "@ffmpeg-installer/win32-x64", entries: ["ffmpeg.exe", "package.json"] },
@@ -101,6 +111,8 @@ async function writeStagePackageJson() {
     license: rootPackageJson.license ?? "UNLICENSED",
     dependencies: {
       "@mage2/media": mediaPackageJson.version,
+      "@resvg/resvg-js": resvgPackageJson.version,
+      "@resvg/resvg-js-win32-x64-msvc": resvgPlatformPackageJson.version,
       "@mage2/schema": schemaPackageJson.version,
       "@ffmpeg-installer/ffmpeg": ffmpegPackageJson.version,
       "@ffmpeg-installer/win32-x64": ffmpegPlatformPackageJson.version,
@@ -143,6 +155,7 @@ async function packageWindowsApp() {
       ],
       asar: true,
       asarUnpack: [
+        "node_modules/@resvg/**/*.node",
         "node_modules/@ffmpeg-installer/**/*",
         "node_modules/@ffprobe-installer/**/*"
       ],
