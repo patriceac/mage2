@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Asset, Scene } from "@mage2/schema";
+import { resolveFileUrl } from "./file-url-cache";
 import { getLocalizedAssetVariant } from "./localized-project";
 
 interface AssetPreviewProps {
@@ -7,6 +8,7 @@ interface AssetPreviewProps {
   locale?: string;
   interactive?: boolean;
   allowSourceFallback?: boolean;
+  preferPosterForImages?: boolean;
   emptyTitle?: string;
   emptyBody?: string;
 }
@@ -26,12 +28,19 @@ export function AssetPreview({
   locale,
   interactive = true,
   allowSourceFallback = false,
+  preferPosterForImages = false,
   emptyTitle = "No background asset",
   emptyBody = "Assign an image or video to preview this scene."
 }: AssetPreviewProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [posterUrl, setPosterUrl] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const resolvedLocale = locale ?? Object.keys(asset?.variants ?? {})[0] ?? "";
+  const variant = asset ? getLocalizedAssetVariant(asset, resolvedLocale) : undefined;
+  const sourcePath = resolveAssetPreviewPath(asset, variant, allowSourceFallback, preferPosterForImages);
+  const previewPosterPath =
+    asset?.kind === "video" && variant?.posterPath && variant.posterPath !== sourcePath ? variant.posterPath : undefined;
+  const hasManagedPreview = asset?.kind === "image" ? Boolean(variant?.posterPath ?? variant?.proxyPath) : Boolean(variant?.proxyPath);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +53,6 @@ export function AssetPreview({
         return;
       }
 
-      const variant = getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "");
-      const sourcePath = variant?.proxyPath ?? (allowSourceFallback ? variant?.sourcePath : undefined);
       if (!sourcePath) {
         setAssetUrl(undefined);
         setPosterUrl(undefined);
@@ -56,11 +63,8 @@ export function AssetPreview({
       setLoadState("loading");
 
       try {
-        const nextAssetUrl = await window.editorApi.pathToFileUrl(sourcePath);
-        const nextPosterUrl =
-          variant?.posterPath && variant.posterPath !== sourcePath
-            ? await window.editorApi.pathToFileUrl(variant.posterPath)
-            : undefined;
+        const nextAssetUrl = await resolveFileUrl(sourcePath);
+        const nextPosterUrl = previewPosterPath ? await resolveFileUrl(previewPosterPath) : undefined;
 
         if (!cancelled) {
           setAssetUrl(nextAssetUrl);
@@ -80,7 +84,7 @@ export function AssetPreview({
     return () => {
       cancelled = true;
     };
-  }, [allowSourceFallback, asset, locale]);
+  }, [asset?.id, asset?.kind, previewPosterPath, sourcePath]);
 
   if (!asset) {
     return (
@@ -100,7 +104,7 @@ export function AssetPreview({
     );
   }
 
-  if (!getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "")?.proxyPath && !allowSourceFallback) {
+  if (!hasManagedPreview && !allowSourceFallback) {
     return (
       <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
         <strong>Preview unavailable</strong>
@@ -115,6 +119,8 @@ export function AssetPreview({
         src={assetUrl}
         alt={asset.name}
         className="asset-preview asset-preview__media"
+        decoding="async"
+        loading={preferPosterForImages ? "lazy" : "eager"}
         title={`Preview ${asset.name}.`}
       />
     );
@@ -177,7 +183,13 @@ export function ScenePreviewCard({
         <p className="dialog-eyebrow">{label}</p>
         <h3>{scene.name}</h3>
       </div>
-      <AssetPreview asset={asset} locale={locale} interactive={false} allowSourceFallback />
+      <AssetPreview
+        asset={asset}
+        locale={locale}
+        interactive={false}
+        allowSourceFallback
+        preferPosterForImages
+      />
       <div className="scene-preview-card__meta">
         <p>{locationName ?? "Unknown location"}</p>
         <p>
@@ -187,4 +199,25 @@ export function ScenePreviewCard({
       </div>
     </article>
   );
+}
+
+function resolveAssetPreviewPath(
+  asset: Asset | undefined,
+  variant: Asset["variants"][string] | undefined,
+  allowSourceFallback: boolean,
+  preferPosterForImages: boolean
+): string | undefined {
+  if (!asset || !variant) {
+    return undefined;
+  }
+
+  if (asset.kind === "image") {
+    if (preferPosterForImages) {
+      return variant.posterPath ?? variant.proxyPath ?? (allowSourceFallback ? variant.sourcePath : undefined);
+    }
+
+    return variant.proxyPath ?? (allowSourceFallback ? variant.sourcePath : undefined);
+  }
+
+  return variant.proxyPath ?? (allowSourceFallback ? variant.sourcePath : undefined);
 }

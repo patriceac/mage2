@@ -37,6 +37,8 @@ const AUDIO_EXTENSIONS = new Set([".mp3", ".wav", ".ogg", ".m4a", ".aac"]);
 const SVG_EXTENSION = ".svg";
 const SVG_PREVIEW_MAX_WIDTH_PX = 1280;
 const SVG_PREVIEW_MAX_HEIGHT_PX = 720;
+const IMAGE_THUMBNAIL_MAX_WIDTH_PX = 320;
+const IMAGE_THUMBNAIL_MAX_HEIGHT_PX = 180;
 
 export function resolvePackagedExecutablePath(candidatePath: string): string {
   const unpackedPath = candidatePath.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
@@ -273,24 +275,40 @@ export async function generateProxy(asset: Asset, locale: string, projectDir: st
   await mkdir(proxyDirectory, { recursive: true });
 
   if (asset.kind === "image") {
+    const posterPath = path.join(proxyDirectory, `${asset.id}.${locale}.thumb.png`);
+
     if (isSvgPath(variant.sourcePath)) {
       const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.png`);
-      const svgDimensions = await renderSvgProxy(variant.sourcePath, proxyPath);
+      const svgDimensions = await renderSvgRaster(
+        variant.sourcePath,
+        proxyPath,
+        SVG_PREVIEW_MAX_WIDTH_PX,
+        SVG_PREVIEW_MAX_HEIGHT_PX
+      );
+      await renderSvgRaster(
+        variant.sourcePath,
+        posterPath,
+        IMAGE_THUMBNAIL_MAX_WIDTH_PX,
+        IMAGE_THUMBNAIL_MAX_HEIGHT_PX
+      );
       return updateAssetVariant(asset, locale, {
         ...variant,
         width: variant.width ?? svgDimensions.width,
         height: variant.height ?? svgDimensions.height,
         proxyPath,
-        posterPath: proxyPath
+        posterPath
       });
     }
 
     const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}${path.extname(variant.sourcePath)}`);
     await cp(variant.sourcePath, proxyPath, { force: true });
+    await generateImageThumbnail(variant.sourcePath, posterPath).catch(async () => {
+      await cp(proxyPath, posterPath, { force: true });
+    });
     return updateAssetVariant(asset, locale, {
       ...variant,
       proxyPath,
-      posterPath: proxyPath
+      posterPath
     });
   }
 
@@ -474,7 +492,12 @@ async function probeSvgAsset(filePath: string): Promise<ProbeResult> {
   };
 }
 
-async function renderSvgProxy(filePath: string, proxyPath: string): Promise<{ width: number; height: number }> {
+async function renderSvgRaster(
+  filePath: string,
+  outputPath: string,
+  maxWidthPx: number,
+  maxHeightPx: number
+): Promise<{ width: number; height: number }> {
   const svgSource = await readFile(filePath);
   const sourceSvg = new Resvg(svgSource);
 
@@ -483,15 +506,28 @@ async function renderSvgProxy(filePath: string, proxyPath: string): Promise<{ wi
   }
 
   const rendered = new Resvg(svgSource, {
-    fitTo: resolveSvgPreviewFit(sourceSvg.width, sourceSvg.height)
+    fitTo: resolveContainFit(sourceSvg.width, sourceSvg.height, maxWidthPx, maxHeightPx)
   }).render();
 
-  await writeFile(proxyPath, rendered.asPng());
+  await writeFile(outputPath, rendered.asPng());
 
   return {
     width: sourceSvg.width,
     height: sourceSvg.height
   };
+}
+
+async function generateImageThumbnail(sourcePath: string, thumbnailPath: string): Promise<void> {
+  await runProcess(getFfmpegPath(), [
+    "-y",
+    "-i",
+    sourcePath,
+    "-frames:v",
+    "1",
+    "-vf",
+    `scale=${IMAGE_THUMBNAIL_MAX_WIDTH_PX}:${IMAGE_THUMBNAIL_MAX_HEIGHT_PX}:force_original_aspect_ratio=decrease`,
+    thumbnailPath
+  ]);
 }
 
 async function copyImportedAssetFile(filePath: string, projectDir: string): Promise<string> {
@@ -551,13 +587,15 @@ function guessExtensionForKind(kind: AssetKind): string {
   return ".png";
 }
 
-function resolveSvgPreviewFit(
+function resolveContainFit(
   width: number,
-  height: number
+  height: number,
+  maxWidthPx: number,
+  maxHeightPx: number
 ): { mode: "width"; value: number } | { mode: "height"; value: number } {
-  return SVG_PREVIEW_MAX_WIDTH_PX / width <= SVG_PREVIEW_MAX_HEIGHT_PX / height
-    ? { mode: "width", value: SVG_PREVIEW_MAX_WIDTH_PX }
-    : { mode: "height", value: SVG_PREVIEW_MAX_HEIGHT_PX };
+  return maxWidthPx / width <= maxHeightPx / height
+    ? { mode: "width", value: maxWidthPx }
+    : { mode: "height", value: maxHeightPx };
 }
 
 async function deleteProjectAssetSourceFiles(

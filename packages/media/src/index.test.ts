@@ -40,9 +40,10 @@ describe("importAssetToProject", () => {
     expect(variant?.sourcePath).toBe(path.join(projectDir, "assets", "poster.png"));
     expect(variant?.importSourcePath).toBe(sourcePath);
     expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.png`));
-    expect(variant?.posterPath).toBe(variant?.proxyPath);
+    expect(variant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.thumb.png`));
     expect(await readFile(variant!.sourcePath, "utf8")).toBe(sourceContent);
     expect(await readFile(variant!.proxyPath!, "utf8")).toBe(sourceContent);
+    expect(await readFile(variant!.posterPath!, "utf8")).toBe(sourceContent);
   });
 
   it("chooses a unique filename when different imports share the same basename", async () => {
@@ -121,11 +122,12 @@ describe("importAssetToProject", () => {
     expect(asset.kind).toBe("image");
     expect(variant?.sourcePath).toBe(path.join(projectDir, "assets", "scene.svg"));
     expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.png`));
-    expect(variant?.posterPath).toBe(variant?.proxyPath);
+    expect(variant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.thumb.png`));
     expect(variant?.width).toBe(1280);
     expect(variant?.height).toBe(720);
     expect(proxyBuffer.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
     expect(readPngDimensions(proxyBuffer)).toEqual({ width: 1280, height: 720 });
+    expect(readPngDimensions(await readFile(variant!.posterPath!))).toEqual({ width: 320, height: 180 });
   });
 
   it("fits non-scene SVG previews inside the shared preview bounds without distortion", async () => {
@@ -140,10 +142,12 @@ describe("importAssetToProject", () => {
     const asset = await importAssetToProject(sourcePath, projectDir, "en");
     const variant = asset.variants.en;
     const proxyBuffer = await readFile(variant!.proxyPath!);
+    const posterBuffer = await readFile(variant!.posterPath!);
 
     expect(variant?.width).toBe(256);
     expect(variant?.height).toBe(256);
     expect(readPngDimensions(proxyBuffer)).toEqual({ width: 720, height: 720 });
+    expect(readPngDimensions(posterBuffer)).toEqual({ width: 180, height: 180 });
   });
 });
 
@@ -204,7 +208,9 @@ describe("importAssetsToProject", () => {
     expect(result.duplicateFilePaths).toEqual([]);
     expect(importedAsset).toBeDefined();
     expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${importedAsset!.id}.en.png`));
+    expect(variant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", `${importedAsset!.id}.en.thumb.png`));
     expect(await readFile(variant!.proxyPath!, "utf8")).toBe("card art");
+    expect(await readFile(variant!.posterPath!, "utf8")).toBe("card art");
   });
 });
 
@@ -226,7 +232,9 @@ describe("importAssetVariantToProject", () => {
 
     expect(frVariant?.sourcePath).toBe(path.join(projectDir, "assets", "poster-fr.png"));
     expect(frVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.fr.png`));
+    expect(frVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.fr.thumb.png`));
     expect(await readFile(frVariant!.proxyPath!, "utf8")).toBe("french art");
+    expect(await readFile(frVariant!.posterPath!, "utf8")).toBe("french art");
   });
 });
 

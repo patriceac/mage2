@@ -31,6 +31,7 @@ describe("starter project creation", () => {
     const project = await createProjectInDirectory(projectDir, "Fresh Starter");
     const hotspot = project.scenes.items[0].hotspots[0];
     const starterSceneSvg = await readFile(path.join(projectDir, "assets", "starter-scene.svg"), "utf8");
+    const starterVariant = project.assets.assets[0]?.variants[project.manifest.defaultLanguage];
 
     expect(hotspot?.name).toBe("Placeholder");
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
@@ -47,6 +48,10 @@ describe("starter project creation", () => {
     expect(starterSceneSvg).toContain('id="artifactGlow"');
     expect(starterSceneSvg).not.toContain(">Placeholder</text>");
     expect(starterSceneSvg).not.toContain("Add real hotspots");
+    expect(starterVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.png"));
+    expect(starterVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.thumb.png"));
+    expect(await readFile(starterVariant!.proxyPath!)).not.toHaveLength(0);
+    expect(await readFile(starterVariant!.posterPath!)).not.toHaveLength(0);
   });
 });
 
@@ -111,5 +116,52 @@ describe("subtitle project persistence", () => {
     await saveProjectToDirectory(projectDir, project);
 
     await expect(readFile(path.join(projectDir, "subtitles.json"), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("loadProjectFromDirectory", () => {
+  it("backfills dedicated image thumbnails for legacy preview metadata", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-load-"));
+    tempDirs.push(projectDir);
+
+    const project = createDefaultProjectBundle("Legacy previews");
+    const sourcePath = path.join(projectDir, "assets", "legacy.svg");
+    const proxyPath = path.join(projectDir, ".mage2", "proxies", "asset_legacy.en.png");
+
+    await mkdir(path.dirname(sourcePath), { recursive: true });
+    await mkdir(path.dirname(proxyPath), { recursive: true });
+    await writeFile(
+      sourcePath,
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#102030"/></svg>',
+      "utf8"
+    );
+    await writeFile(proxyPath, "legacy proxy", "utf8");
+
+    project.assets.assets = [
+      {
+        id: "asset_legacy",
+        kind: "image",
+        name: "legacy.svg",
+        variants: {
+          en: {
+            sourcePath,
+            proxyPath,
+            posterPath: proxyPath,
+            importedAt: "2026-03-21T00:00:00.000Z"
+          }
+        }
+      }
+    ];
+    project.scenes.items[0].backgroundAssetId = "asset_legacy";
+
+    await saveProjectToDirectory(projectDir, project);
+
+    const loadedProject = await loadProjectFromDirectory(projectDir);
+    const loadedVariant = loadedProject.assets.assets[0]?.variants.en;
+
+    expect(loadedVariant?.proxyPath).toBe(proxyPath);
+    expect(loadedVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_legacy.en.thumb.png"));
+    expect(loadedVariant?.posterPath).not.toBe(loadedVariant?.proxyPath);
+    expect(await readFile(loadedVariant!.posterPath!)).not.toHaveLength(0);
   });
 });

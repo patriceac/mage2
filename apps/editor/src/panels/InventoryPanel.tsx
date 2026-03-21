@@ -172,6 +172,7 @@ export function InventoryPanel({
                     asset={assignedAsset}
                     locale={activeLocale}
                     allowSourceFallback
+                    preferPosterForImages
                     emptyTitle="No item image"
                     emptyBody="Assign or upload an inventory image for this item."
                   />
