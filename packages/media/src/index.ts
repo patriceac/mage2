@@ -1,10 +1,11 @@
 import { createReadStream, existsSync } from "node:fs";
-import { cp, mkdir, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import path from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
+import { Resvg } from "@resvg/resvg-js";
 import type { Asset, AssetCategory, AssetKind, AssetVariant } from "@mage2/schema";
 import { collectAssetVariantPaths, resolveAssetCategory, resolveAssetVariant } from "@mage2/schema";
 export * from "./subtitles";
@@ -32,6 +33,9 @@ export interface AssetImportOptions {
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".avi", ".webm"]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"]);
+const SVG_EXTENSION = ".svg";
+const SVG_PREVIEW_MAX_WIDTH_PX = 1280;
+const SVG_PREVIEW_MAX_HEIGHT_PX = 720;
 
 export function resolvePackagedExecutablePath(candidatePath: string): string {
   const unpackedPath = candidatePath.replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
@@ -64,6 +68,10 @@ export function detectAssetKind(filePath: string): AssetKind {
 }
 
 export async function probeAsset(filePath: string): Promise<ProbeResult> {
+  if (isSvgPath(filePath)) {
+    return probeSvgAsset(filePath);
+  }
+
   const result = await runProcess(getFfprobePath(), [
     "-v",
     "quiet",
@@ -259,8 +267,19 @@ export async function generateProxy(asset: Asset, locale: string, projectDir: st
   await mkdir(proxyDirectory, { recursive: true });
 
   if (asset.kind === "image") {
-    const extension = path.extname(variant.sourcePath);
-    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}${extension}`);
+    if (isSvgPath(variant.sourcePath)) {
+      const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}.png`);
+      const svgDimensions = await renderSvgProxy(variant.sourcePath, proxyPath);
+      return updateAssetVariant(asset, locale, {
+        ...variant,
+        width: variant.width ?? svgDimensions.width,
+        height: variant.height ?? svgDimensions.height,
+        proxyPath,
+        posterPath: proxyPath
+      });
+    }
+
+    const proxyPath = path.join(proxyDirectory, `${asset.id}.${locale}${path.extname(variant.sourcePath)}`);
     await cp(variant.sourcePath, proxyPath, { force: true });
     return updateAssetVariant(asset, locale, {
       ...variant,
@@ -366,7 +385,7 @@ export async function copyAssetVariantForBuild(asset: Asset, locale: string, out
   }
 
   await mkdir(outputDirectory, { recursive: true });
-  const sourcePath = variant.proxyPath ?? variant.sourcePath;
+  const sourcePath = asset.kind === "video" ? variant.proxyPath ?? variant.sourcePath : variant.sourcePath;
   const extension = path.extname(sourcePath) || guessExtensionForKind(asset.kind);
   const outputPath = path.join(outputDirectory, `${asset.id}.${locale}${extension}`);
   await cp(sourcePath, outputPath, { force: true });
@@ -410,6 +429,40 @@ async function createImportedAssetVariantRecord(
     height: probe.height,
     codec: probe.codec,
     importedAt: metadata.birthtime.toISOString()
+  };
+}
+
+async function probeSvgAsset(filePath: string): Promise<ProbeResult> {
+  const svgSource = await readFile(filePath);
+  const resvg = new Resvg(svgSource);
+
+  if (resvg.width <= 0 || resvg.height <= 0) {
+    return {};
+  }
+
+  return {
+    width: resvg.width,
+    height: resvg.height
+  };
+}
+
+async function renderSvgProxy(filePath: string, proxyPath: string): Promise<{ width: number; height: number }> {
+  const svgSource = await readFile(filePath);
+  const sourceSvg = new Resvg(svgSource);
+
+  if (sourceSvg.width <= 0 || sourceSvg.height <= 0) {
+    throw new Error(`Could not determine SVG preview size for '${path.basename(filePath)}'.`);
+  }
+
+  const rendered = new Resvg(svgSource, {
+    fitTo: resolveSvgPreviewFit(sourceSvg.width, sourceSvg.height)
+  }).render();
+
+  await writeFile(proxyPath, rendered.asPng());
+
+  return {
+    width: sourceSvg.width,
+    height: sourceSvg.height
   };
 }
 
@@ -460,6 +513,15 @@ async function cleanupImportedAssetCopy(projectAssetPath: string, importSourcePa
 
 function guessExtensionForKind(kind: AssetKind): string {
   return kind === "video" ? ".mp4" : ".png";
+}
+
+function resolveSvgPreviewFit(
+  width: number,
+  height: number
+): { mode: "width"; value: number } | { mode: "height"; value: number } {
+  return SVG_PREVIEW_MAX_WIDTH_PX / width <= SVG_PREVIEW_MAX_HEIGHT_PX / height
+    ? { mode: "width", value: SVG_PREVIEW_MAX_WIDTH_PX }
+    : { mode: "height", value: SVG_PREVIEW_MAX_HEIGHT_PX };
 }
 
 async function deleteProjectAssetSourceFiles(
@@ -556,4 +618,8 @@ function updateAssetVariant(asset: Asset, locale: string, variant: AssetVariant)
 
 function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;
+}
+
+function isSvgPath(filePath: string): boolean {
+  return path.extname(filePath).toLowerCase() === SVG_EXTENSION;
 }

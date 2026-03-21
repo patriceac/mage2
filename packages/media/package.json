@@ -19,6 +19,7 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
-    "@mage2/schema": "0.1.0"
+    "@mage2/schema": "0.1.0",
+    "@resvg/resvg-js": "^2.6.2"
   }
 }
