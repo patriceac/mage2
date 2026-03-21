@@ -152,11 +152,11 @@ export function AssetsPanel({
                 ? "Create new background assets from Scenes."
                 : assetFilter === "inventory"
                   ? "Create new inventory assets from Inventory."
-                  : "Legacy audio is shown for compatibility only."}
+                  : "Legacy audio remains visible for compatibility."}
             </strong>
             <span>
               {assetFilter === "legacy-audio"
-                ? "These older audio assets remain visible so existing projects still load, but they are read-only in this release."
+                ? "These older audio assets remain visible so existing projects still load. You can delete them from this library, but locale-specific variants are still read-only."
                 : "Use Localization to manage locale-specific variants after the asset exists."}
             </span>
           </div>
@@ -164,8 +164,7 @@ export function AssetsPanel({
           {visibleAssets.length > 0 ? visibleAssets.map((asset) => {
             const referenceSummary = assetReferenceSummaries.get(asset.id) ?? EMPTY_ASSET_REFERENCE_SUMMARY;
             const deletionEligibility = assetDeletionEligibility.get(asset.id);
-            const isLegacyAudio = classifyEditorAssetCategory(asset) === "legacy-audio";
-            const deleteDisabled = isLegacyAudio || !deletionEligibility?.canDelete;
+            const deleteDisabled = !deletionEligibility?.canDelete;
             const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
             const isSelected = selectedAssetId === asset.id;
 
@@ -196,9 +195,7 @@ export function AssetsPanel({
                       disabled={deleteDisabled}
                       onClick={() => void handleDeleteAsset(asset)}
                       title={
-                        isLegacyAudio
-                          ? `${asset.name} is a legacy audio asset and is read-only in this release.`
-                          : deleteDisabled
+                        deleteDisabled
                           ? resolveDeleteDisabledTitle(asset.name, deletionEligibility?.blockedReason)
                           : countAssetReferences(referenceSummary) > 0
                           ? `Delete ${asset.name} from the project and review its current usages before removal.`
