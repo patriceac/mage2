@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
 import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
+import { resolveFileUrl } from "./file-url-cache";
 import { getLocalizedAssetVariant } from "./localized-project";
 import { useEditorStore } from "./store";
 
@@ -103,7 +104,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         return;
       }
 
-      const url = await window.editorApi.pathToFileUrl(sourcePath);
+      const url = await resolveFileUrl(sourcePath);
       if (!cancelled) {
         setSceneAudioUrl(url);
       }
@@ -113,7 +114,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [sceneAudioAsset, sceneAudioVariant]);
+  }, [sceneAudioAsset?.id, sceneAudioVariant?.proxyPath, sceneAudioVariant?.sourcePath]);
 
   useEffect(() => {
     const audio = sceneAudioRef.current;

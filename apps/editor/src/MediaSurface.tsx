@@ -15,6 +15,7 @@ import {
   resolvePlayableDurationMs,
   shouldSyncPlayheadMs
 } from "./media-playhead";
+import { resolveFileUrl } from "./file-url-cache";
 
 interface MediaSurfaceProps {
   asset?: Asset;
@@ -64,6 +65,7 @@ export function MediaSurface({
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
+  const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
 
   useEffect(() => {
     let cancelled = false;
@@ -74,13 +76,12 @@ export function MediaSurface({
         return;
       }
 
-      const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
       if (!sourcePath) {
         setAssetUrl(undefined);
         return;
       }
 
-      const url = await window.editorApi.pathToFileUrl(sourcePath);
+      const url = await resolveFileUrl(sourcePath);
       if (!cancelled) {
         setAssetUrl(url);
       }
@@ -90,7 +91,7 @@ export function MediaSurface({
     return () => {
       cancelled = true;
     };
-  }, [asset, assetVariant]);
+  }, [asset?.id, sourcePath]);
 
   useEffect(() => {
     return () => {

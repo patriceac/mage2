@@ -897,7 +897,7 @@ export function LocalizationPanel({
                   className={isSelected ? "list-card list-card--asset list-card--selected localization-media-card" : "list-card list-card--asset localization-media-card"}
                   onClick={() => setSelectedAssetId(asset.id)}
                 >
-                  <AssetPreview asset={asset} locale={activeLocale} allowSourceFallback />
+                  <AssetPreview asset={asset} locale={activeLocale} allowSourceFallback preferPosterForImages />
 
                   <div className="asset-card__body">
                     <div>

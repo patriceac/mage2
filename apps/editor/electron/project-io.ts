@@ -1,8 +1,9 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { computeFileSha256 } from "@mage2/media";
+import { computeFileSha256, generateProxy } from "@mage2/media";
 import {
   createDefaultProjectBundle,
+  resolveAssetVariant,
   parseProjectBundle,
   type Asset,
   type AssetVariant,
@@ -41,7 +42,8 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     strings: await readJson(filePaths.strings)
   };
 
-  return parseProjectBundle(rawBundle);
+  const project = parseProjectBundle(rawBundle);
+  return ensureProjectAssetPreviews(projectDir, project);
 }
 
 export async function inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection> {
@@ -89,8 +91,8 @@ export async function createProjectInDirectory(
   const project = createDefaultProjectBundle(projectName);
   project.manifest.projectId = slugify(projectName);
   await seedStarterSceneAsset(projectDir, project);
-  await saveProjectToDirectory(projectDir, project);
-  return project;
+  const normalizedProject = await saveProjectToDirectory(projectDir, project);
+  return ensureProjectAssetPreviews(projectDir, normalizedProject);
 }
 
 export async function saveProjectToDirectory(
@@ -164,13 +166,75 @@ async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle)
 
   const existingAssetIndex = project.assets.assets.findIndex((asset) => asset.id === starterAsset.id);
   if (existingAssetIndex >= 0) {
-    project.assets.assets[existingAssetIndex] = starterAsset;
+    project.assets.assets[existingAssetIndex] = await generateProxy(starterAsset, defaultLocale, projectDir);
   } else {
-    project.assets.assets.push(starterAsset);
+    project.assets.assets.push(await generateProxy(starterAsset, defaultLocale, projectDir));
   }
 
   if (!project.manifest.assetRoots.includes(assetsDir)) {
     project.manifest.assetRoots.push(assetsDir);
+  }
+}
+
+async function ensureProjectAssetPreviews(projectDir: string, project: ProjectBundle): Promise<ProjectBundle> {
+  let updated = false;
+
+  for (let assetIndex = 0; assetIndex < project.assets.assets.length; assetIndex += 1) {
+    let asset = project.assets.assets[assetIndex]!;
+
+    for (const locale of Object.keys(asset.variants)) {
+      if (!(await shouldRegenerateAssetPreview(asset, locale))) {
+        continue;
+      }
+
+      asset = await generateProxy(asset, locale, projectDir);
+      project.assets.assets[assetIndex] = asset;
+      updated = true;
+    }
+  }
+
+  if (!updated) {
+    return project;
+  }
+
+  return saveProjectToDirectory(projectDir, project);
+}
+
+async function shouldRegenerateAssetPreview(asset: Asset, locale: string): Promise<boolean> {
+  const variant = resolveAssetVariant(asset, locale);
+  if (!variant) {
+    return false;
+  }
+
+  if (asset.kind === "audio") {
+    return !(await pathExists(variant.proxyPath));
+  }
+
+  if (asset.kind === "video") {
+    return !(await pathExists(variant.proxyPath)) || !(await pathExists(variant.posterPath));
+  }
+
+  if (!(await pathExists(variant.proxyPath))) {
+    return true;
+  }
+
+  if (!(await pathExists(variant.posterPath))) {
+    return true;
+  }
+
+  return variant.posterPath === variant.proxyPath;
+}
+
+async function pathExists(candidatePath: string | undefined): Promise<boolean> {
+  if (!candidatePath) {
+    return false;
+  }
+
+  try {
+    await access(candidatePath);
+    return true;
+  } catch {
+    return false;
   }
 }
 
