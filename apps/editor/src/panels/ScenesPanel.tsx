@@ -1,16 +1,18 @@
 import { useEffect } from "react";
 import { MediaSurface } from "../MediaSurface";
 import { getLocaleStringValues, type ProjectBundle, validateProject } from "@mage2/schema";
-import { SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
+import { BACKGROUND_IMPORT_EXTENSIONS, SUBTITLE_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-project";
 import {
   addHotspot,
   addHotspotAtBestAvailablePosition,
+  addAssetRoots,
   cloneProject,
   collectSceneReferenceSummary,
   createId,
   createSubtitleCue,
+  isBackgroundAsset,
   removeHotspotFromProject,
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
@@ -26,10 +28,18 @@ import { useEditorStore } from "../store";
 interface ScenesPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  setSavedProject: (project: ProjectBundle) => void;
   setStatusMessage: (message: string) => void;
+  setBusyLabel: (label?: string) => void;
 }
 
-export function ScenesPanel({ project, mutateProject, setStatusMessage }: ScenesPanelProps) {
+export function ScenesPanel({
+  project,
+  mutateProject,
+  setSavedProject,
+  setStatusMessage,
+  setBusyLabel
+}: ScenesPanelProps) {
   const dialogs = useDialogs();
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const playheadMs = useEditorStore((state) => state.playheadMs);
@@ -39,6 +49,7 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
   const setPlayheadMs = useEditorStore((state) => state.setPlayheadMs);
   const updateProject = useEditorStore((state) => state.updateProject);
   const activeLocale = project.manifest.defaultLanguage;
+  const availableBackgroundAssets = project.assets.assets.filter(isBackgroundAsset);
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
@@ -162,6 +173,71 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Subtitle import failed: ${message}`);
+    }
+  }
+
+  async function handleImportBackground() {
+    if (!currentScene) {
+      return;
+    }
+
+    const filePaths = await dialogs.pickFiles({
+      title: currentAsset ? `Replace Background for ${currentScene.name}` : `Upload Background for ${currentScene.name}`,
+      description: "Choose an image or video file to create a background asset and assign it to this scene.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: currentAsset ? "Use as Background" : "Upload Background",
+      allowedExtensions: [...BACKGROUND_IMPORT_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Importing background");
+      const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
+        projectDir,
+        activeLocale,
+        project.assets.assets,
+        [filePath],
+        "background"
+      );
+      if (importedAssets.length === 0) {
+        if (duplicateFilePaths.length > 0) {
+          setStatusMessage("That file already exists as a background asset. Choose it from the background picker.");
+        } else {
+          setStatusMessage("No new background asset was created.");
+        }
+        return;
+      }
+
+      const importedAsset = importedAssets[0]!;
+      const nextProject = cloneProject(project);
+      addAssetRoots(nextProject, [importedAsset]);
+      nextProject.assets.assets.push(importedAsset);
+      const scene = nextProject.scenes.items.find((entry) => entry.id === currentScene.id);
+      if (scene) {
+        scene.backgroundAssetId = importedAsset.id;
+      }
+
+      const result = await window.editorApi.saveProject(projectDir, nextProject);
+      setSavedProject(result.project);
+      useEditorStore.getState().setSelectedAssetId(importedAsset.id);
+      setStatusMessage(
+        result.validationReport.valid
+          ? `Assigned ${importedAsset.name} as the background for ${currentScene.name}.`
+          : `Assigned ${importedAsset.name} as the background for ${currentScene.name}, saved with ${result.validationReport.issues.length} validation issue(s).`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Background import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
     }
   }
 
@@ -364,23 +440,40 @@ export function ScenesPanel({ project, mutateProject, setStatusMessage }: Scenes
 
         <label title="Background media shown for this scene in the editor and runtime.">
           <span className="field-label--inset">Background Asset</span>
-          <select
-            value={currentScene.backgroundAssetId}
-            onChange={(event) =>
-              mutateProject((draft) => {
-                const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                if (scene) {
-                  scene.backgroundAssetId = event.target.value;
-                }
-              })
-            }
-          >
-            {project.assets.assets.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name}
-              </option>
-            ))}
-          </select>
+          <div className="asset-assignment-row">
+            <select
+              value={currentScene.backgroundAssetId}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                  if (scene) {
+                    scene.backgroundAssetId = event.target.value;
+                  }
+                })
+              }
+            >
+              {!availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
+                <option value={currentScene.backgroundAssetId}>
+                  {currentScene.backgroundAssetId === "asset_placeholder"
+                    ? "Starter placeholder"
+                    : "Invalid background selection"}
+                </option>
+              ) : null}
+              {availableBackgroundAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void handleImportBackground()}
+              title="Create a new background asset from an image or video file and assign it to this scene."
+            >
+              {currentAsset ? "Replace Background" : "Upload Background"}
+            </button>
+          </div>
         </label>
 
         <MediaSurface

@@ -2,6 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
+import { DialogProvider } from "../dialogs";
 import { useEditorStore } from "../store";
 import { InventoryPanel } from "./InventoryPanel";
 
@@ -31,10 +32,17 @@ describe("InventoryPanel locale behavior", () => {
     });
 
     const markup = renderToStaticMarkup(
-      React.createElement(InventoryPanel, {
-        project,
-        mutateProject: () => {}
-      })
+      React.createElement(
+        DialogProvider,
+        null,
+        React.createElement(InventoryPanel, {
+          project,
+          mutateProject: () => {},
+          setSavedProject: () => {},
+          setStatusMessage: () => {},
+          setBusyLabel: () => {}
+        })
+      )
     );
 
     expect(markup).toContain('value="Lantern"');

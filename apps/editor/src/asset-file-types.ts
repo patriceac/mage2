@@ -2,6 +2,8 @@ const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".avi", ".webm"] as const;
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"] as const;
 const AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"] as const;
 export const SUBTITLE_IMPORT_EXTENSIONS = [".srt", ".vtt"] as const;
+export const BACKGROUND_IMPORT_EXTENSIONS = [...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
+export const INVENTORY_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS] as const;
 
 export const SUPPORTED_ASSET_EXTENSIONS = [
   ...VIDEO_EXTENSIONS,

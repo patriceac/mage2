@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { Asset, ProjectBundle } from "@mage2/schema";
+import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
 import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
 
@@ -26,9 +26,10 @@ const editorApi = {
     projectDir: string,
     locale: string,
     existingAssets: Asset[],
-    filePaths: string[]
+    filePaths: string[],
+    category?: AssetCategory
   ): Promise<{ importedAssets: Asset[]; duplicateFilePaths: string[] }> =>
-    ipcRenderer.invoke("mage2:import-assets", projectDir, locale, existingAssets, filePaths),
+    ipcRenderer.invoke("mage2:import-assets", projectDir, locale, existingAssets, filePaths, category),
   importAssetVariant: (projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset> =>
     ipcRenderer.invoke("mage2:import-asset-variant", projectDir, asset, locale, filePath),
   parseSubtitleFiles: (

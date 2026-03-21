@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultProjectBundle,
   createInitialSaveState,
+  parseProjectBundle,
+  resolveAssetCategory,
   resolveRelativeHotspotContentBox,
   validateProject
 } from "./index";
@@ -22,6 +24,74 @@ describe("project defaults", () => {
     expect(project.scenes.items[0]).not.toHaveProperty("overlayTextId");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.location.intro");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.scene.intro");
+  });
+
+  it("normalizes legacy visual assets to background while leaving audio uncategorized", () => {
+    const parsed = parseProjectBundle({
+      manifest: {
+        schemaVersion: 4,
+        projectId: "project_categories",
+        projectName: "Categories",
+        defaultLanguage: "en",
+        supportedLocales: ["en"],
+        engineVersion: "0.1.0",
+        assetRoots: [],
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro",
+        buildSettings: { outputDir: "build", includeSourceMap: false }
+      },
+      assets: {
+        schemaVersion: 4,
+        assets: [
+          {
+            id: "asset_image",
+            kind: "image",
+            name: "background.png",
+            variants: {
+              en: {
+                sourcePath: "background.png",
+                importedAt: new Date().toISOString()
+              }
+            }
+          },
+          {
+            id: "asset_audio",
+            kind: "audio",
+            name: "legacy.mp3",
+            variants: {
+              en: {
+                sourcePath: "legacy.mp3",
+                importedAt: new Date().toISOString()
+              }
+            }
+          }
+        ]
+      },
+      locations: { schemaVersion: 4, items: [{ id: "location_intro", name: "Intro", x: 0, y: 0, sceneIds: ["scene_intro"] }] },
+      scenes: {
+        schemaVersion: 4,
+        items: [
+          {
+            id: "scene_intro",
+            locationId: "location_intro",
+            name: "Intro",
+            backgroundAssetId: "asset_image",
+            backgroundVideoLoop: false,
+            hotspots: [],
+            subtitleTracks: [],
+            dialogueTreeIds: [],
+            onEnterEffects: [],
+            onExitEffects: []
+          }
+        ]
+      },
+      dialogues: { schemaVersion: 4, items: [] },
+      inventory: { schemaVersion: 4, items: [] },
+      strings: { schemaVersion: 4, byLocale: { en: {} } }
+    });
+
+    expect(resolveAssetCategory(parsed.assets.assets[0]!)).toBe("background");
+    expect(resolveAssetCategory(parsed.assets.assets[1]!)).toBeUndefined();
   });
 });
 
@@ -99,6 +169,47 @@ describe("project validation", () => {
     expect(report.issues.some((issue) => issue.code === "SCENE_OVERLAY_TEXT_MISSING")).toBe(false);
     expect(report.issues.some((issue) => issue.code === "INVENTORY_NAME_TEXT_MISSING")).toBe(true);
     expect(report.issues.some((issue) => issue.code === "INVENTORY_DESCRIPTION_TEXT_MISSING")).toBe(true);
+  });
+
+  it("warns when inventory items are missing assigned art", () => {
+    const project = createDefaultProjectBundle();
+    project.inventory.items.push({
+      id: "item_intro",
+      name: "Lantern",
+      textId: "text.item_intro.name"
+    });
+    project.strings.byLocale.en["text.item_intro.name"] = "Lantern";
+
+    const report = validateProject(project);
+
+    expect(report.issues.some((issue) => issue.code === "INVENTORY_IMAGE_MISSING" && issue.level === "warning")).toBe(true);
+  });
+
+  it("rejects inventory items that reference background assets as their art", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_background",
+      kind: "image",
+      name: "background.png",
+      category: "background",
+      variants: {
+        en: {
+          sourcePath: "background.png",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.inventory.items.push({
+      id: "item_intro",
+      name: "Lantern",
+      textId: "text.item_intro.name",
+      imageAssetId: "asset_background"
+    });
+    project.strings.byLocale.en["text.item_intro.name"] = "Lantern";
+
+    const report = validateProject(project);
+
+    expect(report.issues.some((issue) => issue.code === "INVENTORY_IMAGE_CATEGORY_INVALID")).toBe(true);
   });
 
   it("aligns the starter hotspot with the placeholder scene artwork", () => {

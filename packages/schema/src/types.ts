@@ -3,6 +3,7 @@ import { z } from "zod";
 export const CURRENT_SCHEMA_VERSION = 4;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
+export const AssetCategorySchema = z.enum(["background", "inventory"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("always") }),
@@ -130,7 +131,8 @@ export const InventoryItemSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   textId: z.string().min(1),
-  descriptionTextId: z.string().optional()
+  descriptionTextId: z.string().optional(),
+  imageAssetId: z.string().min(1).optional()
 });
 
 export const AssetVariantSchema = z.object({
@@ -150,6 +152,7 @@ export const AssetSchema = z.object({
   id: z.string().min(1),
   kind: AssetKindSchema,
   name: z.string().min(1),
+  category: AssetCategorySchema.optional(),
   variants: z.record(z.string(), AssetVariantSchema).default({})
 });
 
@@ -235,6 +238,7 @@ export const ProjectBundleSchema = z.object({
 });
 
 export type AssetKind = z.infer<typeof AssetKindSchema>;
+export type AssetCategory = z.infer<typeof AssetCategorySchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
 export type SubtitleCue = z.infer<typeof SubtitleCueSchema>;

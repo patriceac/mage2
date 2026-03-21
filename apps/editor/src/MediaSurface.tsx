@@ -359,11 +359,11 @@ export function MediaSurface({
           className="media-surface__placeholder"
           title={
             showSurfaceTooltips
-              ? "Import media in the Assets tab and assign one as the scene background to preview it here."
+              ? "Upload or assign background media in the Scenes tab to preview it here."
               : undefined
           }
         >
-          Import media and assign it to this scene.
+          Upload or assign background media for this scene.
         </div>
       )}
 

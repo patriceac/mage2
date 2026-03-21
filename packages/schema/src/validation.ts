@@ -7,7 +7,7 @@ import {
   type ValidationIssue,
   type ValidationReport
 } from "./types";
-import { getLocalizedText, normalizeSupportedLocales, resolveAssetVariant } from "./localization";
+import { getLocalizedText, normalizeSupportedLocales, resolveAssetCategory, resolveAssetVariant } from "./localization";
 
 export function collectSceneLinks(scene: Scene): string[] {
   const links = new Set<string>();
@@ -90,29 +90,7 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   }
 
   for (const item of project.inventory.items) {
-    validateLocalizedTextCoverage(
-      project,
-      supportedLocales,
-      item.textId,
-      "error",
-      "INVENTORY_NAME_TEXT_MISSING",
-      `Inventory item '${item.id}' references missing name text`,
-      item.id,
-      issues
-    );
-
-    if (item.descriptionTextId) {
-      validateLocalizedTextCoverage(
-        project,
-        supportedLocales,
-        item.descriptionTextId,
-        "error",
-        "INVENTORY_DESCRIPTION_TEXT_MISSING",
-        `Inventory item '${item.id}' references missing description text`,
-        item.id,
-        issues
-      );
-    }
+    validateInventoryItem(project, item, supportedLocales, assetsById, issues);
   }
 
   const reachableScenes = new Set<string>();
@@ -184,6 +162,24 @@ function validateScene(
   } else {
     const asset = assetsById.get(scene.backgroundAssetId);
     if (asset) {
+      if (resolveAssetCategory(asset) !== "background") {
+        issues.push({
+          level: "error",
+          code: "SCENE_BACKGROUND_CATEGORY_INVALID",
+          message: `Scene '${scene.id}' must reference a background asset, but '${scene.backgroundAssetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
+          entityId: scene.id
+        });
+      }
+
+      if (asset.kind !== "image" && asset.kind !== "video") {
+        issues.push({
+          level: "error",
+          code: "SCENE_BACKGROUND_KIND_INVALID",
+          message: `Scene '${scene.id}' must reference an image or video asset, but '${scene.backgroundAssetId}' is '${asset.kind}'.`,
+          entityId: scene.id
+        });
+      }
+
       for (const locale of supportedLocales) {
         if (resolveAssetVariant(asset, locale)) {
           continue;
@@ -310,6 +306,93 @@ function validateScene(
         entityId: track.id
       });
     }
+  }
+}
+
+function validateInventoryItem(
+  project: ProjectBundle,
+  item: ProjectBundle["inventory"]["items"][number],
+  supportedLocales: string[],
+  assetsById: Map<string, ProjectBundle["assets"]["assets"][number]>,
+  issues: ValidationIssue[]
+): void {
+  validateLocalizedTextCoverage(
+    project,
+    supportedLocales,
+    item.textId,
+    "error",
+    "INVENTORY_NAME_TEXT_MISSING",
+    `Inventory item '${item.id}' references missing name text`,
+    item.id,
+    issues
+  );
+
+  if (item.descriptionTextId) {
+    validateLocalizedTextCoverage(
+      project,
+      supportedLocales,
+      item.descriptionTextId,
+      "error",
+      "INVENTORY_DESCRIPTION_TEXT_MISSING",
+      `Inventory item '${item.id}' references missing description text`,
+      item.id,
+      issues
+    );
+  }
+
+  if (!item.imageAssetId) {
+    issues.push({
+      level: "warning",
+      code: "INVENTORY_IMAGE_MISSING",
+      message: `Inventory item '${item.id}' has no assigned inventory image.`,
+      entityId: item.id
+    });
+    return;
+  }
+
+  const asset = assetsById.get(item.imageAssetId);
+  if (!asset) {
+    issues.push({
+      level: "error",
+      code: "INVENTORY_IMAGE_ASSET_MISSING",
+      message: `Inventory item '${item.id}' references missing image asset '${item.imageAssetId}'.`,
+      entityId: item.id
+    });
+    return;
+  }
+
+  if (asset.kind !== "image") {
+    issues.push({
+      level: "error",
+      code: "INVENTORY_IMAGE_KIND_INVALID",
+      message: `Inventory item '${item.id}' must reference an image asset, but '${item.imageAssetId}' is '${asset.kind}'.`,
+      entityId: item.id
+    });
+    return;
+  }
+
+  if (resolveAssetCategory(asset) !== "inventory") {
+    issues.push({
+      level: "error",
+      code: "INVENTORY_IMAGE_CATEGORY_INVALID",
+      message: `Inventory item '${item.id}' must reference an inventory asset, but '${item.imageAssetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
+      entityId: item.id
+    });
+    return;
+  }
+
+  for (const locale of supportedLocales) {
+    if (resolveAssetVariant(asset, locale)) {
+      continue;
+    }
+
+    issues.push({
+      level: "error",
+      code: "INVENTORY_IMAGE_LOCALE_MISSING",
+      message: `Asset '${asset.id}' is missing a '${locale}' variant for inventory item '${item.id}'.`,
+      entityId: asset.id,
+      locale
+    });
   }
 }
 
