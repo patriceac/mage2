@@ -32,6 +32,19 @@ export function normalizeWindowsPath(targetPath) {
   return path.win32.normalize(trimmed).toLowerCase();
 }
 
+export function getWindowsPathDirectory(targetPath) {
+  if (typeof targetPath !== "string") {
+    return "";
+  }
+
+  const trimmed = targetPath.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return path.win32.dirname(trimmed);
+}
+
 export function isCanonicalWindowsLaunchShortcut(shortcut, canonicalExePath) {
   if (!shortcut?.exists) {
     return false;
@@ -39,7 +52,7 @@ export function isCanonicalWindowsLaunchShortcut(shortcut, canonicalExePath) {
 
   return (
     normalizeWindowsPath(shortcut.targetPath) === normalizeWindowsPath(canonicalExePath) &&
-    normalizeWindowsPath(shortcut.workingDirectory) === normalizeWindowsPath(path.dirname(canonicalExePath)) &&
+    normalizeWindowsPath(shortcut.workingDirectory) === normalizeWindowsPath(getWindowsPathDirectory(canonicalExePath)) &&
     (shortcut.arguments ?? "").trim() === ""
   );
 }
@@ -124,7 +137,7 @@ export async function repairWindowsLaunchShortcuts({ repoRootPath = repoRoot } =
       nextShortcut = await writeWindowsShortcut({
         linkPath: shortcutSpec.linkPath,
         targetPath: canonicalExePath,
-        workingDirectory: path.dirname(canonicalExePath),
+        workingDirectory: getWindowsPathDirectory(canonicalExePath),
         arguments: "",
         iconLocation: `${canonicalExePath},0`,
         description: `Launch ${editorAppMetadata.productName}.`
@@ -257,7 +270,7 @@ $shortcut = $shell.CreateShortcut($linkPath)
 export async function writeWindowsShortcut({
   linkPath,
   targetPath,
-  workingDirectory = path.dirname(targetPath),
+  workingDirectory = getWindowsPathDirectory(targetPath),
   arguments: shortcutArguments = "",
   iconLocation = `${targetPath},0`,
   description = `Launch ${editorAppMetadata.productName}.`

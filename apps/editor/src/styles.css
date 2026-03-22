@@ -716,6 +716,7 @@ label > .checkbox-list {
   align-items: stretch;
 }
 
+.inventory-item-art__dropzone,
 .inventory-item-art__preview,
 .inventory-item-art__controls {
   display: grid;
@@ -723,8 +724,51 @@ label > .checkbox-list {
   align-content: start;
 }
 
+.inventory-item-art__preview {
+  position: relative;
+}
+
 .inventory-item-art__preview .asset-preview {
   min-height: 13rem;
+}
+
+.inventory-item-art__dropzone--active .asset-preview {
+  border-color: rgba(246, 193, 119, 0.92);
+  box-shadow: 0 0 0 1px rgba(246, 193, 119, 0.28);
+}
+
+.inventory-item-art__dropzone--active .asset-preview--placeholder strong,
+.inventory-item-art__dropzone--active .asset-preview--placeholder span {
+  visibility: hidden;
+}
+
+.inventory-item-art__dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.45rem;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(246, 193, 119, 0.22), rgba(125, 211, 252, 0.08)),
+    rgba(10, 16, 24, 0.6);
+  color: #f7fafc;
+  text-align: center;
+  pointer-events: none;
+}
+
+.inventory-item-art__dropzone-overlay strong {
+  font-size: 1rem;
+}
+
+.inventory-item-art__dropzone-overlay span,
+.inventory-item-art__dropzone-hint {
+  color: #aab9c6;
+}
+
+.inventory-item-art__dropzone-hint {
+  margin: 0;
 }
 
 .localization-panel,
