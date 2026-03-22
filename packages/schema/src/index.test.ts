@@ -291,23 +291,26 @@ describe("project validation", () => {
     expect(report.issues.some((issue) => issue.code === "INVENTORY_IMAGE_CATEGORY_INVALID")).toBe(true);
   });
 
-  it("aligns the starter hotspot with the placeholder scene artwork", () => {
+  it("aligns the starter hotspot with the desk doors in the placeholder scene artwork", () => {
     const project = createDefaultProjectBundle();
     const hotspot = project.scenes.items[0]?.hotspots[0];
 
     expect(project.scenes.items[0]?.backgroundVideoLoop).toBe(false);
     expect(hotspot?.name).toBe("Placeholder");
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
-    expect(hotspot?.x).toBeCloseTo(900 / 1280);
-    expect(hotspot?.y).toBeCloseTo(360 / 720);
-    expect(hotspot?.width).toBeCloseTo(220 / 1280);
-    expect(hotspot?.height).toBeCloseTo(170 / 720);
-    expect(hotspot?.polygon).toEqual([
-      { x: 900 / 1280, y: 360 / 720 },
-      { x: 1120 / 1280, y: 360 / 720 },
-      { x: 1120 / 1280, y: 530 / 720 },
-      { x: 900 / 1280, y: 530 / 720 }
-    ]);
+    expect(hotspot?.x).toBeCloseTo(338 / 1280);
+    expect(hotspot?.y).toBeCloseTo(444 / 720);
+    expect(hotspot?.width).toBeCloseTo(244 / 1280);
+    expect(hotspot?.height).toBeCloseTo(148 / 720);
+    expect(hotspot?.polygon).toHaveLength(4);
+    expect(hotspot?.polygon[0]?.x).toBeCloseTo(338 / 1280);
+    expect(hotspot?.polygon[0]?.y).toBeCloseTo(444 / 720);
+    expect(hotspot?.polygon[1]?.x).toBeCloseTo(582 / 1280);
+    expect(hotspot?.polygon[1]?.y).toBeCloseTo(444 / 720);
+    expect(hotspot?.polygon[2]?.x).toBeCloseTo(582 / 1280);
+    expect(hotspot?.polygon[2]?.y).toBeCloseTo(592 / 720);
+    expect(hotspot?.polygon[3]?.x).toBeCloseTo(338 / 1280);
+    expect(hotspot?.polygon[3]?.y).toBeCloseTo(592 / 720);
     expect(hotspot).not.toHaveProperty("labelTextId");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.hotspot.inspect");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(

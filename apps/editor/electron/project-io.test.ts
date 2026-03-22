@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 describe("starter project creation", () => {
-  it("creates new starter projects with the visible placeholder hotspot", async () => {
+  it("creates new starter projects with the placeholder hotspot on the desk doors", async () => {
     const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-starter-"));
     tempDirs.push(projectDir);
 
@@ -35,10 +35,10 @@ describe("starter project creation", () => {
 
     expect(hotspot?.name).toBe("Placeholder");
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
-    expect(hotspot?.x).toBeCloseTo(900 / 1280);
-    expect(hotspot?.y).toBeCloseTo(360 / 720);
-    expect(hotspot?.width).toBeCloseTo(220 / 1280);
-    expect(hotspot?.height).toBeCloseTo(170 / 720);
+    expect(hotspot?.x).toBeCloseTo(338 / 1280);
+    expect(hotspot?.y).toBeCloseTo(444 / 720);
+    expect(hotspot?.width).toBeCloseTo(244 / 1280);
+    expect(hotspot?.height).toBeCloseTo(148 / 720);
     expect(hotspot).not.toHaveProperty("labelTextId");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.hotspot.inspect");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(

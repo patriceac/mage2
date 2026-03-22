@@ -28,10 +28,10 @@ export function parseBuildManifest(input: unknown): BuildManifest {
 }
 
 const STARTER_SCENE_HOTSPOT_BOUNDS = {
-  x: 900 / 1280,
-  y: 360 / 720,
-  width: 220 / 1280,
-  height: 170 / 720
+  x: 338 / 1280,
+  y: 444 / 720,
+  width: 244 / 1280,
+  height: 148 / 720
 } as const;
 
 const STARTER_HOTSPOT_NAME = "Placeholder";

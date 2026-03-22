@@ -5,6 +5,7 @@ import {
   SUBTITLE_DIALOG_FILTER_EXTENSIONS,
   classifyImportAssetPaths,
   isBackgroundImportPath,
+  isInventoryImageImportPath,
   isSceneAudioImportPath
 } from "./asset-file-types";
 
@@ -71,5 +72,14 @@ describe("isSceneAudioImportPath", () => {
     expect(isSceneAudioImportPath("C:\\media\\scene.mp3")).toBe(true);
     expect(isSceneAudioImportPath("C:\\media\\scene.WAV")).toBe(true);
     expect(isSceneAudioImportPath("C:\\media\\scene.png")).toBe(false);
+  });
+});
+
+describe("isInventoryImageImportPath", () => {
+  it("accepts supported image files while rejecting audio and video", () => {
+    expect(isInventoryImageImportPath("C:\\media\\item.webp")).toBe(true);
+    expect(isInventoryImageImportPath("C:\\media\\item.SVG")).toBe(true);
+    expect(isInventoryImageImportPath("C:\\media\\item.mp3")).toBe(false);
+    expect(isInventoryImageImportPath("C:\\media\\item.mp4")).toBe(false);
   });
 });
