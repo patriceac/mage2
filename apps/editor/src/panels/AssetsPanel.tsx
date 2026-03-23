@@ -29,6 +29,15 @@ const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
 
 type AssetLibraryFilter = "background" | "inventory" | "sceneAudio";
 
+export function resolveAssetCardPreviewPresentation(category: AssetLibraryFilter): {
+  aspectRatio: "landscape" | "square" | "intrinsic";
+  fit: "cover" | "contain";
+} {
+  return category === "inventory"
+    ? { aspectRatio: "intrinsic", fit: "contain" }
+    : { aspectRatio: "landscape", fit: "cover" };
+}
+
 export function AssetsPanel({
   project,
   setSavedProject,
@@ -160,6 +169,8 @@ export function AssetsPanel({
             const deleteDisabled = !deletionEligibility?.canDelete;
             const activeVariant = getLocalizedAssetVariant(asset, activeLocale);
             const isSelected = selectedAssetId === asset.id;
+            const assetCategory = classifyEditorAssetCategory(asset);
+            const previewPresentation = resolveAssetCardPreviewPresentation(assetCategory);
 
             return (
               <article
@@ -167,13 +178,20 @@ export function AssetsPanel({
                 className={isSelected ? "list-card list-card--asset list-card--selected" : "list-card list-card--asset"}
                 onClick={() => setSelectedAssetId(asset.id)}
               >
-                <AssetPreview asset={asset} locale={activeLocale} allowSourceFallback preferPosterForImages />
+                <AssetPreview
+                  asset={asset}
+                  locale={activeLocale}
+                  allowSourceFallback
+                  preferPosterForImages
+                  aspectRatio={previewPresentation.aspectRatio}
+                  fit={previewPresentation.fit}
+                />
 
                 <div className="asset-card__body">
                   <div>
                     <h4>{asset.name}</h4>
                     <p>
-                      {formatAssetCategoryLabel(classifyEditorAssetCategory(asset))} /{" "}
+                      {formatAssetCategoryLabel(assetCategory)} /{" "}
                       {asset.kind}
                       {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
                       {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
