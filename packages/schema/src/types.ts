@@ -85,7 +85,7 @@ export const SceneSchema = z.object({
   id: z.string().min(1),
   locationId: z.string().min(1),
   name: z.string().min(1),
-  backgroundAssetId: z.string().min(1),
+  backgroundAssetId: z.string().min(1).optional(),
   sceneAudioAssetId: z.string().min(1).optional(),
   sceneAudioLoop: z.boolean().default(true),
   sceneAudioDelayMs: z.number().nonnegative().default(0),

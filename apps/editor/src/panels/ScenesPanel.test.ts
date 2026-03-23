@@ -66,6 +66,16 @@ function renderScenesPanel(configureProject: (project: ProjectBundle) => void) {
 }
 
 describe("ScenesPanel scene audio UI", () => {
+  it("shows an empty background state for scenes without assigned media", () => {
+    const markup = renderScenesPanel((project) => {
+      delete project.scenes.items[0].backgroundAssetId;
+    });
+
+    expect(markup).toContain("No background assigned");
+    expect(markup).toContain("Upload Background");
+    expect(markup).toContain("assign a background to this scene");
+  });
+
   it("renders scene-audio authoring controls for image backgrounds", () => {
     const markup = renderScenesPanel((project) => {
       project.assets.assets.push(

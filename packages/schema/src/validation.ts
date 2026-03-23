@@ -144,6 +144,7 @@ function validateScene(
   issues: ValidationIssue[]
 ): void {
   let backgroundAssetKind: ProjectBundle["assets"]["assets"][number]["kind"] | undefined;
+  const { backgroundAssetId } = scene;
 
   if (!locationIds.has(scene.locationId)) {
     issues.push({
@@ -154,15 +155,22 @@ function validateScene(
     });
   }
 
-  if (!assetIds.has(scene.backgroundAssetId)) {
+  if (!backgroundAssetId) {
     issues.push({
       level: "error",
       code: "SCENE_BACKGROUND_MISSING",
-      message: `Scene '${scene.id}' references missing asset '${scene.backgroundAssetId}'.`,
+      message: `Scene '${scene.id}' does not have a background asset assigned.`,
+      entityId: scene.id
+    });
+  } else if (!assetIds.has(backgroundAssetId)) {
+    issues.push({
+      level: "error",
+      code: "SCENE_BACKGROUND_MISSING",
+      message: `Scene '${scene.id}' references missing asset '${backgroundAssetId}'.`,
       entityId: scene.id
     });
   } else {
-    const asset = assetsById.get(scene.backgroundAssetId);
+    const asset = assetsById.get(backgroundAssetId);
     if (asset) {
       backgroundAssetKind = asset.kind;
 
@@ -170,7 +178,7 @@ function validateScene(
         issues.push({
           level: "error",
           code: "SCENE_BACKGROUND_CATEGORY_INVALID",
-          message: `Scene '${scene.id}' must reference a background asset, but '${scene.backgroundAssetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
+          message: `Scene '${scene.id}' must reference a background asset, but '${backgroundAssetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
           entityId: scene.id
         });
       }
@@ -179,7 +187,7 @@ function validateScene(
         issues.push({
           level: "error",
           code: "SCENE_BACKGROUND_KIND_INVALID",
-          message: `Scene '${scene.id}' must reference an image or video asset, but '${scene.backgroundAssetId}' is '${asset.kind}'.`,
+          message: `Scene '${scene.id}' must reference an image or video asset, but '${backgroundAssetId}' is '${asset.kind}'.`,
           entityId: scene.id
         });
       }
@@ -245,7 +253,7 @@ function validateScene(
       }
     }
 
-    if (backgroundAssetKind && backgroundAssetKind !== "image") {
+    if (backgroundAssetKind !== "image") {
       issues.push({
         level: "error",
         code: "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND",
