@@ -297,7 +297,7 @@ describe("removeAssetFromProject", () => {
     const project = createDefaultProjectBundle("Starter asset replacement");
     const scene = project.scenes.items[0];
     project.assets.assets = [
-      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.svg", "D:\\project\\assets\\starter-scene.svg"),
+      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.png", "D:\\project\\assets\\starter-scene.png"),
       createAsset("asset_replacement", "replacement.png", "D:\\project\\assets\\replacement.png")
     ];
     addAssetRoots(project, project.assets.assets);

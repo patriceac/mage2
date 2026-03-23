@@ -30,7 +30,7 @@ describe("starter project creation", () => {
 
     const project = await createProjectInDirectory(projectDir, "Fresh Starter");
     const hotspot = project.scenes.items[0].hotspots[0];
-    const starterSceneSvg = await readFile(path.join(projectDir, "assets", "starter-scene.svg"), "utf8");
+    const starterScenePng = await readFile(path.join(projectDir, "assets", "starter-scene.png"));
     const starterVariant = project.assets.assets[0]?.variants[project.manifest.defaultLanguage];
 
     expect(hotspot?.name).toBe("Placeholder");
@@ -44,10 +44,8 @@ describe("starter project creation", () => {
     expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(
       "Add real hotspots in Scenes"
     );
-    expect(starterSceneSvg).toContain('id="moonGlow"');
-    expect(starterSceneSvg).toContain('id="artifactGlow"');
-    expect(starterSceneSvg).not.toContain(">Placeholder</text>");
-    expect(starterSceneSvg).not.toContain("Add real hotspots");
+    expect(starterScenePng.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(starterScenePng.byteLength).toBeGreaterThan(0);
     expect(starterVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.png"));
     expect(starterVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.thumb.png"));
     expect(await readFile(starterVariant!.proxyPath!)).not.toHaveLength(0);

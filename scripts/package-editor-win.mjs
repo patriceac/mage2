@@ -48,6 +48,7 @@ async function prepareStage() {
 async function copyRequiredBuildOutput() {
   const editorDist = path.join(repoRoot, "apps", "editor", "dist");
   const editorElectronDist = path.join(repoRoot, "apps", "editor", "dist-electron");
+  const starterSceneAsset = path.join(repoRoot, "apps", "editor", "electron", "starter-scene.png");
   const runtimeWebDist = path.join(repoRoot, "apps", "runtime-web", "dist");
 
   for (const requiredDir of [editorDist, editorElectronDist, runtimeWebDist]) {
@@ -55,9 +56,13 @@ async function copyRequiredBuildOutput() {
       throw new Error(`Missing build output at ${requiredDir}. Run the editor/runtime build first.`);
     }
   }
+  if (!existsSync(starterSceneAsset)) {
+    throw new Error(`Missing starter scene asset at ${starterSceneAsset}.`);
+  }
 
   await cp(editorDist, path.join(appStageDir, "dist"), { recursive: true, force: true });
   await cp(editorElectronDist, path.join(appStageDir, "dist-electron"), { recursive: true, force: true });
+  await cp(starterSceneAsset, path.join(appStageDir, "dist-electron", "starter-scene.png"), { force: true });
   await cp(runtimeWebDist, path.join(appStageDir, "resources", "runtime-web"), {
     recursive: true,
     force: true
