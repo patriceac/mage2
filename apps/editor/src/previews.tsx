@@ -9,7 +9,6 @@ interface AssetPreviewProps {
   interactive?: boolean;
   allowSourceFallback?: boolean;
   preferPosterForImages?: boolean;
-  aspectRatio?: "landscape" | "square" | "intrinsic";
   fit?: "cover" | "contain";
   emptyTitle?: string;
   emptyBody?: string;
@@ -31,7 +30,6 @@ export function AssetPreview({
   interactive = true,
   allowSourceFallback = false,
   preferPosterForImages = false,
-  aspectRatio = "landscape",
   fit = "cover",
   emptyTitle = "No background asset",
   emptyBody = "Assign an image or video to preview this scene."
@@ -45,12 +43,8 @@ export function AssetPreview({
   const previewPosterPath =
     asset?.kind === "video" && variant?.posterPath && variant.posterPath !== sourcePath ? variant.posterPath : undefined;
   const hasManagedPreview = asset?.kind === "image" ? Boolean(variant?.posterPath ?? variant?.proxyPath) : Boolean(variant?.proxyPath);
-  const previewClassName = `asset-preview${aspectRatio === "square" ? " asset-preview--square" : ""}${
-    aspectRatio === "intrinsic" ? " asset-preview--intrinsic" : ""
-  }`;
-  const mediaClassName = `${previewClassName} asset-preview__media${fit === "contain" ? " asset-preview__media--contain" : ""}${
-    aspectRatio === "intrinsic" ? " asset-preview__media--intrinsic" : ""
-  }`;
+  const previewClassName = "asset-preview";
+  const mediaClassName = `${previewClassName} asset-preview__media${fit === "contain" ? " asset-preview__media--contain" : ""}`;
 
   useEffect(() => {
     let cancelled = false;

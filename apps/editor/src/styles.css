@@ -728,10 +728,6 @@ label > .checkbox-list {
   position: relative;
 }
 
-.inventory-item-art__preview .asset-preview--placeholder {
-  min-height: 13rem;
-}
-
 .inventory-item-art__dropzone--active .asset-preview {
   border-color: rgba(246, 193, 119, 0.92);
   box-shadow: 0 0 0 1px rgba(246, 193, 119, 0.28);
@@ -1175,16 +1171,6 @@ label > .checkbox-list {
   background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
 }
 
-.asset-preview--square {
-  aspect-ratio: 1 / 1;
-}
-
-.asset-preview--intrinsic {
-  width: auto;
-  max-width: 100%;
-  aspect-ratio: auto;
-}
-
 .asset-preview__media {
   display: block;
   width: 100%;
@@ -1194,17 +1180,9 @@ label > .checkbox-list {
 
 .asset-preview__media--contain {
   object-fit: contain;
+  object-position: center;
   box-sizing: border-box;
   padding: 0.65rem;
-}
-
-.asset-preview__media--intrinsic {
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 13rem;
-  object-fit: contain;
-  justify-self: start;
 }
 
 .asset-preview--audio {

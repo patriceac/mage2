@@ -88,17 +88,14 @@ describe("AssetsPanel proxy UI", () => {
     expect(markup).not.toContain("Create new inventory assets from Inventory.");
   });
 
-  it("uses the intrinsic contain preview treatment for inventory assets", () => {
+  it("uses the fixed-frame contain preview treatment for inventory assets", () => {
     expect(resolveAssetCardPreviewPresentation("inventory")).toEqual({
-      aspectRatio: "intrinsic",
       fit: "contain"
     });
     expect(resolveAssetCardPreviewPresentation("background")).toEqual({
-      aspectRatio: "landscape",
       fit: "cover"
     });
     expect(resolveAssetCardPreviewPresentation("sceneAudio")).toEqual({
-      aspectRatio: "landscape",
       fit: "cover"
     });
   });
