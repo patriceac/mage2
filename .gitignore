@@ -11,3 +11,4 @@ examples/sample-build/
 apps/runtime-web/dist/
 apps/editor/dist/
 apps/editor/dist-electron/
+recent-projects.json

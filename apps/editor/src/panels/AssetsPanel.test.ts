@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, type Asset } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
 import { useEditorStore } from "../store";
-import { AssetsPanel } from "./AssetsPanel";
+import { AssetsPanel, resolveAssetCardPreviewPresentation } from "./AssetsPanel";
 
 describe("AssetsPanel proxy UI", () => {
   it("keeps asset cards focused on asset details instead of localization status copy", () => {
@@ -86,5 +86,20 @@ describe("AssetsPanel proxy UI", () => {
 
     expect(markup).toContain(">Scene Audio</option>");
     expect(markup).not.toContain("Create new inventory assets from Inventory.");
+  });
+
+  it("uses the intrinsic contain preview treatment for inventory assets", () => {
+    expect(resolveAssetCardPreviewPresentation("inventory")).toEqual({
+      aspectRatio: "intrinsic",
+      fit: "contain"
+    });
+    expect(resolveAssetCardPreviewPresentation("background")).toEqual({
+      aspectRatio: "landscape",
+      fit: "cover"
+    });
+    expect(resolveAssetCardPreviewPresentation("sceneAudio")).toEqual({
+      aspectRatio: "landscape",
+      fit: "cover"
+    });
   });
 });
