@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   resolveHotspotBounds,
   resolveHotspotClipPath,
-  resolveRelativeHotspotContentBox,
   resolveRelativeHotspotPolygon,
   type Asset,
   type Hotspot
 } from "@mage2/schema";
 import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
+import { resolveHotspotLabelPlacement, type HotspotLabelPlacement } from "./hotspot-label-placement";
 import { getLocalizedAssetVariant } from "./localized-project";
 import {
   clampPlayheadMs,
@@ -434,7 +434,7 @@ function HotspotButton({
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const clipPath = resolveHotspotClipPath(hotspot);
-  const contentBox = resolveRelativeHotspotContentBox(hotspot);
+  const labelPlacement = resolveHotspotLabelPlacement(bounds);
   const handlePositions = resolveHotspotHandlePositions(hotspot);
   const [tooltipText, setTooltipText] = useState<string>();
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
@@ -461,21 +461,18 @@ function HotspotButton({
         title={showLabels && showTooltips ? tooltipText : undefined}
         type="button"
       >
-        {showLabels && (hotspot.name || comment) ? (
-          <HotspotLabelContent
-            titleText={hotspot.name}
-            commentText={comment}
-            classNamePrefix="hotspot"
-            style={{
-              left: `${contentBox.x * 100}%`,
-              top: `${contentBox.y * 100}%`,
-              width: `${contentBox.width * 100}%`,
-              height: `${contentBox.height * 100}%`
-            }}
-            onTooltipTextChange={setTooltipText}
-          />
-        ) : null}
+        <span className="hotspot__beacon" aria-hidden="true" />
       </button>
+
+      {showLabels && (hotspot.name || comment) ? (
+        <HotspotLabelContent
+          titleText={hotspot.name}
+          commentText={comment}
+          placement={labelPlacement}
+          style={resolveHotspotLabelStyle(bounds, labelPlacement)}
+          onTooltipTextChange={setTooltipText}
+        />
+      ) : null}
 
       {editable && selected ? (
         <div className="hotspot__handles" aria-hidden="true">
@@ -509,39 +506,52 @@ function normalizeHotspotText(value: string | undefined): string {
 function HotspotLabelContent({
   titleText,
   commentText,
-  classNamePrefix,
+  placement,
   style,
   onTooltipTextChange
 }: {
   titleText?: string;
   commentText?: string;
-  classNamePrefix: string;
+  placement: HotspotLabelPlacement;
   style: React.CSSProperties;
   onTooltipTextChange: (tooltipText: string | undefined) => void;
 }) {
+  const primaryText = titleText || commentText;
+  const secondaryText = titleText ? commentText : undefined;
   const [isTitleTruncated, setIsTitleTruncated] = useState(false);
   const [isCommentTruncated, setIsCommentTruncated] = useState(false);
 
   useEffect(() => {
-    onTooltipTextChange(buildHotspotTooltip(titleText, commentText, isTitleTruncated, isCommentTruncated));
-  }, [commentText, isCommentTruncated, isTitleTruncated, onTooltipTextChange, titleText]);
+    onTooltipTextChange(buildHotspotTooltip(primaryText, secondaryText, isTitleTruncated, isCommentTruncated));
+  }, [isCommentTruncated, isTitleTruncated, onTooltipTextChange, primaryText, secondaryText]);
+
+  if (!primaryText) {
+    return null;
+  }
 
   return (
-    <span className={`${classNamePrefix}__content`} style={style}>
-      {titleText ? (
+    <span
+      className={[
+        "hotspot__label-shell",
+        `hotspot__label-shell--${placement.verticalPlacement}`,
+        `hotspot__label-shell--${placement.horizontalAlignment}`
+      ].join(" ")}
+      style={style}
+    >
+      <span className="hotspot__label-card">
         <OverflowAwareHotspotTitle
-          text={titleText}
-          className={`${classNamePrefix}__title`}
+          text={primaryText}
+          className="hotspot__label-title"
           onTruncationChange={setIsTitleTruncated}
         />
-      ) : null}
-      {commentText ? (
-        <OverflowingHotspotComment
-          text={commentText}
-          className={`${classNamePrefix}__comment`}
-          onTruncationChange={setIsCommentTruncated}
-        />
-      ) : null}
+        {secondaryText ? (
+          <OverflowingHotspotComment
+            text={secondaryText}
+            className="hotspot__label-comment"
+            onTruncationChange={setIsCommentTruncated}
+          />
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -709,6 +719,14 @@ function buildHotspotTooltip(
   }
 
   return [titleText, commentText].filter(Boolean).join("\n");
+}
+
+function resolveHotspotLabelStyle(bounds: { x: number; width: number }, placement: HotspotLabelPlacement): React.CSSProperties {
+  const width = Math.max(bounds.width, 0.0001);
+
+  return {
+    left: `${((placement.anchorX - bounds.x) / width) * 100}%`
+  };
 }
 
 function resolveHotspotClassName(selected: boolean, editable: boolean): string {
