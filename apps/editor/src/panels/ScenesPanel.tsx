@@ -67,7 +67,7 @@ export function ScenesPanel({
   const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
   const currentSceneAudioAsset = project.assets.assets.find((entry) => entry.id === currentScene?.sceneAudioAssetId);
   const currentSceneAudioVariant = getLocalizedAssetVariant(currentSceneAudioAsset, activeLocale);
-  const sceneSupportsAudio = currentAsset?.kind !== "video";
+  const sceneSupportsAudio = currentAsset?.kind === "image";
   const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
     currentAssetVariant?.durationMs,
     sceneSupportsAudio ? currentScene?.sceneAudioDelayMs ?? 0 : 0,
@@ -690,17 +690,19 @@ export function ScenesPanel({
           <span className="field-label--inset">Background Asset</span>
           <div className="asset-assignment-row">
             <select
-              value={currentScene.backgroundAssetId}
+              value={currentScene.backgroundAssetId ?? ""}
               onChange={(event) =>
                 mutateProject((draft) => {
                   const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
                   if (scene) {
-                    scene.backgroundAssetId = event.target.value;
+                    scene.backgroundAssetId = event.target.value || undefined;
                   }
                 })
               }
             >
-              {!availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
+              <option value="">No background assigned</option>
+              {currentScene.backgroundAssetId &&
+              !availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
                 <option value={currentScene.backgroundAssetId}>
                   {currentScene.backgroundAssetId === "asset_placeholder"
                     ? "Starter placeholder"
@@ -763,13 +765,15 @@ export function ScenesPanel({
             />
             {isBackgroundDropActive ? (
               <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
-                <strong>Drop to replace background</strong>
+                <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
                 <span>Use an image or video file.</span>
               </div>
             ) : null}
           </div>
           <p className="muted scenes-panel__background-dropzone-hint">
-            Drag an image or video onto the preview to replace this scene&apos;s background.
+            {currentAsset
+              ? "Drag an image or video onto the preview to replace this scene's background."
+              : "Drag an image or video onto the preview to assign a background to this scene."}
           </p>
         </div>
 

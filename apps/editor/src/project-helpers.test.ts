@@ -48,6 +48,29 @@ describe("addLocation and addScene", () => {
     expect(getDefaultStrings(project)[`text.${location.id}.description`]).toBeUndefined();
     expect(getDefaultStrings(project)[`text.${scene.id}.overlay`]).toBeUndefined();
   });
+
+  it("does not assign the starter placeholder as the default background for added scenes", () => {
+    const project = createDefaultProjectBundle("New scenes");
+    project.assets.assets.push(
+      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.png", "D:\\project\\assets\\starter-scene.png")
+    );
+
+    const scene = addScene(project, project.locations.items[0]!.id);
+
+    expect(scene.backgroundAssetId).toBeUndefined();
+  });
+
+  it("reuses the first real background asset for added scenes when one exists", () => {
+    const project = createDefaultProjectBundle("New scenes");
+    project.assets.assets.push(
+      createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.png", "D:\\project\\assets\\starter-scene.png"),
+      createAsset("asset_background", "background.png", "D:\\project\\assets\\background.png")
+    );
+
+    const scene = addScene(project, project.locations.items[0]!.id);
+
+    expect(scene.backgroundAssetId).toBe("asset_background");
+  });
 });
 
 describe("createSubtitleCue", () => {

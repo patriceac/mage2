@@ -108,6 +108,31 @@ describe("project validation", () => {
     expect(report.issues.some((issue) => issue.code === "SCENE_BACKGROUND_MISSING")).toBe(true);
   });
 
+  it("allows scenes without backgroundAssetId to parse and reports them as missing background media", () => {
+    const project = createDefaultProjectBundle();
+    project.scenes.items.push({
+      id: "scene_empty",
+      locationId: project.locations.items[0]!.id,
+      name: "Empty Scene",
+      sceneAudioLoop: true,
+      sceneAudioDelayMs: 0,
+      backgroundVideoLoop: false,
+      hotspots: [],
+      subtitleTracks: [],
+      dialogueTreeIds: [],
+      onEnterEffects: [],
+      onExitEffects: []
+    });
+    project.locations.items[0]!.sceneIds.push("scene_empty");
+
+    const parsed = parseProjectBundle(project);
+    const report = validateProject(parsed);
+    const issue = report.issues.find((entry) => entry.code === "SCENE_BACKGROUND_MISSING" && entry.entityId === "scene_empty");
+
+    expect(parsed.scenes.items.find((scene) => scene.id === "scene_empty")?.backgroundAssetId).toBeUndefined();
+    expect(issue?.message).toBe("Scene 'scene_empty' does not have a background asset assigned.");
+  });
+
   it("reports missing localized scene audio variants", () => {
     const project = createDefaultProjectBundle();
     project.manifest.supportedLocales = ["fr"];
@@ -175,6 +200,28 @@ describe("project validation", () => {
       }
     );
     project.scenes.items[0].backgroundAssetId = "asset_video";
+    project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+
+    expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
+      true
+    );
+  });
+
+  it("rejects scene audio when no background asset is assigned", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_scene_audio",
+      kind: "audio",
+      name: "ambience.mp3",
+      category: "sceneAudio",
+      variants: {
+        en: {
+          sourcePath: "ambience.mp3",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    delete project.scenes.items[0].backgroundAssetId;
     project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
 
     expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
