@@ -30,12 +30,9 @@ const EMPTY_ASSET_REFERENCE_SUMMARY: AssetReferenceSummary = {
 type AssetLibraryFilter = "background" | "inventory" | "sceneAudio";
 
 export function resolveAssetCardPreviewPresentation(category: AssetLibraryFilter): {
-  aspectRatio: "landscape" | "square" | "intrinsic";
   fit: "cover" | "contain";
 } {
-  return category === "inventory"
-    ? { aspectRatio: "intrinsic", fit: "contain" }
-    : { aspectRatio: "landscape", fit: "cover" };
+  return category === "inventory" ? { fit: "contain" } : { fit: "cover" };
 }
 
 export function AssetsPanel({
@@ -183,7 +180,6 @@ export function AssetsPanel({
                   locale={activeLocale}
                   allowSourceFallback
                   preferPosterForImages
-                  aspectRatio={previewPresentation.aspectRatio}
                   fit={previewPresentation.fit}
                 />
 
