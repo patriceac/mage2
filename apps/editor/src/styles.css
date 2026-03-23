@@ -1175,11 +1175,21 @@ label > .checkbox-list {
   background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
 }
 
+.asset-preview--square {
+  aspect-ratio: 1 / 1;
+}
+
 .asset-preview__media {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.asset-preview__media--contain {
+  object-fit: contain;
+  box-sizing: border-box;
+  padding: 0.65rem;
 }
 
 .asset-preview--audio {

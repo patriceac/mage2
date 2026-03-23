@@ -23,6 +23,7 @@ import {
   resolveProjectName,
   upsertRecentProjects
 } from "./recent-project-list";
+import { isSaveShortcut } from "./keyboard-shortcuts";
 import { type EditorTab, useEditorStore } from "./store";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
@@ -168,6 +169,32 @@ export function App() {
       cancelled = true;
     };
   }, [hasEditorApi]);
+
+  useEffect(() => {
+    if (!hasEditorApi) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isSaveShortcut(event) || event.repeat) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (!project || !projectDir || !hasUnsavedChanges || busyLabel) {
+        return;
+      }
+
+      void saveCurrentProject();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [busyLabel, hasEditorApi, hasUnsavedChanges, project, projectDir]);
 
   async function handleCreateProject() {
     if (!hasEditorApi) {
@@ -424,8 +451,8 @@ export function App() {
             disabled={isSaveDisabled}
             title={
               hasUnsavedChanges
-                ? "Write the current project manifest and assets metadata back to disk."
-                : "No unsaved changes to save."
+                ? "Write the current project manifest and assets metadata back to disk. Shortcut: Ctrl+S or Cmd+S."
+                : "No unsaved changes to save. Shortcut: Ctrl+S or Cmd+S."
             }
           >
             Save

@@ -9,6 +9,8 @@ interface AssetPreviewProps {
   interactive?: boolean;
   allowSourceFallback?: boolean;
   preferPosterForImages?: boolean;
+  aspectRatio?: "landscape" | "square";
+  fit?: "cover" | "contain";
   emptyTitle?: string;
   emptyBody?: string;
 }
@@ -29,6 +31,8 @@ export function AssetPreview({
   interactive = true,
   allowSourceFallback = false,
   preferPosterForImages = false,
+  aspectRatio = "landscape",
+  fit = "cover",
   emptyTitle = "No background asset",
   emptyBody = "Assign an image or video to preview this scene."
 }: AssetPreviewProps) {
@@ -41,6 +45,8 @@ export function AssetPreview({
   const previewPosterPath =
     asset?.kind === "video" && variant?.posterPath && variant.posterPath !== sourcePath ? variant.posterPath : undefined;
   const hasManagedPreview = asset?.kind === "image" ? Boolean(variant?.posterPath ?? variant?.proxyPath) : Boolean(variant?.proxyPath);
+  const previewClassName = `asset-preview${aspectRatio === "square" ? " asset-preview--square" : ""}`;
+  const mediaClassName = `${previewClassName} asset-preview__media${fit === "contain" ? " asset-preview__media--contain" : ""}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +94,7 @@ export function AssetPreview({
 
   if (!asset) {
     return (
-      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable because ${emptyTitle.toLowerCase()} is assigned.`}>
+      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable because ${emptyTitle.toLowerCase()} is assigned.`}>
         <strong>{emptyTitle}</strong>
         <span>{emptyBody}</span>
       </div>
@@ -97,7 +103,7 @@ export function AssetPreview({
 
   if (loadState === "error") {
     return (
-      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
+      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable for ${asset.name}.`}>
         <strong>Preview unavailable</strong>
         <span>{asset.name}</span>
       </div>
@@ -106,7 +112,7 @@ export function AssetPreview({
 
   if (!hasManagedPreview && !allowSourceFallback) {
     return (
-      <div className="asset-preview asset-preview--placeholder" title={`Preview unavailable for ${asset.name}.`}>
+      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable for ${asset.name}.`}>
         <strong>Preview unavailable</strong>
         <span>No preview file is available for this asset.</span>
       </div>
@@ -118,7 +124,7 @@ export function AssetPreview({
       <img
         src={assetUrl}
         alt={asset.name}
-        className="asset-preview asset-preview__media"
+        className={mediaClassName}
         decoding="async"
         loading={preferPosterForImages ? "lazy" : "eager"}
         title={`Preview ${asset.name}.`}
@@ -134,7 +140,7 @@ export function AssetPreview({
         controls={interactive}
         muted
         preload="metadata"
-        className="asset-preview asset-preview__media"
+        className={mediaClassName}
         title={`Preview ${asset.name}.`}
       />
     );
@@ -142,14 +148,14 @@ export function AssetPreview({
 
   if (asset.kind === "audio" && assetUrl) {
     return (
-      <div className="asset-preview asset-preview--audio" title={`Preview ${asset.name}.`}>
+      <div className={`${previewClassName} asset-preview--audio`} title={`Preview ${asset.name}.`}>
         <audio src={assetUrl} controls preload="metadata" className="asset-preview__audio" />
       </div>
     );
   }
 
   return (
-    <div className="asset-preview asset-preview--placeholder" title={`Loading preview for ${asset.name}.`}>
+    <div className={`${previewClassName} asset-preview--placeholder`} title={`Loading preview for ${asset.name}.`}>
       <strong>Loading preview...</strong>
       <span>{asset.name}</span>
     </div>

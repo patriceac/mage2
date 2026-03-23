@@ -48,6 +48,7 @@ describe("InventoryPanel locale behavior", () => {
     expect(markup).toContain('value="Lantern"');
     expect(markup).toContain("Default description");
     expect(markup).toContain("Drag an image onto the preview to assign this item&#x27;s art.");
+    expect(markup).toContain("asset-preview--square");
     expect(markup).not.toContain("Lanterne");
     expect(markup).not.toContain("Description francaise");
   });

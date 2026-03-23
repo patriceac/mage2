@@ -287,7 +287,9 @@ input[type="range"]:focus-visible {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 14px;
-  object-fit: cover;
+  object-fit: contain;
+  box-sizing: border-box;
+  padding: 0.55rem;
   background: rgba(255, 255, 255, 0.06);
 }
 
