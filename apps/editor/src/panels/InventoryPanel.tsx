@@ -259,6 +259,8 @@ export function InventoryPanel({
                       locale={activeLocale}
                       allowSourceFallback
                       preferPosterForImages
+                      aspectRatio="square"
+                      fit="contain"
                       emptyTitle="No item image"
                       emptyBody="Assign or upload an inventory image for this item."
                     />
