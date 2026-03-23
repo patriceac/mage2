@@ -1267,18 +1267,125 @@ label > .checkbox-list {
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 0.65rem;
-  border: 2px solid rgba(125, 211, 252, 0.9);
+  border: 3px solid rgba(210, 244, 255, 0.72);
   border-radius: 0;
-  background: rgba(125, 211, 252, 0.22);
+  background:
+    radial-gradient(circle at center, rgba(143, 237, 255, 0.38) 0%, rgba(54, 188, 227, 0.18) 34%, transparent 62%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(126, 231, 255, 0.22) 0 10px,
+      rgba(6, 33, 43, 0.08) 10px 20px
+    ),
+    linear-gradient(180deg, rgba(88, 214, 255, 0.32), rgba(45, 140, 175, 0.18)),
+    rgba(18, 81, 104, 0.24);
   color: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.18),
+    0 0 0 1px rgba(210, 244, 255, 0.32),
+    0 0 32px rgba(72, 210, 255, 0.28);
   overflow: hidden;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    background-image 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__body::before,
+.hotspot__body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hotspot__body::before {
+  inset: -2px;
+  background:
+    linear-gradient(to right, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top left / 38px 6px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top left / 6px 38px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top right / 38px 6px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top right / 6px 38px no-repeat,
+    linear-gradient(to right, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom left / 38px 6px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom left / 6px 38px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom right / 38px 6px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom right / 6px 38px no-repeat;
+  filter: drop-shadow(0 0 20px rgba(102, 225, 255, 0.95));
+}
+
+.hotspot__body::after {
+  inset: -14px;
+  border: 4px solid rgba(102, 225, 255, 0.92);
+  box-shadow:
+    0 0 26px rgba(102, 225, 255, 0.42),
+    inset 0 0 12px rgba(255, 255, 255, 0.14);
+  opacity: 0.86;
+  animation: hotspot-idle-pulse 1.45s ease-out infinite;
+}
+
+.hotspot__beacon,
+.hotspot__beacon::before,
+.hotspot__beacon::after {
+  position: absolute;
+  pointer-events: none;
+}
+
+.hotspot__beacon {
+  top: 50%;
+  left: 50%;
+  width: 2.35rem;
+  height: 2.35rem;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 2px solid rgba(249, 253, 255, 0.98);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(166, 239, 255, 0.94) 36%, rgba(34, 150, 191, 0.95) 100%);
+  box-shadow:
+    0 0 0 4px rgba(102, 225, 255, 0.32),
+    0 0 28px rgba(102, 225, 255, 0.62),
+    0 0 48px rgba(102, 225, 255, 0.34);
+  animation: hotspot-beacon-pulse 1.3s ease-out infinite;
+}
+
+.hotspot__beacon::before,
+.hotspot__beacon::after {
+  content: "";
+  top: 50%;
+  left: 50%;
+  background: rgba(8, 28, 36, 0.96);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.hotspot__beacon::before {
+  width: 1rem;
+  height: 0.18rem;
+}
+
+.hotspot__beacon::after {
+  width: 0.18rem;
+  height: 1rem;
 }
 
 .hotspot__body--runtime {
   padding: 0;
   border: 1px solid rgba(125, 211, 252, 0.18);
   background: rgba(125, 211, 252, 0.04);
+  box-shadow: none;
+}
+
+.hotspot__body--runtime .hotspot__beacon,
+.hotspot__body--hidden .hotspot__beacon {
+  display: none;
+}
+
+.hotspot__body--runtime::before,
+.hotspot__body--runtime::after,
+.hotspot__body--hidden::before,
+.hotspot__body--hidden::after {
+  content: none;
 }
 
 .hotspot__body--runtime:hover,
@@ -1297,12 +1404,53 @@ label > .checkbox-list {
   padding: 0;
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
   outline: none;
 }
 
 .hotspot--selected .hotspot__body {
   border-color: #f6c177;
-  background: rgba(246, 193, 119, 0.28);
+  background:
+    radial-gradient(circle at center, rgba(255, 234, 196, 0.34) 0%, rgba(246, 193, 119, 0.2) 38%, transparent 68%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(251, 217, 158, 0.2) 0 10px,
+      rgba(42, 26, 8, 0.06) 10px 20px
+    ),
+    rgba(246, 193, 119, 0.24);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 247, 236, 0.14),
+    0 0 0 1px rgba(246, 193, 119, 0.22),
+    0 0 24px rgba(246, 193, 119, 0.26);
+}
+
+.hotspot--selected .hotspot__body::before {
+  background:
+    linear-gradient(to right, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top left / 30px 5px no-repeat,
+    linear-gradient(to bottom, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top left / 5px 30px no-repeat,
+    linear-gradient(to left, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top right / 30px 5px no-repeat,
+    linear-gradient(to bottom, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top right / 5px 30px no-repeat,
+    linear-gradient(to right, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom left / 30px 5px no-repeat,
+    linear-gradient(to top, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom left / 5px 30px no-repeat,
+    linear-gradient(to left, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom right / 30px 5px no-repeat,
+    linear-gradient(to top, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom right / 5px 30px no-repeat;
+  filter: drop-shadow(0 0 18px rgba(246, 193, 119, 0.78));
+}
+
+.hotspot--selected .hotspot__body::after {
+  animation: none;
+  opacity: 0;
+}
+
+.hotspot--selected .hotspot__beacon {
+  border-color: rgba(255, 248, 238, 0.98);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(251, 217, 158, 0.96) 36%, rgba(210, 120, 44, 0.96) 100%);
+  box-shadow:
+    0 0 0 4px rgba(246, 193, 119, 0.34),
+    0 0 28px rgba(246, 193, 119, 0.62),
+    0 0 48px rgba(246, 193, 119, 0.32);
+  animation: none;
 }
 
 .hotspot--selected .hotspot__body--runtime {
@@ -1313,6 +1461,7 @@ label > .checkbox-list {
 .hotspot--selected .hotspot__body--hidden {
   border-color: transparent;
   background: transparent;
+  box-shadow: none;
 }
 
 .hotspot--editable .hotspot__body {
@@ -1328,66 +1477,185 @@ label > .checkbox-list {
   outline-offset: 2px;
 }
 
-.hotspot__content {
+.media-surface:not(:hover):not(:focus-within) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.media-surface:not(:hover):not(:focus-within) .hotspot__label-card {
+  opacity: 0;
+  transform: translateY(0.18rem) scale(0.98);
+}
+
+.media-surface:not(:hover):not(:focus-within) .hotspot__label-comment-shell {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  transform: translateY(-0.15rem);
+}
+
+.media-surface:not(:hover):not(:focus-within) .hotspot__handles {
+  opacity: 0;
+}
+
+.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden),
+.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+  border-color: rgba(206, 244, 255, 1);
+  background:
+    radial-gradient(circle at center, rgba(166, 239, 255, 0.42) 0%, rgba(66, 195, 231, 0.24) 36%, transparent 64%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(166, 239, 255, 0.28) 0 10px,
+      rgba(6, 33, 43, 0.06) 10px 20px
+    ),
+    linear-gradient(180deg, rgba(96, 220, 255, 0.34), rgba(48, 153, 189, 0.24)),
+    rgba(48, 153, 189, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.2),
+    0 0 0 1px rgba(206, 244, 255, 0.28),
+    0 0 32px rgba(102, 225, 255, 0.36),
+    0 16px 30px rgba(5, 10, 14, 0.18);
+}
+
+.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::before,
+.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::before {
+  filter: drop-shadow(0 0 26px rgba(102, 225, 255, 1));
+}
+
+.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::after,
+.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::after {
+  animation: none;
+  opacity: 0;
+}
+
+.hotspot:hover .hotspot__beacon,
+.hotspot:focus-within .hotspot__beacon {
+  animation: none;
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.hotspot__label-shell {
   position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 0.2rem;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  text-align: center;
+  z-index: 3;
   pointer-events: none;
+  width: max-content;
+  width: fit-content;
 }
 
-.hotspot__title {
-  display: block;
-  flex: 0 0 auto;
-  min-width: 0;
-  max-width: 100%;
+.hotspot__label-shell--above {
+  bottom: calc(100% + 0.55rem);
+}
+
+.hotspot__label-shell--below {
+  top: calc(100% + 0.55rem);
+}
+
+.hotspot__label-shell--start {
+  transform: translateX(0);
+}
+
+.hotspot__label-shell--center {
+  transform: translateX(-50%);
+}
+
+.hotspot__label-shell--end {
+  transform: translateX(-100%);
+}
+
+.hotspot__label-card {
+  display: grid;
+  gap: 0;
+  inline-size: 11rem;
+  min-inline-size: 11rem;
+  max-inline-size: min(11rem, calc(100vw - 2rem));
+  padding: 0.45rem 0.6rem 0.48rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(14, 19, 25, 0.94), rgba(8, 12, 17, 0.9)),
+    rgba(8, 12, 17, 0.9);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.26);
   overflow: hidden;
-  white-space: nowrap;
-  font-size: 1.05rem;
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateY(0.18rem) scale(0.98);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__label-title {
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  color: #f7fafc;
+  font-size: 0.92rem;
   font-weight: 600;
-  line-height: 1.2;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  text-wrap: pretty;
 }
 
-.hotspot__comment-shell {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.hotspot__comment,
-.hotspot__comment--measure {
+.hotspot__label-comment-shell {
   position: relative;
   display: block;
-  color: #c4d1db;
-  font-size: 0.84rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  transform: translateY(-0.15rem);
+  transition:
+    max-height 140ms ease,
+    margin-top 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.hotspot:hover .hotspot__label-comment-shell,
+.hotspot:focus-within .hotspot__label-comment-shell,
+.hotspot--selected .hotspot__label-comment-shell {
+  max-height: 2.8rem;
+  margin-top: 0.22rem;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hotspot:hover .hotspot__label-card,
+.hotspot:focus-within .hotspot__label-card,
+.hotspot--selected .hotspot__label-card {
+  border-color: rgba(166, 229, 255, 0.26);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 30, 0.96), rgba(8, 12, 17, 0.92)),
+    rgba(8, 12, 17, 0.92);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.3);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.hotspot__label-comment,
+.hotspot__label-comment--measure {
+  position: relative;
+  display: block;
+  color: #d7e3eb;
+  font-size: 0.76rem;
   line-height: 1.3;
   max-width: 100%;
   word-break: break-word;
   overflow-wrap: anywhere;
-  text-align: inherit;
+  text-align: left;
 }
 
-.hotspot__comment {
+.hotspot__label-comment {
   max-height: 100%;
   overflow: hidden;
 }
 
-.hotspot__comment--measure {
+.hotspot__label-comment--measure {
   position: absolute;
   inset: 0;
   visibility: hidden;
@@ -1395,11 +1663,44 @@ label > .checkbox-list {
   overflow: visible;
 }
 
+@keyframes hotspot-idle-pulse {
+  0%,
+  100% {
+    transform: scale(0.98);
+    opacity: 0.42;
+  }
+
+  55% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes hotspot-beacon-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow:
+      0 0 0 4px rgba(102, 225, 255, 0.32),
+      0 0 28px rgba(102, 225, 255, 0.62),
+      0 0 48px rgba(102, 225, 255, 0.34);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.14);
+    box-shadow:
+      0 0 0 10px rgba(102, 225, 255, 0.18),
+      0 0 34px rgba(102, 225, 255, 0.8),
+      0 0 56px rgba(102, 225, 255, 0.44);
+  }
+}
+
 .hotspot__handles {
   position: absolute;
   inset: 0;
   pointer-events: none;
   overflow: visible;
+  transition: opacity 120ms ease;
 }
 
 .hotspot__handle {
