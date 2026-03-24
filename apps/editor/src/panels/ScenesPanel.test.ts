@@ -38,7 +38,10 @@ vi.mock("../store", () => {
   return { useEditorStore };
 });
 
-function renderScenesPanel(configureProject: (project: ProjectBundle) => void) {
+function renderScenesPanel(
+  configureProject: (project: ProjectBundle) => void,
+  configureStore?: (project: ProjectBundle) => void
+) {
   const project = createDefaultProjectBundle("Scenes audio");
   configureProject(project);
 
@@ -49,6 +52,7 @@ function renderScenesPanel(configureProject: (project: ProjectBundle) => void) {
     selectedHotspotId: undefined,
     playheadMs: 0
   };
+  configureStore?.(project);
 
   return renderToStaticMarkup(
     React.createElement(
@@ -150,5 +154,18 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(
       "Scene audio only plays when the background is an image. Clear the scene audio or switch back to an image background to resolve validation errors."
     );
+  });
+
+  it("renders the hotspot inspector as a floating window when a hotspot is selected", () => {
+    const markup = renderScenesPanel(
+      () => {},
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0].hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain("scenes-floating-inspector");
+    expect(markup).toContain("Hide the floating hotspot inspector.");
+    expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 });
