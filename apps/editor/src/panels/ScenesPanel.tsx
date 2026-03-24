@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MediaSurface } from "../MediaSurface";
-import { getLocaleStringValues, type ProjectBundle, validateProject } from "@mage2/schema";
+import { getLocaleStringValues, type Hotspot, type ProjectBundle, validateProject } from "@mage2/schema";
 import { resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
@@ -27,6 +27,11 @@ import {
 } from "../project-helpers";
 import { applyHotspotBounds, formatHotspotCoordinate, type HotspotGeometry } from "../hotspot-geometry";
 import {
+  clampFloatingWindowPosition,
+  resolveNextFloatingWindowPosition,
+  type FloatingWindowPosition
+} from "../floating-window";
+import {
   collectOwnedGeneratedProjectTextIdsForSubtitleCue,
   collectOwnedGeneratedProjectTextIdsForSubtitleTrack,
   pruneOwnedGeneratedProjectTextEntries
@@ -50,6 +55,7 @@ export function ScenesPanel({
   setBusyLabel
 }: ScenesPanelProps) {
   const dialogs = useDialogs();
+  const scenesPanelRef = useRef<HTMLDivElement>(null);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const playheadMs = useEditorStore((state) => state.playheadMs);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
@@ -77,8 +83,16 @@ export function ScenesPanel({
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
+  const [isHotspotInspectorActive, setIsHotspotInspectorActive] = useState(false);
+  const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
   const backgroundDropDepthRef = useRef(0);
   const sceneAudioDropDepthRef = useRef(0);
+
+  useEffect(() => {
+    if (!selectedHotspot) {
+      setIsHotspotInspectorActive(false);
+    }
+  }, [selectedHotspot]);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -523,6 +537,23 @@ export function ScenesPanel({
     });
   }
 
+  function mutateSelectedHotspot(mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) {
+    if (!selectedHotspot) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const target = draft.scenes.items
+        .find((entry) => entry.id === currentScene.id)
+        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
+      if (!target) {
+        return;
+      }
+
+      mutator(target, draft);
+    });
+  }
+
   useEffect(() => {
     if (!currentSceneId || !selectedHotspotId) {
       return;
@@ -602,11 +633,7 @@ export function ScenesPanel({
   }
 
   return (
-    <div
-      className={
-        selectedHotspot ? "panel-grid panel-grid--scenes" : "panel-grid panel-grid--scenes panel-grid--single"
-      }
-    >
+    <div ref={scenesPanelRef} className="panel-grid panel-grid--single scenes-panel-shell">
       <section className="panel scenes-panel">
         <div className="panel__toolbar scenes-panel__toolbar">
           <div className="stack-inline scenes-panel__selectors">
@@ -740,6 +767,7 @@ export function ScenesPanel({
           <div className="scenes-panel__background-dropzone-frame">
             <MediaSurface
               asset={currentAsset}
+              className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
               locale={activeLocale}
               loopVideo={currentScene.backgroundVideoLoop}
               hotspots={currentScene.hotspots}
@@ -1161,219 +1189,430 @@ export function ScenesPanel({
       </section>
 
       {selectedHotspot ? (
-        <aside className="panel">
-          <h3>Hotspot Inspector</h3>
-          <p className="muted">
-            These hotspot shapes are clickable interaction regions over the scene. Select one to edit its
-            bounds, timing, and behavior. Drag the shape or its orange handles in the preview for quick edits,
-            or use the bounds fields below for precise values.
-          </p>
-          <article key={selectedHotspot.id} className="list-card list-card--selected">
-              <label title="Visible hotspot title shown in the editor and runtime.">
-                <span className="field-label--inset">Name</span>
-                <input
-                  value={selectedHotspot.name}
-                  title="Visible hotspot title shown in the editor and runtime."
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.scenes.items
-                        .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                      if (target) {
-                        target.name = event.target.value;
-                      }
-                    })
-                  }
-                />
-              </label>
-              <label title="Optional secondary text shown inside this hotspot under the main label.">
-                <span className="field-label--inset">Comment</span>
-                <input
-                  value={
-                    selectedHotspot.commentTextId ? localeStrings[selectedHotspot.commentTextId] ?? "" : ""
-                  }
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.scenes.items
-                        .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                      if (!target) {
-                        return;
-                      }
-
-                      target.commentTextId ??= `text.${target.id}.comment`;
-                      setEditorLocalizedText(draft, activeLocale, target.commentTextId, event.target.value);
-                    })
-                  }
-                />
-              </label>
-              <div className="four-grid">
-                {(
-                  [
-                    ["x", "X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
-                    ["y", "Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
-                    ["width", "W", "Hotspot bounds width as a normalized percentage of the scene surface."],
-                    ["height", "H", "Hotspot bounds height as a normalized percentage of the scene surface."]
-                  ] as const
-                ).map(([field, label, tooltip]) => (
-                  <label key={field} title={tooltip}>
-                    <span className="field-label--inset">{label}</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formatHotspotCoordinate(selectedHotspot[field])}
-                      title={tooltip}
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const target = draft.scenes.items
-                            .find((entry) => entry.id === currentScene.id)
-                            ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                          if (target) {
-                            const nextGeometry = applyHotspotBounds(
-                              {
-                                x: target.x,
-                                y: target.y,
-                                width: target.width,
-                                height: target.height,
-                                polygon: target.polygon
-                              },
-                              {
-                                x: field === "x" ? Number(event.target.value) : target.x,
-                                y: field === "y" ? Number(event.target.value) : target.y,
-                                width: field === "width" ? Number(event.target.value) : target.width,
-                                height: field === "height" ? Number(event.target.value) : target.height
-                              }
-                            );
-
-                            target.x = nextGeometry.x;
-                            target.y = nextGeometry.y;
-                            target.width = nextGeometry.width;
-                            target.height = nextGeometry.height;
-                            target.polygon = nextGeometry.polygon;
-                          }
-                        })
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="stack-inline">
-                <label title="Time in milliseconds when this hotspot becomes clickable.">
-                  <span className="field-label--inset">Start (ms)</span>
-                  <input
-                    type="number"
-                    value={selectedHotspot.startMs}
-                    title="Time in milliseconds when this hotspot becomes clickable."
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = draft.scenes.items
-                          .find((entry) => entry.id === currentScene.id)
-                          ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                        if (target) {
-                          target.startMs = Number(event.target.value);
-                        }
-                      })
-                    }
-                  />
-                </label>
-                <label title="Time in milliseconds when this hotspot stops being clickable.">
-                  <span className="field-label--inset">End (ms)</span>
-                  <input
-                    type="number"
-                    value={selectedHotspot.endMs}
-                    title="Time in milliseconds when this hotspot stops being clickable."
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = draft.scenes.items
-                          .find((entry) => entry.id === currentScene.id)
-                          ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                        if (target) {
-                          target.endMs = Number(event.target.value);
-                        }
-                      })
-                    }
-                  />
-                </label>
-              </div>
-              <label title="Scene that should open when this hotspot is activated.">
-                <span className="field-label--inset">Target Scene</span>
-                <select
-                  value={selectedHotspot.targetSceneId ?? ""}
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.scenes.items
-                        .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                      if (target) {
-                        target.targetSceneId = event.target.value || undefined;
-                      }
-                    })
-                  }
-                >
-                  <option value="">None</option>
-                  {project.scenes.items.map((scene) => (
-                    <option key={scene.id} value={scene.id}>
-                      {scene.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
-                <span className="field-label--inset">Required Item IDs</span>
-                <input
-                  value={selectedHotspot.requiredItemIds.join(", ")}
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.scenes.items
-                        .find((entry) => entry.id === currentScene.id)
-                        ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                      if (target) {
-                        target.requiredItemIds = event.target.value
-                          .split(",")
-                          .map((value) => value.trim())
-                          .filter(Boolean);
-                      }
-                    })
-                  }
-                />
-              </label>
-              <JsonField
-                label="Conditions JSON"
-                value={JSON.stringify(selectedHotspot.conditions, null, 2)}
-                tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
-                labelClassName="field-label--inset"
-                onCommit={(nextValue) =>
-                  mutateProject((draft) => {
-                    const target = draft.scenes.items
-                      .find((entry) => entry.id === currentScene.id)
-                      ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                    if (target) {
-                      target.conditions = parseJson(nextValue, target.conditions);
-                    }
-                  })
-                }
-              />
-              <JsonField
-                label="Effects JSON"
-                value={JSON.stringify(selectedHotspot.effects, null, 2)}
-                tooltip="Advanced JSON effect list that runs after this hotspot is activated."
-                labelClassName="field-label--inset"
-                onCommit={(nextValue) =>
-                  mutateProject((draft) => {
-                    const target = draft.scenes.items
-                      .find((entry) => entry.id === currentScene.id)
-                      ?.hotspots.find((entry) => entry.id === selectedHotspot.id);
-                    if (target) {
-                      target.effects = parseJson(nextValue, target.effects);
-                    }
-                  })
-                }
-              />
-          </article>
-        </aside>
+        <HotspotInspectorWindow
+          anchorRef={scenesPanelRef}
+          activeLocale={activeLocale}
+          localeStrings={localeStrings}
+          scenes={project.scenes.items}
+          position={hotspotInspectorPosition}
+          selectedHotspot={selectedHotspot}
+          mutateSelectedHotspot={mutateSelectedHotspot}
+          onPositionChange={setHotspotInspectorPosition}
+          onInteractionActiveChange={setIsHotspotInspectorActive}
+          onDismiss={() => setSelectedHotspotId(undefined)}
+        />
       ) : null}
     </div>
   );
+}
+
+interface HotspotInspectorWindowProps {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  activeLocale: string;
+  localeStrings: Record<string, string>;
+  position?: FloatingWindowPosition;
+  scenes: ProjectBundle["scenes"]["items"];
+  selectedHotspot: Hotspot;
+  mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
+  onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
+  onInteractionActiveChange: (active: boolean) => void;
+  onDismiss: () => void;
+}
+
+const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
+  width: 420,
+  height: 640
+};
+
+const useFloatingWindowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function HotspotInspectorWindow({
+  anchorRef,
+  activeLocale,
+  localeStrings,
+  position,
+  scenes,
+  selectedHotspot,
+  mutateSelectedHotspot,
+  onPositionChange,
+  onInteractionActiveChange,
+  onDismiss
+}: HotspotInspectorWindowProps) {
+  const inspectorRef = useRef<HTMLElement>(null);
+  const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusedWithin, setIsFocusedWithin] = useState(false);
+
+  useFloatingWindowLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncPosition = () => {
+      const viewport = getViewportSize();
+      const size = getInspectorSize(inspectorRef.current);
+      const anchorRect = anchorRef.current?.getBoundingClientRect();
+      const selectedHotspotRect = resolveSelectedHotspotRect();
+
+      onPositionChange((currentPosition) => {
+        return resolveNextFloatingWindowPosition(
+          currentPosition,
+          size,
+          viewport,
+          selectedHotspotRect,
+          anchorRect
+            ? {
+                top: anchorRect.top,
+                right: anchorRect.right
+              }
+            : undefined
+        );
+      });
+    };
+
+    syncPosition();
+
+    const handleResize = () => {
+      syncPosition();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [anchorRef, onPositionChange, selectedHotspot.id]);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    onInteractionActiveChange(isHovered || isFocusedWithin);
+  }, [isFocusedWithin, isHovered, onInteractionActiveChange]);
+
+  useEffect(() => {
+    return () => {
+      onInteractionActiveChange(false);
+    };
+  }, [onInteractionActiveChange]);
+
+  function startDrag(event: React.MouseEvent<HTMLElement>) {
+    if (event.button !== 0 || typeof window === "undefined") {
+      return;
+    }
+
+    const inspectorElement = inspectorRef.current;
+    if (!inspectorElement || !shouldStartFloatingInspectorDrag(event.target)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragCleanupRef.current?.();
+
+    const bounds = inspectorElement.getBoundingClientRect();
+    const dragOffsetX = event.clientX - bounds.left;
+    const dragOffsetY = event.clientY - bounds.top;
+    const body = document.body;
+    const previousCursor = body.style.cursor;
+    const previousUserSelect = body.style.userSelect;
+    body.style.cursor = "grabbing";
+    body.style.userSelect = "none";
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const size = getInspectorSize(inspectorRef.current);
+      const viewport = getViewportSize();
+      onPositionChange(
+        clampFloatingWindowPosition(
+          {
+            x: moveEvent.clientX - dragOffsetX,
+            y: moveEvent.clientY - dragOffsetY
+          },
+          size,
+          viewport
+        )
+      );
+    };
+
+    const finishDrag = () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", finishDrag);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+      dragCleanupRef.current = undefined;
+    };
+
+    dragCleanupRef.current = finishDrag;
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", finishDrag);
+  }
+
+  const inspectorTitleId = `hotspot-inspector-title-${selectedHotspot.id}`;
+
+  return (
+    <div className="scenes-floating-inspector-layer">
+      <aside
+        ref={inspectorRef}
+        role="dialog"
+        aria-labelledby={inspectorTitleId}
+        onMouseDown={startDrag}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onFocusCapture={() => setIsFocusedWithin(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsFocusedWithin(false);
+          }
+        }}
+        className={
+          position
+            ? "panel scenes-floating-inspector scenes-floating-inspector--ready"
+            : "panel scenes-floating-inspector"
+        }
+        style={position ? { left: `${position.x}px`, top: `${position.y}px` } : undefined}
+      >
+        <header className="scenes-floating-inspector__header">
+          <div className="scenes-floating-inspector__title-group">
+            <p className="eyebrow">Hotspot Inspector</p>
+            <h3 id={inspectorTitleId}>{selectedHotspot.name || selectedHotspot.id}</h3>
+          </div>
+          <button
+            type="button"
+            className="button-secondary scenes-floating-inspector__close"
+            title="Hide the floating hotspot inspector."
+            onClick={onDismiss}
+          >
+            Close
+          </button>
+        </header>
+
+        <div className="scenes-floating-inspector__body">
+          <p className="muted">
+            These hotspot shapes are clickable interaction regions over the scene. Drag the shape or its orange
+            handles in the preview for quick edits, then move this inspector wherever you want inside the editor
+            window.
+          </p>
+          <article className="list-card list-card--selected">
+            <label title="Visible hotspot title shown in the editor and runtime.">
+              <span className="field-label--inset">Name</span>
+              <input
+                value={selectedHotspot.name}
+                title="Visible hotspot title shown in the editor and runtime."
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.name = event.target.value;
+                  })
+                }
+              />
+            </label>
+            <label title="Optional secondary text shown inside this hotspot under the main label.">
+              <span className="field-label--inset">Comment</span>
+              <input
+                value={selectedHotspot.commentTextId ? localeStrings[selectedHotspot.commentTextId] ?? "" : ""}
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot, draft) => {
+                    hotspot.commentTextId ??= `text.${hotspot.id}.comment`;
+                    setEditorLocalizedText(draft, activeLocale, hotspot.commentTextId, event.target.value);
+                  })
+                }
+              />
+            </label>
+            <div className="four-grid">
+              {(
+                [
+                  ["x", "X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
+                  ["y", "Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
+                  ["width", "W", "Hotspot bounds width as a normalized percentage of the scene surface."],
+                  ["height", "H", "Hotspot bounds height as a normalized percentage of the scene surface."]
+                ] as const
+              ).map(([field, label, tooltip]) => (
+                <label key={field} title={tooltip}>
+                  <span className="field-label--inset">{label}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formatHotspotCoordinate(selectedHotspot[field])}
+                    title={tooltip}
+                    onChange={(event) =>
+                      mutateSelectedHotspot((hotspot) => {
+                        const nextGeometry = applyHotspotBounds(
+                          {
+                            x: hotspot.x,
+                            y: hotspot.y,
+                            width: hotspot.width,
+                            height: hotspot.height,
+                            polygon: hotspot.polygon
+                          },
+                          {
+                            x: field === "x" ? Number(event.target.value) : hotspot.x,
+                            y: field === "y" ? Number(event.target.value) : hotspot.y,
+                            width: field === "width" ? Number(event.target.value) : hotspot.width,
+                            height: field === "height" ? Number(event.target.value) : hotspot.height
+                          }
+                        );
+
+                        hotspot.x = nextGeometry.x;
+                        hotspot.y = nextGeometry.y;
+                        hotspot.width = nextGeometry.width;
+                        hotspot.height = nextGeometry.height;
+                        hotspot.polygon = nextGeometry.polygon;
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="stack-inline">
+              <label title="Time in milliseconds when this hotspot becomes clickable.">
+                <span className="field-label--inset">Start (ms)</span>
+                <input
+                  type="number"
+                  value={selectedHotspot.startMs}
+                  title="Time in milliseconds when this hotspot becomes clickable."
+                  onChange={(event) =>
+                    mutateSelectedHotspot((hotspot) => {
+                      hotspot.startMs = Number(event.target.value);
+                    })
+                  }
+                />
+              </label>
+              <label title="Time in milliseconds when this hotspot stops being clickable.">
+                <span className="field-label--inset">End (ms)</span>
+                <input
+                  type="number"
+                  value={selectedHotspot.endMs}
+                  title="Time in milliseconds when this hotspot stops being clickable."
+                  onChange={(event) =>
+                    mutateSelectedHotspot((hotspot) => {
+                      hotspot.endMs = Number(event.target.value);
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <label title="Scene that should open when this hotspot is activated.">
+              <span className="field-label--inset">Target Scene</span>
+              <select
+                value={selectedHotspot.targetSceneId ?? ""}
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.targetSceneId = event.target.value || undefined;
+                  })
+                }
+              >
+                <option value="">None</option>
+                {scenes.map((scene) => (
+                  <option key={scene.id} value={scene.id}>
+                    {scene.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
+              <span className="field-label--inset">Required Item IDs</span>
+              <input
+                value={selectedHotspot.requiredItemIds.join(", ")}
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.requiredItemIds = event.target.value
+                      .split(",")
+                      .map((value) => value.trim())
+                      .filter(Boolean);
+                  })
+                }
+              />
+            </label>
+            <JsonField
+              label="Conditions JSON"
+              value={JSON.stringify(selectedHotspot.conditions, null, 2)}
+              tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
+              labelClassName="field-label--inset"
+              onCommit={(nextValue) =>
+                mutateSelectedHotspot((hotspot) => {
+                  hotspot.conditions = parseJson(nextValue, hotspot.conditions);
+                })
+              }
+            />
+            <JsonField
+              label="Effects JSON"
+              value={JSON.stringify(selectedHotspot.effects, null, 2)}
+              tooltip="Advanced JSON effect list that runs after this hotspot is activated."
+              labelClassName="field-label--inset"
+              onCommit={(nextValue) =>
+                mutateSelectedHotspot((hotspot) => {
+                  hotspot.effects = parseJson(nextValue, hotspot.effects);
+                })
+              }
+            />
+          </article>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function getInspectorSize(element: HTMLElement | null) {
+  if (!element) {
+    return HOTSPOT_INSPECTOR_FALLBACK_SIZE;
+  }
+
+  const bounds = element.getBoundingClientRect();
+  return {
+    width: bounds.width || HOTSPOT_INSPECTOR_FALLBACK_SIZE.width,
+    height: bounds.height || HOTSPOT_INSPECTOR_FALLBACK_SIZE.height
+  };
+}
+
+function getViewportSize() {
+  return {
+    width: document.documentElement.clientWidth || window.innerWidth,
+    height: document.documentElement.clientHeight || window.innerHeight
+  };
+}
+
+function resolveSelectedHotspotRect() {
+  const selectedHotspotBody = document.querySelector(".media-surface .hotspot--selected .hotspot__body");
+  const selectedHotspotHandles = document.querySelector(".media-surface .hotspot--selected .hotspot__handles");
+  const fallbackHotspot = document.querySelector(".media-surface .hotspot--selected");
+
+  const bodyRect =
+    selectedHotspotBody instanceof HTMLElement ? selectedHotspotBody.getBoundingClientRect() : undefined;
+  const handlesRect =
+    selectedHotspotHandles instanceof HTMLElement ? selectedHotspotHandles.getBoundingClientRect() : undefined;
+
+  const bounds = bodyRect
+    ? handlesRect
+      ? {
+          left: Math.min(bodyRect.left, handlesRect.left),
+          top: Math.min(bodyRect.top, handlesRect.top),
+          right: Math.max(bodyRect.right, handlesRect.right),
+          bottom: Math.max(bodyRect.bottom, handlesRect.bottom)
+        }
+      : bodyRect
+    : fallbackHotspot instanceof HTMLElement
+      ? fallbackHotspot.getBoundingClientRect()
+      : undefined;
+
+  if (!bounds) {
+    return undefined;
+  }
+
+  return {
+    x: bounds.left,
+    y: bounds.top,
+    width: bounds.right - bounds.left,
+    height: bounds.bottom - bounds.top
+  };
+}
+
+function shouldStartFloatingInspectorDrag(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return !target.closest("input, textarea, select, button, option, label, [contenteditable='true'], [role='button'], [role='textbox']");
 }
 
 function shouldIgnoreDeleteHotspotShortcut(target: EventTarget | null): boolean {
