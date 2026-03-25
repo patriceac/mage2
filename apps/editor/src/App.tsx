@@ -23,8 +23,9 @@ import {
   resolveProjectName,
   upsertRecentProjects
 } from "./recent-project-list";
-import { isSaveShortcut } from "./keyboard-shortcuts";
+import { isRedoShortcut, isSaveShortcut, isUndoShortcut } from "./keyboard-shortcuts";
 import { type EditorTab, useEditorStore } from "./store";
+import { formatEditorWindowTitle } from "./window-title";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "world", label: "World" },
@@ -51,9 +52,13 @@ export function App() {
     project,
     projectDir,
     hasUnsavedChanges,
+    canUndo,
+    canRedo,
     activeTab,
     setProjectContext,
     updateProject,
+    undoProject,
+    redoProject,
     markProjectSaved,
     clearProjectContext,
     setActiveTab,
@@ -91,13 +96,18 @@ export function App() {
   }
 
   function mutateProject(mutator: (draft: ProjectBundle) => void) {
-    if (!project) {
+    const currentProject = useEditorStore.getState().project;
+    if (!currentProject) {
       return;
     }
 
-    const nextProject = cloneProject(project);
+    const nextProject = cloneProject(currentProject);
     mutator(nextProject);
     updateProject(nextProject);
+  }
+
+  function replaceSavedProject(project: ProjectBundle) {
+    markProjectSaved(project, { clearHistory: true });
   }
 
   async function rememberRecentProjectEntry(targetProjectDir: string, projectName?: string) {
@@ -141,6 +151,10 @@ export function App() {
   }
 
   useEffect(() => {
+    document.title = formatEditorWindowTitle(project?.manifest.projectName, hasUnsavedChanges);
+  }, [hasUnsavedChanges, project?.manifest.projectName]);
+
+  useEffect(() => {
     if (!hasEditorApi) {
       return;
     }
@@ -176,13 +190,36 @@ export function App() {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isSaveShortcut(event) || event.repeat) {
+      if (event.repeat || document.querySelector(".dialog-overlay")) {
+        return;
+      }
+
+      if (!project || busyLabel) {
+        return;
+      }
+
+      if (isUndoShortcut(event)) {
+        event.preventDefault();
+        if (canUndo) {
+          undoProject();
+        }
+        return;
+      }
+
+      if (isRedoShortcut(event)) {
+        event.preventDefault();
+        if (canRedo) {
+          redoProject();
+        }
+        return;
+      }
+
+      if (!isSaveShortcut(event)) {
         return;
       }
 
       event.preventDefault();
-
-      if (!project || !projectDir || !hasUnsavedChanges || busyLabel) {
+      if (!projectDir || !hasUnsavedChanges) {
         return;
       }
 
@@ -194,7 +231,7 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [busyLabel, hasEditorApi, hasUnsavedChanges, project, projectDir]);
+  }, [busyLabel, canRedo, canUndo, hasEditorApi, hasUnsavedChanges, project, projectDir, redoProject, undoProject]);
 
   async function handleCreateProject() {
     if (!hasEditorApi) {
@@ -501,13 +538,13 @@ export function App() {
           </nav>
 
           <main className="workspace">
-            {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={markProjectSaved} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
+            {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={replaceSavedProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
             {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
             {activeTab === "scenes" ? (
               <ScenesPanel
                 project={project}
                 mutateProject={mutateProject}
-                setSavedProject={markProjectSaved}
+                setSavedProject={replaceSavedProject}
                 setStatusMessage={setStatusMessage}
                 setBusyLabel={setBusyLabel}
               />
@@ -517,7 +554,7 @@ export function App() {
               <InventoryPanel
                 project={project}
                 mutateProject={mutateProject}
-                setSavedProject={markProjectSaved}
+                setSavedProject={replaceSavedProject}
                 setStatusMessage={setStatusMessage}
                 setBusyLabel={setBusyLabel}
               />
@@ -526,7 +563,7 @@ export function App() {
               <LocalizationPanel
                 project={project}
                 mutateProject={mutateProject}
-                setSavedProject={markProjectSaved}
+                setSavedProject={replaceSavedProject}
                 setStatusMessage={setStatusMessage}
                 setBusyLabel={setBusyLabel}
               />

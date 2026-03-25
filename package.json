@@ -9,7 +9,7 @@
   "scripts": {
     "build:packages": "npm run build --workspace @mage2/schema && npm run build --workspace @mage2/player && npm run build --workspace @mage2/media",
     "build:apps": "npm run build --workspace @mage2/runtime-web && npm run build --workspace @mage2/editor",
-    "build": "npm run build:packages && npm run build:apps",
+    "build": "node scripts/build-workspace.mjs",
     "dev:editor": "npm run build:packages && npm run dev --workspace @mage2/editor",
     "dev:runtime": "npm run build:packages && npm run dev --workspace @mage2/runtime-web",
     "package:editor:win": "npm run build:packages && npm run build --workspace @mage2/runtime-web && npm run build --workspace @mage2/editor && node scripts/package-editor-win.mjs",

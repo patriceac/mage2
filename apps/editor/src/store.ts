@@ -4,12 +4,25 @@ import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
 export type LocalizationSection = "overview" | "strings" | "subtitles" | "media";
+export interface ProjectUpdateOptions {
+  skipHistory?: boolean;
+}
+
+export interface MarkProjectSavedOptions {
+  clearHistory?: boolean;
+}
+
+const PROJECT_HISTORY_LIMIT = 100;
 
 interface EditorState {
   projectDir?: string;
   project?: ProjectBundle;
   savedProjectRevision?: string;
   hasUnsavedChanges: boolean;
+  undoStack: ProjectBundle[];
+  redoStack: ProjectBundle[];
+  canUndo: boolean;
+  canRedo: boolean;
   activeTab: EditorTab;
   selectedLocationId?: string;
   selectedSceneId?: string;
@@ -24,8 +37,11 @@ interface EditorState {
   localizationSection: LocalizationSection;
   playheadMs: number;
   setProjectContext: (project: ProjectBundle, projectDir: string) => void;
-  updateProject: (project: ProjectBundle) => void;
-  markProjectSaved: (project: ProjectBundle) => void;
+  updateProject: (project: ProjectBundle, options?: ProjectUpdateOptions) => void;
+  captureUndoCheckpoint: () => void;
+  undoProject: () => void;
+  redoProject: () => void;
+  markProjectSaved: (project: ProjectBundle, options?: MarkProjectSavedOptions) => void;
   clearProjectContext: () => void;
   setActiveTab: (activeTab: EditorTab) => void;
   setSelectedLocationId: (selectedLocationId?: string) => void;
@@ -65,8 +81,29 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
   };
 }
 
+function trimProjectHistory(stack: ProjectBundle[]): ProjectBundle[] {
+  return stack.length <= PROJECT_HISTORY_LIMIT ? stack : stack.slice(stack.length - PROJECT_HISTORY_LIMIT);
+}
+
+function resolveHistoryState(undoStack: ProjectBundle[], redoStack: ProjectBundle[]) {
+  return {
+    undoStack,
+    redoStack,
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0
+  };
+}
+
+function resolveProjectRevision(project?: ProjectBundle): string | undefined {
+  return project ? createProjectRevision(project) : undefined;
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   hasUnsavedChanges: false,
+  undoStack: [],
+  redoStack: [],
+  canUndo: false,
+  canRedo: false,
   activeTab: "world",
   localizationSection: "overview",
   playheadMs: 0,
@@ -78,22 +115,85 @@ export const useEditorStore = create<EditorState>((set) => ({
       hasUnsavedChanges: false,
       activeTab: "world",
       ...resolveProjectSelectionState(project),
+      ...resolveHistoryState([], []),
       playheadMs: 0
     }),
-  updateProject: (project) =>
-    set((state) => ({
-      project,
-      hasUnsavedChanges:
-        state.savedProjectRevision !== undefined &&
-        createProjectRevision(project) !== state.savedProjectRevision,
-      ...resolveProjectSelectionState(project, state)
-    })),
-  markProjectSaved: (project) =>
+  updateProject: (project, options) =>
+    set((state) => {
+      const nextRevision = createProjectRevision(project);
+      const currentProject = state.project;
+      const currentRevision = resolveProjectRevision(currentProject);
+      const hasChanged = currentRevision !== nextRevision;
+      const shouldRecordHistory = hasChanged && !options?.skipHistory && currentProject !== undefined;
+      const nextUndoStack = shouldRecordHistory ? trimProjectHistory([...state.undoStack, currentProject]) : state.undoStack;
+      const nextRedoStack = shouldRecordHistory ? [] : state.redoStack;
+
+      return {
+        project,
+        hasUnsavedChanges: state.savedProjectRevision !== undefined && nextRevision !== state.savedProjectRevision,
+        ...resolveProjectSelectionState(project, state),
+        ...resolveHistoryState(nextUndoStack, nextRedoStack)
+      };
+    }),
+  captureUndoCheckpoint: () =>
+    set((state) => {
+      if (!state.project) {
+        return {};
+      }
+
+      const currentRevision = createProjectRevision(state.project);
+      const latestUndoRevision = resolveProjectRevision(state.undoStack[state.undoStack.length - 1]);
+      if (currentRevision === latestUndoRevision) {
+        return state.redoStack.length > 0 ? resolveHistoryState(state.undoStack, []) : {};
+      }
+
+      return resolveHistoryState(trimProjectHistory([...state.undoStack, state.project]), []);
+    }),
+  undoProject: () =>
+    set((state) => {
+      if (!state.project || state.undoStack.length === 0) {
+        return {};
+      }
+
+      const previousProject = state.undoStack[state.undoStack.length - 1]!;
+      const nextUndoStack = state.undoStack.slice(0, -1);
+      const nextRedoStack = trimProjectHistory([...state.redoStack, state.project]);
+
+      return {
+        project: previousProject,
+        hasUnsavedChanges:
+          state.savedProjectRevision !== undefined &&
+          createProjectRevision(previousProject) !== state.savedProjectRevision,
+        ...resolveProjectSelectionState(previousProject, state),
+        ...resolveHistoryState(nextUndoStack, nextRedoStack)
+      };
+    }),
+  redoProject: () =>
+    set((state) => {
+      if (!state.project || state.redoStack.length === 0) {
+        return {};
+      }
+
+      const nextProject = state.redoStack[state.redoStack.length - 1]!;
+      const nextRedoStack = state.redoStack.slice(0, -1);
+      const nextUndoStack = trimProjectHistory([...state.undoStack, state.project]);
+
+      return {
+        project: nextProject,
+        hasUnsavedChanges:
+          state.savedProjectRevision !== undefined &&
+          createProjectRevision(nextProject) !== state.savedProjectRevision,
+        ...resolveProjectSelectionState(nextProject, state),
+        ...resolveHistoryState(nextUndoStack, nextRedoStack)
+      };
+    }),
+  markProjectSaved: (project, options) =>
     set((state) => ({
       project,
       savedProjectRevision: createProjectRevision(project),
       hasUnsavedChanges: false,
-      ...resolveProjectSelectionState(project, state)
+      ...resolveProjectSelectionState(project, state),
+      ...resolveHistoryState(options?.clearHistory ? [] : state.undoStack, options?.clearHistory ? [] : state.redoStack)
     })),
   clearProjectContext: () =>
     set({
@@ -101,6 +201,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       projectDir: undefined,
       savedProjectRevision: undefined,
       hasUnsavedChanges: false,
+      ...resolveHistoryState([], []),
       activeTab: "world",
       selectedLocationId: undefined,
       selectedSceneId: undefined,

@@ -87,7 +87,7 @@ That Windows-only smoke gate repackages the editor, repairs and validates the kn
 
 - `npm run dev:editor` starts the Electron editor with the Vite renderer and watched Electron entrypoints.
 - `npm run dev:runtime` starts the standalone runtime web app.
-- `npm run build` compiles the shared packages first, then the runtime and editor apps.
+- `npm run build` compiles the shared packages first, then the runtime and editor apps, and on Windows also refreshes the packaged editor binary in `output/packaging/editor-win/dist/`.
 - `launch-editor-dev.cmd` is a debugging-only launcher and is not valid for desktop/taskbar parity claims because Windows treats it as raw Electron.
 - The starter project template intentionally begins with placeholder content, so validation will report missing scene media until real assets are imported.
 
