@@ -3,7 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
-import { ScenesPanel } from "./ScenesPanel";
+import {
+  ScenesPanel,
+  filterInventoryPlacementOptions,
+  resolveDroppedInventoryHotspotBounds,
+  resolveInventoryPreviewContentSize,
+  resolveLinkedInventoryOptions
+} from "./ScenesPanel";
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
@@ -117,57 +123,121 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("Start Delay (ms)");
   });
 
-  it("renders hotspot create and delete actions above the scene-audio section", () => {
+  it("renders hotspot create, delete, and inventory placement actions above the scene-audio section", () => {
     const markup = renderScenesPanel(() => {});
-    const addItemHotspotIndex = markup.indexOf("Add Item Hotspot");
     const createHotspotIndex = markup.indexOf("Create Hotspot");
     const deleteHotspotIndex = markup.indexOf("Delete Hotspot");
+    const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
     const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
 
-    expect(addItemHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(createHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(deleteHotspotIndex).toBeGreaterThanOrEqual(0);
+    expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
     expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
-    expect(addItemHotspotIndex).toBeLessThan(sceneAudioIndex);
     expect(createHotspotIndex).toBeLessThan(sceneAudioIndex);
     expect(deleteHotspotIndex).toBeLessThan(sceneAudioIndex);
+    expect(addInventoryItemIndex).toBeLessThan(sceneAudioIndex);
+    expect(createHotspotIndex).toBeLessThan(deleteHotspotIndex);
+    expect(deleteHotspotIndex).toBeLessThan(addInventoryItemIndex);
     expect(markup).not.toContain("Clear Hotspot");
   });
 
-  it("shows disabled item-hotspot guidance when no inventory items have valid art", () => {
+  it("removes the old scene-toolbar inventory hotspot flow", () => {
     const markup = renderScenesPanel(() => {});
 
-    expect(markup).toContain("Add Item Hotspot");
-    expect(markup).toContain("No inventory items have valid art yet. Add an inventory image in Inventory first.");
-    expect(markup).toContain("No inventory items with valid art");
+    expect(markup).toContain("Add Inventory Item");
+    expect(markup).not.toContain("Add Item Hotspot");
+    expect(markup).not.toContain("No inventory items have valid art yet. Add an inventory image in Inventory first.");
+    expect(markup).not.toContain("No inventory items with valid art");
   });
 
-  it("lists eligible inventory items for item-hotspot creation", () => {
-    const markup = renderScenesPanel((project) => {
-      project.assets.assets.push({
-        id: "asset_item",
-        kind: "image",
-        name: "lantern.png",
-        category: "inventory",
-        variants: {
-          en: {
-            sourcePath: "D:\\project\\assets\\lantern.png",
-            importedAt: new Date().toISOString()
-          }
+  it("filters placeable inventory items by display label and internal name", () => {
+    const project = createDefaultProjectBundle("Scenes inventory search");
+    project.assets.assets.push({
+      id: "asset_item",
+      kind: "image",
+      name: "lantern.png",
+      category: "inventory",
+      variants: {
+        en: {
+          sourcePath: "D:\\project\\assets\\lantern.png",
+          importedAt: new Date().toISOString()
         }
-      });
-      project.inventory.items.push({
-        id: "item_lantern",
-        name: "Lantern",
-        textId: "text.item_lantern.name",
-        imageAssetId: "asset_item"
-      });
-      project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
+      }
+    });
+    project.inventory.items.push({
+      id: "item_lantern",
+      name: "lantern_internal",
+      textId: "text.item_lantern.name",
+      descriptionTextId: "text.item_lantern.description",
+      imageAssetId: "asset_item"
+    });
+    project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
+    project.strings.byLocale.en["text.item_lantern.description"] = "Warm brass lantern";
+
+    const options = resolveLinkedInventoryOptions(
+      project.inventory.items,
+      project.assets.assets,
+      project.strings.byLocale.en
+    ).filter((option) => option.eligible);
+
+    expect(filterInventoryPlacementOptions(options, "brass")).toHaveLength(1);
+    expect(filterInventoryPlacementOptions(options, "lantern_internal")).toHaveLength(1);
+    expect(filterInventoryPlacementOptions(options, "missing")).toHaveLength(0);
+  });
+
+  it("uses the preview content box when sizing dropped inventory items", () => {
+    const previewContentSize = resolveInventoryPreviewContentSize({
+      previewWidthPx: 76,
+      previewHeightPx: 76,
+      paddingTopPx: 7.2,
+      paddingRightPx: 7.2,
+      paddingBottomPx: 7.2,
+      paddingLeftPx: 7.2,
+      borderTopPx: 1,
+      borderRightPx: 1,
+      borderBottomPx: 1,
+      borderLeftPx: 1
     });
 
-    expect(markup).toContain("Add Item Hotspot");
-    expect(markup).toContain(">Brass Lantern</option>");
-    expect(markup).not.toContain("No inventory items with valid art");
+    expect(previewContentSize.width).toBeCloseTo(59.6);
+    expect(previewContentSize.height).toBeCloseTo(59.6);
+  });
+
+  it("converts dragged preview pixels into dropped hotspot bounds", () => {
+    expect(
+      resolveDroppedInventoryHotspotBounds({
+        normalizedX: 0.5,
+        normalizedY: 0.5,
+        surfaceWidth: 400,
+        surfaceHeight: 200,
+        previewWidthPx: 80,
+        previewHeightPx: 40
+      })
+    ).toEqual({
+      x: 0.4,
+      y: 0.4,
+      width: 0.2,
+      height: 0.2
+    });
+  });
+
+  it("clamps dropped inventory bounds near the scene edge", () => {
+    expect(
+      resolveDroppedInventoryHotspotBounds({
+        normalizedX: 0.98,
+        normalizedY: 0.97,
+        surfaceWidth: 200,
+        surfaceHeight: 200,
+        previewWidthPx: 80,
+        previewHeightPx: 80
+      })
+    ).toEqual({
+      x: 0.6,
+      y: 0.6,
+      width: 0.4,
+      height: 0.4
+    });
   });
 
   it("shows guidance and disables scene-audio imports for video backgrounds", () => {

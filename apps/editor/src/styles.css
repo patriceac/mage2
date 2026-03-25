@@ -522,6 +522,11 @@ label > .checkbox-list {
   box-shadow: 0 0 0 1px rgba(246, 193, 119, 0.28);
 }
 
+.scenes-panel__background-dropzone--inventory-active .media-surface {
+  border-color: rgba(125, 211, 252, 0.92);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.3);
+}
+
 .scenes-panel__background-dropzone-overlay {
   position: absolute;
   inset: 0;
@@ -536,6 +541,12 @@ label > .checkbox-list {
   color: #f7fafc;
   text-align: center;
   pointer-events: none;
+}
+
+.scenes-panel__background-dropzone-overlay--inventory {
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.2), rgba(74, 222, 128, 0.08)),
+    rgba(10, 16, 24, 0.62);
 }
 
 .scenes-panel__background-dropzone-overlay strong {
@@ -679,6 +690,11 @@ label > .checkbox-list {
   visibility: hidden;
 }
 
+.scenes-floating-inspector--inventory-picker {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100vh - 2rem));
+}
+
 .scenes-floating-inspector__header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -710,6 +726,78 @@ label > .checkbox-list {
   overflow: auto;
   padding-top: var(--space-md);
   padding-right: 0.25rem;
+}
+
+.scenes-floating-inspector__body--inventory-picker {
+  gap: var(--space-sm);
+}
+
+.scenes-inventory-picker__search {
+  width: 100%;
+}
+
+.scenes-inventory-picker__preview,
+.scenes-inventory-picker__empty-state {
+  align-content: start;
+}
+
+.scenes-inventory-picker__preview strong,
+.scenes-inventory-picker__item-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenes-inventory-picker__description,
+.scenes-inventory-picker__drag-hint,
+.scenes-inventory-picker__empty-state p {
+  margin: 0;
+}
+
+.scenes-inventory-picker__description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scenes-inventory-picker__list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.scenes-inventory-picker__item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.scenes-inventory-picker__item-drag-handle {
+  display: block;
+  cursor: grab;
+}
+
+.scenes-inventory-picker__item-drag-handle:active {
+  cursor: grabbing;
+}
+
+.scenes-inventory-picker__item-thumb {
+  width: 4.75rem;
+}
+
+.scenes-inventory-picker__item-thumb .asset-preview {
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+}
+
+.scenes-inventory-picker__item-thumb .asset-preview__media--contain {
+  padding: 0.45rem;
+}
+
+.scenes-inventory-picker__item-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .panel--flow {

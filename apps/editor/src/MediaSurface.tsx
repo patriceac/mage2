@@ -32,6 +32,10 @@ interface MediaSurfaceProps {
   playheadMs?: number;
   onPlayheadMsChange?: (playheadMs: number) => void;
   onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
+  onSurfaceDragEnter?: React.DragEventHandler<HTMLDivElement>;
+  onSurfaceDragLeave?: React.DragEventHandler<HTMLDivElement>;
+  onSurfaceDragOver?: React.DragEventHandler<HTMLDivElement>;
+  onSurfaceDrop?: (event: MediaSurfaceDropEvent) => void;
   onHotspotClick?: (hotspotId: string) => void;
   onHotspotDragStart?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
@@ -53,6 +57,10 @@ export function MediaSurface({
   playheadMs,
   onPlayheadMsChange,
   onSurfaceClick,
+  onSurfaceDragEnter,
+  onSurfaceDragLeave,
+  onSurfaceDragOver,
+  onSurfaceDrop,
   onHotspotClick,
   onHotspotDragStart,
   onHotspotChange,
@@ -254,6 +262,26 @@ export function MediaSurface({
     });
   };
 
+  const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    if (!onSurfaceDrop) {
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
+
+    onSurfaceDrop({
+      normalizedX: Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1),
+      normalizedY: Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1),
+      surfaceWidth: bounds.width,
+      surfaceHeight: bounds.height,
+      dataTransfer: event.dataTransfer,
+      originalEvent: event
+    });
+  };
+
   const editableHotspots = Boolean(onHotspotChange);
 
   const startHotspotDrag =
@@ -355,6 +383,10 @@ export function MediaSurface({
     <div
       className={className ? `media-surface ${className}` : "media-surface"}
       onClick={handleClick}
+      onDragEnter={onSurfaceDragEnter}
+      onDragLeave={onSurfaceDragLeave}
+      onDragOver={onSurfaceDragOver}
+      onDrop={handleDrop}
       title={
         showSurfaceTooltips
           ? onSurfaceClick
@@ -457,6 +489,15 @@ interface MediaSurfaceClickEvent {
   normalizedX: number;
   normalizedY: number;
   createRequested: boolean;
+}
+
+export interface MediaSurfaceDropEvent {
+  normalizedX: number;
+  normalizedY: number;
+  surfaceHeight: number;
+  surfaceWidth: number;
+  dataTransfer: DataTransfer;
+  originalEvent: React.DragEvent<HTMLDivElement>;
 }
 
 interface HotspotButtonProps {

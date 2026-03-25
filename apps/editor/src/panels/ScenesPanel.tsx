@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { MediaSurface } from "../MediaSurface";
+import { MediaSurface, type MediaSurfaceDropEvent } from "../MediaSurface";
 import { getLocaleStringValues, type Asset, type Hotspot, type InventoryItem, type ProjectBundle, validateProject } from "@mage2/schema";
 import { resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
@@ -27,7 +27,12 @@ import {
   type RemoveSceneFromProjectResult
 } from "../project-helpers";
 import { resolveHotspotVisuals } from "../hotspot-visuals";
-import { applyHotspotBounds, formatHotspotCoordinate, type HotspotGeometry } from "../hotspot-geometry";
+import {
+  MIN_HOTSPOT_SIZE,
+  applyHotspotBounds,
+  formatHotspotCoordinate,
+  type HotspotGeometry
+} from "../hotspot-geometry";
 import {
   clampFloatingWindowPosition,
   resolveNextFloatingWindowPosition,
@@ -49,6 +54,9 @@ interface ScenesPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
+const INVENTORY_ITEM_DRAG_TYPE = "application/x-mage2-inventory-item";
+const INVENTORY_ITEM_DRAG_SIZE_TYPE = "application/x-mage2-inventory-preview-size";
+
 export function ScenesPanel({
   project,
   mutateProject,
@@ -58,6 +66,7 @@ export function ScenesPanel({
 }: ScenesPanelProps) {
   const dialogs = useDialogs();
   const scenesPanelRef = useRef<HTMLDivElement>(null);
+  const inventoryPickerAnchorRef = useRef<HTMLButtonElement>(null);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const playheadMs = useEditorStore((state) => state.playheadMs);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
@@ -86,10 +95,17 @@ export function ScenesPanel({
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
+  const [isInventoryPickerOpen, setIsInventoryPickerOpen] = useState(false);
+  const [isInventoryPickerDragging, setIsInventoryPickerDragging] = useState(false);
+  const [isInventoryPlacementDropActive, setIsInventoryPlacementDropActive] = useState(false);
   const [isHotspotInspectorActive, setIsHotspotInspectorActive] = useState(false);
+  const [inventoryPickerPosition, setInventoryPickerPosition] = useState<FloatingWindowPosition>();
+  const [inventoryPickerSearch, setInventoryPickerSearch] = useState("");
+  const [activeInventoryPickerItemId, setActiveInventoryPickerItemId] = useState<string>();
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
-  const [selectedInventoryHotspotItemId, setSelectedInventoryHotspotItemId] = useState<string>();
   const backgroundDropDepthRef = useRef(0);
+  const inventoryPlacementDropDepthRef = useRef(0);
+  const inventoryDragPreviewSizeRef = useRef<{ itemId: string; widthPx: number; heightPx: number } | undefined>(undefined);
   const sceneAudioDropDepthRef = useRef(0);
   const linkedInventoryOptions = resolveLinkedInventoryOptions(
     project.inventory.items,
@@ -98,6 +114,10 @@ export function ScenesPanel({
     selectedHotspot?.inventoryItemId
   );
   const eligibleLinkedInventoryOptions = linkedInventoryOptions.filter((option) => option.eligible);
+  const visibleInventoryPickerOptions = filterInventoryPlacementOptions(eligibleLinkedInventoryOptions, inventoryPickerSearch);
+  const activeInventoryPickerItem =
+    visibleInventoryPickerOptions.find((option) => option.itemId === activeInventoryPickerItemId) ??
+    visibleInventoryPickerOptions[0];
   const hotspotVisuals = resolveHotspotVisuals({
     hotspots: currentScene.hotspots,
     inventoryItems: project.inventory.items,
@@ -113,12 +133,12 @@ export function ScenesPanel({
   }, [selectedHotspot]);
 
   useEffect(() => {
-    if (eligibleLinkedInventoryOptions.some((option) => option.itemId === selectedInventoryHotspotItemId)) {
+    if (visibleInventoryPickerOptions.some((option) => option.itemId === activeInventoryPickerItemId)) {
       return;
     }
 
-    setSelectedInventoryHotspotItemId(eligibleLinkedInventoryOptions[0]?.itemId);
-  }, [eligibleLinkedInventoryOptions, selectedInventoryHotspotItemId]);
+    setActiveInventoryPickerItemId(visibleInventoryPickerOptions[0]?.itemId);
+  }, [activeInventoryPickerItemId, visibleInventoryPickerOptions]);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -417,6 +437,10 @@ export function ScenesPanel({
     return Array.from(event.dataTransfer.types).includes("Files");
   }
 
+  function isInventoryItemDrag(event: React.DragEvent<HTMLElement>) {
+    return isInventoryPickerDragging || Array.from(event.dataTransfer.types).includes(INVENTORY_ITEM_DRAG_TYPE);
+  }
+
   function handleBackgroundDragEnter(event: React.DragEvent<HTMLDivElement>) {
     if (!isFileDrag(event)) {
       return;
@@ -471,6 +495,73 @@ export function ScenesPanel({
     }
 
     await importBackgroundFromFilePath(filePath);
+  }
+
+  function handleInventoryPlacementDragEnter(event: React.DragEvent<HTMLDivElement>) {
+    if (!isInventoryItemDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    inventoryPlacementDropDepthRef.current += 1;
+    setIsInventoryPlacementDropActive(true);
+  }
+
+  function handleInventoryPlacementDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!isInventoryItemDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!isInventoryPlacementDropActive) {
+      setIsInventoryPlacementDropActive(true);
+    }
+  }
+
+  function handleInventoryPlacementDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (!isInventoryItemDrag(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    inventoryPlacementDropDepthRef.current = Math.max(inventoryPlacementDropDepthRef.current - 1, 0);
+    if (inventoryPlacementDropDepthRef.current === 0) {
+      setIsInventoryPlacementDropActive(false);
+    }
+  }
+
+  function handleInventoryPlacementDragEnd() {
+    inventoryPlacementDropDepthRef.current = 0;
+    inventoryDragPreviewSizeRef.current = undefined;
+    setIsInventoryPickerDragging(false);
+    setIsInventoryPlacementDropActive(false);
+  }
+
+  function handleInventoryPlacementDrop(event: MediaSurfaceDropEvent) {
+    const itemId = resolveDraggedInventoryItemId(event.dataTransfer, linkedInventoryOptions);
+    if (!itemId) {
+      return;
+    }
+
+    event.originalEvent.preventDefault();
+    inventoryPlacementDropDepthRef.current = 0;
+    setIsInventoryPickerDragging(false);
+    setIsInventoryPlacementDropActive(false);
+
+    const dragPreviewSize =
+      resolveDraggedInventoryPreviewSize(event.dataTransfer) ??
+      (inventoryDragPreviewSizeRef.current?.itemId === itemId ? inventoryDragPreviewSizeRef.current : undefined);
+    inventoryDragPreviewSizeRef.current = undefined;
+
+    placeInventoryHotspot(itemId, {
+      normalizedX: event.normalizedX,
+      normalizedY: event.normalizedY,
+      surfaceWidth: event.surfaceWidth,
+      surfaceHeight: event.surfaceHeight,
+      previewWidthPx: dragPreviewSize?.widthPx,
+      previewHeightPx: dragPreviewSize?.heightPx
+    });
   }
 
   function handleSceneAudioDragEnter(event: React.DragEvent<HTMLDivElement>) {
@@ -568,23 +659,66 @@ export function ScenesPanel({
     });
   }
 
-  function createInventoryHotspotAtBestAvailablePosition() {
-    if (!currentSceneId || !selectedInventoryHotspotItemId) {
+  function placeInventoryHotspot(
+    itemId: string,
+    position?: {
+      normalizedX: number;
+      normalizedY: number;
+      surfaceWidth?: number;
+      surfaceHeight?: number;
+      previewWidthPx?: number;
+      previewHeightPx?: number;
+    }
+  ) {
+    if (!currentSceneId) {
+      setStatusMessage("Select a scene before placing an inventory item.");
       return;
     }
 
+    const option = linkedInventoryOptions.find((entry) => entry.itemId === itemId);
+    if (!option?.eligible) {
+      setStatusMessage("Add artwork to an item to make it available here.");
+      return;
+    }
+
+    let createdHotspotId: string | undefined;
     mutateProject((draft) => {
-      const hotspot = addHotspotAtBestAvailablePosition(draft, currentSceneId);
-      const item = draft.inventory.items.find((entry) => entry.id === selectedInventoryHotspotItemId);
+      const hotspot = position
+        ? addHotspot(draft, currentSceneId, position.normalizedX, position.normalizedY)
+        : addHotspotAtBestAvailablePosition(draft, currentSceneId);
+      const item = draft.inventory.items.find((entry) => entry.id === itemId);
       if (!hotspot || !item) {
         return;
       }
 
-      hotspot.inventoryItemId = item.id;
-      hotspot.polygon = undefined;
-      hotspot.name = localeStrings[item.textId] ?? item.name ?? hotspot.name;
-      setSelectedHotspotId(hotspot.id);
+      applyInventoryLinkToHotspot(hotspot, item, localeStrings);
+      const droppedBounds =
+        position?.surfaceWidth && position.surfaceHeight && position.previewWidthPx && position.previewHeightPx
+          ? resolveDroppedInventoryHotspotBounds({
+              normalizedX: position.normalizedX,
+              normalizedY: position.normalizedY,
+              surfaceWidth: position.surfaceWidth,
+              surfaceHeight: position.surfaceHeight,
+              previewWidthPx: position.previewWidthPx,
+              previewHeightPx: position.previewHeightPx
+            })
+          : undefined;
+      if (droppedBounds) {
+        hotspot.x = droppedBounds.x;
+        hotspot.y = droppedBounds.y;
+        hotspot.width = droppedBounds.width;
+        hotspot.height = droppedBounds.height;
+        hotspot.polygon = undefined;
+      }
+      createdHotspotId = hotspot.id;
     });
+
+    if (!createdHotspotId) {
+      setStatusMessage("Could not place that inventory item in this scene.");
+      return;
+    }
+
+    setSelectedHotspotId(createdHotspotId);
   }
 
   function mutateSelectedHotspot(mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) {
@@ -804,11 +938,13 @@ export function ScenesPanel({
         </label>
 
         <div
-          className={
-            isBackgroundDropActive
-              ? "scenes-panel__background-dropzone scenes-panel__background-dropzone--active"
-              : "scenes-panel__background-dropzone"
-          }
+          className={[
+            "scenes-panel__background-dropzone",
+            isBackgroundDropActive ? "scenes-panel__background-dropzone--active" : "",
+            isInventoryPlacementDropActive ? "scenes-panel__background-dropzone--inventory-active" : ""
+          ]
+            .filter(Boolean)
+            .join(" ")}
           onDragEnter={handleBackgroundDragEnter}
           onDragOver={handleBackgroundDragOver}
           onDragLeave={handleBackgroundDragLeave}
@@ -822,6 +958,10 @@ export function ScenesPanel({
               loopVideo={currentScene.backgroundVideoLoop}
               hotspots={currentScene.hotspots}
               hotspotVisuals={hotspotVisuals}
+              onSurfaceDragEnter={handleInventoryPlacementDragEnter}
+              onSurfaceDragOver={handleInventoryPlacementDragOver}
+              onSurfaceDragLeave={handleInventoryPlacementDragLeave}
+              onSurfaceDrop={handleInventoryPlacementDrop}
               strings={localeStrings}
               showSurfaceTooltips={false}
               showHotspotTooltips={false}
@@ -848,6 +988,11 @@ export function ScenesPanel({
                 <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
                 <span>Use an image or video file.</span>
               </div>
+            ) : isInventoryPlacementDropActive ? (
+              <div className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory" aria-hidden="true">
+                <strong>Drop to place item</strong>
+                <span>Release to create a linked inventory hotspot at this position.</span>
+              </div>
             ) : null}
           </div>
           <p className="muted scenes-panel__background-dropzone-hint">
@@ -858,32 +1003,6 @@ export function ScenesPanel({
         </div>
 
         <div className="stack-inline scenes-panel__hotspot-actions">
-          <label title="Choose which inventory item will be used when creating the next item hotspot.">
-            <span className="field-label--inset">Inventory Item</span>
-            <select
-              value={selectedInventoryHotspotItemId ?? ""}
-              disabled={eligibleLinkedInventoryOptions.length === 0}
-              onChange={(event) => setSelectedInventoryHotspotItemId(event.target.value || undefined)}
-            >
-              {eligibleLinkedInventoryOptions.length === 0 ? (
-                <option value="">No inventory items with valid art</option>
-              ) : null}
-              {eligibleLinkedInventoryOptions.map((option) => (
-                <option key={option.itemId} value={option.itemId}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="button-secondary"
-            disabled={!selectedInventoryHotspotItemId}
-            title="Create a new hotspot that uses the selected inventory item's art in this scene."
-            onClick={createInventoryHotspotAtBestAvailablePosition}
-          >
-            Add Item Hotspot
-          </button>
           <button
             type="button"
             title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
@@ -900,12 +1019,17 @@ export function ScenesPanel({
           >
             Delete Hotspot
           </button>
+          <button
+            ref={inventoryPickerAnchorRef}
+            type="button"
+            className="button-secondary"
+            title="Search inventory items and place them into this scene."
+            aria-expanded={isInventoryPickerOpen}
+            onClick={() => setIsInventoryPickerOpen((current) => !current)}
+          >
+            Add Inventory Item
+          </button>
         </div>
-        {eligibleLinkedInventoryOptions.length === 0 ? (
-          <p className="muted scenes-panel__hotspot-inventory-hint">
-            No inventory items have valid art yet. Add an inventory image in Inventory first.
-          </p>
-        ) : null}
 
         <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
           <span className="field-label--inset">Scene Audio</span>
@@ -1264,6 +1388,32 @@ export function ScenesPanel({
         </section>
       </section>
 
+      {isInventoryPickerOpen ? (
+        <InventoryPlacementPickerWindow
+          activeItem={activeInventoryPickerItem}
+          activeLocale={activeLocale}
+          anchorRef={inventoryPickerAnchorRef}
+          options={visibleInventoryPickerOptions}
+          position={inventoryPickerPosition}
+          search={inventoryPickerSearch}
+          showEmptyInventoryState={eligibleLinkedInventoryOptions.length === 0}
+          onActiveItemIdChange={setActiveInventoryPickerItemId}
+          onDragStart={(itemId, previewSize) => {
+            inventoryDragPreviewSizeRef.current = {
+              itemId,
+              widthPx: previewSize.width,
+              heightPx: previewSize.height
+            };
+            setIsInventoryPickerDragging(true);
+          }}
+          onDragEnd={handleInventoryPlacementDragEnd}
+          onPlaceItem={placeInventoryHotspot}
+          onPositionChange={setInventoryPickerPosition}
+          onSearchChange={setInventoryPickerSearch}
+          onDismiss={() => setIsInventoryPickerOpen(false)}
+        />
+      ) : null}
+
       {selectedHotspot ? (
         <HotspotInspectorWindow
           anchorRef={scenesPanelRef}
@@ -1298,10 +1448,36 @@ interface HotspotInspectorWindowProps {
 }
 
 interface LinkedInventoryOption {
+  asset?: Asset;
+  description?: string;
+  internalName: string;
   itemId: string;
   label: string;
   eligible: boolean;
+  searchText: string;
 }
+
+interface InventoryPlacementPickerWindowProps {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  activeItem?: LinkedInventoryOption;
+  activeLocale: string;
+  options: LinkedInventoryOption[];
+  position?: FloatingWindowPosition;
+  search: string;
+  showEmptyInventoryState: boolean;
+  onActiveItemIdChange: (itemId?: string) => void;
+  onDragStart: (itemId: string, previewSize: { width: number; height: number }) => void;
+  onDragEnd: () => void;
+  onPlaceItem: (itemId: string) => void;
+  onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
+  onSearchChange: (value: string) => void;
+  onDismiss: () => void;
+}
+
+const INVENTORY_PICKER_FALLBACK_SIZE = {
+  width: 520,
+  height: 620
+};
 
 const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
   width: 420,
@@ -1309,6 +1485,269 @@ const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
 };
 
 const useFloatingWindowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function InventoryPlacementPickerWindow({
+  anchorRef,
+  activeItem,
+  activeLocale,
+  options,
+  position,
+  search,
+  showEmptyInventoryState,
+  onActiveItemIdChange,
+  onDragStart,
+  onDragEnd,
+  onPlaceItem,
+  onPositionChange,
+  onSearchChange,
+  onDismiss
+}: InventoryPlacementPickerWindowProps) {
+  const pickerRef = useRef<HTMLElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const dragImageCleanupRef = useRef<(() => void) | undefined>(undefined);
+
+  useFloatingWindowLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncPosition = () => {
+      const viewport = getViewportSize();
+      const size = getFloatingWindowSize(pickerRef.current, INVENTORY_PICKER_FALLBACK_SIZE);
+      const anchorRect = anchorRef.current?.getBoundingClientRect();
+
+      onPositionChange((currentPosition) => {
+        return resolveNextFloatingWindowPosition(
+          currentPosition,
+          size,
+          viewport,
+          undefined,
+          anchorRect
+            ? {
+                top: anchorRect.bottom,
+                right: anchorRect.right
+              }
+            : undefined
+        );
+      });
+    };
+
+    syncPosition();
+
+    const handleResize = () => {
+      syncPosition();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [anchorRef, onPositionChange, options.length, showEmptyInventoryState]);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      dragImageCleanupRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showEmptyInventoryState) {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }
+  }, [showEmptyInventoryState]);
+
+  function startDrag(event: React.MouseEvent<HTMLElement>) {
+    if (event.button !== 0 || typeof window === "undefined") {
+      return;
+    }
+
+    const pickerElement = pickerRef.current;
+    if (!pickerElement || !shouldStartFloatingWindowDrag(event.target)) {
+      return;
+    }
+
+    event.preventDefault();
+    dragCleanupRef.current?.();
+
+    const bounds = pickerElement.getBoundingClientRect();
+    const dragOffsetX = event.clientX - bounds.left;
+    const dragOffsetY = event.clientY - bounds.top;
+    const body = document.body;
+    const previousCursor = body.style.cursor;
+    const previousUserSelect = body.style.userSelect;
+    body.style.cursor = "grabbing";
+    body.style.userSelect = "none";
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const size = getFloatingWindowSize(pickerRef.current, INVENTORY_PICKER_FALLBACK_SIZE);
+      const viewport = getViewportSize();
+      onPositionChange(
+        clampFloatingWindowPosition(
+          {
+            x: moveEvent.clientX - dragOffsetX,
+            y: moveEvent.clientY - dragOffsetY
+          },
+          size,
+          viewport
+        )
+      );
+    };
+
+    const finishDrag = () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", finishDrag);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+      dragCleanupRef.current = undefined;
+    };
+
+    dragCleanupRef.current = finishDrag;
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", finishDrag);
+  }
+
+  function handleItemDragStart(event: React.DragEvent<HTMLDivElement>, itemId: string) {
+    const previewSize = resolveInventoryDragPreviewSize(event.currentTarget);
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData(INVENTORY_ITEM_DRAG_TYPE, itemId);
+    event.dataTransfer.setData(INVENTORY_ITEM_DRAG_SIZE_TYPE, JSON.stringify(previewSize));
+    event.dataTransfer.setData("text/plain", itemId);
+    dragImageCleanupRef.current?.();
+    dragImageCleanupRef.current = setTransparentInventoryDragImage(event.dataTransfer, event.currentTarget);
+    onActiveItemIdChange(itemId);
+    onDragStart(itemId, previewSize);
+  }
+
+  function handleItemDragEnd() {
+    dragImageCleanupRef.current?.();
+    dragImageCleanupRef.current = undefined;
+    onDragEnd();
+  }
+
+  const pickerTitleId = "inventory-placement-picker-title";
+
+  return (
+    <div className="scenes-floating-inspector-layer">
+      <aside
+        ref={pickerRef}
+        role="dialog"
+        aria-labelledby={pickerTitleId}
+        onMouseDown={startDrag}
+        className={
+          position
+            ? "panel scenes-floating-inspector scenes-floating-inspector--inventory-picker scenes-floating-inspector--ready"
+            : "panel scenes-floating-inspector scenes-floating-inspector--inventory-picker"
+        }
+        style={position ? { left: `${position.x}px`, top: `${position.y}px` } : undefined}
+      >
+        <header className="scenes-floating-inspector__header">
+          <div className="scenes-floating-inspector__title-group">
+            <p className="eyebrow">Scene Placement</p>
+            <h3 id={pickerTitleId}>Add inventory item</h3>
+          </div>
+          <button
+            type="button"
+            className="button-secondary scenes-floating-inspector__close"
+            title="Hide the inventory placement picker."
+            onClick={onDismiss}
+          >
+            Close
+          </button>
+        </header>
+
+        <div className="scenes-floating-inspector__body scenes-floating-inspector__body--inventory-picker">
+          {showEmptyInventoryState ? (
+            <div className="list-card scenes-inventory-picker__empty-state">
+              <strong>No items are ready to place</strong>
+              <p className="muted">Add artwork to an item to make it available here.</p>
+            </div>
+          ) : (
+            <>
+              <label className="localization-filter localization-filter--search scenes-inventory-picker__search">
+                <span className="field-label--inset">Search</span>
+                <input
+                  ref={searchInputRef}
+                  value={search}
+                  placeholder="Search inventory items"
+                  onChange={(event) => onSearchChange(event.target.value)}
+                />
+              </label>
+
+              <div className="list-card list-card--compact scenes-inventory-picker__preview">
+                <strong>{activeItem?.label ?? "No matching items"}</strong>
+                <p className="muted scenes-inventory-picker__description">
+                  {activeItem?.description?.trim() || (options.length === 0 ? "No matching items" : "No description available.")}
+                </p>
+                <p className="muted scenes-inventory-picker__drag-hint">Drag an item onto the scene to place it</p>
+              </div>
+
+              {options.length === 0 ? (
+                <div className="list-card list-card--compact scenes-inventory-picker__empty-state">
+                  <strong>No matching items</strong>
+                </div>
+              ) : (
+                <div className="list-stack scenes-inventory-picker__list">
+                  {options.map((option) => (
+                    <article
+                      key={option.itemId}
+                      data-inventory-item-id={option.itemId}
+                      className={
+                        activeItem?.itemId === option.itemId
+                          ? "list-card list-card--compact list-card--selected scenes-inventory-picker__item"
+                          : "list-card list-card--compact scenes-inventory-picker__item"
+                      }
+                      title={option.internalName !== option.label ? option.internalName : undefined}
+                      onMouseEnter={() => onActiveItemIdChange(option.itemId)}
+                      onFocusCapture={() => onActiveItemIdChange(option.itemId)}
+                    >
+                      <div
+                        draggable
+                        data-floating-window-drag-ignore="true"
+                        className="scenes-inventory-picker__item-drag-handle"
+                        title={`Drag ${option.label} onto the scene to place it.`}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onDragStart={(event) => handleItemDragStart(event, option.itemId)}
+                        onDragEnd={handleItemDragEnd}
+                      >
+                        <div className="scenes-inventory-picker__item-thumb">
+                          <AssetPreview
+                            asset={option.asset}
+                            locale={activeLocale}
+                            interactive={false}
+                            allowSourceFallback
+                            preferPosterForImages
+                            fit="contain"
+                            emptyTitle="No item image"
+                            emptyBody="Assign item artwork in Inventory."
+                          />
+                        </div>
+                      </div>
+                      <div className="scenes-inventory-picker__item-copy">
+                        <strong>{option.label}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onFocus={() => onActiveItemIdChange(option.itemId)}
+                        onClick={() => onPlaceItem(option.itemId)}
+                      >
+                        Place
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
 
 function HotspotInspectorWindow({
   anchorRef,
@@ -1335,7 +1774,7 @@ function HotspotInspectorWindow({
 
     const syncPosition = () => {
       const viewport = getViewportSize();
-      const size = getInspectorSize(inspectorRef.current);
+      const size = getFloatingWindowSize(inspectorRef.current, HOTSPOT_INSPECTOR_FALLBACK_SIZE);
       const anchorRect = anchorRef.current?.getBoundingClientRect();
       const selectedHotspotRect = resolveSelectedHotspotRect();
 
@@ -1389,7 +1828,7 @@ function HotspotInspectorWindow({
     }
 
     const inspectorElement = inspectorRef.current;
-    if (!inspectorElement || !shouldStartFloatingInspectorDrag(event.target)) {
+    if (!inspectorElement || !shouldStartFloatingWindowDrag(event.target)) {
       return;
     }
 
@@ -1406,7 +1845,7 @@ function HotspotInspectorWindow({
     body.style.userSelect = "none";
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const size = getInspectorSize(inspectorRef.current);
+      const size = getFloatingWindowSize(inspectorRef.current, HOTSPOT_INSPECTOR_FALLBACK_SIZE);
       const viewport = getViewportSize();
       onPositionChange(
         clampFloatingWindowPosition(
@@ -1661,15 +2100,21 @@ function HotspotInspectorWindow({
   );
 }
 
-function getInspectorSize(element: HTMLElement | null) {
+function getFloatingWindowSize(
+  element: HTMLElement | null,
+  fallbackSize: {
+    width: number;
+    height: number;
+  }
+) {
   if (!element) {
-    return HOTSPOT_INSPECTOR_FALLBACK_SIZE;
+    return fallbackSize;
   }
 
   const bounds = element.getBoundingClientRect();
   return {
-    width: bounds.width || HOTSPOT_INSPECTOR_FALLBACK_SIZE.width,
-    height: bounds.height || HOTSPOT_INSPECTOR_FALLBACK_SIZE.height
+    width: bounds.width || fallbackSize.width,
+    height: bounds.height || fallbackSize.height
   };
 }
 
@@ -1715,7 +2160,7 @@ function resolveSelectedHotspotRect() {
   };
 }
 
-function resolveLinkedInventoryOptions(
+export function resolveLinkedInventoryOptions(
   items: InventoryItem[],
   assets: Asset[],
   strings: Record<string, string>,
@@ -1731,9 +2176,13 @@ function resolveLinkedInventoryOptions(
     }
 
     options.push({
+      asset,
+      description: normalizeInventoryPickerText(item.descriptionTextId ? strings[item.descriptionTextId] : undefined),
+      internalName: item.name,
       itemId: item.id,
       label: strings[item.textId] ?? item.name ?? item.id,
-      eligible: true
+      eligible: true,
+      searchText: `${strings[item.textId] ?? item.name ?? item.id}\n${item.name}`.toLowerCase()
     });
   }
 
@@ -1745,9 +2194,11 @@ function resolveLinkedInventoryOptions(
   if (!currentItem) {
     return [
       {
+        internalName: currentItemId,
         itemId: currentItemId,
         label: `Missing inventory item (${currentItemId})`,
-        eligible: false
+        eligible: false,
+        searchText: currentItemId.toLowerCase()
       },
       ...options
     ];
@@ -1755,20 +2206,225 @@ function resolveLinkedInventoryOptions(
 
   return [
     {
+      asset: currentItem.imageAssetId ? assetsById.get(currentItem.imageAssetId) : undefined,
+      description: normalizeInventoryPickerText(currentItem.descriptionTextId ? strings[currentItem.descriptionTextId] : undefined),
+      internalName: currentItem.name,
       itemId: currentItem.id,
       label: `${strings[currentItem.textId] ?? currentItem.name ?? currentItem.id} (missing valid art)`,
-      eligible: false
+      eligible: false,
+      searchText: `${strings[currentItem.textId] ?? currentItem.name ?? currentItem.id}\n${currentItem.name}`.toLowerCase()
     },
     ...options
   ];
 }
 
-function shouldStartFloatingInspectorDrag(target: EventTarget | null): boolean {
+export function filterInventoryPlacementOptions(options: LinkedInventoryOption[], search: string): LinkedInventoryOption[] {
+  const normalizedSearch = search.trim().toLowerCase();
+  if (normalizedSearch.length === 0) {
+    return options;
+  }
+
+  return options.filter((option) => option.searchText.includes(normalizedSearch));
+}
+
+function applyInventoryLinkToHotspot(hotspot: Hotspot, item: InventoryItem, strings: Record<string, string>) {
+  hotspot.inventoryItemId = item.id;
+  hotspot.polygon = undefined;
+  hotspot.name = strings[item.textId] ?? item.name ?? hotspot.name;
+}
+
+function normalizeInventoryPickerText(value: string | undefined) {
+  const normalizedValue = value?.replace(/\s+/g, " ").trim() ?? "";
+  return normalizedValue.length > 0 ? normalizedValue : undefined;
+}
+
+function resolveDraggedInventoryItemId(dataTransfer: DataTransfer, options: LinkedInventoryOption[]) {
+  const customItemId = dataTransfer.getData(INVENTORY_ITEM_DRAG_TYPE).trim();
+  if (customItemId.length > 0) {
+    return customItemId;
+  }
+
+  const plainTextItemId = dataTransfer.getData("text/plain").trim();
+  return options.some((option) => option.itemId === plainTextItemId) ? plainTextItemId : undefined;
+}
+
+function resolveInventoryDragPreviewSize(dragHandle: HTMLElement) {
+  const sourceImage = dragHandle.querySelector<HTMLElement>("img.asset-preview__media");
+  if (!sourceImage) {
+    const previewBounds = dragHandle.getBoundingClientRect();
+    return {
+      width: Math.max(previewBounds.width, 1),
+      height: Math.max(previewBounds.height, 1)
+    };
+  }
+
+  const previewBounds = sourceImage.getBoundingClientRect();
+  const previewStyles = window.getComputedStyle(sourceImage);
+  return resolveInventoryPreviewContentSize({
+    previewWidthPx: previewBounds.width,
+    previewHeightPx: previewBounds.height,
+    paddingTopPx: parseCssPixelValue(previewStyles.paddingTop),
+    paddingRightPx: parseCssPixelValue(previewStyles.paddingRight),
+    paddingBottomPx: parseCssPixelValue(previewStyles.paddingBottom),
+    paddingLeftPx: parseCssPixelValue(previewStyles.paddingLeft),
+    borderTopPx: parseCssPixelValue(previewStyles.borderTopWidth),
+    borderRightPx: parseCssPixelValue(previewStyles.borderRightWidth),
+    borderBottomPx: parseCssPixelValue(previewStyles.borderBottomWidth),
+    borderLeftPx: parseCssPixelValue(previewStyles.borderLeftWidth)
+  });
+}
+
+export function resolveInventoryPreviewContentSize({
+  previewWidthPx,
+  previewHeightPx,
+  paddingTopPx,
+  paddingRightPx,
+  paddingBottomPx,
+  paddingLeftPx,
+  borderTopPx,
+  borderRightPx,
+  borderBottomPx,
+  borderLeftPx
+}: {
+  previewWidthPx: number;
+  previewHeightPx: number;
+  paddingTopPx: number;
+  paddingRightPx: number;
+  paddingBottomPx: number;
+  paddingLeftPx: number;
+  borderTopPx: number;
+  borderRightPx: number;
+  borderBottomPx: number;
+  borderLeftPx: number;
+}) {
+  return {
+    width: Math.max(previewWidthPx - paddingLeftPx - paddingRightPx - borderLeftPx - borderRightPx, 1),
+    height: Math.max(previewHeightPx - paddingTopPx - paddingBottomPx - borderTopPx - borderBottomPx, 1)
+  };
+}
+
+function parseCssPixelValue(value: string) {
+  const parsedValue = Number.parseFloat(value);
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+export function resolveDroppedInventoryHotspotBounds({
+  normalizedX,
+  normalizedY,
+  surfaceWidth,
+  surfaceHeight,
+  previewWidthPx,
+  previewHeightPx
+}: {
+  normalizedX: number;
+  normalizedY: number;
+  surfaceWidth: number;
+  surfaceHeight: number;
+  previewWidthPx: number;
+  previewHeightPx: number;
+}) {
+  if (surfaceWidth <= 0 || surfaceHeight <= 0 || previewWidthPx <= 0 || previewHeightPx <= 0) {
+    return undefined;
+  }
+
+  const width = Math.min(Math.max(previewWidthPx / surfaceWidth, MIN_HOTSPOT_SIZE), 1);
+  const height = Math.min(Math.max(previewHeightPx / surfaceHeight, MIN_HOTSPOT_SIZE), 1);
+  const x = Math.min(Math.max(normalizedX - width / 2, 0), 1 - width);
+  const y = Math.min(Math.max(normalizedY - height / 2, 0), 1 - height);
+
+  return {
+    x,
+    y,
+    width,
+    height
+  };
+}
+
+function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle: HTMLElement) {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+
+  const sourceImage = dragHandle.querySelector<HTMLImageElement>("img.asset-preview__media");
+  if (sourceImage && (sourceImage.currentSrc || sourceImage.src)) {
+    const bounds = sourceImage.getBoundingClientRect();
+    const width = Math.max(Math.round(bounds.width), 1);
+    const height = Math.max(Math.round(bounds.height), 1);
+    const sourceImageStyles = window.getComputedStyle(sourceImage);
+    const sourceBorderRadius = sourceImageStyles.borderRadius;
+    const dragImageFrame = document.createElement("div");
+    dragImageFrame.dataset.inventoryDragImageFrame = "true";
+    Object.assign(dragImageFrame.style, {
+      position: "fixed",
+      left: "-10000px",
+      top: "-10000px",
+      width: `${width}px`,
+      height: `${height}px`,
+      display: "block",
+      overflow: "hidden",
+      margin: "0",
+      padding: "0",
+      border: "0",
+      borderRadius: sourceBorderRadius,
+      background: "transparent",
+      boxShadow: "none",
+      pointerEvents: "none"
+    });
+
+    const dragImage = document.createElement("img");
+    dragImage.src = sourceImage.currentSrc || sourceImage.src;
+    dragImage.alt = "";
+    dragImage.draggable = false;
+    dragImage.dataset.inventoryDragImage = "true";
+    Object.assign(dragImage.style, {
+      display: sourceImageStyles.display,
+      width: `${width}px`,
+      height: `${height}px`,
+      margin: "0",
+      minWidth: `${width}px`,
+      minHeight: `${height}px`,
+      maxWidth: `${width}px`,
+      maxHeight: `${height}px`,
+      paddingTop: sourceImageStyles.paddingTop,
+      paddingRight: sourceImageStyles.paddingRight,
+      paddingBottom: sourceImageStyles.paddingBottom,
+      paddingLeft: sourceImageStyles.paddingLeft,
+      border: "0",
+      borderRadius: sourceBorderRadius,
+      background: "transparent",
+      boxShadow: "none",
+      boxSizing: sourceImageStyles.boxSizing,
+      objectFit: sourceImageStyles.objectFit,
+      objectPosition: sourceImageStyles.objectPosition,
+      imageRendering: sourceImageStyles.imageRendering,
+      pointerEvents: "none"
+    });
+    dragImageFrame.appendChild(dragImage);
+    document.body.appendChild(dragImageFrame);
+    dataTransfer.setDragImage(dragImageFrame, width / 2, height / 2);
+    return () => {
+      dragImageFrame.remove();
+    };
+  }
+
+  const fallbackPreview = dragHandle.querySelector<HTMLElement>(".asset-preview__media, .asset-preview") ?? dragHandle;
+  const fallbackBounds = fallbackPreview.getBoundingClientRect();
+  dataTransfer.setDragImage(
+    fallbackPreview,
+    Math.max(fallbackBounds.width / 2, 0),
+    Math.max(fallbackBounds.height / 2, 0)
+  );
+  return undefined;
+}
+
+function shouldStartFloatingWindowDrag(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
 
-  return !target.closest("input, textarea, select, button, option, label, [contenteditable='true'], [role='button'], [role='textbox']");
+  return !target.closest(
+    "input, textarea, select, button, option, label, [contenteditable='true'], [role='button'], [role='textbox'], [data-floating-window-drag-ignore='true']"
+  );
 }
 
 function shouldIgnoreDeleteHotspotShortcut(target: EventTarget | null): boolean {
