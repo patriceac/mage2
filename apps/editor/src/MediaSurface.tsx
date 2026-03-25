@@ -31,6 +31,7 @@ interface MediaSurfaceProps {
   onPlayheadMsChange?: (playheadMs: number) => void;
   onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
   onHotspotClick?: (hotspotId: string) => void;
+  onHotspotDragStart?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
   selectedHotspotId?: string;
   className?: string;
@@ -50,6 +51,7 @@ export function MediaSurface({
   onPlayheadMsChange,
   onSurfaceClick,
   onHotspotClick,
+  onHotspotDragStart,
   onHotspotChange,
   selectedHotspotId,
   className
@@ -264,6 +266,9 @@ export function MediaSurface({
           return;
         }
 
+        if (!didDrag) {
+          onHotspotDragStart?.(hotspot.id);
+        }
         latestGeometry = nextGeometry;
         didDrag = true;
         onHotspotChange(hotspot.id, nextGeometry);

@@ -63,6 +63,7 @@ export function ScenesPanel({
   const setSelectedHotspotId = useEditorStore((state) => state.setSelectedHotspotId);
   const setPlayheadMs = useEditorStore((state) => state.setPlayheadMs);
   const updateProject = useEditorStore((state) => state.updateProject);
+  const captureUndoCheckpoint = useEditorStore((state) => state.captureUndoCheckpoint);
   const activeLocale = project.manifest.defaultLanguage;
   const availableBackgroundAssets = project.assets.assets.filter(isBackgroundAsset);
   const availableSceneAudioAssets = project.assets.assets.filter(isSceneAudioAsset);
@@ -99,21 +100,26 @@ export function ScenesPanel({
   }, [currentScene?.backgroundAssetId, currentScene?.sceneAudioAssetId, currentScene?.sceneAudioDelayMs, currentSceneId, setPlayheadMs]);
 
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
-    mutateProject((draft) => {
-      const target = draft.scenes.items
-        .find((entry) => entry.id === currentSceneId)
-        ?.hotspots.find((entry) => entry.id === hotspotId);
+    const currentProject = useEditorStore.getState().project ?? project;
+    const nextProject = cloneProject(currentProject);
+    const target = nextProject.scenes.items
+      .find((entry) => entry.id === currentSceneId)
+      ?.hotspots.find((entry) => entry.id === hotspotId);
 
-      if (!target) {
-        return;
-      }
+    if (!target) {
+      return;
+    }
 
-      target.x = geometry.x;
-      target.y = geometry.y;
-      target.width = geometry.width;
-      target.height = geometry.height;
-      target.polygon = geometry.polygon;
-    });
+    target.x = geometry.x;
+    target.y = geometry.y;
+    target.width = geometry.width;
+    target.height = geometry.height;
+    target.polygon = geometry.polygon;
+    updateProject(nextProject, { skipHistory: true });
+  }
+
+  function captureHotspotDragCheckpoint() {
+    captureUndoCheckpoint();
   }
 
   function deleteSubtitleTrack(trackId: string) {
@@ -789,6 +795,7 @@ export function ScenesPanel({
                 });
               }}
               onHotspotClick={(hotspotId) => setSelectedHotspotId(hotspotId)}
+              onHotspotDragStart={captureHotspotDragCheckpoint}
               onHotspotChange={updateHotspotGeometry}
             />
             {isBackgroundDropActive ? (
