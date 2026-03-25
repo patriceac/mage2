@@ -115,6 +115,41 @@ describe("applyHotspotDrag", () => {
       ]
     });
   });
+
+  it("keeps inventory-backed hotspots rectangular even when legacy polygon points exist", () => {
+    expect(
+      applyHotspotDrag(
+        {
+          inventoryItemId: "item_lantern",
+          x: 0.2,
+          y: 0.15,
+          width: 0.18,
+          height: 0.16,
+          polygon: [
+            { x: 0.22, y: 0.15 },
+            { x: 0.38, y: 0.19 },
+            { x: 0.36, y: 0.32 },
+            { x: 0.2, y: 0.29 }
+          ]
+        },
+        "se",
+        0.06,
+        0.04
+      )
+    ).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.2,
+      y: 0.15,
+      width: 0.24,
+      height: 0.2,
+      polygon: [
+        { x: 0.2, y: 0.15 },
+        { x: 0.44, y: 0.15 },
+        { x: 0.44, y: 0.35 },
+        { x: 0.2, y: 0.35 }
+      ]
+    });
+  });
 });
 
 describe("applyHotspotBounds", () => {
@@ -147,6 +182,44 @@ describe("applyHotspotBounds", () => {
       height: 0.24,
       polygon: [
         { x: 0.33, y: 0.32 },
+        { x: 0.34, y: 0.1 },
+        { x: 0.34, y: 0.34 },
+        { x: 0.1, y: 0.34 }
+      ]
+    });
+  });
+
+  it("keeps inventory-backed hotspots rectangular when the inspector changes bounds", () => {
+    expect(
+      applyHotspotBounds(
+        {
+          inventoryItemId: "item_lantern",
+          x: 0.2,
+          y: 0.15,
+          width: 0.18,
+          height: 0.16,
+          polygon: [
+            { x: 0.22, y: 0.15 },
+            { x: 0.38, y: 0.19 },
+            { x: 0.36, y: 0.32 },
+            { x: 0.2, y: 0.29 }
+          ]
+        },
+        {
+          x: 0.1,
+          y: 0.1,
+          width: 0.24,
+          height: 0.24
+        }
+      )
+    ).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.1,
+      y: 0.1,
+      width: 0.24,
+      height: 0.24,
+      polygon: [
+        { x: 0.1, y: 0.1 },
         { x: 0.34, y: 0.1 },
         { x: 0.34, y: 0.34 },
         { x: 0.1, y: 0.34 }
