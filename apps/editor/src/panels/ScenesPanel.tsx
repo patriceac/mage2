@@ -659,6 +659,23 @@ export function ScenesPanel({
     });
   }
 
+  function resolveCurrentSceneSurfaceSize() {
+    const mediaSurface = scenesPanelRef.current?.querySelector<HTMLElement>(".media-surface");
+    if (!mediaSurface) {
+      return undefined;
+    }
+
+    const bounds = mediaSurface.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return undefined;
+    }
+
+    return {
+      width: bounds.width,
+      height: bounds.height
+    };
+  }
+
   function placeInventoryHotspot(
     itemId: string,
     position?: {
@@ -668,6 +685,12 @@ export function ScenesPanel({
       surfaceHeight?: number;
       previewWidthPx?: number;
       previewHeightPx?: number;
+    },
+    autoPlacement?: {
+      surfaceWidth: number;
+      surfaceHeight: number;
+      previewWidthPx: number;
+      previewHeightPx: number;
     }
   ) {
     if (!currentSceneId) {
@@ -703,11 +726,23 @@ export function ScenesPanel({
               previewHeightPx: position.previewHeightPx
             })
           : undefined;
-      if (droppedBounds) {
-        hotspot.x = droppedBounds.x;
-        hotspot.y = droppedBounds.y;
-        hotspot.width = droppedBounds.width;
-        hotspot.height = droppedBounds.height;
+      const autoPlacedBounds =
+        !position && autoPlacement
+          ? resolveDroppedInventoryHotspotBounds({
+              normalizedX: hotspot.x + hotspot.width / 2,
+              normalizedY: hotspot.y + hotspot.height / 2,
+              surfaceWidth: autoPlacement.surfaceWidth,
+              surfaceHeight: autoPlacement.surfaceHeight,
+              previewWidthPx: autoPlacement.previewWidthPx,
+              previewHeightPx: autoPlacement.previewHeightPx
+            })
+          : undefined;
+      const nextBounds = droppedBounds ?? autoPlacedBounds;
+      if (nextBounds) {
+        hotspot.x = nextBounds.x;
+        hotspot.y = nextBounds.y;
+        hotspot.width = nextBounds.width;
+        hotspot.height = nextBounds.height;
         hotspot.polygon = undefined;
       }
       createdHotspotId = hotspot.id;
@@ -1407,7 +1442,21 @@ export function ScenesPanel({
             setIsInventoryPickerDragging(true);
           }}
           onDragEnd={handleInventoryPlacementDragEnd}
-          onPlaceItem={placeInventoryHotspot}
+          onPlaceItem={(itemId, previewSize) => {
+            const surfaceSize = previewSize ? resolveCurrentSceneSurfaceSize() : undefined;
+            placeInventoryHotspot(
+              itemId,
+              undefined,
+              surfaceSize && previewSize
+                ? {
+                    surfaceWidth: surfaceSize.width,
+                    surfaceHeight: surfaceSize.height,
+                    previewWidthPx: previewSize.width,
+                    previewHeightPx: previewSize.height
+                  }
+                : undefined
+            );
+          }}
           onPositionChange={setInventoryPickerPosition}
           onSearchChange={setInventoryPickerSearch}
           onDismiss={() => setIsInventoryPickerOpen(false)}
@@ -1468,7 +1517,7 @@ interface InventoryPlacementPickerWindowProps {
   onActiveItemIdChange: (itemId?: string) => void;
   onDragStart: (itemId: string, previewSize: { width: number; height: number }) => void;
   onDragEnd: () => void;
-  onPlaceItem: (itemId: string) => void;
+  onPlaceItem: (itemId: string, previewSize?: { width: number; height: number }) => void;
   onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
   onSearchChange: (value: string) => void;
   onDismiss: () => void;
@@ -1628,6 +1677,11 @@ function InventoryPlacementPickerWindow({
     onDragEnd();
   }
 
+  function handlePlaceButtonClick(event: React.MouseEvent<HTMLButtonElement>, itemId: string) {
+    const previewSize = resolveInventoryPlacementActionPreviewSize(event.currentTarget);
+    onPlaceItem(itemId, previewSize);
+  }
+
   const pickerTitleId = "inventory-placement-picker-title";
 
   return (
@@ -1733,7 +1787,7 @@ function InventoryPlacementPickerWindow({
                         type="button"
                         className="button-secondary"
                         onFocus={() => onActiveItemIdChange(option.itemId)}
-                        onClick={() => onPlaceItem(option.itemId)}
+                        onClick={(event) => handlePlaceButtonClick(event, option.itemId)}
                       >
                         Place
                       </button>
@@ -2248,6 +2302,32 @@ function resolveDraggedInventoryItemId(dataTransfer: DataTransfer, options: Link
   return options.some((option) => option.itemId === plainTextItemId) ? plainTextItemId : undefined;
 }
 
+function resolveDraggedInventoryPreviewSize(dataTransfer: DataTransfer) {
+  const serializedSize = dataTransfer.getData(INVENTORY_ITEM_DRAG_SIZE_TYPE).trim();
+  if (serializedSize.length === 0) {
+    return undefined;
+  }
+
+  try {
+    const parsedSize = JSON.parse(serializedSize) as {
+      width?: unknown;
+      height?: unknown;
+    };
+    if (typeof parsedSize.width !== "number" || typeof parsedSize.height !== "number") {
+      return undefined;
+    }
+
+    return parsedSize.width > 0 && parsedSize.height > 0
+      ? {
+          widthPx: parsedSize.width,
+          heightPx: parsedSize.height
+        }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveInventoryDragPreviewSize(dragHandle: HTMLElement) {
   const sourceImage = dragHandle.querySelector<HTMLElement>("img.asset-preview__media");
   if (!sourceImage) {
@@ -2272,6 +2352,13 @@ function resolveInventoryDragPreviewSize(dragHandle: HTMLElement) {
     borderBottomPx: parseCssPixelValue(previewStyles.borderBottomWidth),
     borderLeftPx: parseCssPixelValue(previewStyles.borderLeftWidth)
   });
+}
+
+function resolveInventoryPlacementActionPreviewSize(button: HTMLButtonElement) {
+  const dragHandle = button
+    .closest<HTMLElement>(".scenes-inventory-picker__item")
+    ?.querySelector<HTMLElement>(".scenes-inventory-picker__item-drag-handle");
+  return dragHandle ? resolveInventoryDragPreviewSize(dragHandle) : undefined;
 }
 
 export function resolveInventoryPreviewContentSize({

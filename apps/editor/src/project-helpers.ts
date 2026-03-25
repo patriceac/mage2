@@ -17,7 +17,7 @@ import {
   resolveAssetCategory,
   resolveHotspotBounds
 } from "@mage2/schema";
-import { roundHotspotCoordinate } from "./hotspot-geometry";
+import { MIN_HOTSPOT_SIZE, roundHotspotCoordinate } from "./hotspot-geometry";
 import {
   collectOwnedGeneratedProjectTextIdsForHotspot,
   collectOwnedGeneratedProjectTextIdsForScene,
@@ -566,14 +566,18 @@ export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y
 
 export function addHotspotAtBestAvailablePosition(
   project: ProjectBundle,
-  sceneId: string
+  sceneId: string,
+  size?: {
+    width: number;
+    height: number;
+  }
 ): Hotspot | undefined {
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
   if (!scene) {
     return undefined;
   }
 
-  return createHotspot(scene, findBestHotspotBounds(scene.hotspots));
+  return createHotspot(scene, findBestHotspotBounds(scene.hotspots, size));
 }
 
 export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
@@ -711,16 +715,33 @@ function createHotspot(
   return hotspot;
 }
 
-function resolveHotspotBoundsFromCenter(centerX: number, centerY: number) {
+function resolveHotspotBoundsFromCenter(
+  centerX: number,
+  centerY: number,
+  size?: {
+    width: number;
+    height: number;
+  }
+) {
+  const width = clamp(size?.width ?? DEFAULT_HOTSPOT_WIDTH, MIN_HOTSPOT_SIZE, 1);
+  const height = clamp(size?.height ?? DEFAULT_HOTSPOT_HEIGHT, MIN_HOTSPOT_SIZE, 1);
   return roundHotspotBounds({
-    x: clamp(centerX - DEFAULT_HOTSPOT_WIDTH / 2, 0, 1 - DEFAULT_HOTSPOT_WIDTH),
-    y: clamp(centerY - DEFAULT_HOTSPOT_HEIGHT / 2, 0, 1 - DEFAULT_HOTSPOT_HEIGHT),
-    width: DEFAULT_HOTSPOT_WIDTH,
-    height: DEFAULT_HOTSPOT_HEIGHT
+    x: clamp(centerX - width / 2, 0, 1 - width),
+    y: clamp(centerY - height / 2, 0, 1 - height),
+    width,
+    height
   });
 }
 
-function findBestHotspotBounds(hotspots: Hotspot[]) {
+function findBestHotspotBounds(
+  hotspots: Hotspot[],
+  size?: {
+    width: number;
+    height: number;
+  }
+) {
+  const width = size?.width ?? DEFAULT_HOTSPOT_WIDTH;
+  const height = size?.height ?? DEFAULT_HOTSPOT_HEIGHT;
   const occupiedBounds = hotspots.map((hotspot) => resolveHotspotBounds(hotspot));
   let bestCandidate:
     | {
@@ -734,9 +755,9 @@ function findBestHotspotBounds(hotspots: Hotspot[]) {
       }
     | undefined;
 
-  for (const centerX of createHotspotCandidateCenters(DEFAULT_HOTSPOT_WIDTH)) {
-    for (const centerY of createHotspotCandidateCenters(DEFAULT_HOTSPOT_HEIGHT)) {
-      const bounds = resolveHotspotBoundsFromCenter(centerX, centerY);
+  for (const centerX of createHotspotCandidateCenters(width)) {
+    for (const centerY of createHotspotCandidateCenters(height)) {
+      const bounds = resolveHotspotBoundsFromCenter(centerX, centerY, size);
       const score = scoreHotspotPlacement(bounds, occupiedBounds);
 
       if (!bestCandidate || compareHotspotPlacementScores(score, bestCandidate.score) < 0) {
@@ -745,7 +766,7 @@ function findBestHotspotBounds(hotspots: Hotspot[]) {
     }
   }
 
-  return bestCandidate?.bounds ?? resolveHotspotBoundsFromCenter(0.5, 0.5);
+  return bestCandidate?.bounds ?? resolveHotspotBoundsFromCenter(0.5, 0.5, size);
 }
 
 function createHotspotCandidateCenters(size: number): number[] {
