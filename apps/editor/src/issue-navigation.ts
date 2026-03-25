@@ -190,6 +190,7 @@ export function resolveIssueNavigation(
         tab: "dialogue"
       };
     case "HOTSPOT_ITEM_MISSING":
+    case "HOTSPOT_INVENTORY_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":
     case "EFFECT_ITEM_MISSING":
     case "INVENTORY_IMAGE_MISSING":
@@ -264,6 +265,7 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "EFFECT_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";
     case "HOTSPOT_ITEM_MISSING":
+    case "HOTSPOT_INVENTORY_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":
     case "EFFECT_ITEM_MISSING":
       return "Create the inventory item in the Inventory tab or remove the item reference.";

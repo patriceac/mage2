@@ -97,6 +97,96 @@ describe("project defaults", () => {
     expect(resolveAssetCategory(parsed.assets.assets[1]!)).toBe("sceneAudio");
     expect(parsed.scenes.items[0]?.sceneAudioLoop).toBe(true);
     expect(parsed.scenes.items[0]?.sceneAudioDelayMs).toBe(0);
+    expect(parsed.scenes.items[0]?.hotspots).toEqual([]);
+  });
+
+  it("parses hotspots without inventory-item links from legacy projects", () => {
+    const parsed = parseProjectBundle({
+      manifest: {
+        schemaVersion: 5,
+        projectId: "project_legacy_hotspot",
+        projectName: "Legacy Hotspot",
+        defaultLanguage: "en",
+        supportedLocales: ["en"],
+        engineVersion: "0.1.0",
+        assetRoots: [],
+        startLocationId: "location_intro",
+        startSceneId: "scene_intro",
+        buildSettings: { outputDir: "build", includeSourceMap: false }
+      },
+      assets: { schemaVersion: 5, assets: [] },
+      locations: { schemaVersion: 5, items: [{ id: "location_intro", name: "Intro", x: 0, y: 0, sceneIds: ["scene_intro"] }] },
+      scenes: {
+        schemaVersion: 5,
+        items: [
+          {
+            id: "scene_intro",
+            locationId: "location_intro",
+            name: "Intro",
+            backgroundVideoLoop: false,
+            hotspots: [
+              {
+                id: "hotspot_one",
+                name: "Hotspot 1",
+                x: 0.1,
+                y: 0.2,
+                width: 0.3,
+                height: 0.2,
+                polygon: [
+                  { x: 0.1, y: 0.2 },
+                  { x: 0.4, y: 0.2 },
+                  { x: 0.4, y: 0.4 },
+                  { x: 0.1, y: 0.4 }
+                ],
+                startMs: 0,
+                endMs: 30000,
+                requiredItemIds: [],
+                conditions: [{ type: "always" }],
+                effects: []
+              }
+            ],
+            subtitleTracks: [],
+            dialogueTreeIds: [],
+            onEnterEffects: [],
+            onExitEffects: []
+          }
+        ]
+      },
+      dialogues: { schemaVersion: 5, items: [] },
+      inventory: { schemaVersion: 5, items: [] },
+      strings: { schemaVersion: 5, byLocale: { en: {} } }
+    });
+
+    expect(parsed.manifest.schemaVersion).toBe(6);
+    expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
+  });
+
+  it("round-trips inventory-backed hotspot links", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_item",
+      kind: "image",
+      name: "lantern.png",
+      category: "inventory",
+      variants: {
+        en: {
+          sourcePath: "lantern.png",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.inventory.items.push({
+      id: "item_lantern",
+      name: "Lantern",
+      textId: "text.item_lantern.name",
+      imageAssetId: "asset_item"
+    });
+    project.strings.byLocale.en["text.item_lantern.name"] = "Lantern";
+    project.scenes.items[0]!.hotspots[0]!.inventoryItemId = "item_lantern";
+
+    const parsed = parseProjectBundle(project);
+
+    expect(parsed.scenes.items[0]?.hotspots[0]?.inventoryItemId).toBe("item_lantern");
   });
 });
 
@@ -336,6 +426,15 @@ describe("project validation", () => {
     const report = validateProject(project);
 
     expect(report.issues.some((issue) => issue.code === "INVENTORY_IMAGE_CATEGORY_INVALID")).toBe(true);
+  });
+
+  it("rejects hotspots that reference missing linked inventory items", () => {
+    const project = createDefaultProjectBundle();
+    project.scenes.items[0]!.hotspots[0]!.inventoryItemId = "item_missing";
+
+    const report = validateProject(project);
+
+    expect(report.issues.some((issue) => issue.code === "HOTSPOT_INVENTORY_ITEM_MISSING")).toBe(true);
   });
 
   it("aligns the starter hotspot with the desk doors in the placeholder scene artwork", () => {

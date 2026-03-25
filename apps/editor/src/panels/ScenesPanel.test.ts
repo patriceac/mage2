@@ -117,6 +117,59 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("Start Delay (ms)");
   });
 
+  it("renders hotspot create and delete actions above the scene-audio section", () => {
+    const markup = renderScenesPanel(() => {});
+    const addItemHotspotIndex = markup.indexOf("Add Item Hotspot");
+    const createHotspotIndex = markup.indexOf("Create Hotspot");
+    const deleteHotspotIndex = markup.indexOf("Delete Hotspot");
+    const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
+
+    expect(addItemHotspotIndex).toBeGreaterThanOrEqual(0);
+    expect(createHotspotIndex).toBeGreaterThanOrEqual(0);
+    expect(deleteHotspotIndex).toBeGreaterThanOrEqual(0);
+    expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
+    expect(addItemHotspotIndex).toBeLessThan(sceneAudioIndex);
+    expect(createHotspotIndex).toBeLessThan(sceneAudioIndex);
+    expect(deleteHotspotIndex).toBeLessThan(sceneAudioIndex);
+    expect(markup).not.toContain("Clear Hotspot");
+  });
+
+  it("shows disabled item-hotspot guidance when no inventory items have valid art", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain("Add Item Hotspot");
+    expect(markup).toContain("No inventory items have valid art yet. Add an inventory image in Inventory first.");
+    expect(markup).toContain("No inventory items with valid art");
+  });
+
+  it("lists eligible inventory items for item-hotspot creation", () => {
+    const markup = renderScenesPanel((project) => {
+      project.assets.assets.push({
+        id: "asset_item",
+        kind: "image",
+        name: "lantern.png",
+        category: "inventory",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\lantern.png",
+            importedAt: new Date().toISOString()
+          }
+        }
+      });
+      project.inventory.items.push({
+        id: "item_lantern",
+        name: "Lantern",
+        textId: "text.item_lantern.name",
+        imageAssetId: "asset_item"
+      });
+      project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
+    });
+
+    expect(markup).toContain("Add Item Hotspot");
+    expect(markup).toContain(">Brass Lantern</option>");
+    expect(markup).not.toContain("No inventory items with valid art");
+  });
+
   it("shows guidance and disables scene-audio imports for video backgrounds", () => {
     const markup = renderScenesPanel((project) => {
       project.assets.assets.push(
@@ -166,6 +219,8 @@ describe("ScenesPanel scene audio UI", () => {
 
     expect(markup).toContain("scenes-floating-inspector");
     expect(markup).toContain("Hide the floating hotspot inspector.");
+    expect(markup).toContain('>Inventory Item</span>');
+    expect(markup).toContain("Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 });

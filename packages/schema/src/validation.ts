@@ -304,6 +304,15 @@ function validateScene(
       });
     }
 
+    if (hotspot.inventoryItemId && !inventoryIds.has(hotspot.inventoryItemId)) {
+      issues.push({
+        level: "error",
+        code: "HOTSPOT_INVENTORY_ITEM_MISSING",
+        message: `Hotspot '${hotspot.id}' references missing inventory item '${hotspot.inventoryItemId}'.`,
+        entityId: hotspot.id
+      });
+    }
+
     for (const itemId of hotspot.requiredItemIds) {
       if (!inventoryIds.has(itemId)) {
         issues.push({

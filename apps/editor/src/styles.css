@@ -504,6 +504,10 @@ label > .checkbox-list {
   flex-wrap: wrap;
 }
 
+.scenes-panel__hotspot-inventory-hint {
+  margin: -0.5rem 0 0;
+}
+
 .scenes-panel__background-dropzone {
   display: grid;
   gap: var(--space-sm);
@@ -1322,9 +1326,39 @@ label > .checkbox-list {
   touch-action: none;
 }
 
+.hotspot__visual-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  background: transparent;
+  overflow: hidden;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__visual {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.22));
+}
+
 .hotspot__body {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1354,6 +1388,38 @@ label > .checkbox-list {
     box-shadow 120ms ease,
     opacity 120ms ease,
     transform 120ms ease;
+}
+
+.hotspot__body--with-visual {
+  border-width: 2px;
+  background: rgba(10, 16, 24, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.08),
+    0 0 0 1px rgba(210, 244, 255, 0.18);
+}
+
+.hotspot__body--with-visual .hotspot__beacon {
+  display: none;
+}
+
+.hotspot__body--with-visual::before {
+  inset: -1px;
+  background:
+    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 24px 4px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 4px 24px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 24px 4px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 4px 24px no-repeat,
+    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 24px 4px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 4px 24px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 24px 4px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 4px 24px no-repeat;
+  filter: none;
+}
+
+.hotspot__body--with-visual::after {
+  inset: -4px;
+  border-width: 2px;
+  opacity: 0.42;
 }
 
 .hotspot__body::before,
@@ -1471,6 +1537,11 @@ label > .checkbox-list {
   outline: none;
 }
 
+.hotspot--with-visual .hotspot__visual-frame {
+  border-color: transparent;
+  background: transparent;
+}
+
 .hotspot--selected .hotspot__body {
   border-color: #f6c177;
   background:
@@ -1527,6 +1598,23 @@ label > .checkbox-list {
   box-shadow: none;
 }
 
+.hotspot--selected .hotspot__visual-frame {
+  border-color: rgba(246, 193, 119, 0.78);
+  background: linear-gradient(180deg, rgba(28, 19, 10, 0.08), rgba(28, 19, 10, 0.18));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 247, 236, 0.12),
+    0 0 0 1px rgba(246, 193, 119, 0.2),
+    0 0 24px rgba(246, 193, 119, 0.18);
+}
+
+.hotspot--selected .hotspot__body--with-visual {
+  background: rgba(246, 193, 119, 0.08);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 247, 236, 0.12),
+    0 0 0 1px rgba(246, 193, 119, 0.22),
+    0 0 20px rgba(246, 193, 119, 0.18);
+}
+
 .hotspot--editable .hotspot__body {
   cursor: grab;
 }
@@ -1543,6 +1631,11 @@ label > .checkbox-list {
 .media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
   opacity: 0;
   transform: scale(0.98);
+}
+
+.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__visual-frame {
+  opacity: 0.92;
+  transform: scale(0.995);
 }
 
 .media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__label-card {
@@ -1564,6 +1657,11 @@ label > .checkbox-list {
 .media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
   opacity: 0;
   transform: scale(0.98);
+}
+
+.media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__visual-frame {
+  opacity: 0.92;
+  transform: scale(0.995);
 }
 
 .media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__label-card {
@@ -1599,6 +1697,16 @@ label > .checkbox-list {
     0 0 0 1px rgba(206, 244, 255, 0.28),
     0 0 32px rgba(102, 225, 255, 0.36),
     0 16px 30px rgba(5, 10, 14, 0.18);
+}
+
+.hotspot:hover .hotspot__visual-frame,
+.hotspot:focus-within .hotspot__visual-frame {
+  border-color: rgba(206, 244, 255, 0.62);
+  background: linear-gradient(180deg, rgba(15, 23, 30, 0.08), rgba(8, 12, 17, 0.2));
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.12),
+    0 0 0 1px rgba(206, 244, 255, 0.18),
+    0 12px 28px rgba(5, 10, 14, 0.18);
 }
 
 .hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::before,
