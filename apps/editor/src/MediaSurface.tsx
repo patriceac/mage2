@@ -16,11 +16,13 @@ import {
   shouldSyncPlayheadMs
 } from "./media-playhead";
 import { resolveFileUrl } from "./file-url-cache";
+import type { HotspotVisual } from "./hotspot-visuals";
 
 interface MediaSurfaceProps {
   asset?: Asset;
   locale?: string;
   hotspots?: Hotspot[];
+  hotspotVisuals?: Record<string, HotspotVisual | undefined>;
   strings?: Record<string, string>;
   hotspotAppearance?: "editor" | "runtime" | "hidden";
   showHotspotLabels?: boolean;
@@ -41,6 +43,7 @@ export function MediaSurface({
   asset,
   locale,
   hotspots = [],
+  hotspotVisuals,
   strings,
   hotspotAppearance = "editor",
   showHotspotLabels = true,
@@ -57,6 +60,12 @@ export function MediaSurface({
   className
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
+  const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
+  const hotspotVisualEntries = Object.entries(hotspotVisuals ?? {}).filter(([, visual]) => Boolean(visual?.sourcePath));
+  const hotspotVisualSourceSignature = hotspotVisualEntries
+    .map(([hotspotId, visual]) => `${hotspotId}:${visual!.sourcePath}`)
+    .sort()
+    .join("|");
   const overlayRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
@@ -94,6 +103,38 @@ export function MediaSurface({
       cancelled = true;
     };
   }, [asset?.id, sourcePath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHotspotVisualUrls() {
+      if (hotspotVisualEntries.length === 0) {
+        setHotspotVisualUrls({});
+        return;
+      }
+
+      const resolvedEntries = await Promise.all(
+        hotspotVisualEntries.map(async ([hotspotId, visual]) => {
+          try {
+            return [hotspotId, await resolveFileUrl(visual!.sourcePath)] as const;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setHotspotVisualUrls(
+          Object.fromEntries(resolvedEntries.filter((entry): entry is readonly [string, string] => Boolean(entry)))
+        );
+      }
+    }
+
+    void loadHotspotVisualUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [hotspotVisualSourceSignature]);
 
   useEffect(() => {
     return () => {
@@ -381,6 +422,14 @@ export function MediaSurface({
           <HotspotButton
             key={hotspot.id}
             hotspot={hotspot}
+            visual={
+              hotspotVisuals?.[hotspot.id]
+                ? {
+                    alt: hotspotVisuals[hotspot.id]!.alt,
+                    url: hotspotVisualUrls[hotspot.id]
+                  }
+                : undefined
+            }
             strings={strings}
             appearance={hotspotAppearance}
             editable={editableHotspots}
@@ -411,6 +460,10 @@ interface MediaSurfaceClickEvent {
 
 interface HotspotButtonProps {
   hotspot: Hotspot;
+  visual?: {
+    alt: string;
+    url?: string;
+  };
   strings?: Record<string, string>;
   appearance: "editor" | "runtime" | "hidden";
   editable: boolean;
@@ -425,6 +478,7 @@ interface HotspotButtonProps {
 
 function HotspotButton({
   hotspot,
+  visual,
   strings,
   appearance,
   editable,
@@ -449,7 +503,7 @@ function HotspotButton({
 
   return (
     <div
-      className={resolveHotspotClassName(selected, editable)}
+      className={resolveHotspotClassName(selected, editable, Boolean(visual))}
       style={{
         left: `${bounds.x * 100}%`,
         top: `${bounds.y * 100}%`,
@@ -457,8 +511,13 @@ function HotspotButton({
         height: `${bounds.height * 100}%`
       }}
     >
+      {visual?.url ? (
+        <div className="hotspot__visual-frame" aria-hidden="true">
+          <img src={visual.url} alt="" className="hotspot__visual" draggable={false} />
+        </div>
+      ) : null}
       <button
-        className={resolveHotspotBodyClassName(appearance)}
+        className={resolveHotspotBodyClassName(appearance, Boolean(visual))}
         onClick={onClick}
         onMouseDown={editable ? onMoveStart : undefined}
         style={{ clipPath }}
@@ -734,7 +793,7 @@ function resolveHotspotLabelStyle(bounds: { x: number; width: number }, placemen
   };
 }
 
-function resolveHotspotClassName(selected: boolean, editable: boolean): string {
+function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual: boolean): string {
   const classNames = ["hotspot"];
 
   if (selected) {
@@ -745,19 +804,27 @@ function resolveHotspotClassName(selected: boolean, editable: boolean): string {
     classNames.push("hotspot--editable");
   }
 
+  if (hasVisual) {
+    classNames.push("hotspot--with-visual");
+  }
+
   return classNames.join(" ");
 }
 
-function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden"): string {
+function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden", hasVisual: boolean): string {
+  const classNames = ["hotspot__body"];
+
   if (appearance === "runtime") {
-    return "hotspot__body hotspot__body--runtime";
+    classNames.push("hotspot__body--runtime");
+  } else if (appearance === "hidden") {
+    classNames.push("hotspot__body--hidden");
   }
 
-  if (appearance === "hidden") {
-    return "hotspot__body hotspot__body--hidden";
+  if (hasVisual) {
+    classNames.push("hotspot__body--with-visual");
   }
 
-  return "hotspot__body";
+  return classNames.join(" ");
 }
 
 function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{

@@ -3,6 +3,7 @@ import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/p
 import {
   createInitialSaveState,
   normalizeSupportedLocales,
+  resolveAssetCategory,
   resolveAssetVariant,
   parseSaveState,
   resolveHotspotBounds,
@@ -39,6 +40,47 @@ export function resolveRuntimeInventoryItems(
       imageSrc: asset?.kind === "image" ? variant?.sourcePath : undefined
     };
   });
+}
+
+export function resolveRuntimeHotspotVisuals(
+  hotspots: Hotspot[],
+  inventoryItems: InventoryItem[],
+  assets: Asset[],
+  locale: string,
+  strings: Record<string, string>
+): Record<string, { imageSrc: string; alt: string }> {
+  const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
+  const visuals: Record<string, { imageSrc: string; alt: string }> = {};
+
+  for (const hotspot of hotspots) {
+    if (!hotspot.inventoryItemId) {
+      continue;
+    }
+
+    const item = itemsById.get(hotspot.inventoryItemId);
+    if (!item?.imageAssetId) {
+      continue;
+    }
+
+    const asset = assetsById.get(item.imageAssetId);
+    if (!asset || asset.kind !== "image" || resolveAssetCategory(asset) !== "inventory") {
+      continue;
+    }
+
+    const variant = resolveAssetVariant(asset, locale);
+    const imageSrc = variant?.proxyPath ?? variant?.sourcePath;
+    if (!imageSrc) {
+      continue;
+    }
+
+    visuals[hotspot.id] = {
+      imageSrc,
+      alt: strings[item.textId] ?? item.name ?? hotspot.name ?? hotspot.id
+    };
+  }
+
+  return visuals;
 }
 
 export function App() {
@@ -139,6 +181,10 @@ export function App() {
   const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
   const runtimeInventoryItems =
     content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
+  const runtimeHotspotVisuals =
+    content && snapshot
+      ? resolveRuntimeHotspotVisuals(visibleHotspots, content.inventoryItems, content.assets, locale, localeStrings)
+      : {};
 
   useEffect(() => {
     const video = runtimeVideoRef.current;
@@ -361,6 +407,7 @@ export function App() {
                   key={hotspot.id}
                   hotspot={hotspot}
                   showHotspots={showHotspots}
+                  visual={runtimeHotspotVisuals[hotspot.id]}
                   strings={localeStrings}
                   onActivate={() => {
                     controller.selectHotspot(hotspot.id, playheadMs);
@@ -463,11 +510,16 @@ export function App() {
 function RuntimeHotspotButton({
   hotspot,
   showHotspots,
+  visual,
   strings,
   onActivate
 }: {
   hotspot: Hotspot;
   showHotspots: boolean;
+  visual?: {
+    imageSrc: string;
+    alt: string;
+  };
   strings: Record<string, string>;
   onActivate: () => void;
 }) {
@@ -486,7 +538,9 @@ function RuntimeHotspotButton({
         clipPath: resolveHotspotClipPath(hotspot)
       }}
       onClick={onActivate}
-    />
+    >
+      {visual ? <img src={visual.imageSrc} alt="" aria-hidden="true" className="runtime-hotspot__visual" /> : null}
+    </button>
   );
 }
 

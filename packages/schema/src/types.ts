@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
@@ -67,6 +67,7 @@ export const HotspotSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   commentTextId: z.string().min(1).optional(),
+  inventoryItemId: z.string().min(1).optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   width: z.number().min(0.01).max(1),

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MediaSurface } from "../MediaSurface";
-import { getLocaleStringValues, type Hotspot, type ProjectBundle, validateProject } from "@mage2/schema";
+import { getLocaleStringValues, type Asset, type Hotspot, type InventoryItem, type ProjectBundle, validateProject } from "@mage2/schema";
 import { resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
@@ -20,11 +20,13 @@ import {
   createId,
   createSubtitleCue,
   isBackgroundAsset,
+  isInventoryImageAsset,
   isSceneAudioAsset,
   removeHotspotFromProject,
   removeSceneFromProject,
   type RemoveSceneFromProjectResult
 } from "../project-helpers";
+import { resolveHotspotVisuals } from "../hotspot-visuals";
 import { applyHotspotBounds, formatHotspotCoordinate, type HotspotGeometry } from "../hotspot-geometry";
 import {
   clampFloatingWindowPosition,
@@ -86,14 +88,37 @@ export function ScenesPanel({
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
   const [isHotspotInspectorActive, setIsHotspotInspectorActive] = useState(false);
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
+  const [selectedInventoryHotspotItemId, setSelectedInventoryHotspotItemId] = useState<string>();
   const backgroundDropDepthRef = useRef(0);
   const sceneAudioDropDepthRef = useRef(0);
+  const linkedInventoryOptions = resolveLinkedInventoryOptions(
+    project.inventory.items,
+    project.assets.assets,
+    localeStrings,
+    selectedHotspot?.inventoryItemId
+  );
+  const eligibleLinkedInventoryOptions = linkedInventoryOptions.filter((option) => option.eligible);
+  const hotspotVisuals = resolveHotspotVisuals({
+    hotspots: currentScene.hotspots,
+    inventoryItems: project.inventory.items,
+    assets: project.assets.assets,
+    locale: activeLocale,
+    strings: localeStrings
+  });
 
   useEffect(() => {
     if (!selectedHotspot) {
       setIsHotspotInspectorActive(false);
     }
   }, [selectedHotspot]);
+
+  useEffect(() => {
+    if (eligibleLinkedInventoryOptions.some((option) => option.itemId === selectedInventoryHotspotItemId)) {
+      return;
+    }
+
+    setSelectedInventoryHotspotItemId(eligibleLinkedInventoryOptions[0]?.itemId);
+  }, [eligibleLinkedInventoryOptions, selectedInventoryHotspotItemId]);
 
   useEffect(() => {
     setPlayheadMs(0);
@@ -543,6 +568,24 @@ export function ScenesPanel({
     });
   }
 
+  function createInventoryHotspotAtBestAvailablePosition() {
+    if (!currentSceneId || !selectedInventoryHotspotItemId) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const hotspot = addHotspotAtBestAvailablePosition(draft, currentSceneId);
+      const item = draft.inventory.items.find((entry) => entry.id === selectedInventoryHotspotItemId);
+      if (!hotspot || !item) {
+        return;
+      }
+
+      hotspot.inventoryItemId = item.id;
+      hotspot.name = localeStrings[item.textId] ?? item.name ?? hotspot.name;
+      setSelectedHotspotId(hotspot.id);
+    });
+  }
+
   function mutateSelectedHotspot(mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) {
     if (!selectedHotspot) {
       return;
@@ -777,6 +820,7 @@ export function ScenesPanel({
               locale={activeLocale}
               loopVideo={currentScene.backgroundVideoLoop}
               hotspots={currentScene.hotspots}
+              hotspotVisuals={hotspotVisuals}
               strings={localeStrings}
               showSurfaceTooltips={false}
               showHotspotTooltips={false}
@@ -811,6 +855,56 @@ export function ScenesPanel({
               : "Drag an image or video onto the preview to assign a background to this scene."}
           </p>
         </div>
+
+        <div className="stack-inline scenes-panel__hotspot-actions">
+          <label title="Choose which inventory item will be used when creating the next item hotspot.">
+            <span className="field-label--inset">Inventory Item</span>
+            <select
+              value={selectedInventoryHotspotItemId ?? ""}
+              disabled={eligibleLinkedInventoryOptions.length === 0}
+              onChange={(event) => setSelectedInventoryHotspotItemId(event.target.value || undefined)}
+            >
+              {eligibleLinkedInventoryOptions.length === 0 ? (
+                <option value="">No inventory items with valid art</option>
+              ) : null}
+              {eligibleLinkedInventoryOptions.map((option) => (
+                <option key={option.itemId} value={option.itemId}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={!selectedInventoryHotspotItemId}
+            title="Create a new hotspot that uses the selected inventory item's art in this scene."
+            onClick={createInventoryHotspotAtBestAvailablePosition}
+          >
+            Add Item Hotspot
+          </button>
+          <button
+            type="button"
+            title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
+            onClick={createHotspotAtBestAvailablePosition}
+          >
+            Create Hotspot
+          </button>
+          <button
+            type="button"
+            className="button-danger"
+            disabled={!selectedHotspotId}
+            title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
+            onClick={() => deleteHotspot(selectedHotspotId)}
+          >
+            Delete Hotspot
+          </button>
+        </div>
+        {eligibleLinkedInventoryOptions.length === 0 ? (
+          <p className="muted scenes-panel__hotspot-inventory-hint">
+            No inventory items have valid art yet. Add an inventory image in Inventory first.
+          </p>
+        ) : null}
 
         <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
           <span className="field-label--inset">Scene Audio</span>
@@ -966,32 +1060,6 @@ export function ScenesPanel({
             <span>Loop background video indefinitely</span>
           </label>
         ) : null}
-
-        <div className="stack-inline scenes-panel__hotspot-actions">
-          <button
-            type="button"
-            title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
-            onClick={createHotspotAtBestAvailablePosition}
-          >
-            Create Hotspot
-          </button>
-          <button
-            type="button"
-            className="button-danger"
-            disabled={!selectedHotspotId}
-            title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
-            onClick={() => deleteHotspot(selectedHotspotId)}
-          >
-            Delete Hotspot
-          </button>
-          <button
-            type="button"
-            title="Deselect the current hotspot so you can inspect the scene without an active hotspot selection."
-            onClick={() => setSelectedHotspotId(undefined)}
-          >
-            Clear Hotspot
-          </button>
-        </div>
 
         <label>
           Playhead {Math.round(playheadMs)}ms
@@ -1200,6 +1268,7 @@ export function ScenesPanel({
           anchorRef={scenesPanelRef}
           activeLocale={activeLocale}
           localeStrings={localeStrings}
+          inventoryItemOptions={linkedInventoryOptions}
           scenes={project.scenes.items}
           position={hotspotInspectorPosition}
           selectedHotspot={selectedHotspot}
@@ -1216,6 +1285,7 @@ export function ScenesPanel({
 interface HotspotInspectorWindowProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   activeLocale: string;
+  inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
   scenes: ProjectBundle["scenes"]["items"];
@@ -1224,6 +1294,12 @@ interface HotspotInspectorWindowProps {
   onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
   onInteractionActiveChange: (active: boolean) => void;
   onDismiss: () => void;
+}
+
+interface LinkedInventoryOption {
+  itemId: string;
+  label: string;
+  eligible: boolean;
 }
 
 const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
@@ -1236,6 +1312,7 @@ const useFloatingWindowLayoutEffect = typeof window === "undefined" ? useEffect 
 function HotspotInspectorWindow({
   anchorRef,
   activeLocale,
+  inventoryItemOptions,
   localeStrings,
   position,
   scenes,
@@ -1426,6 +1503,25 @@ function HotspotInspectorWindow({
                 }
               />
             </label>
+            <label title="Links this hotspot to an inventory item and uses that item's art in the scene.">
+              <span className="field-label--inset">Inventory Item</span>
+              <select
+                value={selectedHotspot.inventoryItemId ?? ""}
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.inventoryItemId = event.target.value || undefined;
+                  })
+                }
+              >
+                <option value="">None</option>
+                {inventoryItemOptions.map((option) => (
+                  <option key={option.itemId} value={option.itemId}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">Links this hotspot to an inventory item and uses that item's art in the scene.</p>
             <div className="four-grid">
               {(
                 [
@@ -1612,6 +1708,54 @@ function resolveSelectedHotspotRect() {
     width: bounds.right - bounds.left,
     height: bounds.bottom - bounds.top
   };
+}
+
+function resolveLinkedInventoryOptions(
+  items: InventoryItem[],
+  assets: Asset[],
+  strings: Record<string, string>,
+  currentItemId?: string
+): LinkedInventoryOption[] {
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
+  const options: LinkedInventoryOption[] = [];
+
+  for (const item of items) {
+    const asset = item.imageAssetId ? assetsById.get(item.imageAssetId) : undefined;
+    if (!asset || !isInventoryImageAsset(asset)) {
+      continue;
+    }
+
+    options.push({
+      itemId: item.id,
+      label: strings[item.textId] ?? item.name ?? item.id,
+      eligible: true
+    });
+  }
+
+  if (!currentItemId || options.some((option) => option.itemId === currentItemId)) {
+    return options;
+  }
+
+  const currentItem = items.find((item) => item.id === currentItemId);
+  if (!currentItem) {
+    return [
+      {
+        itemId: currentItemId,
+        label: `Missing inventory item (${currentItemId})`,
+        eligible: false
+      },
+      ...options
+    ];
+  }
+
+  return [
+    {
+      itemId: currentItem.id,
+      label: `${strings[currentItem.textId] ?? currentItem.name ?? currentItem.id} (missing valid art)`,
+      eligible: false
+    },
+    ...options
+  ];
 }
 
 function shouldStartFloatingInspectorDrag(target: EventTarget | null): boolean {

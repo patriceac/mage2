@@ -22,6 +22,46 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(35000)).toHaveLength(0);
   });
 
+  it("preserves hotspot activation behavior when a hotspot is linked to an inventory item for visuals", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_background",
+      kind: "image",
+      name: "Placeholder",
+      variants: {
+        en: {
+          sourcePath: "placeholder.png",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.assets.assets.push({
+      id: "asset_item",
+      kind: "image",
+      name: "lantern.png",
+      category: "inventory",
+      variants: {
+        en: {
+          sourcePath: "lantern.png",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.inventory.items.push({
+      id: "item_lantern",
+      name: "Lantern",
+      textId: "text.item_lantern.name",
+      imageAssetId: "asset_item"
+    });
+    project.scenes.items[0]!.hotspots[0]!.inventoryItemId = "item_lantern";
+    project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setFlag", flag: "lanternSeen", value: true }];
+
+    const controller = createPlayerController(project);
+    controller.selectHotspot(project.scenes.items[0]!.hotspots[0]!.id, 1000);
+
+    expect(controller.getSnapshot().flags.lanternSeen).toBe(true);
+  });
+
   it("returns active subtitle cue text from string-backed scene tracks, including overlaps and line breaks", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({

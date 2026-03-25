@@ -3,6 +3,7 @@ import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/p
 import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
 import { MediaSurface } from "./MediaSurface";
 import { resolveFileUrl } from "./file-url-cache";
+import { resolveHotspotVisuals } from "./hotspot-visuals";
 import { getLocalizedAssetVariant } from "./localized-project";
 import { useEditorStore } from "./store";
 
@@ -88,6 +89,13 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs);
   const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
+  const hotspotVisuals = resolveHotspotVisuals({
+    hotspots: visibleHotspots,
+    inventoryItems: project.inventory.items,
+    assets: project.assets.assets,
+    locale: activeLocale,
+    strings: localeStrings
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -247,6 +255,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           locale={activeLocale}
           loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
+          hotspotVisuals={hotspotVisuals}
           hotspotAppearance={showHotspots ? "runtime" : "hidden"}
           showHotspotLabels={false}
           strings={localeStrings}
