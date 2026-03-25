@@ -186,6 +186,24 @@ describe("addHotspotAtBestAvailablePosition", () => {
 
     expect(getOverlapArea(resolveHotspotBounds(existing), resolveHotspotBounds(created))).toBe(0);
   });
+
+  it("respects a supplied hotspot size during best-available placement", () => {
+    const project = createDefaultProjectBundle("Hotspot sized auto placement");
+    const scene = project.scenes.items[0];
+    scene.hotspots = [];
+
+    const hotspot = addHotspotAtBestAvailablePosition(project, scene.id, {
+      width: 0.08,
+      height: 0.1
+    });
+
+    expect(hotspot).toMatchObject({
+      x: 0.46,
+      y: 0.45,
+      width: 0.08,
+      height: 0.1
+    });
+  });
 });
 
 describe("removeHotspotFromProject", () => {
