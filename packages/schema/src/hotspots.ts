@@ -14,7 +14,7 @@ export interface HotspotContentBox {
   height: number;
 }
 
-export type HotspotShape = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon">;
+export type HotspotShape = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon" | "inventoryItemId">;
 
 export function createRectangleHotspotPolygon(bounds: HotspotBounds): HotspotPoint[] {
   return [
@@ -26,16 +26,15 @@ export function createRectangleHotspotPolygon(bounds: HotspotBounds): HotspotPoi
 }
 
 export function resolveHotspotPolygon(hotspot: HotspotShape): HotspotPoint[] {
-  const polygon = hotspot.polygon;
-  if (polygon?.length === 4) {
-    return polygon.map((point) => ({ ...point }));
+  if (shouldUseStoredPolygon(hotspot)) {
+    return hotspot.polygon!.map((point) => ({ ...point }));
   }
 
   return createRectangleHotspotPolygon(hotspot);
 }
 
 export function resolveHotspotBounds(hotspot: HotspotShape): HotspotBounds {
-  if (hotspot.polygon?.length === 4) {
+  if (shouldUseStoredPolygon(hotspot)) {
     return getHotspotBoundsFromPolygon(hotspot.polygon);
   }
 
@@ -45,6 +44,10 @@ export function resolveHotspotBounds(hotspot: HotspotShape): HotspotBounds {
     width: hotspot.width,
     height: hotspot.height
   };
+}
+
+function shouldUseStoredPolygon(hotspot: HotspotShape): hotspot is HotspotShape & { polygon: HotspotPoint[] } {
+  return !hotspot.inventoryItemId && hotspot.polygon?.length === 4;
 }
 
 export function getHotspotBoundsFromPolygon(polygon: HotspotPoint[]): HotspotBounds {

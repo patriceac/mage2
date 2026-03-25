@@ -581,6 +581,7 @@ export function ScenesPanel({
       }
 
       hotspot.inventoryItemId = item.id;
+      hotspot.polygon = undefined;
       hotspot.name = localeStrings[item.textId] ?? item.name ?? hotspot.name;
       setSelectedHotspotId(hotspot.id);
     });
@@ -1510,6 +1511,9 @@ function HotspotInspectorWindow({
                 onChange={(event) =>
                   mutateSelectedHotspot((hotspot) => {
                     hotspot.inventoryItemId = event.target.value || undefined;
+                    if (event.target.value) {
+                      hotspot.polygon = undefined;
+                    }
                   })
                 }
               >
@@ -1542,6 +1546,7 @@ function HotspotInspectorWindow({
                       mutateSelectedHotspot((hotspot) => {
                         const nextGeometry = applyHotspotBounds(
                           {
+                            inventoryItemId: hotspot.inventoryItemId,
                             x: hotspot.x,
                             y: hotspot.y,
                             width: hotspot.width,

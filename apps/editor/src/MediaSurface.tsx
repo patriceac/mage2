@@ -278,6 +278,7 @@ export function MediaSurface({
       dragCleanupRef.current?.();
 
       const startingGeometry: HotspotGeometry = {
+        inventoryItemId: hotspot.inventoryItemId,
         x: hotspot.x,
         y: hotspot.y,
         width: hotspot.width,

@@ -1,4 +1,5 @@
 import {
+  createRectangleHotspotPolygon,
   getHotspotBoundsFromPolygon,
   resolveHotspotPolygon,
   type Hotspot,
@@ -6,7 +7,7 @@ import {
   type HotspotPoint
 } from "@mage2/schema";
 
-export type HotspotGeometry = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon">;
+export type HotspotGeometry = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon" | "inventoryItemId">;
 export type HotspotDragHandle = "move" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
 
 export const MIN_HOTSPOT_SIZE = 0.01;
@@ -21,6 +22,10 @@ export function applyHotspotDrag(
 ): HotspotGeometry {
   if (handle === "move") {
     return roundGeometry(moveHotspot(geometry, deltaX, deltaY));
+  }
+
+  if (geometry.inventoryItemId) {
+    return roundGeometry(resizeRectangularHotspot(geometry, handle, deltaX, deltaY));
   }
 
   if (handle === "n" || handle === "s" || handle === "e" || handle === "w") {
@@ -44,7 +49,7 @@ export function applyHotspotBounds(geometry: HotspotGeometry, bounds: HotspotBou
     y: nextBounds.y + point.y * nextBounds.height
   }));
 
-  return roundGeometry(withPolygon(nextPolygon));
+  return roundGeometry(withPolygon(nextPolygon, geometry));
 }
 
 export function geometryMatches(a: HotspotGeometry, b: HotspotGeometry): boolean {
@@ -73,7 +78,35 @@ function moveHotspot(geometry: HotspotGeometry, deltaX: number, deltaY: number):
     polygon.map((point) => ({
       x: point.x + shiftX,
       y: point.y + shiftY
-    }))
+    })),
+    geometry
+  );
+}
+
+function resizeRectangularHotspot(
+  geometry: HotspotGeometry,
+  handle: Exclude<HotspotDragHandle, "move">,
+  deltaX: number,
+  deltaY: number
+): HotspotGeometry {
+  const left = geometry.x;
+  const top = geometry.y;
+  const right = geometry.x + geometry.width;
+  const bottom = geometry.y + geometry.height;
+
+  const nextLeft = handle.includes("w") ? clamp(left + deltaX, 0, right - MIN_HOTSPOT_SIZE) : left;
+  const nextRight = handle.includes("e") ? clamp(right + deltaX, nextLeft + MIN_HOTSPOT_SIZE, 1) : right;
+  const nextTop = handle.includes("n") ? clamp(top + deltaY, 0, bottom - MIN_HOTSPOT_SIZE) : top;
+  const nextBottom = handle.includes("s") ? clamp(bottom + deltaY, nextTop + MIN_HOTSPOT_SIZE, 1) : bottom;
+
+  return withBounds(
+    {
+      x: nextLeft,
+      y: nextTop,
+      width: nextRight - nextLeft,
+      height: nextBottom - nextTop
+    },
+    geometry
   );
 }
 
@@ -137,7 +170,7 @@ function moveHotspotEdge(
     }
   }
 
-  return withPolygon(nextPolygon);
+  return withPolygon(nextPolygon, geometry);
 }
 
 function moveHotspotCorner(
@@ -176,17 +209,30 @@ function moveHotspotCorner(
       break;
   }
 
-  return withPolygon(nextPolygon);
+  return withPolygon(nextPolygon, geometry);
 }
 
-function withPolygon(polygon: HotspotPoint[]): HotspotGeometry {
+function withPolygon(polygon: HotspotPoint[], geometry?: HotspotGeometry): HotspotGeometry {
   const bounds = getHotspotBoundsFromPolygon(polygon);
   return {
+    ...(geometry?.inventoryItemId ? { inventoryItemId: geometry.inventoryItemId } : {}),
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
     height: bounds.height,
     polygon
+  };
+}
+
+function withBounds(bounds: HotspotBounds, geometry?: HotspotGeometry): HotspotGeometry {
+  const normalizedBounds = normalizeBounds(bounds);
+  return {
+    ...(geometry?.inventoryItemId ? { inventoryItemId: geometry.inventoryItemId } : {}),
+    x: normalizedBounds.x,
+    y: normalizedBounds.y,
+    width: normalizedBounds.width,
+    height: normalizedBounds.height,
+    polygon: createRectangleHotspotPolygon(normalizedBounds)
   };
 }
 
@@ -206,6 +252,7 @@ function normalizeBounds(bounds: HotspotBounds): HotspotBounds {
 
 function roundGeometry(geometry: HotspotGeometry): HotspotGeometry {
   return {
+    ...(geometry.inventoryItemId ? { inventoryItemId: geometry.inventoryItemId } : {}),
     x: roundHotspotCoordinate(geometry.x),
     y: roundHotspotCoordinate(geometry.y),
     width: roundHotspotCoordinate(geometry.width),
