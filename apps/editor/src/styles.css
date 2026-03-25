@@ -1355,6 +1355,90 @@ label > .checkbox-list {
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.22));
 }
 
+.hotspot__chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__chrome-shape {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    filter 120ms ease;
+}
+
+.hotspot__chrome-shape-outline {
+  fill: none;
+  stroke: rgba(210, 244, 255, 0.5);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.hotspot__chrome-shape-outline--outer {
+  stroke: rgba(206, 244, 255, 0.3);
+  opacity: 0.42;
+}
+
+.hotspot__chrome-corner {
+  stroke: rgba(236, 251, 255, 0.82);
+  stroke-width: 4;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+.hotspot__chrome::before,
+.hotspot__chrome::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  transition:
+    box-shadow 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease,
+    filter 120ms ease;
+}
+
+.hotspot:not(.hotspot--with-visual) .hotspot__chrome::before,
+.hotspot:not(.hotspot--with-visual) .hotspot__chrome::after {
+  content: none;
+}
+
+.hotspot__chrome::before {
+  inset: -1px;
+  background:
+    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 24px 4px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 4px 24px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 24px 4px no-repeat,
+    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 4px 24px no-repeat,
+    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 24px 4px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 4px 24px no-repeat,
+    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 24px 4px no-repeat,
+    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 4px 24px no-repeat;
+  box-shadow:
+    inset 0 0 0 2px rgba(210, 244, 255, 0.5),
+    inset 0 0 0 3px rgba(247, 250, 252, 0.06);
+}
+
+.hotspot__chrome::after {
+  inset: -4px;
+  border: 2px solid rgba(206, 244, 255, 0.3);
+  box-shadow: 0 0 18px rgba(102, 225, 255, 0.12);
+  opacity: 0.42;
+}
+
 .hotspot__body {
   position: absolute;
   inset: 0;
@@ -1364,22 +1448,11 @@ label > .checkbox-list {
   justify-content: center;
   width: 100%;
   height: 100%;
-  border: 3px solid rgba(210, 244, 255, 0.72);
+  border: 2px solid transparent;
   border-radius: 0;
-  background:
-    radial-gradient(circle at center, rgba(143, 237, 255, 0.38) 0%, rgba(54, 188, 227, 0.18) 34%, transparent 62%),
-    repeating-linear-gradient(
-      135deg,
-      rgba(126, 231, 255, 0.22) 0 10px,
-      rgba(6, 33, 43, 0.08) 10px 20px
-    ),
-    linear-gradient(180deg, rgba(88, 214, 255, 0.32), rgba(45, 140, 175, 0.18)),
-    rgba(18, 81, 104, 0.24);
+  background: transparent;
   color: inherit;
-  box-shadow:
-    inset 0 0 0 1px rgba(247, 250, 252, 0.18),
-    0 0 0 1px rgba(210, 244, 255, 0.32),
-    0 0 32px rgba(72, 210, 255, 0.28);
+  box-shadow: none;
   overflow: hidden;
   transition:
     border-color 120ms ease,
@@ -1392,66 +1465,17 @@ label > .checkbox-list {
 
 .hotspot__body--with-visual {
   border-width: 2px;
-  background: rgba(10, 16, 24, 0.08);
-  box-shadow:
-    inset 0 0 0 1px rgba(247, 250, 252, 0.08),
-    0 0 0 1px rgba(210, 244, 255, 0.18);
+  background: transparent;
+  box-shadow: none;
 }
 
 .hotspot__body--with-visual .hotspot__beacon {
   display: none;
 }
 
-.hotspot__body--with-visual::before {
-  inset: -1px;
-  background:
-    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 24px 4px no-repeat,
-    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top left / 4px 24px no-repeat,
-    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 24px 4px no-repeat,
-    linear-gradient(to bottom, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) top right / 4px 24px no-repeat,
-    linear-gradient(to right, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 24px 4px no-repeat,
-    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom left / 4px 24px no-repeat,
-    linear-gradient(to left, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 24px 4px no-repeat,
-    linear-gradient(to top, rgba(236, 251, 255, 0.82), rgba(236, 251, 255, 0.82)) bottom right / 4px 24px no-repeat;
-  filter: none;
-}
-
-.hotspot__body--with-visual::after {
-  inset: -4px;
-  border-width: 2px;
-  opacity: 0.42;
-}
-
 .hotspot__body::before,
 .hotspot__body::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.hotspot__body::before {
-  inset: -2px;
-  background:
-    linear-gradient(to right, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top left / 38px 6px no-repeat,
-    linear-gradient(to bottom, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top left / 6px 38px no-repeat,
-    linear-gradient(to left, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top right / 38px 6px no-repeat,
-    linear-gradient(to bottom, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) top right / 6px 38px no-repeat,
-    linear-gradient(to right, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom left / 38px 6px no-repeat,
-    linear-gradient(to top, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom left / 6px 38px no-repeat,
-    linear-gradient(to left, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom right / 38px 6px no-repeat,
-    linear-gradient(to top, rgba(236, 251, 255, 1), rgba(236, 251, 255, 1)) bottom right / 6px 38px no-repeat;
-  filter: drop-shadow(0 0 20px rgba(102, 225, 255, 0.95));
-}
-
-.hotspot__body::after {
-  inset: -14px;
-  border: 4px solid rgba(102, 225, 255, 0.92);
-  box-shadow:
-    0 0 26px rgba(102, 225, 255, 0.42),
-    inset 0 0 12px rgba(255, 255, 255, 0.14);
-  opacity: 0.86;
-  animation: hotspot-idle-pulse 1.45s ease-out infinite;
+  content: none;
 }
 
 .hotspot__beacon,
@@ -1462,6 +1486,7 @@ label > .checkbox-list {
 }
 
 .hotspot__beacon {
+  display: none;
   top: 50%;
   left: 50%;
   width: 2.35rem;
@@ -1544,21 +1569,14 @@ label > .checkbox-list {
 
 .hotspot--selected .hotspot__body {
   border-color: #f6c177;
-  background:
-    radial-gradient(circle at center, rgba(255, 234, 196, 0.34) 0%, rgba(246, 193, 119, 0.2) 38%, transparent 68%),
-    repeating-linear-gradient(
-      135deg,
-      rgba(251, 217, 158, 0.2) 0 10px,
-      rgba(42, 26, 8, 0.06) 10px 20px
-    ),
-    rgba(246, 193, 119, 0.24);
+  background: rgba(246, 193, 119, 0.08);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 247, 236, 0.14),
+    inset 0 0 0 1px rgba(255, 247, 236, 0.12),
     0 0 0 1px rgba(246, 193, 119, 0.22),
-    0 0 24px rgba(246, 193, 119, 0.26);
+    0 0 20px rgba(246, 193, 119, 0.18);
 }
 
-.hotspot--selected .hotspot__body::before {
+.hotspot--selected .hotspot__chrome::before {
   background:
     linear-gradient(to right, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top left / 30px 5px no-repeat,
     linear-gradient(to bottom, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) top left / 5px 30px no-repeat,
@@ -1568,12 +1586,30 @@ label > .checkbox-list {
     linear-gradient(to top, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom left / 5px 30px no-repeat,
     linear-gradient(to left, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom right / 30px 5px no-repeat,
     linear-gradient(to top, rgba(251, 217, 158, 1), rgba(251, 217, 158, 1)) bottom right / 5px 30px no-repeat;
+  box-shadow:
+    inset 0 0 0 2px rgba(246, 193, 119, 0.88),
+    inset 0 0 0 3px rgba(255, 247, 236, 0.12);
   filter: drop-shadow(0 0 18px rgba(246, 193, 119, 0.78));
 }
 
-.hotspot--selected .hotspot__body::after {
-  animation: none;
+.hotspot--selected .hotspot__chrome::after {
   opacity: 0;
+}
+
+.hotspot--selected .hotspot__chrome-shape {
+  filter: drop-shadow(0 0 18px rgba(246, 193, 119, 0.54));
+}
+
+.hotspot--selected .hotspot__chrome-shape-outline {
+  stroke: #f6c177;
+}
+
+.hotspot--selected .hotspot__chrome-shape-outline--outer {
+  opacity: 0;
+}
+
+.hotspot--selected .hotspot__chrome-corner {
+  stroke: rgba(251, 217, 158, 1);
 }
 
 .hotspot--selected .hotspot__beacon {
@@ -1599,12 +1635,9 @@ label > .checkbox-list {
 }
 
 .hotspot--selected .hotspot__visual-frame {
-  border-color: rgba(246, 193, 119, 0.78);
-  background: linear-gradient(180deg, rgba(28, 19, 10, 0.08), rgba(28, 19, 10, 0.18));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 247, 236, 0.12),
-    0 0 0 1px rgba(246, 193, 119, 0.2),
-    0 0 24px rgba(246, 193, 119, 0.18);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .hotspot--selected .hotspot__body--with-visual {
@@ -1633,9 +1666,19 @@ label > .checkbox-list {
   transform: scale(0.98);
 }
 
+.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__chrome {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__chrome-shape {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
 .media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__visual-frame {
-  opacity: 0.92;
-  transform: scale(0.995);
+  opacity: 1;
+  transform: none;
 }
 
 .media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__label-card {
@@ -1659,9 +1702,19 @@ label > .checkbox-list {
   transform: scale(0.98);
 }
 
+.media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__chrome {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__chrome-shape {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
 .media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__visual-frame {
-  opacity: 0.92;
-  transform: scale(0.995);
+  opacity: 1;
+  transform: none;
 }
 
 .media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__label-card {
@@ -1699,24 +1752,36 @@ label > .checkbox-list {
     0 16px 30px rgba(5, 10, 14, 0.18);
 }
 
-.hotspot:hover .hotspot__visual-frame,
-.hotspot:focus-within .hotspot__visual-frame {
-  border-color: rgba(206, 244, 255, 0.62);
-  background: linear-gradient(180deg, rgba(15, 23, 30, 0.08), rgba(8, 12, 17, 0.2));
+.hotspot:hover .hotspot__chrome::before,
+.hotspot:focus-within .hotspot__chrome::before {
   box-shadow:
-    inset 0 0 0 1px rgba(247, 250, 252, 0.12),
-    0 0 0 1px rgba(206, 244, 255, 0.18),
-    0 12px 28px rgba(5, 10, 14, 0.18);
-}
-
-.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::before,
-.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::before {
+    inset 0 0 0 2px rgba(206, 244, 255, 1),
+    inset 0 0 0 3px rgba(247, 250, 252, 0.2);
   filter: drop-shadow(0 0 26px rgba(102, 225, 255, 1));
 }
 
-.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::after,
-.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)::after {
-  animation: none;
+.hotspot:hover .hotspot__chrome-shape,
+.hotspot:focus-within .hotspot__chrome-shape {
+  filter: drop-shadow(0 0 26px rgba(102, 225, 255, 0.6));
+}
+
+.hotspot:hover .hotspot__chrome-shape-outline,
+.hotspot:focus-within .hotspot__chrome-shape-outline {
+  stroke: rgba(206, 244, 255, 1);
+}
+
+.hotspot:hover .hotspot__chrome-shape-outline--outer,
+.hotspot:focus-within .hotspot__chrome-shape-outline--outer {
+  opacity: 0;
+}
+
+.hotspot:hover .hotspot__chrome-corner,
+.hotspot:focus-within .hotspot__chrome-corner {
+  stroke: rgba(236, 251, 255, 1);
+}
+
+.hotspot:hover .hotspot__chrome::after,
+.hotspot:focus-within .hotspot__chrome::after {
   opacity: 0;
 }
 

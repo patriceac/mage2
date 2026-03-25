@@ -11,6 +11,8 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(
       `${idleSelectorPrefix}.hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)`
     );
+    expect(styles).toContain(`${idleSelectorPrefix}.hotspot__chrome`);
+    expect(styles).toContain(`${idleSelectorPrefix}.hotspot__chrome-shape`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__label-card`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__label-comment-shell`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__handles`);

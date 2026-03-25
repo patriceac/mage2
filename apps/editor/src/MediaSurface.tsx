@@ -494,6 +494,9 @@ function HotspotButton({
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const clipPath = resolveHotspotClipPath(hotspot);
+  const relativePolygon = resolveRelativeHotspotPolygon(hotspot);
+  const polygonPointList = resolveHotspotPolygonPointList(relativePolygon);
+  const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
   const labelPlacement = resolveHotspotLabelPlacement(bounds);
   const handlePositions = resolveHotspotHandlePositions(hotspot);
   const [tooltipText, setTooltipText] = useState<string>();
@@ -512,6 +515,23 @@ function HotspotButton({
         height: `${bounds.height * 100}%`
       }}
     >
+      {appearance === "editor" ? <div className="hotspot__chrome" style={{ clipPath }} aria-hidden="true" /> : null}
+      {appearance === "editor" && !hotspot.inventoryItemId ? (
+        <svg className="hotspot__chrome-shape" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polygon className="hotspot__chrome-shape-outline hotspot__chrome-shape-outline--outer" points={polygonPointList} />
+          <polygon className="hotspot__chrome-shape-outline" points={polygonPointList} />
+          {cornerSegments.map((segment, index) => (
+            <line
+              key={index}
+              className="hotspot__chrome-corner"
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+            />
+          ))}
+        </svg>
+      ) : null}
       {visual?.url ? (
         <div className="hotspot__visual-frame" aria-hidden="true">
           <img src={visual.url} alt="" className="hotspot__visual" draggable={false} />
@@ -845,6 +865,37 @@ function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{
     { handle: "sw", x: sw.x, y: sw.y },
     { handle: "w", x: (sw.x + nw.x) / 2, y: (sw.y + nw.y) / 2 }
   ];
+}
+
+function resolveHotspotPolygonPointList(polygon: Array<{ x: number; y: number }>): string {
+  return polygon.map((point) => `${point.x * 100},${point.y * 100}`).join(" ");
+}
+
+function resolveHotspotCornerSegments(
+  polygon: Array<{ x: number; y: number }>
+): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+  return polygon.flatMap((point, index) => {
+    const previous = polygon[(index - 1 + polygon.length) % polygon.length];
+    const next = polygon[(index + 1) % polygon.length];
+    return [resolveHotspotCornerSegment(point, previous), resolveHotspotCornerSegment(point, next)];
+  });
+}
+
+function resolveHotspotCornerSegment(
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+): { x1: number; y1: number; x2: number; y2: number } {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const segmentLength = Math.min(0.12, length * 0.45);
+
+  return {
+    x1: start.x * 100,
+    y1: start.y * 100,
+    x2: (start.x + (dx / length) * segmentLength) * 100,
+    y2: (start.y + (dy / length) * segmentLength) * 100
+  };
 }
 
 function resolveResizeCursor(handle: HotspotDragHandle): string {
