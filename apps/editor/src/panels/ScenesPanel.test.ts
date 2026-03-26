@@ -6,9 +6,14 @@ import { DialogProvider } from "../dialogs";
 import {
   ScenesPanel,
   filterInventoryPlacementOptions,
+  resolveInventoryPickerKeyboardAction,
+  resolveNextHotspotInspectorOpenState,
+  resolveInventoryPickerToggleResult,
+  resolveScenesFloatingWindowVisibility,
   resolveDroppedInventoryHotspotBounds,
   resolveInventoryPreviewContentSize,
-  resolveLinkedInventoryOptions
+  resolveLinkedInventoryOptions,
+  shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
 
 const mockedStore = vi.hoisted(() => {
@@ -292,5 +297,139 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain('>Inventory Item</span>');
     expect(markup).toContain("Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
+  });
+
+  it("shows only the hotspot inspector when both floating-window sources are active", () => {
+    expect(resolveScenesFloatingWindowVisibility(true, true, true)).toEqual({
+      isInventoryPickerVisible: false,
+      isHotspotInspectorVisible: true
+    });
+  });
+
+  it("hides the hotspot inspector when a hotspot remains selected after the inspector closes", () => {
+    expect(resolveScenesFloatingWindowVisibility(false, true, false)).toEqual({
+      isInventoryPickerVisible: false,
+      isHotspotInspectorVisible: false
+    });
+  });
+
+  it("preserves inspector visibility for drag-driven hotspot reselection", () => {
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "preserve")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "open")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(true, undefined, "preserve")).toBe(false);
+  });
+
+  it("clears the hotspot selection when opening the inventory picker", () => {
+    expect(resolveInventoryPickerToggleResult(false)).toEqual({
+      nextIsInventoryPickerOpen: true,
+      shouldClearSelectedHotspot: true
+    });
+    expect(resolveInventoryPickerToggleResult(true)).toEqual({
+      nextIsInventoryPickerOpen: false,
+      shouldClearSelectedHotspot: false
+    });
+  });
+
+  it("dismisses floating windows only for an unmodified Escape press outside modal dialogs", () => {
+    expect(
+      shouldDismissScenesFloatingWindowsOnEscape(
+        {
+          altKey: false,
+          ctrlKey: false,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        false
+      )
+    ).toBe(true);
+
+    expect(
+      shouldDismissScenesFloatingWindowsOnEscape(
+        {
+          altKey: false,
+          ctrlKey: false,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        true
+      )
+    ).toBe(false);
+
+    expect(
+      shouldDismissScenesFloatingWindowsOnEscape(
+        {
+          altKey: false,
+          ctrlKey: true,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        false
+      )
+    ).toBe(false);
+  });
+
+  it("navigates the inventory picker list with arrow, home/end, and page keys", () => {
+    const itemIds = ["candle", "potion", "key", "map", "coin"];
+
+    expect(resolveInventoryPickerKeyboardAction("ArrowDown", itemIds, "potion")).toEqual({
+      handled: true,
+      nextActiveItemId: "key",
+      shouldPlaceActiveItem: false
+    });
+    expect(resolveInventoryPickerKeyboardAction("ArrowUp", itemIds, "potion")).toEqual({
+      handled: true,
+      nextActiveItemId: "candle",
+      shouldPlaceActiveItem: false
+    });
+    expect(resolveInventoryPickerKeyboardAction("Home", itemIds, "map")).toEqual({
+      handled: true,
+      nextActiveItemId: "candle",
+      shouldPlaceActiveItem: false
+    });
+    expect(resolveInventoryPickerKeyboardAction("End", itemIds, "potion")).toEqual({
+      handled: true,
+      nextActiveItemId: "coin",
+      shouldPlaceActiveItem: false
+    });
+    expect(resolveInventoryPickerKeyboardAction("PageDown", itemIds, "potion", 2)).toEqual({
+      handled: true,
+      nextActiveItemId: "map",
+      shouldPlaceActiveItem: false
+    });
+    expect(resolveInventoryPickerKeyboardAction("PageUp", itemIds, "map", 2)).toEqual({
+      handled: true,
+      nextActiveItemId: "potion",
+      shouldPlaceActiveItem: false
+    });
+  });
+
+  it("places the active inventory item with Enter", () => {
+    expect(resolveInventoryPickerKeyboardAction("Enter", ["candle", "potion"], "potion")).toEqual({
+      handled: true,
+      nextActiveItemId: "potion",
+      shouldPlaceActiveItem: true
+    });
+    expect(resolveInventoryPickerKeyboardAction("Enter", ["candle", "potion"])).toEqual({
+      handled: true,
+      nextActiveItemId: "candle",
+      shouldPlaceActiveItem: true
+    });
+    expect(resolveInventoryPickerKeyboardAction("Enter", [], "potion")).toEqual({
+      handled: false,
+      shouldPlaceActiveItem: false
+    });
   });
 });
