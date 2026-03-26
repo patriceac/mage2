@@ -29,9 +29,12 @@ import {
 import { resolveHotspotVisuals } from "../hotspot-visuals";
 import {
   MIN_HOTSPOT_SIZE,
+  applyHotspotKeyboardTransform,
   applyHotspotBounds,
   formatHotspotCoordinate,
-  type HotspotGeometry
+  geometryMatches,
+  type HotspotGeometry,
+  type HotspotKeyboardTransform
 } from "../hotspot-geometry";
 import {
   clampFloatingWindowPosition,
@@ -67,6 +70,8 @@ export function ScenesPanel({
   const dialogs = useDialogs();
   const scenesPanelRef = useRef<HTMLDivElement>(null);
   const inventoryPickerAnchorRef = useRef<HTMLButtonElement>(null);
+  const hotspotKeyboardTransformBatchRef = useRef<{ hotspotId?: string; signature?: string }>({});
+  const activeTab = useEditorStore((state) => state.activeTab);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const playheadMs = useEditorStore((state) => state.playheadMs);
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
@@ -701,6 +706,10 @@ export function ScenesPanel({
     };
   }
 
+  function clearHotspotKeyboardTransformBatch() {
+    hotspotKeyboardTransformBatchRef.current = {};
+  }
+
   function placeInventoryHotspot(
     itemId: string,
     position?: {
@@ -874,6 +883,137 @@ export function ScenesPanel({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [currentSceneId, deleteHotspot, selectedHotspotId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const action = resolveInventoryHotspotTransformKeyboardAction(event.key, {
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey
+      });
+      if (!action.handled) {
+        return;
+      }
+
+      const targetElement =
+        event.target instanceof HTMLElement
+          ? event.target
+          : document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : undefined;
+      const shouldHandleTransform = shouldHandleInventoryHotspotTransformShortcut({
+        defaultPrevented: event.defaultPrevented,
+        hasDialogOverlay: Boolean(document.querySelector(".dialog-overlay")),
+        hasSelectedInventoryHotspot: Boolean(selectedHotspot?.inventoryItemId),
+        isScenePreviewFocused: isScenePreviewKeyboardTarget(targetElement),
+        isScenesTabActive: activeTab === "scenes",
+        isTargetInsideFloatingWindow: isScenesFloatingWindowTarget(targetElement),
+        isTargetTextEntry: isTextEntryTarget(targetElement)
+      });
+      if (!shouldHandleTransform) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const surfaceSize = resolveCurrentSceneSurfaceSize();
+      if (!surfaceSize) {
+        return;
+      }
+
+      const editorState = useEditorStore.getState();
+      const currentProject = editorState.project ?? project;
+      const activeSceneId = editorState.selectedSceneId ?? currentSceneId;
+      const activeHotspotId = editorState.selectedHotspotId ?? selectedHotspotId;
+      const currentHotspot = currentProject.scenes.items
+        .find((entry) => entry.id === activeSceneId)
+        ?.hotspots.find((entry) => entry.id === activeHotspotId);
+      if (!activeSceneId || !activeHotspotId || !currentHotspot?.inventoryItemId) {
+        return;
+      }
+
+      const currentGeometry: HotspotGeometry = {
+        inventoryItemId: currentHotspot.inventoryItemId,
+        x: currentHotspot.x,
+        y: currentHotspot.y,
+        width: currentHotspot.width,
+        height: currentHotspot.height,
+        polygon: currentHotspot.polygon
+      };
+      const nextGeometry = applyHotspotKeyboardTransform(currentGeometry, action.transform, surfaceSize);
+      if (geometryMatches(currentGeometry, nextGeometry)) {
+        return;
+      }
+
+      const batchSignature = `${activeHotspotId}:${resolveInventoryHotspotTransformBatchSignature(action.transform)}`;
+      if (
+        hotspotKeyboardTransformBatchRef.current.hotspotId !== activeHotspotId ||
+        hotspotKeyboardTransformBatchRef.current.signature !== batchSignature
+      ) {
+        captureUndoCheckpoint();
+        hotspotKeyboardTransformBatchRef.current = {
+          hotspotId: activeHotspotId,
+          signature: batchSignature
+        };
+      }
+
+      const nextProject = cloneProject(currentProject);
+      const nextHotspot = nextProject.scenes.items
+        .find((entry) => entry.id === activeSceneId)
+        ?.hotspots.find((entry) => entry.id === activeHotspotId);
+      if (!nextHotspot) {
+        return;
+      }
+
+      nextHotspot.x = nextGeometry.x;
+      nextHotspot.y = nextGeometry.y;
+      nextHotspot.width = nextGeometry.width;
+      nextHotspot.height = nextGeometry.height;
+      nextHotspot.polygon = nextGeometry.polygon;
+      updateProject(nextProject, { skipHistory: true });
+    };
+
+    const handleKeyUp = () => {
+      clearHotspotKeyboardTransformBatch();
+    };
+
+    const handleWindowBlur = () => {
+      clearHotspotKeyboardTransformBatch();
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const targetElement =
+        event.target instanceof HTMLElement
+          ? event.target
+          : document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : undefined;
+      if (!isScenePreviewKeyboardTarget(targetElement)) {
+        clearHotspotKeyboardTransformBatch();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("focusin", handleFocusIn);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("focusin", handleFocusIn);
+      clearHotspotKeyboardTransformBatch();
+    };
+  }, [
+    activeTab,
+    captureUndoCheckpoint,
+    currentSceneId,
+    project,
+    selectedHotspot?.inventoryItemId,
+    selectedHotspotId,
+    updateProject
+  ]);
 
   if (!currentScene) {
     return <div className="panel"><p>Create a scene to begin.</p></div>;
@@ -1678,6 +1818,203 @@ export function shouldDismissScenesFloatingWindowsOnEscape(
   return true;
 }
 
+type InventoryHotspotTransformKeyboardAction =
+  | {
+      handled: false;
+      transform?: undefined;
+    }
+  | {
+      handled: true;
+      transform: HotspotKeyboardTransform;
+    };
+
+export function resolveInventoryHotspotTransformKeyboardAction(
+  key: string,
+  modifiers: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">
+): InventoryHotspotTransformKeyboardAction {
+  const fineAdjustment = modifiers.ctrlKey || modifiers.metaKey;
+  const translationStepPx = fineAdjustment ? 1 : 10;
+
+  if (modifiers.altKey) {
+    if (modifiers.shiftKey) {
+      return {
+        handled: false
+      };
+    }
+
+    switch (key) {
+      case "ArrowLeft":
+        return {
+          handled: true,
+          transform: {
+            kind: "rotate" as const,
+            deltaDegrees: fineAdjustment ? -1 : -15
+          }
+        };
+      case "ArrowRight":
+        return {
+          handled: true,
+          transform: {
+            kind: "rotate" as const,
+            deltaDegrees: fineAdjustment ? 1 : 15
+          }
+        };
+      default:
+        return {
+          handled: false
+        };
+    }
+  }
+
+  if (modifiers.shiftKey) {
+    switch (key) {
+      case "ArrowLeft":
+        return {
+          handled: true,
+          transform: {
+            kind: "resize" as const,
+            axis: "x" as const,
+            deltaPx: -translationStepPx
+          }
+        };
+      case "ArrowRight":
+        return {
+          handled: true,
+          transform: {
+            kind: "resize" as const,
+            axis: "x" as const,
+            deltaPx: translationStepPx
+          }
+        };
+      case "ArrowUp":
+        return {
+          handled: true,
+          transform: {
+            kind: "resize" as const,
+            axis: "y" as const,
+            deltaPx: -translationStepPx
+          }
+        };
+      case "ArrowDown":
+        return {
+          handled: true,
+          transform: {
+            kind: "resize" as const,
+            axis: "y" as const,
+            deltaPx: translationStepPx
+          }
+        };
+      default:
+        return {
+          handled: false
+        };
+    }
+  }
+
+  switch (key) {
+    case "ArrowLeft":
+      return {
+        handled: true,
+        transform: {
+          kind: "move" as const,
+          deltaXPx: -translationStepPx,
+          deltaYPx: 0
+        }
+      };
+    case "ArrowRight":
+      return {
+        handled: true,
+        transform: {
+          kind: "move" as const,
+          deltaXPx: translationStepPx,
+          deltaYPx: 0
+        }
+      };
+    case "ArrowUp":
+      return {
+        handled: true,
+        transform: {
+          kind: "move" as const,
+          deltaXPx: 0,
+          deltaYPx: -translationStepPx
+        }
+      };
+    case "ArrowDown":
+      return {
+        handled: true,
+        transform: {
+          kind: "move" as const,
+          deltaXPx: 0,
+          deltaYPx: translationStepPx
+        }
+      };
+    default:
+      return {
+        handled: false
+      };
+  }
+}
+
+export function shouldHandleInventoryHotspotTransformShortcut({
+  defaultPrevented,
+  hasDialogOverlay,
+  hasSelectedInventoryHotspot,
+  isScenePreviewFocused,
+  isScenesTabActive,
+  isTargetInsideFloatingWindow,
+  isTargetTextEntry
+}: {
+  defaultPrevented: boolean;
+  hasDialogOverlay: boolean;
+  hasSelectedInventoryHotspot: boolean;
+  isScenePreviewFocused: boolean;
+  isScenesTabActive: boolean;
+  isTargetInsideFloatingWindow: boolean;
+  isTargetTextEntry: boolean;
+}) {
+  if (defaultPrevented || hasDialogOverlay || !hasSelectedInventoryHotspot || !isScenePreviewFocused || !isScenesTabActive) {
+    return false;
+  }
+
+  if (isTargetInsideFloatingWindow || isTargetTextEntry) {
+    return false;
+  }
+
+  return true;
+}
+
+function resolveInventoryHotspotTransformBatchSignature(
+  transform:
+    | { kind: "move"; deltaXPx: number; deltaYPx: number }
+    | { kind: "resize"; axis: "x" | "y"; deltaPx: number }
+    | { kind: "rotate"; deltaDegrees: number }
+) {
+  switch (transform.kind) {
+    case "move":
+      return `move:${transform.deltaXPx}:${transform.deltaYPx}`;
+    case "resize":
+      return `resize:${transform.axis}:${transform.deltaPx}`;
+    case "rotate":
+      return `rotate:${transform.deltaDegrees}`;
+  }
+}
+
+function isScenePreviewKeyboardTarget(target: HTMLElement | undefined) {
+  return Boolean(target?.closest(".media-surface"));
+}
+
+function isScenesFloatingWindowTarget(target: HTMLElement | undefined) {
+  return Boolean(target?.closest(".scenes-floating-inspector"));
+}
+
+function isTextEntryTarget(target: HTMLElement | undefined) {
+  if (!target) {
+    return false;
+  }
+
+  return target.isContentEditable || Boolean(target.closest("input, textarea, select, [contenteditable]"));
+}
+
 interface HotspotInspectorWindowProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   activeLocale: string;
@@ -2267,9 +2604,6 @@ function HotspotInspectorWindow({
                 onChange={(event) =>
                   mutateSelectedHotspot((hotspot) => {
                     hotspot.inventoryItemId = event.target.value || undefined;
-                    if (event.target.value) {
-                      hotspot.polygon = undefined;
-                    }
                   })
                 }
               >
@@ -2282,6 +2616,11 @@ function HotspotInspectorWindow({
               </select>
             </label>
             <p className="muted">Links this hotspot to an inventory item and uses that item's art in the scene.</p>
+            {selectedHotspot.inventoryItemId ? (
+              <p className="muted">
+                Use arrows to move, Shift+arrows to resize, Alt+Left/Right to rotate, Ctrl for fine adjustment.
+              </p>
+            ) : null}
             <div className="four-grid">
               {(
                 [
@@ -2546,7 +2885,6 @@ export function filterInventoryPlacementOptions(options: LinkedInventoryOption[]
 
 function applyInventoryLinkToHotspot(hotspot: Hotspot, item: InventoryItem, strings: Record<string, string>) {
   hotspot.inventoryItemId = item.id;
-  hotspot.polygon = undefined;
   hotspot.name = strings[item.textId] ?? item.name ?? hotspot.name;
 }
 

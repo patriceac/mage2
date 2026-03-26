@@ -6,6 +6,7 @@ import {
   resolveAssetCategory,
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveHotspotRotationDegrees,
   resolveRelativeHotspotContentBox,
   validateProject
 } from "./index";
@@ -560,7 +561,7 @@ describe("project validation", () => {
 });
 
 describe("hotspot content placement", () => {
-  it("forces inventory-backed hotspots to use rectangular bounds and clip paths", () => {
+  it("honors stored inventory polygons for bounds, clip paths, and rotation", () => {
     const hotspot = {
       inventoryItemId: "item_lantern",
       x: 0.2,
@@ -579,9 +580,10 @@ describe("hotspot content placement", () => {
       x: 0.2,
       y: 0.15,
       width: 0.18,
-      height: 0.16
+      height: 0.17
     });
-    expect(resolveHotspotClipPath(hotspot)).toBe("polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)");
+    expect(resolveHotspotClipPath(hotspot)).toBe("polygon(11.1111% 0%, 100% 23.5294%, 88.8889% 100%, 0% 82.3529%)");
+    expect(resolveHotspotRotationDegrees(hotspot)).toBeCloseTo(14.04, 2);
   });
 
   it("anchors content near the polygon centroid instead of the bounding box top", () => {

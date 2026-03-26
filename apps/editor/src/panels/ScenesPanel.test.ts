@@ -7,12 +7,14 @@ import {
   ScenesPanel,
   filterInventoryPlacementOptions,
   resolveInventoryPickerKeyboardAction,
+  resolveInventoryHotspotTransformKeyboardAction,
   resolveNextHotspotInspectorOpenState,
   resolveInventoryPickerToggleResult,
   resolveScenesFloatingWindowVisibility,
   resolveDroppedInventoryHotspotBounds,
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
+  shouldHandleInventoryHotspotTransformShortcut,
   shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
 
@@ -28,7 +30,8 @@ const mockedStore = vi.hoisted(() => {
       setSelectedSceneId: noop,
       setSelectedHotspotId: noop,
       setPlayheadMs: noop,
-      updateProject: noop
+      updateProject: noop,
+      captureUndoCheckpoint: noop
     } as any
   };
 });
@@ -299,6 +302,19 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 
+  it("shows keyboard transform guidance for selected inventory hotspots", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        project.scenes.items[0].hotspots[0]!.inventoryItemId = "item_lantern";
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0].hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain("Use arrows to move, Shift+arrows to resize, Alt+Left/Right to rotate, Ctrl for fine adjustment.");
+  });
+
   it("shows only the hotspot inspector when both floating-window sources are active", () => {
     expect(resolveScenesFloatingWindowVisibility(true, true, true)).toEqual({
       isInventoryPickerVisible: false,
@@ -431,5 +447,151 @@ describe("ScenesPanel scene audio UI", () => {
       handled: false,
       shouldPlaceActiveItem: false
     });
+  });
+
+  it("maps inventory hotspot transform shortcuts to move, resize, and rotate actions", () => {
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowLeft", {
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "move",
+        deltaXPx: -10,
+        deltaYPx: 0
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowUp", {
+        altKey: false,
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: false
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "move",
+        deltaXPx: 0,
+        deltaYPx: -1
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowRight", {
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: true
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "resize",
+        axis: "x",
+        deltaPx: 10
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowDown", {
+        altKey: false,
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: true
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "resize",
+        axis: "y",
+        deltaPx: 1
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowRight", {
+        altKey: true,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "rotate",
+        deltaDegrees: 15
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowLeft", {
+        altKey: true,
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: false
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "rotate",
+        deltaDegrees: -1
+      }
+    });
+  });
+
+  it("gates inventory hotspot transforms to the focused scene preview", () => {
+    expect(
+      shouldHandleInventoryHotspotTransformShortcut({
+        defaultPrevented: false,
+        hasDialogOverlay: false,
+        hasSelectedInventoryHotspot: true,
+        isScenePreviewFocused: true,
+        isScenesTabActive: true,
+        isTargetInsideFloatingWindow: false,
+        isTargetTextEntry: false
+      })
+    ).toBe(true);
+
+    expect(
+      shouldHandleInventoryHotspotTransformShortcut({
+        defaultPrevented: false,
+        hasDialogOverlay: false,
+        hasSelectedInventoryHotspot: true,
+        isScenePreviewFocused: false,
+        isScenesTabActive: true,
+        isTargetInsideFloatingWindow: false,
+        isTargetTextEntry: false
+      })
+    ).toBe(false);
+
+    expect(
+      shouldHandleInventoryHotspotTransformShortcut({
+        defaultPrevented: false,
+        hasDialogOverlay: false,
+        hasSelectedInventoryHotspot: true,
+        isScenePreviewFocused: true,
+        isScenesTabActive: true,
+        isTargetInsideFloatingWindow: true,
+        isTargetTextEntry: false
+      })
+    ).toBe(false);
+
+    expect(
+      shouldHandleInventoryHotspotTransformShortcut({
+        defaultPrevented: false,
+        hasDialogOverlay: false,
+        hasSelectedInventoryHotspot: true,
+        isScenePreviewFocused: true,
+        isScenesTabActive: true,
+        isTargetInsideFloatingWindow: false,
+        isTargetTextEntry: true
+      })
+    ).toBe(false);
   });
 });

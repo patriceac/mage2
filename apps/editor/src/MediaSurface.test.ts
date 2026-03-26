@@ -49,7 +49,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(markup).toContain("hotspot__chrome-corner");
   });
 
-  it("keeps inventory-backed hotspot chrome rectangular", () => {
+  it("applies the stored polygon clip path to inventory-backed hotspots", () => {
     const hotspot: Hotspot = {
       id: "hotspot_item",
       name: "Potion",
@@ -74,7 +74,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
     const clipPath = resolveHotspotClipPath(hotspot);
     const markup = renderHotspotMarkup(hotspot);
 
-    expect(clipPath).toBe("polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)");
+    expect(clipPath).toBe("polygon(0% 25%, 100% 0%, 83.3333% 100%, 0% 75%)");
     expect(countClipPathOccurrences(markup, clipPath)).toBe(2);
     expect(markup).toContain("hotspot--inventory-item");
     expect(markup).not.toContain("hotspot__chrome-shape");
