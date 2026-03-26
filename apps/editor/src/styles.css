@@ -1840,6 +1840,11 @@ label > .checkbox-list {
     0 16px 30px rgba(5, 10, 14, 0.18);
 }
 
+.hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden),
+.hotspot--inventory-item:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+  background: transparent;
+}
+
 .hotspot:hover .hotspot__chrome::before,
 .hotspot:focus-within .hotspot__chrome::before {
   box-shadow:

@@ -2,7 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { resolveHotspotClipPath, type Hotspot } from "@mage2/schema";
-import { MediaSurface } from "./MediaSurface";
+import { MediaSurface, resolveHotspotSelectionAfterDrag } from "./MediaSurface";
 
 function renderHotspotMarkup(hotspot: Hotspot): string {
   return renderToStaticMarkup(
@@ -76,6 +76,12 @@ describe("MediaSurface hotspot chrome geometry", () => {
 
     expect(clipPath).toBe("polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)");
     expect(countClipPathOccurrences(markup, clipPath)).toBe(2);
+    expect(markup).toContain("hotspot--inventory-item");
     expect(markup).not.toContain("hotspot__chrome-shape");
+  });
+
+  it("preserves a hidden inspector state when dragging an unselected hotspot", () => {
+    expect(resolveHotspotSelectionAfterDrag(undefined, "hotspot_item")).toBeUndefined();
+    expect(resolveHotspotSelectionAfterDrag("hotspot_map", "hotspot_item")).toBe("hotspot_item");
   });
 });

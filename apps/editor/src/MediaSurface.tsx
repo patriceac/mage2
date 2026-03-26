@@ -36,7 +36,7 @@ interface MediaSurfaceProps {
   onSurfaceDragLeave?: React.DragEventHandler<HTMLDivElement>;
   onSurfaceDragOver?: React.DragEventHandler<HTMLDivElement>;
   onSurfaceDrop?: (event: MediaSurfaceDropEvent) => void;
-  onHotspotClick?: (hotspotId: string) => void;
+  onHotspotClick?: (hotspotId: string, interaction?: "click" | "drag") => void;
   onHotspotDragStart?: (hotspotId: string) => void;
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
   selectedHotspotId?: string;
@@ -77,6 +77,8 @@ export function MediaSurface({
   const overlayRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const suppressHotspotClickRef = useRef(false);
+  const suppressHotspotClickTimeoutRef = useRef<number | undefined>(undefined);
   const suppressSurfaceClickRef = useRef(false);
   const suppressSurfaceClickTimeoutRef = useRef<number | undefined>(undefined);
   const previousLoopVideoRef = useRef(loopVideo);
@@ -147,6 +149,9 @@ export function MediaSurface({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      if (suppressHotspotClickTimeoutRef.current !== undefined) {
+        window.clearTimeout(suppressHotspotClickTimeoutRef.current);
+      }
       if (suppressSurfaceClickTimeoutRef.current !== undefined) {
         window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
       }
@@ -363,7 +368,19 @@ export function MediaSurface({
         }, 0);
 
         if (didDrag) {
-          onHotspotClick?.(hotspot.id);
+          suppressHotspotClickRef.current = true;
+          if (suppressHotspotClickTimeoutRef.current !== undefined) {
+            window.clearTimeout(suppressHotspotClickTimeoutRef.current);
+          }
+          suppressHotspotClickTimeoutRef.current = window.setTimeout(() => {
+            suppressHotspotClickRef.current = false;
+            suppressHotspotClickTimeoutRef.current = undefined;
+          }, 0);
+
+          const nextSelectedHotspotId = resolveHotspotSelectionAfterDrag(selectedHotspotId, hotspot.id);
+          if (nextSelectedHotspotId) {
+            onHotspotClick?.(nextSelectedHotspotId, "drag");
+          }
         }
       };
 
@@ -471,7 +488,11 @@ export function MediaSurface({
             showTooltips={showHotspotTooltips}
             onClick={(event) => {
               event.stopPropagation();
-              onHotspotClick?.(hotspot.id);
+              if (suppressHotspotClickRef.current) {
+                event.preventDefault();
+                return;
+              }
+              onHotspotClick?.(hotspot.id, "click");
             }}
             onMoveStart={startHotspotDrag(hotspot, "move")}
             onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
@@ -548,7 +569,7 @@ function HotspotButton({
 
   return (
     <div
-      className={resolveHotspotClassName(selected, editable, Boolean(visual))}
+      className={resolveHotspotClassName(selected, editable, Boolean(visual), Boolean(hotspot.inventoryItemId))}
       style={{
         left: `${bounds.x * 100}%`,
         top: `${bounds.y * 100}%`,
@@ -855,7 +876,7 @@ function resolveHotspotLabelStyle(bounds: { x: number; width: number }, placemen
   };
 }
 
-function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual: boolean): string {
+function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual: boolean, isInventoryItem: boolean): string {
   const classNames = ["hotspot"];
 
   if (selected) {
@@ -870,7 +891,18 @@ function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual
     classNames.push("hotspot--with-visual");
   }
 
+  if (isInventoryItem) {
+    classNames.push("hotspot--inventory-item");
+  }
+
   return classNames.join(" ");
+}
+
+export function resolveHotspotSelectionAfterDrag(
+  selectedHotspotId: string | undefined,
+  draggedHotspotId: string
+): string | undefined {
+  return selectedHotspotId ? draggedHotspotId : undefined;
 }
 
 function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden", hasVisual: boolean): string {

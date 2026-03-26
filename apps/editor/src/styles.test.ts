@@ -17,4 +17,17 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__label-comment-shell`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__handles`);
   });
+
+  it("keeps the generic hover chrome rules available to inventory hotspots", () => {
+    expect(styles).toContain(".hotspot:hover .hotspot__chrome::before");
+    expect(styles).toContain(".hotspot:hover .hotspot__chrome::after");
+    expect(styles).not.toContain(".hotspot--inventory-item:not(.hotspot--selected) .hotspot__chrome::before");
+  });
+
+  it("removes only the hover fill for inventory hotspots", () => {
+    expect(styles).toContain(
+      ".hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)"
+    );
+    expect(styles).toContain("background: transparent;");
+  });
 });
