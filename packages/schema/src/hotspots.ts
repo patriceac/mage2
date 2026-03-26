@@ -47,7 +47,7 @@ export function resolveHotspotBounds(hotspot: HotspotShape): HotspotBounds {
 }
 
 function shouldUseStoredPolygon(hotspot: HotspotShape): hotspot is HotspotShape & { polygon: HotspotPoint[] } {
-  return !hotspot.inventoryItemId && hotspot.polygon?.length === 4;
+  return hotspot.polygon?.length === 4;
 }
 
 export function getHotspotBoundsFromPolygon(polygon: HotspotPoint[]): HotspotBounds {
@@ -77,6 +77,19 @@ export function resolveHotspotClipPath(hotspot: HotspotShape): string {
   return `polygon(${resolveRelativeHotspotPolygon(hotspot)
     .map((point) => `${formatPercent(point.x)} ${formatPercent(point.y)}`)
     .join(", ")})`;
+}
+
+export function resolveHotspotRotationDegrees(hotspot: HotspotShape): number {
+  if (!shouldUseStoredPolygon(hotspot)) {
+    return 0;
+  }
+
+  const [startPoint, endPoint] = hotspot.polygon;
+  if (!startPoint || !endPoint) {
+    return 0;
+  }
+
+  return roundToPrecision((Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) * 180) / Math.PI);
 }
 
 export function resolveRelativeHotspotContentBox(hotspot: HotspotShape): HotspotContentBox {
@@ -186,7 +199,7 @@ function clamp01(value: number): number {
 }
 
 function formatPercent(value: number): string {
-  return `${roundToPrecision(clamp01(value)) * 100}%`;
+  return `${roundToPrecision(clamp01(value) * 100)}%`;
 }
 
 function roundToPrecision(value: number): number {

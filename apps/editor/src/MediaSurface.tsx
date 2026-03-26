@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveHotspotRotationDegrees,
   resolveRelativeHotspotPolygon,
   type Asset,
   type Hotspot
@@ -75,6 +76,7 @@ export function MediaSurface({
     .sort()
     .join("|");
   const overlayRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
   const suppressHotspotClickRef = useRef(false);
@@ -260,6 +262,7 @@ export function MediaSurface({
     }
 
     const bounds = event.currentTarget.getBoundingClientRect();
+    focusSurface();
     onSurfaceClick({
       normalizedX: (event.clientX - bounds.left) / bounds.width,
       normalizedY: (event.clientY - bounds.top) / bounds.height,
@@ -288,6 +291,10 @@ export function MediaSurface({
   };
 
   const editableHotspots = Boolean(onHotspotChange);
+
+  function focusSurface() {
+    surfaceRef.current?.focus({ preventScroll: true });
+  }
 
   const startHotspotDrag =
     (hotspot: Hotspot, handle: HotspotDragHandle) => (event: React.MouseEvent<HTMLElement>) => {
@@ -368,6 +375,7 @@ export function MediaSurface({
         }, 0);
 
         if (didDrag) {
+          focusSurface();
           suppressHotspotClickRef.current = true;
           if (suppressHotspotClickTimeoutRef.current !== undefined) {
             window.clearTimeout(suppressHotspotClickTimeoutRef.current);
@@ -398,12 +406,14 @@ export function MediaSurface({
 
   return (
     <div
+      ref={surfaceRef}
       className={className ? `media-surface ${className}` : "media-surface"}
       onClick={handleClick}
       onDragEnter={onSurfaceDragEnter}
       onDragLeave={onSurfaceDragLeave}
       onDragOver={onSurfaceDragOver}
       onDrop={handleDrop}
+      tabIndex={editableHotspots ? 0 : undefined}
       title={
         showSurfaceTooltips
           ? onSurfaceClick
@@ -492,6 +502,7 @@ export function MediaSurface({
                 event.preventDefault();
                 return;
               }
+              focusSurface();
               onHotspotClick?.(hotspot.id, "click");
             }}
             onMoveStart={startHotspotDrag(hotspot, "move")}
@@ -556,6 +567,7 @@ function HotspotButton({
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const clipPath = resolveHotspotClipPath(hotspot);
+  const rotationDegrees = resolveHotspotRotationDegrees(hotspot);
   const relativePolygon = resolveRelativeHotspotPolygon(hotspot);
   const polygonPointList = resolveHotspotPolygonPointList(relativePolygon);
   const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
@@ -595,8 +607,14 @@ function HotspotButton({
         </svg>
       ) : null}
       {visual?.url ? (
-        <div className="hotspot__visual-frame" aria-hidden="true">
-          <img src={visual.url} alt="" className="hotspot__visual" draggable={false} />
+        <div className="hotspot__visual-frame" style={{ clipPath }} aria-hidden="true">
+          <img
+            src={visual.url}
+            alt=""
+            className="hotspot__visual"
+            draggable={false}
+            style={Math.abs(rotationDegrees) > 0.001 ? { transform: `rotate(${rotationDegrees}deg)` } : undefined}
+          />
         </div>
       ) : null}
       <button

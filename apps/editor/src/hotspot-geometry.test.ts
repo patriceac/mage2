@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyHotspotBounds, applyHotspotDrag } from "./hotspot-geometry";
+import { resolveHotspotRotationDegrees } from "@mage2/schema";
+import { applyHotspotBounds, applyHotspotDrag, applyHotspotKeyboardTransform } from "./hotspot-geometry";
 
 describe("applyHotspotDrag", () => {
   it("moves a hotspot while keeping it inside the media surface", () => {
@@ -116,7 +117,7 @@ describe("applyHotspotDrag", () => {
     });
   });
 
-  it("keeps inventory-backed hotspots rectangular even when legacy polygon points exist", () => {
+  it("keeps axis-aligned inventory hotspots rectangular while dragging handles", () => {
     expect(
       applyHotspotDrag(
         {
@@ -124,13 +125,7 @@ describe("applyHotspotDrag", () => {
           x: 0.2,
           y: 0.15,
           width: 0.18,
-          height: 0.16,
-          polygon: [
-            { x: 0.22, y: 0.15 },
-            { x: 0.38, y: 0.19 },
-            { x: 0.36, y: 0.32 },
-            { x: 0.2, y: 0.29 }
-          ]
+          height: 0.16
         },
         "se",
         0.06,
@@ -189,7 +184,7 @@ describe("applyHotspotBounds", () => {
     });
   });
 
-  it("keeps inventory-backed hotspots rectangular when the inspector changes bounds", () => {
+  it("preserves stored inventory polygons when the inspector changes bounds", () => {
     expect(
       applyHotspotBounds(
         {
@@ -197,7 +192,7 @@ describe("applyHotspotBounds", () => {
           x: 0.2,
           y: 0.15,
           width: 0.18,
-          height: 0.16,
+          height: 0.17,
           polygon: [
             { x: 0.22, y: 0.15 },
             { x: 0.38, y: 0.19 },
@@ -219,10 +214,152 @@ describe("applyHotspotBounds", () => {
       width: 0.24,
       height: 0.24,
       polygon: [
-        { x: 0.1, y: 0.1 },
-        { x: 0.34, y: 0.1 },
-        { x: 0.34, y: 0.34 },
-        { x: 0.1, y: 0.34 }
+        { x: 0.13, y: 0.1 },
+        { x: 0.34, y: 0.16 },
+        { x: 0.31, y: 0.34 },
+        { x: 0.1, y: 0.3 }
+      ]
+    });
+  });
+});
+
+describe("applyHotspotKeyboardTransform", () => {
+  it("moves inventory hotspots by surface pixels and persists the resulting polygon", () => {
+    expect(
+      applyHotspotKeyboardTransform(
+        {
+          inventoryItemId: "item_lantern",
+          x: 0.2,
+          y: 0.2,
+          width: 0.2,
+          height: 0.2
+        },
+        {
+          kind: "move",
+          deltaXPx: 10,
+          deltaYPx: -10
+        },
+        {
+          width: 200,
+          height: 100
+        }
+      )
+    ).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.25,
+      y: 0.1,
+      width: 0.2,
+      height: 0.2,
+      polygon: [
+        { x: 0.25, y: 0.1 },
+        { x: 0.45, y: 0.1 },
+        { x: 0.45, y: 0.3 },
+        { x: 0.25, y: 0.3 }
+      ]
+    });
+  });
+
+  it("resizes inventory hotspots from center using surface pixels", () => {
+    expect(
+      applyHotspotKeyboardTransform(
+        {
+          inventoryItemId: "item_lantern",
+          x: 0.2,
+          y: 0.2,
+          width: 0.2,
+          height: 0.2
+        },
+        {
+          kind: "resize",
+          axis: "x",
+          deltaPx: 10
+        },
+        {
+          width: 200,
+          height: 100
+        }
+      )
+    ).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.18,
+      y: 0.2,
+      width: 0.25,
+      height: 0.2,
+      polygon: [
+        { x: 0.18, y: 0.2 },
+        { x: 0.43, y: 0.2 },
+        { x: 0.43, y: 0.4 },
+        { x: 0.18, y: 0.4 }
+      ]
+    });
+  });
+
+  it("rotates inventory hotspots and keeps the stored polygon authoritative", () => {
+    const geometry = applyHotspotKeyboardTransform(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.4,
+        y: 0.4,
+        width: 0.2,
+        height: 0.2
+      },
+      {
+        kind: "rotate",
+        deltaDegrees: 45
+      },
+      {
+        width: 100,
+        height: 100
+      }
+    );
+
+    expect(geometry).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.36,
+      y: 0.36,
+      width: 0.28,
+      height: 0.28,
+      polygon: [
+        { x: 0.5, y: 0.36 },
+        { x: 0.64, y: 0.5 },
+        { x: 0.5, y: 0.64 },
+        { x: 0.36, y: 0.5 }
+      ]
+    });
+    expect(resolveHotspotRotationDegrees(geometry)).toBe(45);
+  });
+
+  it("enforces the minimum hotspot size when shrinking with the keyboard", () => {
+    expect(
+      applyHotspotKeyboardTransform(
+        {
+          inventoryItemId: "item_lantern",
+          x: 0.4,
+          y: 0.4,
+          width: 0.02,
+          height: 0.2
+        },
+        {
+          kind: "resize",
+          axis: "x",
+          deltaPx: -10
+        },
+        {
+          width: 100,
+          height: 100
+        }
+      )
+    ).toEqual({
+      inventoryItemId: "item_lantern",
+      x: 0.41,
+      y: 0.4,
+      width: 0.01,
+      height: 0.2,
+      polygon: [
+        { x: 0.41, y: 0.4 },
+        { x: 0.42, y: 0.4 },
+        { x: 0.42, y: 0.6 },
+        { x: 0.41, y: 0.6 }
       ]
     });
   });

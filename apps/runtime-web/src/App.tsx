@@ -8,6 +8,7 @@ import {
   parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveHotspotRotationDegrees,
   type Asset,
   type BuildManifest,
   type ExportProjectData,
@@ -524,6 +525,7 @@ function RuntimeHotspotButton({
   onActivate: () => void;
 }) {
   const bounds = resolveHotspotBounds(hotspot);
+  const rotationDegrees = resolveHotspotRotationDegrees(hotspot);
 
   return (
     <button
@@ -539,7 +541,15 @@ function RuntimeHotspotButton({
       }}
       onClick={onActivate}
     >
-      {visual ? <img src={visual.imageSrc} alt="" aria-hidden="true" className="runtime-hotspot__visual" /> : null}
+      {visual ? (
+        <img
+          src={visual.imageSrc}
+          alt=""
+          aria-hidden="true"
+          className="runtime-hotspot__visual"
+          style={Math.abs(rotationDegrees) > 0.001 ? { transform: `rotate(${rotationDegrees}deg)` } : undefined}
+        />
+      ) : null}
     </button>
   );
 }
