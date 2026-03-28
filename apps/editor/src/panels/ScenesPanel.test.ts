@@ -570,7 +570,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowDown", {
+      resolveInventoryHotspotTransformKeyboardAction("ArrowUp", {
         altKey: false,
         ctrlKey: true,
         metaKey: false,
@@ -582,6 +582,22 @@ describe("ScenesPanel scene audio UI", () => {
         kind: "resize",
         axis: "y",
         deltaPx: 1
+      }
+    });
+
+    expect(
+      resolveInventoryHotspotTransformKeyboardAction("ArrowDown", {
+        altKey: false,
+        ctrlKey: true,
+        metaKey: false,
+        shiftKey: true
+      })
+    ).toEqual({
+      handled: true,
+      transform: {
+        kind: "resize",
+        axis: "y",
+        deltaPx: -1
       }
     });
 
