@@ -338,13 +338,15 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("preserves inspector visibility for drag-driven hotspot reselection", () => {
+  it("requires a second click to open the inspector after hotspot selection", () => {
     expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "preserve")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "preserve")).toBe(true);
     expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "open")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "toggle")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "hotspot_item", "toggle")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "hotspot_item", "toggle")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_other", "hotspot_item", "toggle")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_other", "hotspot_item", "toggle")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_other", "hotspot_item", "toggle")).toBe(true);
     expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(false);
   });
 
