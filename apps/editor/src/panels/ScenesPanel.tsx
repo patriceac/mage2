@@ -858,7 +858,6 @@ export function ScenesPanel({
     setIsInventoryPickerOpen(false);
     setIsHotspotInspectorOpen(false);
     setIsHotspotInspectorActive(false);
-    setSelectedHotspotId(undefined);
   }
 
   function handleInventoryPickerToggle() {
@@ -872,23 +871,47 @@ export function ScenesPanel({
   }
 
   useEffect(() => {
-    if (!floatingWindowVisibility.isInventoryPickerVisible && !floatingWindowVisibility.isHotspotInspectorVisible) {
+    if (
+      !floatingWindowVisibility.isInventoryPickerVisible &&
+      !floatingWindowVisibility.isHotspotInspectorVisible &&
+      !selectedHotspotId
+    ) {
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const hasDialogOverlay = Boolean(document.querySelector(".dialog-overlay"));
+      const targetElement =
+        event.target instanceof HTMLElement
+          ? event.target
+          : document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : undefined;
+
       if (
-        !shouldDismissScenesFloatingWindowsOnEscape(
+        shouldDismissScenesFloatingWindowsOnEscape(
           event,
           floatingWindowVisibility.isInventoryPickerVisible || floatingWindowVisibility.isHotspotInspectorVisible,
-          Boolean(document.querySelector(".dialog-overlay"))
+          hasDialogOverlay
         )
       ) {
+        event.preventDefault();
+        dismissFloatingWindows();
         return;
       }
 
-      event.preventDefault();
-      dismissFloatingWindows();
+      if (
+        shouldDismissScenesHotspotSelectionOnEscape(
+          event,
+          Boolean(selectedHotspotId),
+          hasDialogOverlay,
+          isScenesFloatingWindowTarget(targetElement),
+          isTextEntryTarget(targetElement)
+        )
+      ) {
+        event.preventDefault();
+        setSelectedHotspotId(undefined);
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -898,7 +921,9 @@ export function ScenesPanel({
   }, [
     dismissFloatingWindows,
     floatingWindowVisibility.isHotspotInspectorVisible,
-    floatingWindowVisibility.isInventoryPickerVisible
+    floatingWindowVisibility.isInventoryPickerVisible,
+    selectedHotspotId,
+    setSelectedHotspotId
   ]);
 
   useEffect(() => {
@@ -1864,6 +1889,28 @@ export function shouldDismissScenesFloatingWindowsOnEscape(
   }
 
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    return false;
+  }
+
+  return true;
+}
+
+export function shouldDismissScenesHotspotSelectionOnEscape(
+  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "defaultPrevented" | "key" | "metaKey" | "repeat" | "shiftKey">,
+  hasSelectedHotspot: boolean,
+  hasDialogOverlay: boolean,
+  isTargetInsideFloatingWindow: boolean,
+  isTargetTextEntry: boolean
+) {
+  if (!hasSelectedHotspot || hasDialogOverlay || event.defaultPrevented || event.repeat || event.key !== "Escape") {
+    return false;
+  }
+
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    return false;
+  }
+
+  if (isTargetInsideFloatingWindow || isTargetTextEntry) {
     return false;
   }
 

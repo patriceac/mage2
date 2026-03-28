@@ -14,6 +14,7 @@ import {
   resolveDroppedInventoryHotspotBounds,
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
+  shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleInventoryHotspotTransformShortcut,
   shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
@@ -405,6 +406,62 @@ describe("ScenesPanel scene audio UI", () => {
           repeat: false,
           shiftKey: false
         },
+        true,
+        false
+      )
+    ).toBe(false);
+  });
+
+  it("clears the selected hotspot only after floating windows are already hidden", () => {
+    expect(
+      shouldDismissScenesHotspotSelectionOnEscape(
+        {
+          altKey: false,
+          ctrlKey: false,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        false,
+        false,
+        false
+      )
+    ).toBe(true);
+
+    expect(
+      shouldDismissScenesHotspotSelectionOnEscape(
+        {
+          altKey: false,
+          ctrlKey: false,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        false,
+        false,
+        true
+      )
+    ).toBe(false);
+
+    expect(
+      shouldDismissScenesHotspotSelectionOnEscape(
+        {
+          altKey: false,
+          ctrlKey: false,
+          defaultPrevented: false,
+          key: "Escape",
+          metaKey: false,
+          repeat: false,
+          shiftKey: false
+        },
+        true,
+        false,
         true,
         false
       )
