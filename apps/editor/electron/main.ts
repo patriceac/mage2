@@ -21,6 +21,7 @@ import {
   saveProjectToDirectory
 } from "./project-io";
 import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
+import { resolveEditorWindowChromeOptions } from "./window-chrome";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
 
 let mainWindow: BrowserWindow | null = null;
@@ -54,6 +55,7 @@ function createWindow(): void {
     minWidth: 1280,
     minHeight: 840,
     backgroundColor: "#0b1117",
+    ...resolveEditorWindowChromeOptions(process.platform),
     ...(windowIconPath ? { icon: windowIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getLocaleStringValues, type Asset, type ProjectBundle } from "@mage2/schema";
 import { BACKGROUND_IMPORT_EXTENSIONS, INVENTORY_IMAGE_EXTENSIONS, SCENE_AUDIO_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { DropdownSelect } from "../DropdownSelect";
 import {
   addProjectLocale,
   getLocaleCompletenessStatus,
@@ -407,13 +408,13 @@ export function LocalizationPanel({
           <div className="localization-overview__locale-controls">
             <label className="localization-filter localization-panel__locale-filter">
               <span className="field-label--inset">Locale</span>
-              <select value={activeLocale} onChange={(event) => setLocalizationLocale(event.target.value)}>
+              <DropdownSelect value={activeLocale} onChange={(event) => setLocalizationLocale(event.target.value)}>
                 {supportedLocales.map((locale) => (
                   <option key={locale} value={locale}>
                     {locale}
                   </option>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
             <div className="localization-overview__actions">
               <button type="button" className="button-secondary" onClick={() => void handleAddLocale()}>
@@ -561,29 +562,29 @@ export function LocalizationPanel({
               </label>
               <label className="localization-filter">
                 <span className="field-label--inset">Status</span>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+                <DropdownSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
                   <option value="all">All statuses</option>
                   <option value="missing">Missing</option>
                   <option value="referenced">Referenced</option>
                   <option value="orphaned">Orphaned</option>
-                </select>
+                </DropdownSelect>
               </label>
               <label className="localization-filter">
                 <span className="field-label--inset">Area</span>
-                <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value as StringsAreaFilter)}>
+                <DropdownSelect value={areaFilter} onChange={(event) => setAreaFilter(event.target.value as StringsAreaFilter)}>
                   <option value="all">All areas</option>
                   <option value="scenes">Scenes</option>
                   <option value="dialogue">Dialogue</option>
                   <option value="inventory">Inventory</option>
-                </select>
+                </DropdownSelect>
               </label>
               <label className="localization-filter">
                 <span className="field-label--inset">Sort</span>
-                <select value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)}>
+                <DropdownSelect value={sortOption} onChange={(event) => setSortOption(event.target.value as typeof sortOption)}>
                   <option value="status">Status then ID</option>
                   <option value="textId">Text ID A-Z</option>
                   <option value="mostUses">Most Uses</option>
-                </select>
+                </DropdownSelect>
               </label>
             </div>
 
@@ -876,11 +877,11 @@ export function LocalizationPanel({
           </div>
           <label className="localization-filter localization-panel__locale-filter">
             <span className="field-label--inset">Category</span>
-            <select value={mediaAssetFilter} onChange={(event) => setMediaAssetFilter(event.target.value as MediaAssetFilter)}>
+            <DropdownSelect value={mediaAssetFilter} onChange={(event) => setMediaAssetFilter(event.target.value as MediaAssetFilter)}>
               <option value="background">Background</option>
               <option value="sceneAudio">Scene Audio</option>
               <option value="inventory">Inventory</option>
-            </select>
+            </DropdownSelect>
           </label>
         </div>
 

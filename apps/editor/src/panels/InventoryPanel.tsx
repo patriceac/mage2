@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { getLocaleStringValues, type ProjectBundle } from "@mage2/schema";
 import { INVENTORY_IMAGE_EXTENSIONS, isInventoryImageImportPath } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { DropdownSelect } from "../DropdownSelect";
 import { setEditorLocalizedText } from "../localized-project";
 import { addAssetRoots, addInventoryItem, cloneProject, isInventoryImageAsset } from "../project-helpers";
 import { AssetPreview } from "../previews";
@@ -277,7 +278,7 @@ export function InventoryPanel({
                 <div className="inventory-item-art__controls">
                   <label>
                     <span className="field-label--inset">Inventory Image</span>
-                    <select
+                    <DropdownSelect
                       value={item.imageAssetId ?? ""}
                       onFocus={() => setSelectedInventoryItemId(item.id)}
                       onChange={(event) =>
@@ -298,7 +299,7 @@ export function InventoryPanel({
                           {asset.name}
                         </option>
                       ))}
-                    </select>
+                    </DropdownSelect>
                   </label>
                   <div className="list-card__actions">
                     <button

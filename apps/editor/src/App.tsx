@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { type ProjectBundle, type ValidationIssue, validateProject } from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
@@ -78,7 +78,13 @@ export function App() {
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
+  const fileMenuId = useId();
+  const fileMenuRef = useRef<HTMLDivElement | null>(null);
+  const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
+  const exportMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const dialogs = useDialogs();
 
@@ -233,6 +239,53 @@ export function App() {
     };
   }, [busyLabel, canRedo, canUndo, hasEditorApi, hasUnsavedChanges, project, projectDir, redoProject, undoProject]);
 
+  useEffect(() => {
+    if (!project || !projectDir) {
+      setIsFileMenuOpen(false);
+    }
+  }, [project, projectDir]);
+
+  useEffect(() => {
+    if (!isFileMenuOpen) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeMenuItemRef.current?.focus();
+    });
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !fileMenuRef.current?.contains(event.target)) {
+        setIsFileMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsFileMenuOpen(false);
+      fileMenuButtonRef.current?.focus();
+    };
+
+    const handleBlur = () => {
+      setIsFileMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isFileMenuOpen]);
+
   async function handleCreateProject() {
     if (!hasEditorApi) {
       return;
@@ -330,6 +383,7 @@ export function App() {
     }
 
     const closingProjectName = project.manifest.projectName;
+    setIsFileMenuOpen(false);
     clearProjectContext();
     setStatusMessage(`Closed ${closingProjectName}.`);
   }
@@ -354,6 +408,61 @@ export function App() {
     setStatusMessage(
       `Exported runtime build to ${result.outputDirectory} (${result.validationReport.issues.length} validation issue(s)).`
     );
+  }
+
+  async function handleFileMenuAction(action: () => Promise<void>) {
+    setIsFileMenuOpen(false);
+    await action();
+  }
+
+  function focusFileMenuItem(index: number) {
+    const items = [closeMenuItemRef.current, exportMenuItemRef.current];
+    items[(index + items.length) % items.length]?.focus();
+  }
+
+  function handleFileMenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setIsFileMenuOpen(true);
+      return;
+    }
+
+    if (event.key === "Escape" && isFileMenuOpen) {
+      event.preventDefault();
+      setIsFileMenuOpen(false);
+    }
+  }
+
+  function handleFileMenuItemKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusFileMenuItem(index + 1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusFileMenuItem(index - 1);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusFileMenuItem(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      focusFileMenuItem(1);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsFileMenuOpen(false);
+      fileMenuButtonRef.current?.focus();
+    }
   }
 
   function handleNavigateToIssueTarget(target: EditorNavigationTarget | undefined) {
@@ -465,48 +574,206 @@ export function App() {
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Project</p>
-          <h1>{project.manifest.projectName}</h1>
-          <p className="header-meta">{projectDir}</p>
-        </div>
+    <div className="app-shell app-shell--project">
+      <header className="titlebar-shell">
+        <div className="titlebar-shell__inner">
+          <div className="titlebar-shell__identity" title={projectDir}>
+            <h1 className="titlebar-shell__title">{project.manifest.projectName}</h1>
+            <span className="titlebar-shell__separator" aria-hidden="true">
+              /
+            </span>
+            <p className="titlebar-shell__path">{projectDir}</p>
+          </div>
 
-        <div className="app-header__actions">
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={() => void handleCloseProject()}
-            title="Close the current project and return to the welcome screen."
-          >
-            Close Project
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveProject}
-            disabled={isSaveDisabled}
-            title={
-              hasUnsavedChanges
-                ? "Write the current project manifest and assets metadata back to disk. Shortcut: Ctrl+S or Cmd+S."
-                : "No unsaved changes to save. Shortcut: Ctrl+S or Cmd+S."
-            }
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="button-accent"
-            onClick={handleExportProject}
-            title="Save the project and build a static runtime export for play or distribution."
-          >
-            Export Runtime
-          </button>
+          <div className="titlebar-shell__actions app-region-no-drag">
+            <button
+              type="button"
+              className={
+                hasUnsavedChanges
+                  ? "titlebar-shell__save-button titlebar-shell__save-button--active"
+                  : "titlebar-shell__save-button"
+              }
+              onClick={handleSaveProject}
+              disabled={isSaveDisabled}
+              title={
+                hasUnsavedChanges
+                  ? "Write the current project manifest and assets metadata back to disk. Shortcut: Ctrl+S or Cmd+S."
+                  : "No unsaved changes to save. Shortcut: Ctrl+S or Cmd+S."
+              }
+            >
+              <SaveIcon />
+              <span>Save</span>
+            </button>
+
+            <div className="titlebar-menu" ref={fileMenuRef}>
+              <button
+                ref={fileMenuButtonRef}
+                type="button"
+                className={isFileMenuOpen ? "titlebar-menu__trigger titlebar-menu__trigger--open" : "titlebar-menu__trigger"}
+                aria-haspopup="menu"
+                aria-expanded={isFileMenuOpen}
+                aria-controls={fileMenuId}
+                onClick={() => setIsFileMenuOpen((value) => !value)}
+                onKeyDown={handleFileMenuTriggerKeyDown}
+                title="Open the file actions menu."
+              >
+                <span>File</span>
+                <ChevronDownIcon />
+              </button>
+
+              {isFileMenuOpen ? (
+                <div id={fileMenuId} className="titlebar-menu__panel" role="menu" aria-label="File">
+                  <button
+                    ref={closeMenuItemRef}
+                    type="button"
+                    className="titlebar-menu__item"
+                    role="menuitem"
+                    onClick={() => void handleFileMenuAction(handleCloseProject)}
+                    onKeyDown={(event) => handleFileMenuItemKeyDown(0, event)}
+                    title="Close the current project and return to the welcome screen."
+                  >
+                    Close Project
+                  </button>
+                  <button
+                    ref={exportMenuItemRef}
+                    type="button"
+                    className="titlebar-menu__item"
+                    role="menuitem"
+                    onClick={() => void handleFileMenuAction(handleExportProject)}
+                    onKeyDown={(event) => handleFileMenuItemKeyDown(1, event)}
+                    title="Save the project and build a static runtime export for play or distribution."
+                  >
+                    Export Runtime
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="status-bar">
-        <span>{busyLabel ? `${busyLabel}...` : statusMessage}</span>
+      <nav className="tab-strip tab-strip--chrome app-region-no-drag">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
+            onClick={() => setActiveTab(tab.id)}
+            title={TAB_TOOLTIPS[tab.id]}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="editor-scroll-region">
+        <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
+          <div className="editor-primary">
+            <main className="workspace">
+              {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={replaceSavedProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
+              {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
+              {activeTab === "scenes" ? (
+                <ScenesPanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  setSavedProject={replaceSavedProject}
+                  setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
+                />
+              ) : null}
+              {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
+              {activeTab === "inventory" ? (
+                <InventoryPanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  setSavedProject={replaceSavedProject}
+                  setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
+                />
+              ) : null}
+              {activeTab === "localization" ? (
+                <LocalizationPanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  setSavedProject={replaceSavedProject}
+                  setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
+                />
+              ) : null}
+              {activeTab === "playtest" ? <PlaytestPanel project={project} /> : null}
+            </main>
+          </div>
+
+          {shouldShowIssuesSidebar ? (
+            <aside className="validation-panel issues-sidebar">
+              <button
+                type="button"
+                className={
+                  showValidationDetails
+                    ? "validation-panel__pin-toggle validation-panel__pin-toggle--active"
+                    : "validation-panel__pin-toggle"
+                }
+                aria-label={showValidationDetails ? "Unpin issues sidebar" : "Pin issues sidebar open"}
+                aria-pressed={showValidationDetails}
+                onClick={() => setShowValidationDetails((value) => !value)}
+                title={
+                  showValidationDetails
+                    ? "Unpin the issues sidebar. If validation passes, it will collapse again."
+                    : "Pin the issues sidebar open."
+                }
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3h8l-1 5 3 3v2h-5v7l-1 1-1-1v-7H6v-2l3-3-1-5Z" fill="currentColor" />
+                </svg>
+              </button>
+              <div className="panel__toolbar validation-panel__header">
+                <div>
+                  <h3>Issues</h3>
+                  <p className="muted">
+                    {validationReport.issues.length > 0
+                      ? "Use the linked names to jump to the affected editor surface when available."
+                      : "No validation issues detected."}
+                  </p>
+                </div>
+              </div>
+
+              {validationReport.issues.length > 0 ? (
+                <div className="validation-list">
+                  {validationReport.issues.map((issue, index) => {
+                    const target = resolveIssueNavigation(project, issue);
+                    const entityLabel = issue.entityId ? resolveIssueEntityLabel(project, issue, target) : undefined;
+                    return (
+                      <article key={`${issue.code}-${issue.entityId ?? "global"}-${index}`} className="validation-item">
+                        <div className="validation-item__header">
+                          <span className={issue.level === "error" ? "validation-tag validation-tag--error" : "validation-tag validation-tag--warning"}>
+                            {issue.level}
+                          </span>
+                          <strong>{issue.code}</strong>
+                          {entityLabel ? (
+                            <IssueTextLink
+                              label={entityLabel}
+                              target={target}
+                              onNavigate={handleNavigateToIssueTarget}
+                              className="validation-item__entity"
+                            />
+                          ) : null}
+                        </div>
+                        <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget)}</p>
+                        <p className="muted">{getIssueHint(issue)}</p>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="muted">No issues right now.</p>
+              )}
+            </aside>
+          ) : null}
+        </div>
+      </div>
+
+      <footer className="status-bar status-bar--chrome">
+        <span className="status-bar__message">{busyLabel ? `${busyLabel}...` : statusMessage}</span>
         <button
           type="button"
           className={validationReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--warn"}
@@ -519,125 +786,7 @@ export function App() {
         >
           {validationReport.valid ? "Valid" : `${validationReport.issues.length} issue(s)`}
         </button>
-      </div>
-
-      <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
-        <div className="editor-primary">
-          <nav className="tab-strip">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
-                onClick={() => setActiveTab(tab.id)}
-                title={TAB_TOOLTIPS[tab.id]}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-
-          <main className="workspace">
-            {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={replaceSavedProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
-            {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
-            {activeTab === "scenes" ? (
-              <ScenesPanel
-                project={project}
-                mutateProject={mutateProject}
-                setSavedProject={replaceSavedProject}
-                setStatusMessage={setStatusMessage}
-                setBusyLabel={setBusyLabel}
-              />
-            ) : null}
-            {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
-            {activeTab === "inventory" ? (
-              <InventoryPanel
-                project={project}
-                mutateProject={mutateProject}
-                setSavedProject={replaceSavedProject}
-                setStatusMessage={setStatusMessage}
-                setBusyLabel={setBusyLabel}
-              />
-            ) : null}
-            {activeTab === "localization" ? (
-              <LocalizationPanel
-                project={project}
-                mutateProject={mutateProject}
-                setSavedProject={replaceSavedProject}
-                setStatusMessage={setStatusMessage}
-                setBusyLabel={setBusyLabel}
-              />
-            ) : null}
-            {activeTab === "playtest" ? <PlaytestPanel project={project} /> : null}
-          </main>
-        </div>
-
-        {shouldShowIssuesSidebar ? (
-          <aside className="validation-panel issues-sidebar">
-            <button
-              type="button"
-              className={
-                showValidationDetails
-                  ? "validation-panel__pin-toggle validation-panel__pin-toggle--active"
-                  : "validation-panel__pin-toggle"
-              }
-              aria-label={showValidationDetails ? "Unpin issues sidebar" : "Pin issues sidebar open"}
-              aria-pressed={showValidationDetails}
-              onClick={() => setShowValidationDetails((value) => !value)}
-              title={
-                showValidationDetails
-                  ? "Unpin the issues sidebar. If validation passes, it will collapse again."
-                  : "Pin the issues sidebar open."
-              }
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M8 3h8l-1 5 3 3v2h-5v7l-1 1-1-1v-7H6v-2l3-3-1-5Z" fill="currentColor" />
-              </svg>
-            </button>
-            <div className="panel__toolbar validation-panel__header">
-              <div>
-                <h3>Issues</h3>
-                <p className="muted">
-                  {validationReport.issues.length > 0
-                    ? "Use the linked names to jump to the affected editor surface when available."
-                    : "No validation issues detected."}
-                </p>
-              </div>
-            </div>
-
-            {validationReport.issues.length > 0 ? (
-              <div className="validation-list">
-                {validationReport.issues.map((issue, index) => {
-                  const target = resolveIssueNavigation(project, issue);
-                  const entityLabel = issue.entityId ? resolveIssueEntityLabel(project, issue, target) : undefined;
-                  return (
-                    <article key={`${issue.code}-${issue.entityId ?? "global"}-${index}`} className="validation-item">
-                      <div className="validation-item__header">
-                        <span className={issue.level === "error" ? "validation-tag validation-tag--error" : "validation-tag validation-tag--warning"}>
-                          {issue.level}
-                        </span>
-                        <strong>{issue.code}</strong>
-                        {entityLabel ? (
-                          <IssueTextLink
-                            label={entityLabel}
-                            target={target}
-                            onNavigate={handleNavigateToIssueTarget}
-                            className="validation-item__entity"
-                          />
-                        ) : null}
-                      </div>
-                      <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget)}</p>
-                      <p className="muted">{getIssueHint(issue)}</p>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="muted">No issues right now.</p>
-            )}
-          </aside>
-        ) : null}
-      </div>
+      </footer>
     </div>
   );
 }
@@ -705,4 +854,23 @@ function renderIssueMessage(
   }
 
   return issue.message;
+}
+
+function SaveIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M5 4h11l3 3v13H5V4Zm2 2v12h10V8.2L15.2 6H7Zm2 0h5v4H9V6Zm0 7h6v4H9v-4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m7 10 5 5 5-5H7Z" fill="currentColor" />
+    </svg>
+  );
 }

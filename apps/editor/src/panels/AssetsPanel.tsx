@@ -11,6 +11,7 @@ import {
   removeAssetFromProject,
   type AssetReferenceSummary
 } from "../project-helpers";
+import { DropdownSelect } from "../DropdownSelect";
 import { AssetPreview } from "../previews";
 import { useEditorStore } from "../store";
 
@@ -140,11 +141,11 @@ export function AssetsPanel({
           </div>
           <label className="assets-panel__filter">
             <span className="field-label--inset">Category</span>
-            <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetLibraryFilter)}>
+            <DropdownSelect value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as AssetLibraryFilter)}>
               <option value="background">Background</option>
               <option value="sceneAudio">Scene Audio</option>
               <option value="inventory">Inventory</option>
-            </select>
+            </DropdownSelect>
           </label>
         </div>
 
