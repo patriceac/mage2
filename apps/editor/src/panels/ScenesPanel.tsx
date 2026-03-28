@@ -1991,7 +1991,7 @@ export function resolveInventoryHotspotTransformKeyboardAction(
           transform: {
             kind: "resize" as const,
             axis: "y" as const,
-            deltaPx: -translationStepPx
+            deltaPx: translationStepPx
           }
         };
       case "ArrowDown":
@@ -2000,7 +2000,7 @@ export function resolveInventoryHotspotTransformKeyboardAction(
           transform: {
             kind: "resize" as const,
             axis: "y" as const,
-            deltaPx: translationStepPx
+            deltaPx: -translationStepPx
           }
         };
       default:
