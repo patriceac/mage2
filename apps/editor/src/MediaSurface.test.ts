@@ -2,7 +2,11 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { resolveHotspotClipPath, type Hotspot } from "@mage2/schema";
-import { MediaSurface, resolveHotspotSelectionAfterDrag } from "./MediaSurface";
+import {
+  MediaSurface,
+  resolveHotspotRotationHandleGeometry,
+  resolveHotspotSelectionAfterDrag
+} from "./MediaSurface";
 
 function renderHotspotMarkup(hotspot: Hotspot): string {
   return renderToStaticMarkup(
@@ -11,6 +15,32 @@ function renderHotspotMarkup(hotspot: Hotspot): string {
       hotspotAppearance: "editor",
       showHotspotLabels: false,
       showHotspotTooltips: false
+    })
+  );
+}
+
+function renderEditableSelectedHotspotMarkup(hotspot: Hotspot): string {
+  return renderToStaticMarkup(
+    React.createElement(MediaSurface, {
+      hotspots: [hotspot],
+      hotspotAppearance: "editor",
+      showHotspotLabels: false,
+      showHotspotTooltips: false,
+      selectedHotspotId: hotspot.id,
+      onHotspotChange: () => {}
+    })
+  );
+}
+
+function renderEditableSelectedLabeledHotspotMarkup(hotspot: Hotspot): string {
+  return renderToStaticMarkup(
+    React.createElement(MediaSurface, {
+      hotspots: [hotspot],
+      hotspotAppearance: "editor",
+      showHotspotLabels: true,
+      showHotspotTooltips: false,
+      selectedHotspotId: hotspot.id,
+      onHotspotChange: () => {}
     })
   );
 }
@@ -107,6 +137,115 @@ describe("MediaSurface hotspot chrome geometry", () => {
 
     expect(markup).toContain("hotspot--polygon-chrome");
     expect(markup).toContain("hotspot__chrome-shape");
+  });
+
+  it("renders a rotation handle for selected inventory hotspots only", () => {
+    const inventoryHotspot: Hotspot = {
+      id: "hotspot_item",
+      name: "Potion",
+      inventoryItemId: "item_potion",
+      x: 0.36,
+      y: 0.36,
+      width: 0.28,
+      height: 0.28,
+      polygon: [
+        { x: 0.5, y: 0.36 },
+        { x: 0.64, y: 0.5 },
+        { x: 0.5, y: 0.64 },
+        { x: 0.36, y: 0.5 }
+      ],
+      startMs: 0,
+      endMs: 1_000,
+      requiredItemIds: [],
+      conditions: [],
+      effects: []
+    };
+    const plainHotspot: Hotspot = {
+      ...inventoryHotspot,
+      id: "hotspot_plain",
+      inventoryItemId: undefined
+    };
+
+    expect(renderEditableSelectedHotspotMarkup(inventoryHotspot)).toContain("hotspot__handle hotspot__handle--rotate");
+    expect(renderEditableSelectedHotspotMarkup(inventoryHotspot)).toContain("hotspot__rotation-ui");
+    expect(renderEditableSelectedHotspotMarkup(plainHotspot)).not.toContain("hotspot__handle hotspot__handle--rotate");
+  });
+
+  it("adds extra top clearance to selected inventory labels above the rotation handle", () => {
+    const hotspot: Hotspot = {
+      id: "hotspot_item",
+      name: "Potion",
+      inventoryItemId: "item_potion",
+      x: 0.36,
+      y: 0.36,
+      width: 0.28,
+      height: 0.28,
+      polygon: [
+        { x: 0.5, y: 0.36 },
+        { x: 0.64, y: 0.5 },
+        { x: 0.5, y: 0.64 },
+        { x: 0.36, y: 0.5 }
+      ],
+      startMs: 0,
+      endMs: 1_000,
+      requiredItemIds: [],
+      conditions: [],
+      effects: []
+    };
+
+    const markup = renderEditableSelectedLabeledHotspotMarkup(hotspot);
+
+    expect(markup).toContain("--hotspot-top-control-clearance:28px");
+  });
+
+  it("places the rotation handle above the hotspot top edge", () => {
+    const rotationHandle = resolveHotspotRotationHandleGeometry([
+      { x: 0.2, y: 0.2 },
+      { x: 0.8, y: 0.2 },
+      { x: 0.8, y: 0.8 },
+      { x: 0.2, y: 0.8 }
+    ]);
+
+    expect(rotationHandle?.handleX).toBeCloseTo(0.5, 6);
+    expect(rotationHandle?.handleY).toBeCloseTo(0.02, 6);
+    expect(rotationHandle?.stemStartX).toBeCloseTo(0.5, 6);
+    expect(rotationHandle?.stemStartY).toBeCloseTo(0.2, 6);
+    expect(rotationHandle?.labelX).toBeCloseTo(0.5, 6);
+    expect(rotationHandle?.labelY).toBeCloseTo(-0.1, 6);
+  });
+
+  it("aligns the rotation handle to the rendered hotspot axis for non-square frames", () => {
+    const polygon = [
+      { x: 0.2204, y: 0.0813 },
+      { x: 0.7796, y: 0.4338 },
+      { x: 0.5796, y: 0.9188 },
+      { x: 0.0204, y: 0.5663 }
+    ];
+    const frameSize = { width: 240, height: 120 };
+    const rotationHandle = resolveHotspotRotationHandleGeometry(polygon, frameSize);
+
+    expect(rotationHandle).toBeDefined();
+
+    const topMidpointPx = {
+      x: ((polygon[0]!.x + polygon[1]!.x) / 2) * frameSize.width,
+      y: ((polygon[0]!.y + polygon[1]!.y) / 2) * frameSize.height
+    };
+    const topVectorPx = {
+      x: (polygon[1]!.x - polygon[0]!.x) * frameSize.width,
+      y: (polygon[1]!.y - polygon[0]!.y) * frameSize.height
+    };
+    const handleVectorPx = {
+      x: (rotationHandle!.handleX - (polygon[0]!.x + polygon[1]!.x) / 2) * frameSize.width,
+      y: (rotationHandle!.handleY - (polygon[0]!.y + polygon[1]!.y) / 2) * frameSize.height
+    };
+    const dotProduct = topVectorPx.x * handleVectorPx.x + topVectorPx.y * handleVectorPx.y;
+    const normalizedDotProduct =
+      dotProduct /
+      (Math.hypot(topVectorPx.x, topVectorPx.y) * Math.max(Math.hypot(handleVectorPx.x, handleVectorPx.y), 0.0001));
+
+    expect(Math.abs(normalizedDotProduct)).toBeLessThan(0.01);
+    expect(Math.hypot(handleVectorPx.x, handleVectorPx.y)).toBeCloseTo(18, 1);
+    expect(rotationHandle!.handleY * frameSize.height).toBeLessThan(topMidpointPx.y);
   });
 
   it("preserves a hidden inspector state when dragging an unselected hotspot", () => {

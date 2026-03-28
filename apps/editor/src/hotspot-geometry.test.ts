@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { resolveHotspotRotationDegrees } from "@mage2/schema";
-import { applyHotspotBounds, applyHotspotDrag, applyHotspotKeyboardTransform } from "./hotspot-geometry";
+import { resolveHotspotPolygon, resolveHotspotRotationDegrees, resolveRelativeHotspotFrame } from "@mage2/schema";
+import {
+  applyHotspotBounds,
+  applyHotspotDrag,
+  applyHotspotKeyboardTransform,
+  applyInventoryHotspotRotationDegrees,
+  applyInventoryHotspotRotationDrag
+} from "./hotspot-geometry";
 
 function expectRectangularPolygon(
   polygon: Array<{ x: number; y: number }>,
@@ -24,6 +30,13 @@ function expectRectangularPolygon(
     const dotProduct = current.x * next.x + current.y * next.y;
     expect(Math.abs(dotProduct)).toBeLessThan(0.2);
   }
+}
+
+function toPixelPoints(polygon: Array<{ x: number; y: number }>, surfaceSize: { width: number; height: number }) {
+  return polygon.map((point) => ({
+    x: point.x * surfaceSize.width,
+    y: point.y * surfaceSize.height
+  }));
 }
 
 describe("applyHotspotDrag", () => {
@@ -451,5 +464,114 @@ describe("applyHotspotKeyboardTransform", () => {
         { x: 0.405, y: 0.6 }
       ]
     });
+  });
+});
+
+describe("applyInventoryHotspotRotationDegrees", () => {
+  it("sets an inventory hotspot to an absolute rendered angle", () => {
+    const geometry = applyInventoryHotspotRotationDegrees(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.4,
+        y: 0.4,
+        width: 0.2,
+        height: 0.2
+      },
+      30,
+      {
+        width: 200,
+        height: 100
+      }
+    );
+
+    expect(resolveRelativeHotspotFrame(geometry, { width: 200, height: 100 }).rotationDegrees).toBeCloseTo(30, 1);
+    expectRectangularPolygon(geometry.polygon ?? [], { width: 200, height: 100 });
+  });
+});
+
+describe("applyInventoryHotspotRotationDrag", () => {
+  it("rotates inventory hotspots from the pointer while preserving size and rectangularity", () => {
+    const surfaceSize = { width: 100, height: 100 };
+    const result = applyInventoryHotspotRotationDrag(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.4,
+        y: 0.4,
+        width: 0.2,
+        height: 0.2
+      },
+      {
+        startPointerXPx: 50,
+        startPointerYPx: 30,
+        pointerXPx: 50 + 20 * Math.cos((-45 * Math.PI) / 180),
+        pointerYPx: 50 + 20 * Math.sin((-45 * Math.PI) / 180),
+        shiftKey: false,
+        surfaceSize
+      }
+    );
+
+    expectRectangularPolygon(result.geometry.polygon ?? [], surfaceSize);
+    expect(result.rotationDegrees).toBeCloseTo(45, 1);
+    expect(resolveHotspotRotationDegrees(result.geometry)).toBeCloseTo(45, 1);
+
+    const [nw, ne, se] = toPixelPoints(result.geometry.polygon ?? [], surfaceSize);
+    expect(Math.hypot(ne.x - nw.x, ne.y - nw.y)).toBeCloseTo(20, 1);
+    expect(Math.hypot(se.x - ne.x, se.y - ne.y)).toBeCloseTo(20, 1);
+  });
+
+  it("snaps pointer rotation to absolute 15-degree steps while shift is held", () => {
+    const angleDegrees = -53;
+    const result = applyInventoryHotspotRotationDrag(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.4,
+        y: 0.4,
+        width: 0.2,
+        height: 0.2
+      },
+      {
+        startPointerXPx: 50,
+        startPointerYPx: 30,
+        pointerXPx: 50 + 20 * Math.cos((angleDegrees * Math.PI) / 180),
+        pointerYPx: 50 + 20 * Math.sin((angleDegrees * Math.PI) / 180),
+        shiftKey: true,
+        surfaceSize: {
+          width: 100,
+          height: 100
+        }
+      }
+    );
+
+    expect(result.snapped).toBe(true);
+    expect(result.rotationDegrees).toBeCloseTo(30, 1);
+    expect(resolveHotspotRotationDegrees(result.geometry)).toBeCloseTo(30, 1);
+  });
+
+  it("clamps pointer rotation when the requested angle would push the hotspot outside the surface", () => {
+    const result = applyInventoryHotspotRotationDrag(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0,
+        y: 0,
+        width: 0.2,
+        height: 0.2
+      },
+      {
+        startPointerXPx: 10,
+        startPointerYPx: 0,
+        pointerXPx: 10 + 20 * Math.cos((-30 * Math.PI) / 180),
+        pointerYPx: 10 + 20 * Math.sin((-30 * Math.PI) / 180),
+        shiftKey: true,
+        surfaceSize: {
+          width: 100,
+          height: 100
+        }
+      }
+    );
+
+    expect(
+      resolveHotspotPolygon(result.geometry).every((point) => point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1)
+    ).toBe(true);
+    expect(result.rotationDegrees).toBeLessThan(60);
   });
 });
