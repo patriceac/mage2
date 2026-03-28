@@ -6,7 +6,7 @@ const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 describe("hotspot idle visibility styles", () => {
   it("keeps the selected hotspot out of the preview idle-hide selectors", () => {
     const idleSelectorPrefix =
-      ".media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) ";
+      ".media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) ";
 
     expect(styles).toContain(
       `${idleSelectorPrefix}.hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)`
@@ -16,6 +16,11 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__label-card`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__label-comment-shell`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__handles`);
+  });
+
+  it("does not let surface focus keep every non-selected hotspot visible", () => {
+    expect(styles).not.toContain(".media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked)");
+    expect(styles).toContain(".hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__chrome");
   });
 
   it("keeps the generic hover chrome rules available to inventory hotspots", () => {

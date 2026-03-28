@@ -1805,39 +1805,39 @@ label > .checkbox-list {
   outline-offset: 2px;
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
   opacity: 0;
   transform: scale(0.98);
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__chrome {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__chrome {
   opacity: 0;
   transform: scale(0.98);
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__chrome-shape {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__chrome-shape {
   opacity: 0;
   transform: scale(0.98);
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__visual-frame {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__visual-frame {
   opacity: 1;
   transform: none;
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__label-card {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__label-card {
   opacity: 0;
   transform: translateY(0.18rem) scale(0.98);
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__label-comment-shell {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__label-comment-shell {
   max-height: 0;
   margin-top: 0;
   opacity: 0;
   transform: translateY(-0.15rem);
 }
 
-.media-surface:not(:hover):not(:focus-within):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected) .hotspot__handles {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__handles {
   opacity: 0;
 }
 
