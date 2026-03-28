@@ -230,6 +230,12 @@ input[type="range"]:focus-visible {
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.22));
 }
 
+.runtime-hotspot__visual-content {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: center;
+}
+
 .runtime-hotspot:hover,
 .runtime-hotspot:focus-visible {
   border-color: rgba(125, 211, 252, 0.42);

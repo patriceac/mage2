@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   resolveHotspotBounds,
-  resolveHotspotClipPath,
+  resolveRelativeHotspotFrame,
   resolveHotspotRotationDegrees,
+  resolveRelativeHotspotVisualBox,
   resolveRelativeHotspotPolygon,
   type Asset,
-  type Hotspot
+  type Hotspot,
+  type HotspotSurfaceSize
 } from "@mage2/schema";
 import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
 import { resolveHotspotLabelPlacement, type HotspotLabelPlacement } from "./hotspot-label-placement";
@@ -70,6 +72,7 @@ export function MediaSurface({
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
+  const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
   const hotspotVisualEntries = Object.entries(hotspotVisuals ?? {}).filter(([, visual]) => Boolean(visual?.sourcePath));
   const hotspotVisualSourceSignature = hotspotVisualEntries
     .map(([hotspotId, visual]) => `${hotspotId}:${visual!.sourcePath}`)
@@ -157,6 +160,33 @@ export function MediaSurface({
       if (suppressSurfaceClickTimeoutRef.current !== undefined) {
         window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
       }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const updateOverlaySurfaceSize = () => {
+      const bounds = overlay.getBoundingClientRect();
+      setOverlaySurfaceSize(
+        bounds.width > 0 && bounds.height > 0
+          ? {
+              width: bounds.width,
+              height: bounds.height
+            }
+          : undefined
+      );
+    };
+
+    updateOverlaySurfaceSize();
+
+    const observer = new ResizeObserver(updateOverlaySurfaceSize);
+    observer.observe(overlay);
+    return () => {
+      observer.disconnect();
     };
   }, []);
 
@@ -341,7 +371,11 @@ export function MediaSurface({
           startingGeometry,
           handle,
           (moveEvent.clientX - startClientX) / bounds.width,
-          (moveEvent.clientY - startClientY) / bounds.height
+          (moveEvent.clientY - startClientY) / bounds.height,
+          {
+            width: bounds.width,
+            height: bounds.height
+          }
         );
 
         if (geometryMatches(nextGeometry, latestGeometry)) {
@@ -491,6 +525,7 @@ export function MediaSurface({
                 : undefined
             }
             strings={strings}
+            surfaceSize={overlaySurfaceSize}
             appearance={hotspotAppearance}
             editable={editableHotspots}
             selected={hotspot.id === selectedHotspotId}
@@ -539,6 +574,7 @@ interface HotspotButtonProps {
     url?: string;
   };
   strings?: Record<string, string>;
+  surfaceSize?: HotspotSurfaceSize;
   appearance: "editor" | "runtime" | "hidden";
   editable: boolean;
   selected: boolean;
@@ -554,6 +590,7 @@ function HotspotButton({
   hotspot,
   visual,
   strings,
+  surfaceSize,
   appearance,
   editable,
   selected,
@@ -566,13 +603,18 @@ function HotspotButton({
 }: HotspotButtonProps) {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
-  const clipPath = resolveHotspotClipPath(hotspot);
-  const rotationDegrees = resolveHotspotRotationDegrees(hotspot);
-  const relativePolygon = resolveRelativeHotspotPolygon(hotspot);
+  const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
+  const relativePolygon = hotspot.inventoryItemId && relativeFrame ? relativeFrame.polygon : resolveRelativeHotspotPolygon(hotspot);
+  const clipPath = resolveRelativeHotspotClipPath(relativePolygon);
+  const rotationDegrees =
+    hotspot.inventoryItemId && relativeFrame ? relativeFrame.rotationDegrees : resolveHotspotRotationDegrees(hotspot);
+  const visualBox = resolveRelativeHotspotVisualBox(hotspot, surfaceSize ?? { width: 1, height: 1 });
   const polygonPointList = resolveHotspotPolygonPointList(relativePolygon);
   const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
   const labelPlacement = resolveHotspotLabelPlacement(bounds);
-  const handlePositions = resolveHotspotHandlePositions(hotspot);
+  const handlePositions = resolveHotspotHandlePositions(relativePolygon);
+  const showsShapeChrome = appearance === "editor" && (!hotspot.inventoryItemId || Math.abs(rotationDegrees) > 0.001);
+  const suppressAxisAlignedChrome = Boolean(hotspot.inventoryItemId) && Math.abs(rotationDegrees) > 0.001;
   const [tooltipText, setTooltipText] = useState<string>();
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
     event.preventDefault();
@@ -581,7 +623,13 @@ function HotspotButton({
 
   return (
     <div
-      className={resolveHotspotClassName(selected, editable, Boolean(visual), Boolean(hotspot.inventoryItemId))}
+      className={resolveHotspotClassName(
+        selected,
+        editable,
+        Boolean(visual),
+        Boolean(hotspot.inventoryItemId),
+        suppressAxisAlignedChrome
+      )}
       style={{
         left: `${bounds.x * 100}%`,
         top: `${bounds.y * 100}%`,
@@ -590,7 +638,7 @@ function HotspotButton({
       }}
     >
       {appearance === "editor" ? <div className="hotspot__chrome" style={{ clipPath }} aria-hidden="true" /> : null}
-      {appearance === "editor" && !hotspot.inventoryItemId ? (
+      {showsShapeChrome ? (
         <svg className="hotspot__chrome-shape" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <polygon className="hotspot__chrome-shape-outline hotspot__chrome-shape-outline--outer" points={polygonPointList} />
           <polygon className="hotspot__chrome-shape-outline" points={polygonPointList} />
@@ -608,13 +656,9 @@ function HotspotButton({
       ) : null}
       {visual?.url ? (
         <div className="hotspot__visual-frame" style={{ clipPath }} aria-hidden="true">
-          <img
-            src={visual.url}
-            alt=""
-            className="hotspot__visual"
-            draggable={false}
-            style={Math.abs(rotationDegrees) > 0.001 ? { transform: `rotate(${rotationDegrees}deg)` } : undefined}
-          />
+          <div className="hotspot__visual-content" style={resolveHotspotVisualContentStyle(visualBox, rotationDegrees)}>
+            <img src={visual.url} alt="" className="hotspot__visual" draggable={false} />
+          </div>
         </div>
       ) : null}
       <button
@@ -894,7 +938,13 @@ function resolveHotspotLabelStyle(bounds: { x: number; width: number }, placemen
   };
 }
 
-function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual: boolean, isInventoryItem: boolean): string {
+function resolveHotspotClassName(
+  selected: boolean,
+  editable: boolean,
+  hasVisual: boolean,
+  isInventoryItem: boolean,
+  suppressAxisAlignedChrome: boolean
+): string {
   const classNames = ["hotspot"];
 
   if (selected) {
@@ -913,7 +963,29 @@ function resolveHotspotClassName(selected: boolean, editable: boolean, hasVisual
     classNames.push("hotspot--inventory-item");
   }
 
+  if (suppressAxisAlignedChrome) {
+    classNames.push("hotspot--polygon-chrome");
+  }
+
   return classNames.join(" ");
+}
+
+function resolveHotspotVisualContentStyle(
+  visualBox: { x: number; y: number; width: number; height: number },
+  rotationDegrees: number
+): React.CSSProperties | undefined {
+  const style: React.CSSProperties = {
+    left: `${visualBox.x * 100}%`,
+    top: `${visualBox.y * 100}%`,
+    width: `${visualBox.width * 100}%`,
+    height: `${visualBox.height * 100}%`
+  };
+
+  if (Math.abs(rotationDegrees) > 0.001) {
+    style.transform = `rotate(${rotationDegrees}deg)`;
+  }
+
+  return style;
 }
 
 export function resolveHotspotSelectionAfterDrag(
@@ -939,12 +1011,12 @@ function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden"
   return classNames.join(" ");
 }
 
-function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{
+function resolveHotspotHandlePositions(polygon: Array<{ x: number; y: number }>): Array<{
   handle: Exclude<HotspotDragHandle, "move">;
   x: number;
   y: number;
 }> {
-  const [nw, ne, se, sw] = resolveRelativeHotspotPolygon(hotspot);
+  const [nw, ne, se, sw] = polygon;
 
   return [
     { handle: "nw", x: nw.x, y: nw.y },
@@ -956,6 +1028,15 @@ function resolveHotspotHandlePositions(hotspot: Hotspot): Array<{
     { handle: "sw", x: sw.x, y: sw.y },
     { handle: "w", x: (sw.x + nw.x) / 2, y: (sw.y + nw.y) / 2 }
   ];
+}
+
+function resolveRelativeHotspotClipPath(polygon: Array<{ x: number; y: number }>): string {
+  return `polygon(${polygon.map((point) => `${formatHotspotPercent(point.x)} ${formatHotspotPercent(point.y)}`).join(", ")})`;
+}
+
+function formatHotspotPercent(value: number): string {
+  const percent = Math.max(0, Math.min(1, value)) * 100;
+  return `${Math.round(percent * 10000) / 10000}%`;
 }
 
 function resolveHotspotPolygonPointList(polygon: Array<{ x: number; y: number }>): string {

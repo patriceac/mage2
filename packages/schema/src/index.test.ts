@@ -8,6 +8,8 @@ import {
   resolveHotspotClipPath,
   resolveHotspotRotationDegrees,
   resolveRelativeHotspotContentBox,
+  resolveRelativeHotspotFrame,
+  resolveRelativeHotspotVisualBox,
   validateProject
 } from "./index";
 
@@ -606,5 +608,86 @@ describe("hotspot content placement", () => {
     expect(placement.y).toBeLessThan(0.62);
     expect(placement.width).toBeLessThan(0.9);
     expect(placement.height).toBeLessThan(0.9);
+  });
+
+  it("keeps rotated inventory art sized to the rectangle instead of the bounding box", () => {
+    const visualBox = resolveRelativeHotspotVisualBox(
+      {
+        inventoryItemId: "item_potion",
+        x: 0.36,
+        y: 0.36,
+        width: 0.28,
+        height: 0.28,
+        polygon: [
+          { x: 0.5, y: 0.36 },
+          { x: 0.64, y: 0.5 },
+          { x: 0.5, y: 0.64 },
+          { x: 0.36, y: 0.5 }
+        ]
+      },
+      {
+        width: 100,
+        height: 100
+      }
+    );
+
+    expect(visualBox.x).toBeCloseTo(0.1464, 3);
+    expect(visualBox.y).toBeCloseTo(0.1464, 3);
+    expect(visualBox.width).toBeCloseTo(0.7071, 3);
+    expect(visualBox.height).toBeCloseTo(0.7071, 3);
+  });
+
+  it("rectifies rotated inventory hotspots back to a rectangle for rendering", () => {
+    const frame = resolveRelativeHotspotFrame(
+      {
+        inventoryItemId: "item_potion",
+        x: 0.2,
+        y: 0.15,
+        width: 0.18,
+        height: 0.17,
+        polygon: [
+          { x: 0.22, y: 0.15 },
+          { x: 0.38, y: 0.19 },
+          { x: 0.36, y: 0.32 },
+          { x: 0.2, y: 0.29 }
+        ]
+      },
+      {
+        width: 1600,
+        height: 900
+      }
+    );
+
+    expect(frame.rotationDegrees).toBeCloseTo(8.0047, 4);
+    expect(frame.polygon).toHaveLength(4);
+    expect(Math.min(...frame.polygon.map((point) => point.x))).toBeLessThan(0.1);
+    expect(Math.max(...frame.polygon.map((point) => point.x))).toBeGreaterThan(0.9);
+    expect(Math.min(...frame.polygon.map((point) => point.y))).toBeLessThan(0);
+    expect(Math.max(...frame.polygon.map((point) => point.y))).toBeGreaterThan(1);
+  });
+
+  it("allows wide rotated inventory art to extend beyond the bounding box before clipping", () => {
+    const visualBox = resolveRelativeHotspotVisualBox(
+      {
+        inventoryItemId: "item_scroll",
+        x: 0.32,
+        y: 0.18,
+        width: 0.16,
+        height: 0.29,
+        polygon: [
+          { x: 0.3392, y: 0.1816 },
+          { x: 0.4807, y: 0.433 },
+          { x: 0.4608, y: 0.4684 },
+          { x: 0.3193, y: 0.217 }
+        ]
+      },
+      {
+        width: 1600,
+        height: 900
+      }
+    );
+
+    expect(visualBox.x).toBeLessThan(0);
+    expect(visualBox.width).toBeGreaterThan(1);
   });
 });

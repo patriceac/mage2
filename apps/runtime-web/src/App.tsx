@@ -8,11 +8,14 @@ import {
   parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveRelativeHotspotFrame,
   resolveHotspotRotationDegrees,
+  resolveRelativeHotspotVisualBox,
   type Asset,
   type BuildManifest,
   type ExportProjectData,
   type Hotspot,
+  type HotspotSurfaceSize,
   type InventoryItem,
   parseBuildManifest
 } from "@mage2/schema";
@@ -95,7 +98,9 @@ export function App() {
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
   const runtimeVideoRef = useRef<HTMLVideoElement>(null);
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
+  const runtimeOverlayRef = useRef<HTMLDivElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
+  const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
 
   useEffect(() => {
     async function loadBuild() {
@@ -153,7 +158,7 @@ export function App() {
     }
 
     void loadBuild();
-  }, []);
+  }, [Boolean(buildManifest && content && controller && snapshot)]);
 
   const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
@@ -262,6 +267,33 @@ export function App() {
       localStorage.setItem(localeStorageKey, activeLocale);
     }
   }, [activeLocale, localeStorageKey]);
+
+  useEffect(() => {
+    const overlay = runtimeOverlayRef.current;
+    if (!overlay || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const updateOverlaySize = () => {
+      const bounds = overlay.getBoundingClientRect();
+      setRuntimeOverlaySize(
+        bounds.width > 0 && bounds.height > 0
+          ? {
+              width: bounds.width,
+              height: bounds.height
+            }
+          : undefined
+      );
+    };
+
+    updateOverlaySize();
+
+    const observer = new ResizeObserver(updateOverlaySize);
+    observer.observe(overlay);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   if (errorMessage) {
     return (
@@ -401,13 +433,14 @@ export function App() {
             <audio ref={runtimeAudioRef} src={sceneAudioVariant.sourcePath} preload="metadata" className="runtime-scene-audio" />
           ) : null}
 
-          <div className="runtime-media__overlay">
+          <div ref={runtimeOverlayRef} className="runtime-media__overlay">
             {visibleHotspots.map((hotspot) => {
               return (
                 <RuntimeHotspotButton
                   key={hotspot.id}
                   hotspot={hotspot}
                   showHotspots={showHotspots}
+                  surfaceSize={runtimeOverlaySize}
                   visual={runtimeHotspotVisuals[hotspot.id]}
                   strings={localeStrings}
                   onActivate={() => {
@@ -511,12 +544,14 @@ export function App() {
 function RuntimeHotspotButton({
   hotspot,
   showHotspots,
+  surfaceSize,
   visual,
   strings,
   onActivate
 }: {
   hotspot: Hotspot;
   showHotspots: boolean;
+  surfaceSize?: HotspotSurfaceSize;
   visual?: {
     imageSrc: string;
     alt: string;
@@ -525,7 +560,12 @@ function RuntimeHotspotButton({
   onActivate: () => void;
 }) {
   const bounds = resolveHotspotBounds(hotspot);
-  const rotationDegrees = resolveHotspotRotationDegrees(hotspot);
+  const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
+  const clipPath =
+    hotspot.inventoryItemId && relativeFrame ? resolveRelativeHotspotClipPath(relativeFrame.polygon) : resolveHotspotClipPath(hotspot);
+  const rotationDegrees =
+    hotspot.inventoryItemId && relativeFrame ? relativeFrame.rotationDegrees : resolveHotspotRotationDegrees(hotspot);
+  const visualBox = resolveRelativeHotspotVisualBox(hotspot, surfaceSize ?? { width: 1, height: 1 });
 
   return (
     <button
@@ -537,21 +577,48 @@ function RuntimeHotspotButton({
         top: `${bounds.y * 100}%`,
         width: `${bounds.width * 100}%`,
         height: `${bounds.height * 100}%`,
-        clipPath: resolveHotspotClipPath(hotspot)
+        clipPath
       }}
       onClick={onActivate}
     >
       {visual ? (
-        <img
-          src={visual.imageSrc}
-          alt=""
-          aria-hidden="true"
-          className="runtime-hotspot__visual"
-          style={Math.abs(rotationDegrees) > 0.001 ? { transform: `rotate(${rotationDegrees}deg)` } : undefined}
-        />
+        <div className="runtime-hotspot__visual-content" style={resolveRuntimeHotspotVisualContentStyle(visualBox, rotationDegrees)}>
+          <img src={visual.imageSrc} alt="" aria-hidden="true" className="runtime-hotspot__visual" />
+        </div>
       ) : null}
     </button>
   );
+}
+
+function resolveRuntimeHotspotVisualContentStyle(
+  visualBox: { x: number; y: number; width: number; height: number },
+  rotationDegrees: number
+): React.CSSProperties | undefined {
+  const style: React.CSSProperties = {
+    left: `${visualBox.x * 100}%`,
+    top: `${visualBox.y * 100}%`,
+    width: `${visualBox.width * 100}%`,
+    height: `${visualBox.height * 100}%`
+  };
+
+  if (Math.abs(rotationDegrees) > 0.001) {
+    style.transform = `rotate(${rotationDegrees}deg)`;
+  }
+
+  return style;
+}
+
+function resolveRelativeHotspotClipPath(polygon?: Array<{ x: number; y: number }>): string | undefined {
+  if (!polygon || polygon.length === 0) {
+    return undefined;
+  }
+
+  return `polygon(${polygon.map((point) => `${formatHotspotPercent(point.x)} ${formatHotspotPercent(point.y)}`).join(", ")})`;
+}
+
+function formatHotspotPercent(value: number): string {
+  const percent = Math.max(0, Math.min(1, value)) * 100;
+  return `${Math.round(percent * 10000) / 10000}%`;
 }
 
 function normalizeHotspotText(value: string | undefined): string {
