@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { resolveHotspotRotationDegrees } from "@mage2/schema";
 import { applyHotspotBounds, applyHotspotDrag, applyHotspotKeyboardTransform } from "./hotspot-geometry";
 
+function expectRectangularPolygon(
+  polygon: Array<{ x: number; y: number }>,
+  surfaceSize: { width: number; height: number }
+) {
+  const pixelPoints = polygon.map((point) => ({
+    x: point.x * surfaceSize.width,
+    y: point.y * surfaceSize.height
+  }));
+  const edges = pixelPoints.map((point, index) => {
+    const next = pixelPoints[(index + 1) % pixelPoints.length]!;
+    return {
+      x: next.x - point.x,
+      y: next.y - point.y
+    };
+  });
+
+  for (let index = 0; index < edges.length; index += 1) {
+    const current = edges[index]!;
+    const next = edges[(index + 1) % edges.length]!;
+    const dotProduct = current.x * next.x + current.y * next.y;
+    expect(Math.abs(dotProduct)).toBeLessThan(0.2);
+  }
+}
+
 describe("applyHotspotDrag", () => {
   it("moves a hotspot while keeping it inside the media surface", () => {
     expect(
@@ -145,6 +169,34 @@ describe("applyHotspotDrag", () => {
       ]
     });
   });
+
+  it("keeps rotated inventory hotspots rectangular while dragging handles", () => {
+    const geometry = applyHotspotDrag(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.36,
+        y: 0.36,
+        width: 0.28,
+        height: 0.28,
+        polygon: [
+          { x: 0.5, y: 0.36 },
+          { x: 0.64, y: 0.5 },
+          { x: 0.5, y: 0.64 },
+          { x: 0.36, y: 0.5 }
+        ]
+      },
+      "e",
+      0.05,
+      0,
+      {
+        width: 100,
+        height: 100
+      }
+    );
+
+    expectRectangularPolygon(geometry.polygon ?? [], { width: 100, height: 100 });
+    expect(resolveHotspotRotationDegrees(geometry)).toBeCloseTo(45, 2);
+  });
 });
 
 describe("applyHotspotBounds", () => {
@@ -176,7 +228,7 @@ describe("applyHotspotBounds", () => {
       width: 0.24,
       height: 0.24,
       polygon: [
-        { x: 0.33, y: 0.32 },
+        { x: 0.3267, y: 0.325 },
         { x: 0.34, y: 0.1 },
         { x: 0.34, y: 0.34 },
         { x: 0.1, y: 0.34 }
@@ -214,12 +266,49 @@ describe("applyHotspotBounds", () => {
       width: 0.24,
       height: 0.24,
       polygon: [
-        { x: 0.13, y: 0.1 },
-        { x: 0.34, y: 0.16 },
-        { x: 0.31, y: 0.34 },
-        { x: 0.1, y: 0.3 }
+        { x: 0.1267, y: 0.1 },
+        { x: 0.34, y: 0.1565 },
+        { x: 0.3133, y: 0.34 },
+        { x: 0.1, y: 0.2976 }
       ]
     });
+  });
+
+  it("keeps rotated inventory hotspots rectangular while dragging handles on the real surface", () => {
+    const geometry = applyHotspotDrag(
+      {
+        inventoryItemId: "item_lantern",
+        x: 0.2,
+        y: 0.15,
+        width: 0.18,
+        height: 0.17,
+        polygon: [
+          { x: 0.22, y: 0.15 },
+          { x: 0.38, y: 0.19 },
+          { x: 0.36, y: 0.32 },
+          { x: 0.2, y: 0.29 }
+        ]
+      },
+      "e",
+      0.04,
+      0,
+      {
+        width: 1600,
+        height: 900
+      }
+    );
+
+    expect(geometry.inventoryItemId).toBe("item_lantern");
+    expect(geometry.polygon).toHaveLength(4);
+
+    const [nw, ne, se, sw] = geometry.polygon!;
+    const topEdge = Math.hypot(ne.x - nw.x, ne.y - nw.y);
+    const bottomEdge = Math.hypot(se.x - sw.x, se.y - sw.y);
+    const leftEdge = Math.hypot(sw.x - nw.x, sw.y - nw.y);
+    const rightEdge = Math.hypot(se.x - ne.x, se.y - ne.y);
+
+    expect(topEdge).toBeCloseTo(bottomEdge, 4);
+    expect(leftEdge).toBeCloseTo(rightEdge, 4);
   });
 });
 
@@ -286,10 +375,10 @@ describe("applyHotspotKeyboardTransform", () => {
       width: 0.25,
       height: 0.2,
       polygon: [
-        { x: 0.18, y: 0.2 },
-        { x: 0.43, y: 0.2 },
-        { x: 0.43, y: 0.4 },
-        { x: 0.18, y: 0.4 }
+        { x: 0.175, y: 0.2 },
+        { x: 0.425, y: 0.2 },
+        { x: 0.425, y: 0.4 },
+        { x: 0.175, y: 0.4 }
       ]
     });
   });
@@ -320,10 +409,10 @@ describe("applyHotspotKeyboardTransform", () => {
       width: 0.28,
       height: 0.28,
       polygon: [
-        { x: 0.5, y: 0.36 },
-        { x: 0.64, y: 0.5 },
-        { x: 0.5, y: 0.64 },
-        { x: 0.36, y: 0.5 }
+        { x: 0.5, y: 0.3586 },
+        { x: 0.6414, y: 0.5 },
+        { x: 0.5, y: 0.6414 },
+        { x: 0.3586, y: 0.5 }
       ]
     });
     expect(resolveHotspotRotationDegrees(geometry)).toBe(45);
@@ -356,10 +445,10 @@ describe("applyHotspotKeyboardTransform", () => {
       width: 0.01,
       height: 0.2,
       polygon: [
-        { x: 0.41, y: 0.4 },
-        { x: 0.42, y: 0.4 },
-        { x: 0.42, y: 0.6 },
-        { x: 0.41, y: 0.6 }
+        { x: 0.405, y: 0.4 },
+        { x: 0.415, y: 0.4 },
+        { x: 0.415, y: 0.6 },
+        { x: 0.405, y: 0.6 }
       ]
     });
   });

@@ -1443,6 +1443,12 @@ label > .checkbox-list {
   filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.22));
 }
 
+.hotspot__visual-content {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: center;
+}
+
 .hotspot__chrome {
   position: absolute;
   inset: 0;
@@ -1501,6 +1507,11 @@ label > .checkbox-list {
 
 .hotspot:not(.hotspot--with-visual) .hotspot__chrome::before,
 .hotspot:not(.hotspot--with-visual) .hotspot__chrome::after {
+  content: none;
+}
+
+.hotspot--polygon-chrome .hotspot__chrome::before,
+.hotspot--polygon-chrome .hotspot__chrome::after {
   content: none;
 }
 

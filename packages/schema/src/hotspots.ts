@@ -14,6 +14,20 @@ export interface HotspotContentBox {
   height: number;
 }
 
+export interface HotspotSurfaceSize {
+  width: number;
+  height: number;
+}
+
+export interface RelativeHotspotFrame {
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+  rotationDegrees: number;
+  polygon: HotspotPoint[];
+}
+
 export type HotspotShape = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon" | "inventoryItemId">;
 
 export function createRectangleHotspotPolygon(bounds: HotspotBounds): HotspotPoint[] {
@@ -92,6 +106,54 @@ export function resolveHotspotRotationDegrees(hotspot: HotspotShape): number {
   return roundToPrecision((Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) * 180) / Math.PI);
 }
 
+export function resolveRelativeHotspotFrame(hotspot: HotspotShape, surfaceSize: HotspotSurfaceSize): RelativeHotspotFrame {
+  const bounds = resolveHotspotBounds(hotspot);
+  const relativePolygon = resolveRelativeHotspotPolygon(hotspot);
+  if (surfaceSize.width <= 0 || surfaceSize.height <= 0 || bounds.width <= 0 || bounds.height <= 0) {
+    return {
+      centerX: 0.5,
+      centerY: 0.5,
+      width: 1,
+      height: 1,
+      rotationDegrees: resolveHotspotRotationDegrees(hotspot),
+      polygon: relativePolygon
+    };
+  }
+
+  const surfacePolygon = resolveHotspotPolygon(hotspot).map((point) => ({
+    x: point.x * surfaceSize.width,
+    y: point.y * surfaceSize.height
+  }));
+  const hotspotRotationDegrees = resolveHotspotRotationDegrees(hotspot);
+  const renderedRotationDegrees = roundToPrecision(
+    (resolveSurfaceAngleFromHotspotRotation(hotspotRotationDegrees, surfaceSize) * 180) / Math.PI
+  );
+  const orientedRect = {
+    ...resolveOrientedSurfaceRectAtAngle(
+      surfacePolygon,
+      resolveSurfaceAngleFromHotspotRotation(hotspotRotationDegrees, surfaceSize)
+    ),
+    angleRad: resolveSurfaceAngleFromHotspotRotation(hotspotRotationDegrees, surfaceSize)
+  };
+  const boundsX = bounds.x * surfaceSize.width;
+  const boundsY = bounds.y * surfaceSize.height;
+  const boundsWidth = bounds.width * surfaceSize.width;
+  const boundsHeight = bounds.height * surfaceSize.height;
+  const framePolygon = buildSurfacePolygonFromOrientedRect(orientedRect).map((point) => ({
+    x: roundToPrecision((point.x - boundsX) / boundsWidth),
+    y: roundToPrecision((point.y - boundsY) / boundsHeight)
+  }));
+
+  return {
+    centerX: roundToPrecision((orientedRect.centerX - boundsX) / boundsWidth),
+    centerY: roundToPrecision((orientedRect.centerY - boundsY) / boundsHeight),
+    width: roundToPrecision(orientedRect.width / boundsWidth),
+    height: roundToPrecision(orientedRect.height / boundsHeight),
+    rotationDegrees: renderedRotationDegrees,
+    polygon: framePolygon
+  };
+}
+
 export function resolveRelativeHotspotContentBox(hotspot: HotspotShape): HotspotContentBox {
   const polygon = resolveRelativeHotspotPolygon(hotspot);
   const centroid = resolvePolygonCentroid(polygon);
@@ -103,6 +165,20 @@ export function resolveRelativeHotspotContentBox(hotspot: HotspotShape): Hotspot
     y: clamp01(centroid.y),
     width: clamp01(Math.max(0.18, horizontalSpan - 0.08)),
     height: clamp01(Math.max(0.18, verticalSpan - 0.08))
+  };
+}
+
+export function resolveRelativeHotspotVisualBox(
+  hotspot: HotspotShape,
+  surfaceSize: HotspotSurfaceSize
+): HotspotContentBox {
+  const frame = resolveRelativeHotspotFrame(hotspot, surfaceSize);
+
+  return {
+    x: roundToPrecision((1 - frame.width) / 2),
+    y: roundToPrecision((1 - frame.height) / 2),
+    width: roundToPrecision(frame.width),
+    height: roundToPrecision(frame.height)
   };
 }
 
@@ -192,6 +268,128 @@ function getLineIntersections(
   }
 
   return intersections.sort((left, right) => left - right);
+}
+
+interface SurfacePoint {
+  x: number;
+  y: number;
+}
+
+interface OrientedSurfaceRect {
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+  angleRad: number;
+}
+
+function resolveOrientedSurfaceRect(polygon: SurfacePoint[]): OrientedSurfaceRect {
+  return resolveOrientedSurfaceRectAtAngle(polygon);
+}
+
+function resolveOrientedSurfaceRectAtAngle(
+  polygon: SurfacePoint[],
+  preferredAngleRad?: number
+): OrientedSurfaceRect {
+  if (preferredAngleRad !== undefined) {
+    return resolveProjectedSurfaceRect(polygon, preferredAngleRad);
+  }
+
+  const [nw, ne, se, sw] = polygon;
+  const topVector = averageVectors(subtractPoints(ne, nw), subtractPoints(se, sw));
+  const leftVector = averageVectors(subtractPoints(sw, nw), subtractPoints(se, ne));
+
+  return {
+    centerX: polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length,
+    centerY: polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length,
+    width: average([vectorLength(subtractPoints(ne, nw)), vectorLength(subtractPoints(se, sw))]),
+    height: average([vectorLength(subtractPoints(sw, nw)), vectorLength(subtractPoints(se, ne))]),
+    angleRad:
+      vectorLength(topVector) > 0.000001 ? Math.atan2(topVector.y, topVector.x) : Math.atan2(leftVector.x, leftVector.y)
+  };
+}
+
+function resolveProjectedSurfaceRect(polygon: SurfacePoint[], angleRad: number): OrientedSurfaceRect {
+  const horizontal = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
+  const vertical = { x: -horizontal.y, y: horizontal.x };
+  const projectedX = polygon.map((point) => point.x * horizontal.x + point.y * horizontal.y);
+  const projectedY = polygon.map((point) => point.x * vertical.x + point.y * vertical.y);
+  const minProjectedX = Math.min(...projectedX);
+  const maxProjectedX = Math.max(...projectedX);
+  const minProjectedY = Math.min(...projectedY);
+  const maxProjectedY = Math.max(...projectedY);
+  const centerProjectedX = (minProjectedX + maxProjectedX) / 2;
+  const centerProjectedY = (minProjectedY + maxProjectedY) / 2;
+
+  return {
+    centerX: horizontal.x * centerProjectedX + vertical.x * centerProjectedY,
+    centerY: horizontal.y * centerProjectedX + vertical.y * centerProjectedY,
+    width: maxProjectedX - minProjectedX,
+    height: maxProjectedY - minProjectedY,
+    angleRad
+  };
+}
+
+function buildSurfacePolygonFromOrientedRect(rect: OrientedSurfaceRect): SurfacePoint[] {
+  const halfWidth = rect.width / 2;
+  const halfHeight = rect.height / 2;
+  const cos = Math.cos(rect.angleRad);
+  const sin = Math.sin(rect.angleRad);
+  const horizontal = { x: cos, y: sin };
+  const vertical = { x: -sin, y: cos };
+
+  return [
+    {
+      x: rect.centerX - horizontal.x * halfWidth - vertical.x * halfHeight,
+      y: rect.centerY - horizontal.y * halfWidth - vertical.y * halfHeight
+    },
+    {
+      x: rect.centerX + horizontal.x * halfWidth - vertical.x * halfHeight,
+      y: rect.centerY + horizontal.y * halfWidth - vertical.y * halfHeight
+    },
+    {
+      x: rect.centerX + horizontal.x * halfWidth + vertical.x * halfHeight,
+      y: rect.centerY + horizontal.y * halfWidth + vertical.y * halfHeight
+    },
+    {
+      x: rect.centerX - horizontal.x * halfWidth + vertical.x * halfHeight,
+      y: rect.centerY - horizontal.y * halfWidth + vertical.y * halfHeight
+    }
+  ];
+}
+
+function subtractPoints(end: SurfacePoint, start: SurfacePoint): SurfacePoint {
+  return {
+    x: end.x - start.x,
+    y: end.y - start.y
+  };
+}
+
+function averageVectors(first: SurfacePoint, second: SurfacePoint): SurfacePoint {
+  return {
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2
+  };
+}
+
+function vectorLength(vector: SurfacePoint): number {
+  return Math.hypot(vector.x, vector.y);
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function degreesToRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function resolveSurfaceAngleFromHotspotRotation(rotationDegrees: number, surfaceSize: HotspotSurfaceSize): number {
+  const normalizedAngleRad = degreesToRadians(rotationDegrees);
+  return Math.atan2(
+    Math.sin(normalizedAngleRad) * surfaceSize.height,
+    Math.cos(normalizedAngleRad) * surfaceSize.width
+  );
 }
 
 function clamp01(value: number): number {
