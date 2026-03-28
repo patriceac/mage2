@@ -8,10 +8,26 @@ import {
 } from "@mage2/schema";
 
 export type HotspotGeometry = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon" | "inventoryItemId">;
-export type HotspotDragHandle = "move" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
+export type HotspotDragHandle = "move" | "rotate" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
+export type HotspotResizeHandle = Exclude<HotspotDragHandle, "move" | "rotate">;
 export interface HotspotSurfaceSize {
   width: number;
   height: number;
+}
+
+export interface HotspotRotationDrag {
+  startPointerXPx: number;
+  startPointerYPx: number;
+  pointerXPx: number;
+  pointerYPx: number;
+  shiftKey: boolean;
+  surfaceSize: HotspotSurfaceSize;
+}
+
+export interface HotspotRotationDragResult {
+  geometry: HotspotGeometry;
+  rotationDegrees: number;
+  snapped: boolean;
 }
 
 export type HotspotKeyboardTransform =
@@ -52,7 +68,7 @@ const HOTSPOT_GEOMETRY_EPSILON = 0.000001;
 
 export function applyHotspotDrag(
   geometry: HotspotGeometry,
-  handle: HotspotDragHandle,
+  handle: Exclude<HotspotDragHandle, "rotate">,
   deltaX: number,
   deltaY: number,
   surfaceSize?: HotspotSurfaceSize
@@ -112,6 +128,66 @@ export function applyHotspotKeyboardTransform(
   return roundGeometry(withPolygon(nextPixelPolygon.map((point) => toNormalizedHotspotPoint(point, surfaceSize)), geometry));
 }
 
+export function applyInventoryHotspotRotationDegrees(
+  geometry: HotspotGeometry,
+  rotationDegrees: number,
+  surfaceSize: HotspotSurfaceSize
+): HotspotGeometry {
+  if (!geometry.inventoryItemId) {
+    return roundGeometry(geometry);
+  }
+
+  const workingSurfaceSize = resolveWorkingSurfaceSize(surfaceSize);
+  const currentRotationDegrees = roundRotationDegrees(
+    resolveSurfaceAngleFromNormalizedPolygon(resolveHotspotPolygon(geometry), workingSurfaceSize)
+  );
+  const deltaDegrees = radiansToDegrees(
+    normalizeAngleRadians(degreesToRadians(rotationDegrees) - degreesToRadians(currentRotationDegrees))
+  );
+
+  return applyHotspotKeyboardTransform(
+    geometry,
+    {
+      kind: "rotate",
+      deltaDegrees
+    },
+    workingSurfaceSize
+  );
+}
+
+export function applyInventoryHotspotRotationDrag(
+  geometry: HotspotGeometry,
+  drag: HotspotRotationDrag
+): HotspotRotationDragResult {
+  if (!geometry.inventoryItemId) {
+    return {
+      geometry: roundGeometry(geometry),
+      rotationDegrees: 0,
+      snapped: drag.shiftKey
+    };
+  }
+
+  const workingSurfaceSize = resolveWorkingSurfaceSize(drag.surfaceSize);
+  const polygon = resolveHotspotPolygon(geometry);
+  const pixelPolygon = polygon.map((point) => toSurfacePixelPoint(point, workingSurfaceSize));
+  const preferredAngleRad = geometry.inventoryItemId
+    ? resolveSurfaceAngleFromNormalizedPolygon(polygon, workingSurfaceSize)
+    : undefined;
+  const nextPixelPolygon = rotatePolygonByPointerDrag(pixelPolygon, drag, workingSurfaceSize, preferredAngleRad);
+  const nextGeometry = pixelPolygonsMatch(pixelPolygon, nextPixelPolygon)
+    ? roundGeometry(geometry)
+    : roundGeometry(
+        withPolygon(nextPixelPolygon.map((point) => toNormalizedHotspotPoint(point, workingSurfaceSize)), geometry)
+      );
+  const nextPolygon = nextGeometry.polygon ?? resolveHotspotPolygon(nextGeometry);
+
+  return {
+    geometry: nextGeometry,
+    rotationDegrees: roundRotationDegrees(resolveSurfaceAngleFromNormalizedPolygon(nextPolygon, workingSurfaceSize)),
+    snapped: drag.shiftKey
+  };
+}
+
 export function geometryMatches(a: HotspotGeometry, b: HotspotGeometry): boolean {
   if (a.x !== b.x || a.y !== b.y || a.width !== b.width || a.height !== b.height) {
     return false;
@@ -153,7 +229,7 @@ function shouldResizeInventoryHotspotAsRectangle(geometry: HotspotGeometry): boo
 
 function resizeInventoryHotspot(
   geometry: HotspotGeometry,
-  handle: Exclude<HotspotDragHandle, "move">,
+  handle: HotspotResizeHandle,
   deltaX: number,
   deltaY: number,
   surfaceSize?: HotspotSurfaceSize
@@ -183,7 +259,7 @@ function resizeInventoryHotspot(
 
 function resizeRectangularHotspot(
   geometry: HotspotGeometry,
-  handle: Exclude<HotspotDragHandle, "move">,
+  handle: HotspotResizeHandle,
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
@@ -210,7 +286,7 @@ function resizeRectangularHotspot(
 
 function resizeInventoryPolygonByPixels(
   polygon: HotspotPixelPoint[],
-  handle: Exclude<HotspotDragHandle, "move">,
+  handle: HotspotResizeHandle,
   deltaXPx: number,
   deltaYPx: number,
   surfaceSize: HotspotSurfaceSize,
@@ -282,7 +358,7 @@ function resizeInventoryPolygonByPixels(
 
 function moveHotspotEdge(
   geometry: HotspotGeometry,
-  handle: Extract<HotspotDragHandle, "n" | "s" | "e" | "w">,
+  handle: Extract<HotspotResizeHandle, "n" | "s" | "e" | "w">,
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
@@ -345,7 +421,7 @@ function moveHotspotEdge(
 
 function moveHotspotCorner(
   geometry: HotspotGeometry,
-  handle: Extract<HotspotDragHandle, "nw" | "ne" | "sw" | "se">,
+  handle: Extract<HotspotResizeHandle, "nw" | "ne" | "sw" | "se">,
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
@@ -452,6 +528,41 @@ function rotatePolygonByDegrees(
     buildPolygonFromOrientedRect({
       ...rect,
       angleRad: rect.angleRad + degreesToRadians(deltaDegrees * scale)
+    });
+
+  return clampKeyboardPolygonTransform(polygon, buildPolygon, surfaceSize);
+}
+
+function rotatePolygonByPointerDrag(
+  polygon: HotspotPixelPoint[],
+  drag: HotspotRotationDrag,
+  surfaceSize: HotspotSurfaceSize,
+  preferredAngleRad?: number
+): HotspotPixelPoint[] {
+  const rect = resolveOrientedHotspotRect(polygon, preferredAngleRad);
+  const startPointerAngle = resolvePointerAngleFromCenter(
+    drag.startPointerXPx,
+    drag.startPointerYPx,
+    rect.centerX,
+    rect.centerY,
+    rect.angleRad
+  );
+  const currentPointerAngle = resolvePointerAngleFromCenter(
+    drag.pointerXPx,
+    drag.pointerYPx,
+    rect.centerX,
+    rect.centerY,
+    startPointerAngle
+  );
+  const freeformTargetAngle = normalizeAngleRadians(rect.angleRad + normalizeAngleRadians(currentPointerAngle - startPointerAngle));
+  const targetAngle = drag.shiftKey
+    ? snapAngleRadians(freeformTargetAngle, degreesToRadians(15))
+    : freeformTargetAngle;
+  const deltaAngle = normalizeAngleRadians(targetAngle - rect.angleRad);
+  const buildPolygon = (scale: number) =>
+    buildPolygonFromOrientedRect({
+      ...rect,
+      angleRad: normalizeAngleRadians(rect.angleRad + deltaAngle * scale)
     });
 
   return clampKeyboardPolygonTransform(polygon, buildPolygon, surfaceSize);
@@ -722,6 +833,42 @@ function degreesToRadians(value: number): number {
   return (value * Math.PI) / 180;
 }
 
+function radiansToDegrees(value: number): number {
+  return (value * 180) / Math.PI;
+}
+
+function normalizeAngleRadians(value: number): number {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function snapAngleRadians(value: number, increment: number): number {
+  if (increment <= HOTSPOT_GEOMETRY_EPSILON) {
+    return normalizeAngleRadians(value);
+  }
+
+  return normalizeAngleRadians(Math.round(value / increment) * increment);
+}
+
+function resolvePointerAngleFromCenter(
+  pointerX: number,
+  pointerY: number,
+  centerX: number,
+  centerY: number,
+  fallbackAngleRad: number
+): number {
+  const dx = pointerX - centerX;
+  const dy = pointerY - centerY;
+  if (Math.hypot(dx, dy) <= HOTSPOT_GEOMETRY_EPSILON) {
+    return fallbackAngleRad;
+  }
+
+  return Math.atan2(dy, dx);
+}
+
+function roundRotationDegrees(angleRad: number): number {
+  return Math.round(radiansToDegrees(normalizeAngleRadians(angleRad)) * 100) / 100;
+}
+
 export function roundHotspotCoordinate(value: number): number {
   return Math.round(value * HOTSPOT_COORDINATE_PRECISION_FACTOR) / HOTSPOT_COORDINATE_PRECISION_FACTOR;
 }
@@ -732,6 +879,11 @@ function roundHotspotPolygonCoordinate(value: number): number {
 
 export function formatHotspotCoordinate(value: number): string {
   return roundHotspotCoordinate(value).toFixed(HOTSPOT_COORDINATE_DECIMALS);
+}
+
+export function formatHotspotRotationDegrees(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${Object.is(rounded, -0) ? 0 : rounded}`;
 }
 
 function clamp(value: number, min: number, max: number): number {

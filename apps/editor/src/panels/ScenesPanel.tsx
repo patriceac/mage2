@@ -1,6 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MediaSurface, type MediaSurfaceDropEvent } from "../MediaSurface";
-import { getLocaleStringValues, type Asset, type Hotspot, type InventoryItem, type ProjectBundle, validateProject } from "@mage2/schema";
+import {
+  getLocaleStringValues,
+  resolveHotspotRotationDegrees,
+  resolveRelativeHotspotFrame,
+  type Asset,
+  type Hotspot,
+  type InventoryItem,
+  type ProjectBundle,
+  validateProject
+} from "@mage2/schema";
 import { resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
@@ -30,11 +39,14 @@ import { resolveHotspotVisuals } from "../hotspot-visuals";
 import {
   MIN_HOTSPOT_SIZE,
   applyHotspotKeyboardTransform,
+  applyInventoryHotspotRotationDegrees,
   applyHotspotBounds,
   formatHotspotCoordinate,
+  formatHotspotRotationDegrees,
   geometryMatches,
   type HotspotGeometry,
-  type HotspotKeyboardTransform
+  type HotspotKeyboardTransform,
+  type HotspotSurfaceSize
 } from "../hotspot-geometry";
 import {
   clampFloatingWindowPosition,
@@ -671,6 +683,7 @@ export function ScenesPanel({
     setIsHotspotInspectorOpen((currentIsHotspotInspectorOpen) =>
       resolveNextHotspotInspectorOpenState(
         currentIsHotspotInspectorOpen,
+        selectedHotspotId,
         nextSelectedHotspotId,
         inspectorSelectionMode
       )
@@ -704,6 +717,38 @@ export function ScenesPanel({
       width: bounds.width,
       height: bounds.height
     };
+  }
+
+  function updateSelectedHotspotRotationDegrees(rotationDegrees: number) {
+    if (!selectedHotspot?.inventoryItemId || !Number.isFinite(rotationDegrees)) {
+      return;
+    }
+
+    const surfaceSize = resolveCurrentSceneSurfaceSize();
+    if (!surfaceSize) {
+      return;
+    }
+
+    mutateSelectedHotspot((hotspot) => {
+      const nextGeometry = applyInventoryHotspotRotationDegrees(
+        {
+          inventoryItemId: hotspot.inventoryItemId,
+          x: hotspot.x,
+          y: hotspot.y,
+          width: hotspot.width,
+          height: hotspot.height,
+          polygon: hotspot.polygon
+        },
+        rotationDegrees,
+        surfaceSize
+      );
+
+      hotspot.x = nextGeometry.x;
+      hotspot.y = nextGeometry.y;
+      hotspot.width = nextGeometry.width;
+      hotspot.height = nextGeometry.height;
+      hotspot.polygon = nextGeometry.polygon;
+    });
   }
 
   function clearHotspotKeyboardTransformBatch() {
@@ -1231,7 +1276,7 @@ export function ScenesPanel({
               }}
               onHotspotClick={(hotspotId, interaction) => {
                 setIsInventoryPickerOpen(false);
-                selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "open");
+                selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
               }}
               onHotspotDragStart={captureHotspotDragCheckpoint}
               onHotspotChange={updateHotspotGeometry}
@@ -1690,8 +1735,10 @@ export function ScenesPanel({
           inventoryItemOptions={linkedInventoryOptions}
           scenes={project.scenes.items}
           position={hotspotInspectorPosition}
+          rotationSurfaceSize={resolveCurrentSceneSurfaceSize()}
           selectedHotspot={selectedHotspot}
           mutateSelectedHotspot={mutateSelectedHotspot}
+          onRotationDegreesChange={updateSelectedHotspotRotationDegrees}
           onPositionChange={setHotspotInspectorPosition}
           onInteractionActiveChange={setIsHotspotInspectorActive}
           onDismiss={() => setIsHotspotInspectorOpen(false)}
@@ -1701,7 +1748,7 @@ export function ScenesPanel({
   );
 }
 
-type HotspotInspectorSelectionMode = "open" | "preserve";
+type HotspotInspectorSelectionMode = "open" | "preserve" | "toggle";
 
 export function resolveScenesFloatingWindowVisibility(
   isInventoryPickerOpen: boolean,
@@ -1716,11 +1763,16 @@ export function resolveScenesFloatingWindowVisibility(
 
 export function resolveNextHotspotInspectorOpenState(
   currentIsHotspotInspectorOpen: boolean,
+  currentSelectedHotspotId: string | undefined,
   nextSelectedHotspotId: string | undefined,
   inspectorSelectionMode: HotspotInspectorSelectionMode
 ) {
   if (!nextSelectedHotspotId) {
     return false;
+  }
+
+  if (inspectorSelectionMode === "toggle") {
+    return currentSelectedHotspotId === nextSelectedHotspotId ? !currentIsHotspotInspectorOpen : true;
   }
 
   return inspectorSelectionMode === "open" ? true : currentIsHotspotInspectorOpen;
@@ -2021,9 +2073,11 @@ interface HotspotInspectorWindowProps {
   inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
+  rotationSurfaceSize?: HotspotSurfaceSize;
   scenes: ProjectBundle["scenes"]["items"];
   selectedHotspot: Hotspot;
   mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
+  onRotationDegreesChange: (rotationDegrees: number) => void;
   onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
   onInteractionActiveChange: (active: boolean) => void;
   onDismiss: () => void;
@@ -2409,9 +2463,11 @@ function HotspotInspectorWindow({
   inventoryItemOptions,
   localeStrings,
   position,
+  rotationSurfaceSize,
   scenes,
   selectedHotspot,
   mutateSelectedHotspot,
+  onRotationDegreesChange,
   onPositionChange,
   onInteractionActiveChange,
   onDismiss
@@ -2459,6 +2515,11 @@ function HotspotInspectorWindow({
       window.removeEventListener("resize", handleResize);
     };
   }, [anchorRef, onPositionChange, selectedHotspot.id]);
+
+  const selectedHotspotRotationDegrees =
+    selectedHotspot.inventoryItemId && rotationSurfaceSize
+      ? resolveRelativeHotspotFrame(selectedHotspot, rotationSurfaceSize).rotationDegrees
+      : resolveHotspotRotationDegrees(selectedHotspot);
 
   useEffect(() => {
     return () => {
@@ -2567,11 +2628,18 @@ function HotspotInspectorWindow({
         </header>
 
         <div className="scenes-floating-inspector__body">
-          <p className="muted">
-            These hotspot shapes are clickable interaction regions over the scene. Drag the shape or its orange
-            handles in the preview for quick edits, then move this inspector wherever you want inside the editor
-            window.
-          </p>
+          <details key={selectedHotspot.id} className="scenes-floating-inspector__help">
+            <summary className="scenes-floating-inspector__help-summary">Editing Help</summary>
+            <div className="scenes-floating-inspector__help-copy">
+              <p className="muted">Drag the hotspot or its orange handles in the preview to edit it quickly.</p>
+              {selectedHotspot.inventoryItemId ? (
+                <p className="muted">
+                  Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps,
+                  and Ctrl fine-tunes.
+                </p>
+              ) : null}
+            </div>
+          </details>
           <article className="list-card list-card--selected">
             <label title="Visible hotspot title shown in the editor and runtime.">
               <span className="field-label--inset">Name</span>
@@ -2615,12 +2683,6 @@ function HotspotInspectorWindow({
                 ))}
               </select>
             </label>
-            <p className="muted">Links this hotspot to an inventory item and uses that item's art in the scene.</p>
-            {selectedHotspot.inventoryItemId ? (
-              <p className="muted">
-                Use arrows to move, Shift+arrows to resize, Alt+Left/Right to rotate, Ctrl for fine adjustment.
-              </p>
-            ) : null}
             <div className="four-grid">
               {(
                 [
@@ -2667,6 +2729,28 @@ function HotspotInspectorWindow({
                 </label>
               ))}
             </div>
+            {selectedHotspot.inventoryItemId ? (
+              <div className="stack-inline">
+                <label title="Rendered rotation angle in degrees for this inventory hotspot.">
+                  <span className="field-label--inset">Angle (°)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formatHotspotRotationDegrees(selectedHotspotRotationDegrees)}
+                    title="Rendered rotation angle in degrees for this inventory hotspot."
+                    disabled={!rotationSurfaceSize}
+                    onChange={(event) => {
+                      const nextRotationDegrees = Number(event.target.value);
+                      if (!Number.isFinite(nextRotationDegrees)) {
+                        return;
+                      }
+
+                      onRotationDegreesChange(nextRotationDegrees);
+                    }}
+                  />
+                </label>
+              </div>
+            ) : null}
             <div className="stack-inline">
               <label title="Time in milliseconds when this hotspot becomes clickable.">
                 <span className="field-label--inset">Start (ms)</span>

@@ -728,6 +728,51 @@ label > .checkbox-list {
   padding-right: 0.25rem;
 }
 
+.scenes-floating-inspector__help {
+  display: grid;
+  gap: var(--space-xs);
+  padding: 0.65rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scenes-floating-inspector__help-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: #c6d4df;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.scenes-floating-inspector__help-summary::-webkit-details-marker {
+  display: none;
+}
+
+.scenes-floating-inspector__help-summary::after {
+  content: "+";
+  color: #9fb0be;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.scenes-floating-inspector__help[open] .scenes-floating-inspector__help-summary::after {
+  content: "-";
+}
+
+.scenes-floating-inspector__help-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.scenes-floating-inspector__help-copy p {
+  margin: 0;
+}
+
 .scenes-floating-inspector__body--inventory-picker {
   gap: var(--space-sm);
 }
@@ -1904,7 +1949,7 @@ label > .checkbox-list {
 }
 
 .hotspot__label-shell--above {
-  bottom: calc(100% + 0.55rem);
+  bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));
 }
 
 .hotspot__label-shell--below {
@@ -2059,9 +2104,30 @@ label > .checkbox-list {
 .hotspot__handles {
   position: absolute;
   inset: 0;
+  z-index: 4;
   pointer-events: none;
   overflow: visible;
   transition: opacity 120ms ease;
+}
+
+.hotspot__rotation-ui {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0.88;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__rotation-stem {
+  stroke: rgba(251, 217, 158, 0.95);
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .hotspot__handle {
@@ -2074,6 +2140,106 @@ label > .checkbox-list {
   background: #f6c177;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
   pointer-events: auto;
+}
+
+.hotspot__handle--rotate {
+  width: 20px;
+  height: 20px;
+  border-color: rgba(23, 32, 38, 0.98);
+  background:
+    radial-gradient(circle at center, rgba(255, 251, 242, 1) 0%, rgba(251, 217, 158, 1) 44%, rgba(210, 120, 44, 1) 100%);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
+  cursor: grab;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.32),
+    0 0 0 4px rgba(246, 193, 119, 0.18);
+}
+
+.hotspot__handle--rotate::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.hotspot__handle--rotate:active {
+  cursor: grabbing;
+}
+
+.hotspot__rotation-readout {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(14, 19, 25, 0.96), rgba(8, 12, 17, 0.92)),
+    rgba(8, 12, 17, 0.92);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+  color: #f7fafc;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) translateY(-0.18rem);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.hotspot__rotation-readout-angle {
+  color: #fff4de;
+}
+
+.hotspot__rotation-readout-snap {
+  color: rgba(251, 217, 158, 0.96);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.hotspot--selected .hotspot__rotation-ui,
+.hotspot--rotating .hotspot__rotation-ui {
+  opacity: 1;
+}
+
+.hotspot--selected .hotspot__handle--rotate,
+.hotspot--rotating .hotspot__handle--rotate {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.hotspot--selected:hover .hotspot__handle--rotate,
+.hotspot--selected:focus-within .hotspot__handle--rotate {
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.32),
+    0 0 0 4px rgba(246, 193, 119, 0.18);
+}
+
+.hotspot--selected .hotspot__handle--rotate,
+.hotspot--rotating .hotspot__handle--rotate {
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.32),
+    0 0 0 4px rgba(246, 193, 119, 0.18);
+}
+
+.hotspot--rotating .hotspot__rotation-readout {
+  opacity: 1;
+  transform: translate(-50%, -50%) translateY(0);
 }
 
 .hotspot__handle--n {

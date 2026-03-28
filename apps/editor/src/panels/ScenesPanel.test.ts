@@ -298,7 +298,13 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("scenes-floating-inspector");
     expect(markup).toContain("Hide the floating hotspot inspector.");
     expect(markup).toContain('>Inventory Item</span>');
-    expect(markup).toContain("Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.");
+    expect(markup).toContain(">Editing Help</summary>");
+    expect(markup).not.toContain(
+      '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
+    );
+    expect(markup).not.toContain(">Angle (°)</span>");
+    expect(markup).not.toContain("Arrows move, Shift+arrows resize, Alt+Left/Right rotate");
+    expect(markup).not.toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 
@@ -312,7 +318,10 @@ describe("ScenesPanel scene audio UI", () => {
       }
     );
 
-    expect(markup).toContain("Use arrows to move, Shift+arrows to resize, Alt+Left/Right to rotate, Ctrl for fine adjustment.");
+    expect(markup).toContain(
+      "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
+    );
+    expect(markup).toContain(">Angle (°)</span>");
   });
 
   it("shows only the hotspot inspector when both floating-window sources are active", () => {
@@ -330,10 +339,13 @@ describe("ScenesPanel scene audio UI", () => {
   });
 
   it("preserves inspector visibility for drag-driven hotspot reselection", () => {
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "preserve")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "preserve")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "open")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(true, undefined, "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "preserve")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "open")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "hotspot_item", "toggle")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "hotspot_item", "toggle")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_other", "hotspot_item", "toggle")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(false);
   });
 
   it("clears the hotspot selection when opening the inventory picker", () => {

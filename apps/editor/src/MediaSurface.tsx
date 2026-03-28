@@ -9,7 +9,13 @@ import {
   type Hotspot,
   type HotspotSurfaceSize
 } from "@mage2/schema";
-import { applyHotspotDrag, geometryMatches, type HotspotDragHandle, type HotspotGeometry } from "./hotspot-geometry";
+import {
+  applyHotspotDrag,
+  applyInventoryHotspotRotationDrag,
+  geometryMatches,
+  type HotspotDragHandle,
+  type HotspotGeometry
+} from "./hotspot-geometry";
 import { resolveHotspotLabelPlacement, type HotspotLabelPlacement } from "./hotspot-label-placement";
 import { getLocalizedAssetVariant } from "./localized-project";
 import {
@@ -89,6 +95,11 @@ export function MediaSurface({
   const previousLoopVideoRef = useRef(loopVideo);
   const shouldResumeLoopPlaybackRef = useRef(false);
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
+  const [hotspotRotationFeedback, setHotspotRotationFeedback] = useState<{
+    hotspotId: string;
+    rotationDegrees: number;
+    snapped: boolean;
+  }>();
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
   const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
@@ -363,19 +374,73 @@ export function MediaSurface({
       const body = document.body;
       const previousCursor = body.style.cursor;
       const previousUserSelect = body.style.userSelect;
-      body.style.cursor = handle === "move" ? "grabbing" : resolveResizeCursor(handle);
+      body.style.cursor = handle === "move" || handle === "rotate" ? "grabbing" : resolveResizeCursor(handle);
       body.style.userSelect = "none";
 
+      const surfaceSize = {
+        width: bounds.width,
+        height: bounds.height
+      };
+      const startPointerXPx = startClientX - bounds.left;
+      const startPointerYPx = startClientY - bounds.top;
+
+      if (handle === "rotate" && !hotspot.inventoryItemId) {
+        body.style.cursor = previousCursor;
+        body.style.userSelect = previousUserSelect;
+        return;
+      }
+
+      if (handle === "rotate") {
+        const initialRotation = applyInventoryHotspotRotationDrag(startingGeometry, {
+          startPointerXPx,
+          startPointerYPx,
+          pointerXPx: startPointerXPx,
+          pointerYPx: startPointerYPx,
+          shiftKey: event.shiftKey,
+          surfaceSize
+        });
+        setHotspotRotationFeedback({
+          hotspotId: hotspot.id,
+          rotationDegrees: initialRotation.rotationDegrees,
+          snapped: initialRotation.snapped
+        });
+      }
+
       const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (handle === "rotate") {
+          const nextRotation = applyInventoryHotspotRotationDrag(startingGeometry, {
+            startPointerXPx,
+            startPointerYPx,
+            pointerXPx: moveEvent.clientX - bounds.left,
+            pointerYPx: moveEvent.clientY - bounds.top,
+            shiftKey: moveEvent.shiftKey,
+            surfaceSize
+          });
+          setHotspotRotationFeedback({
+            hotspotId: hotspot.id,
+            rotationDegrees: nextRotation.rotationDegrees,
+            snapped: nextRotation.snapped
+          });
+
+          if (geometryMatches(nextRotation.geometry, latestGeometry)) {
+            return;
+          }
+
+          if (!didDrag) {
+            onHotspotDragStart?.(hotspot.id);
+          }
+          latestGeometry = nextRotation.geometry;
+          didDrag = true;
+          onHotspotChange(hotspot.id, nextRotation.geometry);
+          return;
+        }
+
         const nextGeometry = applyHotspotDrag(
           startingGeometry,
           handle,
           (moveEvent.clientX - startClientX) / bounds.width,
           (moveEvent.clientY - startClientY) / bounds.height,
-          {
-            width: bounds.width,
-            height: bounds.height
-          }
+          surfaceSize
         );
 
         if (geometryMatches(nextGeometry, latestGeometry)) {
@@ -396,6 +461,9 @@ export function MediaSurface({
         body.style.cursor = previousCursor;
         body.style.userSelect = previousUserSelect;
         dragCleanupRef.current = undefined;
+        setHotspotRotationFeedback((currentFeedback) =>
+          currentFeedback?.hotspotId === hotspot.id ? undefined : currentFeedback
+        );
 
         // Hotspot interactions should never fall through to the scene surface,
         // even if the cursor is outside the hotspot when the mouse button is released.
@@ -432,6 +500,9 @@ export function MediaSurface({
         body.style.cursor = previousCursor;
         body.style.userSelect = previousUserSelect;
         dragCleanupRef.current = undefined;
+        setHotspotRotationFeedback((currentFeedback) =>
+          currentFeedback?.hotspotId === hotspot.id ? undefined : currentFeedback
+        );
       };
 
       window.addEventListener("mousemove", handleMouseMove);
@@ -541,7 +612,11 @@ export function MediaSurface({
               onHotspotClick?.(hotspot.id, "click");
             }}
             onMoveStart={startHotspotDrag(hotspot, "move")}
+            onRotateStart={hotspot.inventoryItemId ? startHotspotDrag(hotspot, "rotate") : undefined}
             onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
+            rotationFeedback={
+              hotspotRotationFeedback?.hotspotId === hotspot.id ? hotspotRotationFeedback : undefined
+            }
             ariaLabel={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
               onSurfaceClick ? "select and edit" : "activate"
             } this hotspot.`}
@@ -582,7 +657,12 @@ interface HotspotButtonProps {
   showTooltips: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
   onMoveStart: React.MouseEventHandler<HTMLButtonElement>;
-  onResizeStart: (handle: Exclude<HotspotDragHandle, "move">) => React.MouseEventHandler<HTMLSpanElement>;
+  onRotateStart?: React.MouseEventHandler<HTMLSpanElement>;
+  onResizeStart: (handle: Exclude<HotspotDragHandle, "move" | "rotate">) => React.MouseEventHandler<HTMLSpanElement>;
+  rotationFeedback?: {
+    rotationDegrees: number;
+    snapped: boolean;
+  };
   ariaLabel: string;
 }
 
@@ -598,7 +678,9 @@ function HotspotButton({
   showTooltips,
   onClick,
   onMoveStart,
+  onRotateStart,
   onResizeStart,
+  rotationFeedback,
   ariaLabel
 }: HotspotButtonProps) {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
@@ -613,6 +695,17 @@ function HotspotButton({
   const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
   const labelPlacement = resolveHotspotLabelPlacement(bounds);
   const handlePositions = resolveHotspotHandlePositions(relativePolygon);
+  const rotationHandle = hotspot.inventoryItemId
+    ? resolveHotspotRotationHandleGeometry(
+        relativePolygon,
+        surfaceSize
+          ? {
+              width: Math.max(bounds.width * surfaceSize.width, 1),
+              height: Math.max(bounds.height * surfaceSize.height, 1)
+            }
+          : undefined
+      )
+    : undefined;
   const showsShapeChrome = appearance === "editor" && (!hotspot.inventoryItemId || Math.abs(rotationDegrees) > 0.001);
   const suppressAxisAlignedChrome = Boolean(hotspot.inventoryItemId) && Math.abs(rotationDegrees) > 0.001;
   const [tooltipText, setTooltipText] = useState<string>();
@@ -628,7 +721,8 @@ function HotspotButton({
         editable,
         Boolean(visual),
         Boolean(hotspot.inventoryItemId),
-        suppressAxisAlignedChrome
+        suppressAxisAlignedChrome,
+        Boolean(rotationFeedback)
       )}
       style={{
         left: `${bounds.x * 100}%`,
@@ -678,13 +772,55 @@ function HotspotButton({
           titleText={hotspot.name}
           commentText={comment}
           placement={labelPlacement}
-          style={resolveHotspotLabelStyle(bounds, labelPlacement)}
+          style={resolveHotspotLabelStyle(
+            bounds,
+            labelPlacement,
+            selected && Boolean(rotationHandle) && labelPlacement.verticalPlacement === "above"
+          )}
           onTooltipTextChange={setTooltipText}
         />
       ) : null}
 
       {editable && selected ? (
         <div className="hotspot__handles" aria-hidden="true">
+          {rotationHandle && onRotateStart ? (
+            <>
+              <svg className="hotspot__rotation-ui" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <line
+                  className="hotspot__rotation-stem"
+                  x1={rotationHandle.stemStartX * 100}
+                  y1={rotationHandle.stemStartY * 100}
+                  x2={rotationHandle.handleX * 100}
+                  y2={rotationHandle.handleY * 100}
+                />
+              </svg>
+              <span
+                className="hotspot__handle hotspot__handle--rotate"
+                onClick={stopHandleClick}
+                onMouseDown={onRotateStart}
+                style={{
+                  left: `${rotationHandle.handleX * 100}%`,
+                  top: `${rotationHandle.handleY * 100}%`
+                }}
+              />
+              {rotationFeedback ? (
+                <span
+                  className="hotspot__rotation-readout"
+                  style={{
+                    left: `${rotationHandle.labelX * 100}%`,
+                    top: `${rotationHandle.labelY * 100}%`
+                  }}
+                >
+                  <span className="hotspot__rotation-readout-angle">
+                    {formatHotspotRotationReadout(rotationFeedback.rotationDegrees)}
+                  </span>
+                  {rotationFeedback.snapped ? (
+                    <span className="hotspot__rotation-readout-snap">15° snap</span>
+                  ) : null}
+                </span>
+              ) : null}
+            </>
+          ) : null}
           {handlePositions.map(({ handle, x, y }) => (
             <span
               key={handle}
@@ -930,11 +1066,18 @@ function buildHotspotTooltip(
   return [titleText, commentText].filter(Boolean).join("\n");
 }
 
-function resolveHotspotLabelStyle(bounds: { x: number; width: number }, placement: HotspotLabelPlacement): React.CSSProperties {
+function resolveHotspotLabelStyle(
+  bounds: { x: number; width: number },
+  placement: HotspotLabelPlacement,
+  reserveTopControlClearance = false
+): React.CSSProperties {
   const width = Math.max(bounds.width, 0.0001);
 
   return {
-    left: `${((placement.anchorX - bounds.x) / width) * 100}%`
+    left: `${((placement.anchorX - bounds.x) / width) * 100}%`,
+    ...(reserveTopControlClearance
+      ? ({ "--hotspot-top-control-clearance": "28px" } as React.CSSProperties)
+      : undefined)
   };
 }
 
@@ -943,7 +1086,8 @@ function resolveHotspotClassName(
   editable: boolean,
   hasVisual: boolean,
   isInventoryItem: boolean,
-  suppressAxisAlignedChrome: boolean
+  suppressAxisAlignedChrome: boolean,
+  isRotating: boolean
 ): string {
   const classNames = ["hotspot"];
 
@@ -965,6 +1109,10 @@ function resolveHotspotClassName(
 
   if (suppressAxisAlignedChrome) {
     classNames.push("hotspot--polygon-chrome");
+  }
+
+  if (isRotating) {
+    classNames.push("hotspot--rotating");
   }
 
   return classNames.join(" ");
@@ -1011,8 +1159,8 @@ function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden"
   return classNames.join(" ");
 }
 
-function resolveHotspotHandlePositions(polygon: Array<{ x: number; y: number }>): Array<{
-  handle: Exclude<HotspotDragHandle, "move">;
+export function resolveHotspotHandlePositions(polygon: Array<{ x: number; y: number }>): Array<{
+  handle: Exclude<HotspotDragHandle, "move" | "rotate">;
   x: number;
   y: number;
 }> {
@@ -1028,6 +1176,65 @@ function resolveHotspotHandlePositions(polygon: Array<{ x: number; y: number }>)
     { handle: "sw", x: sw.x, y: sw.y },
     { handle: "w", x: (sw.x + nw.x) / 2, y: (sw.y + nw.y) / 2 }
   ];
+}
+
+export function resolveHotspotRotationHandleGeometry(
+  polygon: Array<{ x: number; y: number }>,
+  frameSize?: {
+    width: number;
+    height: number;
+  }
+): {
+  handleX: number;
+  handleY: number;
+  stemStartX: number;
+  stemStartY: number;
+  labelX: number;
+  labelY: number;
+} | undefined {
+  const [nw, ne, se, sw] = polygon;
+  if (!nw || !ne || !se || !sw) {
+    return undefined;
+  }
+  const effectiveFrameSize =
+    frameSize && frameSize.width > 0 && frameSize.height > 0
+      ? frameSize
+      : {
+          width: 1,
+          height: 1
+        };
+  const usesPixelOffsets = effectiveFrameSize.width > 1 || effectiveFrameSize.height > 1;
+
+  const topMidpoint = {
+    x: (nw.x + ne.x) / 2,
+    y: (nw.y + ne.y) / 2
+  };
+  const topVector = {
+    x: (ne.x - nw.x) * effectiveFrameSize.width,
+    y: (ne.y - nw.y) * effectiveFrameSize.height
+  };
+  const topLength = Math.hypot(topVector.x, topVector.y) || 1;
+  const outwardNormal = {
+    x: topVector.y / topLength,
+    y: -topVector.x / topLength
+  };
+  const outwardNormalLocal = {
+    x: outwardNormal.x / effectiveFrameSize.width,
+    y: outwardNormal.y / effectiveFrameSize.height
+  };
+  const handleOffset = usesPixelOffsets ? 18 : 0.18;
+  const labelOffset = usesPixelOffsets ? 14 : 0.12;
+  const handleX = topMidpoint.x + outwardNormalLocal.x * handleOffset;
+  const handleY = topMidpoint.y + outwardNormalLocal.y * handleOffset;
+
+  return {
+    handleX: roundRotationControlCoordinate(handleX),
+    handleY: roundRotationControlCoordinate(handleY),
+    stemStartX: roundRotationControlCoordinate(topMidpoint.x),
+    stemStartY: roundRotationControlCoordinate(topMidpoint.y),
+    labelX: roundRotationControlCoordinate(handleX + outwardNormal.x * labelOffset),
+    labelY: roundRotationControlCoordinate(handleY + outwardNormal.y * labelOffset)
+  };
 }
 
 function resolveRelativeHotspotClipPath(polygon: Array<{ x: number; y: number }>): string {
@@ -1087,4 +1294,13 @@ function resolveResizeCursor(handle: HotspotDragHandle): string {
     default:
       return "grabbing";
   }
+}
+
+function formatHotspotRotationReadout(rotationDegrees: number): string {
+  const rounded = Math.round(rotationDegrees * 10) / 10;
+  return `${Object.is(rounded, -0) ? 0 : rounded}°`;
+}
+
+function roundRotationControlCoordinate(value: number): number {
+  return Math.round(value * 10000) / 10000;
 }

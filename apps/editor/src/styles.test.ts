@@ -30,4 +30,15 @@ describe("hotspot idle visibility styles", () => {
     );
     expect(styles).toContain("background: transparent;");
   });
+
+  it("keeps the selected inventory rotation affordance visible without hover", () => {
+    expect(styles).toContain(".hotspot--selected .hotspot__rotation-ui");
+    expect(styles).toContain(".hotspot--selected .hotspot__handle--rotate");
+  });
+
+  it("reserves top label clearance for rotation controls and keeps handles above labels", () => {
+    expect(styles).toContain("bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));");
+    expect(styles).toContain(".hotspot__handles {");
+    expect(styles).toContain("z-index: 4;");
+  });
 });
