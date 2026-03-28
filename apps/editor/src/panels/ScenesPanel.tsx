@@ -1772,7 +1772,7 @@ export function resolveNextHotspotInspectorOpenState(
   }
 
   if (inspectorSelectionMode === "toggle") {
-    return currentSelectedHotspotId === nextSelectedHotspotId ? !currentIsHotspotInspectorOpen : true;
+    return currentSelectedHotspotId === nextSelectedHotspotId ? !currentIsHotspotInspectorOpen : currentIsHotspotInspectorOpen;
   }
 
   return inspectorSelectionMode === "open" ? true : currentIsHotspotInspectorOpen;
