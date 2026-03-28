@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from "react";
 import type { ProjectBundle } from "@mage2/schema";
+import { DropdownSelect } from "./DropdownSelect";
 import { countSceneReferences, type SceneReferenceSummary } from "./project-helpers";
 import { ScenePreviewCard } from "./previews";
 
@@ -522,7 +523,7 @@ function DeleteSceneDialog({
         {mode === "rewire" ? (
           <label>
             <span className="field-label--inset">Replacement Scene</span>
-            <select value={replacementSceneId} onChange={(event) => setReplacementSceneId(event.target.value)}>
+            <DropdownSelect value={replacementSceneId} onChange={(event) => setReplacementSceneId(event.target.value)}>
               <option value="">Select a replacement scene</option>
               {replacementCandidates.map((scene) => {
                 const locationName =
@@ -534,7 +535,7 @@ function DeleteSceneDialog({
                   </option>
                 );
               })}
-            </select>
+            </DropdownSelect>
           </label>
         ) : null}
 

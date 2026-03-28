@@ -8,8 +8,11 @@ import {
   filterInventoryPlacementOptions,
   resolveInventoryPickerKeyboardAction,
   resolveInventoryHotspotTransformKeyboardAction,
+  resolveLocationSwitcherOptions,
   resolveNextHotspotInspectorOpenState,
   resolveInventoryPickerToggleResult,
+  resolveSceneSwitcherMenuNavigation,
+  resolveSceneSwitcherOptions,
   resolveScenesFloatingWindowVisibility,
   resolveDroppedInventoryHotspotBounds,
   resolveInventoryPreviewContentSize,
@@ -132,23 +135,169 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("Start Delay (ms)");
   });
 
+  it("renders a merged scene switcher and removes the standalone scene-name field", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain("scene-switcher__control");
+    expect(markup).toContain('aria-label="Scene name"');
+    expect(markup).toContain("scene-switcher__trigger");
+    expect(markup).not.toContain(">Scene Name</span>");
+  });
+
+  it("renders the location picker with the same switcher chrome in non-editable mode", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain('aria-label="Switch location"');
+    expect(markup).toContain("scene-switcher__control--button");
+    expect(markup).toContain("scene-switcher__value");
+  });
+
+  it("uses the shared dropdown shell for non-scene selectors in the scenes workspace", () => {
+    const markup = renderScenesPanel(() => {});
+    const dropdownMatches = markup.match(/dropdown-select__native/g) ?? [];
+
+    expect(dropdownMatches.length).toBeGreaterThanOrEqual(2);
+    expect(markup).toContain("dropdown-select__trigger");
+  });
+
   it("renders hotspot create, delete, and inventory placement actions above the scene-audio section", () => {
     const markup = renderScenesPanel(() => {});
     const createHotspotIndex = markup.indexOf("Create Hotspot");
     const deleteHotspotIndex = markup.indexOf("Delete Hotspot");
     const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
+    const backgroundAssetIndex = markup.indexOf(">Background Asset</span>");
     const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
 
     expect(createHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(deleteHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
+    expect(backgroundAssetIndex).toBeGreaterThanOrEqual(0);
     expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
     expect(createHotspotIndex).toBeLessThan(sceneAudioIndex);
     expect(deleteHotspotIndex).toBeLessThan(sceneAudioIndex);
     expect(addInventoryItemIndex).toBeLessThan(sceneAudioIndex);
+    expect(addInventoryItemIndex).toBeLessThan(backgroundAssetIndex);
+    expect(backgroundAssetIndex).toBeLessThan(sceneAudioIndex);
     expect(createHotspotIndex).toBeLessThan(deleteHotspotIndex);
     expect(deleteHotspotIndex).toBeLessThan(addInventoryItemIndex);
     expect(markup).not.toContain("Clear Hotspot");
+  });
+
+  it("builds scene switcher options with location subtitles", () => {
+    const project = createDefaultProjectBundle("Scenes switcher");
+    project.locations.items.push({
+      id: "location_attic",
+      name: "Attic",
+      x: 240,
+      y: 120,
+      sceneIds: ["scene_attic"]
+    });
+    project.scenes.items.push({
+      id: "scene_attic",
+      locationId: "location_attic",
+      name: "Opening Scene",
+      backgroundAssetId: "asset_placeholder",
+      sceneAudioLoop: true,
+      sceneAudioDelayMs: 0,
+      backgroundVideoLoop: false,
+      hotspots: [],
+      subtitleTracks: [],
+      dialogueTreeIds: [],
+      onEnterEffects: [],
+      onExitEffects: []
+    });
+
+    expect(resolveSceneSwitcherOptions(project.scenes.items, project.locations.items, "scene_attic")).toEqual([
+      {
+        sceneId: project.scenes.items[0].id,
+        sceneName: "Opening Scene",
+        locationName: project.locations.items[0].name,
+        isCurrent: false
+      },
+      {
+        sceneId: "scene_attic",
+        sceneName: "Opening Scene",
+        locationName: "Attic",
+        isCurrent: true
+      }
+    ]);
+  });
+
+  it("builds location switcher options with scene-count subtitles", () => {
+    const project = createDefaultProjectBundle("Location switcher");
+    project.locations.items.push({
+      id: "location_attic",
+      name: "Attic",
+      x: 240,
+      y: 120,
+      sceneIds: []
+    });
+    project.scenes.items.push({
+      id: "scene_attic",
+      locationId: "location_attic",
+      name: "Attic Scene",
+      backgroundAssetId: "asset_placeholder",
+      sceneAudioLoop: true,
+      sceneAudioDelayMs: 0,
+      backgroundVideoLoop: false,
+      hotspots: [],
+      subtitleTracks: [],
+      dialogueTreeIds: [],
+      onEnterEffects: [],
+      onExitEffects: []
+    });
+    project.locations.items[1]!.sceneIds.push("scene_attic");
+
+    expect(resolveLocationSwitcherOptions(project.locations.items, project.scenes.items, "location_attic")).toEqual([
+      {
+        locationId: project.locations.items[0].id,
+        locationName: project.locations.items[0].name,
+        sceneCountLabel: "1 scene",
+        isCurrent: false
+      },
+      {
+        locationId: "location_attic",
+        locationName: "Attic",
+        sceneCountLabel: "1 scene",
+        isCurrent: true
+      }
+    ]);
+  });
+
+  it("navigates the scene switcher menu with arrow, home, and end keys", () => {
+    expect(resolveSceneSwitcherMenuNavigation("ArrowDown", 0, 3)).toEqual({
+      handled: true,
+      nextIndex: 1
+    });
+    expect(resolveSceneSwitcherMenuNavigation("ArrowUp", 0, 3)).toEqual({
+      handled: true,
+      nextIndex: 2
+    });
+    expect(resolveSceneSwitcherMenuNavigation("Home", 2, 3)).toEqual({
+      handled: true,
+      nextIndex: 0
+    });
+    expect(resolveSceneSwitcherMenuNavigation("End", 0, 3)).toEqual({
+      handled: true,
+      nextIndex: 2
+    });
+    expect(resolveSceneSwitcherMenuNavigation("Escape", 1, 3)).toEqual({
+      handled: false,
+      nextIndex: 1
+    });
+  });
+
+  it("renders the background selector directly above the scene-audio selector", () => {
+    const markup = renderScenesPanel(() => {});
+    const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
+    const backgroundAssetIndex = markup.indexOf(">Background Asset</span>");
+    const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
+
+    expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
+    expect(backgroundAssetIndex).toBeGreaterThanOrEqual(0);
+    expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
+    expect(addInventoryItemIndex).toBeLessThan(backgroundAssetIndex);
+    expect(backgroundAssetIndex).toBeLessThan(sceneAudioIndex);
   });
 
   it("removes the old scene-toolbar inventory hotspot flow", () => {

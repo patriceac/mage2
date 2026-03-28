@@ -61,7 +61,13 @@ async function main() {
     }
 
     await recentProjectButton.click();
+    await window.locator(".titlebar-shell").waitFor({ state: "visible", timeout: 15000 });
     await window.locator(".tab-strip").waitFor({ state: "visible", timeout: 15000 });
+    await window.getByRole("button", { name: "Save" }).waitFor({ state: "visible", timeout: 15000 });
+    await window.getByRole("button", { name: "File" }).click();
+    await window.getByRole("menuitem", { name: "Export Runtime" }).waitFor({ state: "visible", timeout: 15000 });
+    await window.keyboard.press("Escape");
+    await window.getByRole("button", { name: "File" }).waitFor({ state: "visible", timeout: 15000 });
     await window.getByRole("button", { name: "Scenes" }).click();
     await window.locator(".media-surface").waitFor({ state: "visible", timeout: 15000 });
     await window.waitForTimeout(1000);
@@ -77,6 +83,9 @@ async function main() {
     const sceneSnapshot = await window.evaluate(() => ({
       recentProjectName: document.querySelector(".recent-project__name")?.textContent?.trim() ?? null,
       activeTab: document.querySelector(".tab-strip__tab--active")?.textContent?.trim() ?? null,
+      titlebarVisible: Boolean(document.querySelector(".titlebar-shell")),
+      fileMenuVisible: Boolean(document.querySelector(".titlebar-menu__panel")),
+      statusBarVisible: Boolean(document.querySelector(".status-bar--chrome")),
       scenePreviewVisible: Boolean(document.querySelector(".media-surface")),
       hotspotCount: document.querySelectorAll(".hotspot__body").length
     }));

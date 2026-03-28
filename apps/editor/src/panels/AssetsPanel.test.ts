@@ -86,6 +86,8 @@ describe("AssetsPanel proxy UI", () => {
 
     expect(markup).toContain(">Scene Audio</option>");
     expect(markup).not.toContain("Create new inventory assets from Inventory.");
+    expect(markup).toContain("dropdown-select__native");
+    expect(markup).toContain("dropdown-select__trigger");
   });
 
   it("uses the fixed-frame contain preview treatment for inventory assets", () => {

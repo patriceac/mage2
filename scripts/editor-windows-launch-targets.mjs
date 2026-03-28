@@ -207,8 +207,14 @@ $processes = @(
         processId = $_.ProcessId
         executablePath = $_.ExecutablePath
       }
-      Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null
-      $processInfo
+      try {
+        Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null
+        $processInfo
+      } catch {
+        if (-not $_.Exception.Message.Contains('Not found')) {
+          throw
+        }
+      }
     }
 )
 [pscustomobject]@{ items = $processes } | ConvertTo-Json -Compress -Depth 5

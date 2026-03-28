@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { MediaSurface, type MediaSurfaceDropEvent } from "../MediaSurface";
 import {
   getLocaleStringValues,
@@ -19,6 +19,7 @@ import {
   isSceneAudioImportPath
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { DropdownSelect } from "../DropdownSelect";
 import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-project";
 import {
   addHotspot,
@@ -81,6 +82,13 @@ export function ScenesPanel({
 }: ScenesPanelProps) {
   const dialogs = useDialogs();
   const scenesPanelRef = useRef<HTMLDivElement>(null);
+  const locationMenuRef = useRef<HTMLDivElement>(null);
+  const locationMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const locationMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const sceneNameInputRef = useRef<HTMLInputElement>(null);
+  const sceneMenuRef = useRef<HTMLDivElement>(null);
+  const sceneMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const sceneMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const inventoryPickerAnchorRef = useRef<HTMLButtonElement>(null);
   const hotspotKeyboardTransformBatchRef = useRef<{ hotspotId?: string; signature?: string }>({});
   const activeTab = useEditorStore((state) => state.activeTab);
@@ -98,6 +106,8 @@ export function ScenesPanel({
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
+  const locationMenuId = useId();
+  const sceneMenuId = useId();
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
   const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
   const currentSceneAudioAsset = project.assets.assets.find((entry) => entry.id === currentScene?.sceneAudioAssetId);
@@ -112,6 +122,8 @@ export function ScenesPanel({
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
+  const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
   const [isInventoryPickerOpen, setIsInventoryPickerOpen] = useState(false);
   const [isInventoryPickerDragging, setIsInventoryPickerDragging] = useState(false);
   const [isInventoryPlacementDropActive, setIsInventoryPlacementDropActive] = useState(false);
@@ -136,6 +148,20 @@ export function ScenesPanel({
   const activeInventoryPickerItem =
     visibleInventoryPickerOptions.find((option) => option.itemId === activeInventoryPickerItemId) ??
     visibleInventoryPickerOptions[0];
+  const locationSwitcherOptions = resolveLocationSwitcherOptions(
+    project.locations.items,
+    project.scenes.items,
+    currentScene.locationId
+  );
+  const currentLocationSwitcherIndex = Math.max(
+    locationSwitcherOptions.findIndex((option) => option.locationId === currentScene.locationId),
+    0
+  );
+  const sceneSwitcherOptions = resolveSceneSwitcherOptions(project.scenes.items, project.locations.items, currentSceneId);
+  const currentSceneSwitcherIndex = Math.max(
+    sceneSwitcherOptions.findIndex((option) => option.sceneId === currentSceneId),
+    0
+  );
   const hotspotVisuals = resolveHotspotVisuals({
     hotspots: currentScene.hotspots,
     inventoryItems: project.inventory.items,
@@ -148,6 +174,112 @@ export function ScenesPanel({
     Boolean(selectedHotspot),
     isHotspotInspectorOpen
   );
+
+  useEffect(() => {
+    setIsLocationMenuOpen(false);
+  }, [currentScene.locationId]);
+
+  useEffect(() => {
+    if (!isLocationMenuOpen) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      focusSceneMenuItem(currentLocationSwitcherIndex, locationMenuItemRefs.current, locationSwitcherOptions.length);
+    });
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !locationMenuRef.current?.contains(event.target)) {
+        setIsLocationMenuOpen(false);
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof Node) || !locationMenuRef.current?.contains(event.target)) {
+        setIsLocationMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsLocationMenuOpen(false);
+      locationMenuTriggerRef.current?.focus();
+    };
+
+    const handleBlur = () => {
+      setIsLocationMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [currentLocationSwitcherIndex, isLocationMenuOpen, locationSwitcherOptions.length]);
+
+  useEffect(() => {
+    setIsSceneMenuOpen(false);
+  }, [currentSceneId]);
+
+  useEffect(() => {
+    if (!isSceneMenuOpen) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      focusSceneMenuItem(currentSceneSwitcherIndex, sceneMenuItemRefs.current, sceneSwitcherOptions.length);
+    });
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !sceneMenuRef.current?.contains(event.target)) {
+        setIsSceneMenuOpen(false);
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof Node) || !sceneMenuRef.current?.contains(event.target)) {
+        setIsSceneMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsSceneMenuOpen(false);
+      sceneMenuTriggerRef.current?.focus();
+    };
+
+    const handleBlur = () => {
+      setIsSceneMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [currentSceneSwitcherIndex, isSceneMenuOpen, sceneSwitcherOptions.length]);
 
   useEffect(() => {
     if (selectedHotspot) {
@@ -170,6 +302,120 @@ export function ScenesPanel({
   useEffect(() => {
     setPlayheadMs(0);
   }, [currentScene?.backgroundAssetId, currentScene?.sceneAudioAssetId, currentScene?.sceneAudioDelayMs, currentSceneId, setPlayheadMs]);
+
+  function handleSceneMenuSelect(sceneId: string) {
+    setIsLocationMenuOpen(false);
+    setIsSceneMenuOpen(false);
+
+    if (sceneId !== currentSceneId) {
+      setSelectedSceneId(sceneId);
+      setSelectedHotspotId(undefined);
+    }
+
+    window.requestAnimationFrame(() => {
+      sceneNameInputRef.current?.focus();
+      sceneNameInputRef.current?.select();
+    });
+  }
+
+  function handleSceneMenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setIsLocationMenuOpen(false);
+      setIsSceneMenuOpen(true);
+      return;
+    }
+
+    if (event.key === "Escape" && isSceneMenuOpen) {
+      event.preventDefault();
+      setIsSceneMenuOpen(false);
+    }
+  }
+
+  function handleSceneMenuItemKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const navigation = resolveSceneSwitcherMenuNavigation(event.key, index, sceneSwitcherOptions.length);
+    if (navigation.handled) {
+      event.preventDefault();
+      focusSceneMenuItem(navigation.nextIndex, sceneMenuItemRefs.current, sceneSwitcherOptions.length);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsSceneMenuOpen(false);
+      sceneMenuTriggerRef.current?.focus();
+    }
+  }
+
+  function handleLocationMenuSelect(locationId: string) {
+    setIsLocationMenuOpen(false);
+    setIsSceneMenuOpen(false);
+    setSelectedHotspotId(undefined);
+
+    if (locationId === currentScene.locationId) {
+      window.requestAnimationFrame(() => {
+        locationMenuTriggerRef.current?.focus();
+      });
+      return;
+    }
+
+    mutateProject((draft) => {
+      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+      if (!scene) {
+        return;
+      }
+
+      const previousLocation = draft.locations.items.find((entry) => entry.id === scene.locationId);
+      const nextLocation = draft.locations.items.find((entry) => entry.id === locationId);
+      if (previousLocation) {
+        previousLocation.sceneIds = previousLocation.sceneIds.filter((sceneId) => sceneId !== scene.id);
+      }
+      if (nextLocation && !nextLocation.sceneIds.includes(scene.id)) {
+        nextLocation.sceneIds.push(scene.id);
+      }
+      scene.locationId = locationId;
+    });
+
+    window.requestAnimationFrame(() => {
+      locationMenuTriggerRef.current?.focus();
+    });
+  }
+
+  function handleLocationMenuTriggerClick() {
+    setSelectedHotspotId(undefined);
+    setIsSceneMenuOpen(false);
+    setIsLocationMenuOpen((value) => !value);
+  }
+
+  function handleLocationMenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setSelectedHotspotId(undefined);
+      setIsSceneMenuOpen(false);
+      setIsLocationMenuOpen(true);
+      return;
+    }
+
+    if (event.key === "Escape" && isLocationMenuOpen) {
+      event.preventDefault();
+      setIsLocationMenuOpen(false);
+    }
+  }
+
+  function handleLocationMenuItemKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const navigation = resolveSceneSwitcherMenuNavigation(event.key, index, locationSwitcherOptions.length);
+    if (navigation.handled) {
+      event.preventDefault();
+      focusSceneMenuItem(navigation.nextIndex, locationMenuItemRefs.current, locationSwitcherOptions.length);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsLocationMenuOpen(false);
+      locationMenuTriggerRef.current?.focus();
+    }
+  }
 
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     const currentProject = useEditorStore.getState().project ?? project;
@@ -1142,50 +1388,132 @@ export function ScenesPanel({
           <div className="stack-inline scenes-panel__selectors">
             <label title="Choose which world location owns the currently selected scene.">
               <span className="field-label--inset">Location</span>
-              <select
-                value={currentScene.locationId}
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                    if (!scene) {
-                      return;
+              <div className="scene-switcher" ref={locationMenuRef}>
+                <button
+                  ref={locationMenuTriggerRef}
+                  type="button"
+                  className={
+                    isLocationMenuOpen
+                      ? "scene-switcher__control scene-switcher__control--button scene-switcher__control--open"
+                      : "scene-switcher__control scene-switcher__control--button"
+                  }
+                  aria-haspopup="menu"
+                  aria-expanded={isLocationMenuOpen}
+                  aria-controls={locationMenuId}
+                  aria-label="Switch location"
+                  onClick={handleLocationMenuTriggerClick}
+                  onKeyDown={handleLocationMenuTriggerKeyDown}
+                  onFocus={() => {
+                    setSelectedHotspotId(undefined);
+                    setIsSceneMenuOpen(false);
+                  }}
+                  title="Move this scene to a different location."
+                >
+                  <span className="scene-switcher__value">
+                    {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
+                  </span>
+                  <span
+                    className={
+                      isLocationMenuOpen
+                        ? "scene-switcher__trigger scene-switcher__trigger--open"
+                        : "scene-switcher__trigger"
                     }
+                    aria-hidden="true"
+                  >
+                    <ChevronDownIcon />
+                  </span>
+                </button>
 
-                    const previousLocation = draft.locations.items.find((entry) => entry.id === scene.locationId);
-                    const nextLocation = draft.locations.items.find((entry) => entry.id === event.target.value);
-                    if (previousLocation) {
-                      previousLocation.sceneIds = previousLocation.sceneIds.filter((sceneId) => sceneId !== scene.id);
-                    }
-                    if (nextLocation && !nextLocation.sceneIds.includes(scene.id)) {
-                      nextLocation.sceneIds.push(scene.id);
-                    }
-                    scene.locationId = event.target.value;
-                  })
-                }
-                onFocus={() => setSelectedHotspotId(undefined)}
-              >
-                {project.locations.items.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
+                {isLocationMenuOpen ? (
+                  <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
+                    {locationSwitcherOptions.map((option, index) => (
+                      <button
+                        key={option.locationId}
+                        ref={(element) => {
+                          locationMenuItemRefs.current[index] = element;
+                        }}
+                        type="button"
+                        className={
+                          option.isCurrent
+                            ? "scene-switcher__option scene-switcher__option--current"
+                            : "scene-switcher__option"
+                        }
+                        role="menuitemradio"
+                        aria-checked={option.isCurrent}
+                        onClick={() => handleLocationMenuSelect(option.locationId)}
+                        onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
+                        title={`Move this scene to ${option.locationName}.`}
+                      >
+                        <strong>{option.locationName}</strong>
+                        <span>{option.sceneCountLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </label>
             <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
               <span className="field-label--inset">Scene</span>
-              <select
-                value={currentScene.id}
-                onChange={(event) => {
-                  setSelectedSceneId(event.target.value);
-                  setSelectedHotspotId(undefined);
-                }}
-              >
-                {project.scenes.items.map((scene) => (
-                  <option key={scene.id} value={scene.id}>
-                    {scene.name}
-                  </option>
-                ))}
-              </select>
+              <div className="scene-switcher" ref={sceneMenuRef}>
+                <div className="scene-switcher__control">
+                  <input
+                    ref={sceneNameInputRef}
+                    className="scene-switcher__input"
+                    value={currentScene.name}
+                    aria-label="Scene name"
+                    onFocus={() => setIsSceneMenuOpen(false)}
+                    onChange={(event) =>
+                      mutateProject((draft) => {
+                        const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                        if (scene) {
+                          scene.name = event.target.value;
+                        }
+                      })
+                    }
+                  />
+                  <button
+                    ref={sceneMenuTriggerRef}
+                    type="button"
+                    className={isSceneMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
+                    aria-haspopup="menu"
+                    aria-expanded={isSceneMenuOpen}
+                    aria-controls={sceneMenuId}
+                    aria-label="Switch scenes"
+                    onClick={() => setIsSceneMenuOpen((value) => !value)}
+                    onKeyDown={handleSceneMenuTriggerKeyDown}
+                    title="Open the scene switcher."
+                  >
+                    <ChevronDownIcon />
+                  </button>
+                </div>
+
+                {isSceneMenuOpen ? (
+                  <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
+                    {sceneSwitcherOptions.map((option, index) => (
+                      <button
+                        key={option.sceneId}
+                        ref={(element) => {
+                          sceneMenuItemRefs.current[index] = element;
+                        }}
+                        type="button"
+                        className={
+                          option.isCurrent
+                            ? "scene-switcher__option scene-switcher__option--current"
+                            : "scene-switcher__option"
+                        }
+                        role="menuitemradio"
+                        aria-checked={option.isCurrent}
+                        onClick={() => handleSceneMenuSelect(option.sceneId)}
+                        onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
+                        title={`Switch to ${option.sceneName} in ${option.locationName}.`}
+                      >
+                        <strong>{option.sceneName}</strong>
+                        <span>{option.locationName}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </label>
           </div>
 
@@ -1200,61 +1528,6 @@ export function ScenesPanel({
             </button>
           </div>
         </div>
-
-        <label title="Readable editor name for the current scene.">
-          <span className="field-label--inset">Scene Name</span>
-          <input
-            value={currentScene.name}
-            onChange={(event) =>
-              mutateProject((draft) => {
-                const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                if (scene) {
-                  scene.name = event.target.value;
-                }
-              })
-            }
-          />
-        </label>
-
-        <label title="Background media shown for this scene in the editor and runtime.">
-          <span className="field-label--inset">Background Asset</span>
-          <div className="asset-assignment-row">
-            <select
-              value={currentScene.backgroundAssetId ?? ""}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (scene) {
-                    scene.backgroundAssetId = event.target.value || undefined;
-                  }
-                })
-              }
-            >
-              <option value="">No background assigned</option>
-              {currentScene.backgroundAssetId &&
-              !availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
-                <option value={currentScene.backgroundAssetId}>
-                  {currentScene.backgroundAssetId === "asset_placeholder"
-                    ? "Starter placeholder"
-                    : "Invalid background selection"}
-                </option>
-              ) : null}
-              {availableBackgroundAssets.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => void handleImportBackground()}
-              title="Create a new background asset from an image or video file and assign it to this scene."
-            >
-              {currentAsset ? "Replace Background" : "Upload Background"}
-            </button>
-          </div>
-        </label>
 
         <div
           className={[
@@ -1354,10 +1627,50 @@ export function ScenesPanel({
           </button>
         </div>
 
+        <label title="Background media shown for this scene in the editor and runtime.">
+          <span className="field-label--inset">Background Asset</span>
+          <div className="asset-assignment-row">
+            <DropdownSelect
+              value={currentScene.backgroundAssetId ?? ""}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                  if (scene) {
+                    scene.backgroundAssetId = event.target.value || undefined;
+                  }
+                })
+              }
+            >
+              <option value="">No background assigned</option>
+              {currentScene.backgroundAssetId &&
+              !availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
+                <option value={currentScene.backgroundAssetId}>
+                  {currentScene.backgroundAssetId === "asset_placeholder"
+                    ? "Starter placeholder"
+                    : "Invalid background selection"}
+                </option>
+              ) : null}
+              {availableBackgroundAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </DropdownSelect>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void handleImportBackground()}
+              title="Create a new background asset from an image or video file and assign it to this scene."
+            >
+              {currentAsset ? "Replace Background" : "Upload Background"}
+            </button>
+          </div>
+        </label>
+
         <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
           <span className="field-label--inset">Scene Audio</span>
           <div className="asset-assignment-row">
-            <select
+            <DropdownSelect
               value={currentScene.sceneAudioAssetId ?? ""}
               onChange={(event) =>
                 mutateProject((draft) => {
@@ -1380,7 +1693,7 @@ export function ScenesPanel({
                   {asset.name}
                 </option>
               ))}
-            </select>
+            </DropdownSelect>
             <button
               type="button"
               className="button-secondary"
@@ -1810,6 +2123,101 @@ export function resolveInventoryPickerToggleResult(isInventoryPickerOpen: boolea
   };
 }
 
+interface LocationSwitcherOption {
+  locationId: string;
+  locationName: string;
+  sceneCountLabel: string;
+  isCurrent: boolean;
+}
+
+export function resolveLocationSwitcherOptions(
+  locations: ProjectBundle["locations"]["items"],
+  scenes: ProjectBundle["scenes"]["items"],
+  currentLocationId?: string
+) {
+  const sceneCounts = new Map<string, number>();
+  for (const scene of scenes) {
+    sceneCounts.set(scene.locationId, (sceneCounts.get(scene.locationId) ?? 0) + 1);
+  }
+
+  return locations.map((location) => {
+    const sceneCount = sceneCounts.get(location.id) ?? 0;
+    return {
+      locationId: location.id,
+      locationName: location.name,
+      sceneCountLabel: sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`,
+      isCurrent: location.id === currentLocationId
+    };
+  });
+}
+
+interface SceneSwitcherOption {
+  sceneId: string;
+  sceneName: string;
+  locationName: string;
+  isCurrent: boolean;
+}
+
+export function resolveSceneSwitcherOptions(
+  scenes: ProjectBundle["scenes"]["items"],
+  locations: ProjectBundle["locations"]["items"],
+  currentSceneId?: string
+) {
+  const locationNames = new Map(locations.map((location) => [location.id, location.name]));
+
+  return scenes.map((scene) => ({
+    sceneId: scene.id,
+    sceneName: scene.name,
+    locationName: locationNames.get(scene.locationId) ?? "Unknown location",
+    isCurrent: scene.id === currentSceneId
+  }));
+}
+
+export function resolveSceneSwitcherMenuNavigation(key: string, currentIndex: number, itemCount: number) {
+  if (itemCount <= 0) {
+    return {
+      handled: false,
+      nextIndex: currentIndex
+    };
+  }
+
+  switch (key) {
+    case "ArrowDown":
+      return {
+        handled: true,
+        nextIndex: (currentIndex + 1) % itemCount
+      };
+    case "ArrowUp":
+      return {
+        handled: true,
+        nextIndex: (currentIndex - 1 + itemCount) % itemCount
+      };
+    case "Home":
+      return {
+        handled: true,
+        nextIndex: 0
+      };
+    case "End":
+      return {
+        handled: true,
+        nextIndex: itemCount - 1
+      };
+    default:
+      return {
+        handled: false,
+        nextIndex: currentIndex
+      };
+  }
+}
+
+function focusSceneMenuItem(index: number, itemRefs: Array<HTMLButtonElement | null>, itemCount: number) {
+  if (itemCount <= 0) {
+    return;
+  }
+
+  itemRefs[(index + itemCount) % itemCount]?.focus();
+}
+
 const INVENTORY_PICKER_PAGE_SIZE = 6;
 
 export function resolveInventoryPickerKeyboardAction(
@@ -2096,6 +2504,14 @@ function resolveInventoryHotspotTransformBatchSignature(
     case "rotate":
       return `rotate:${transform.deltaDegrees}`;
   }
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m7 10 5 5 5-5H7Z" fill="currentColor" />
+    </svg>
+  );
 }
 
 function isScenePreviewKeyboardTarget(target: HTMLElement | undefined) {
@@ -2714,7 +3130,7 @@ function HotspotInspectorWindow({
             </label>
             <label title="Links this hotspot to an inventory item and uses that item's art in the scene.">
               <span className="field-label--inset">Inventory Item</span>
-              <select
+              <DropdownSelect
                 value={selectedHotspot.inventoryItemId ?? ""}
                 onChange={(event) =>
                   mutateSelectedHotspot((hotspot) => {
@@ -2728,7 +3144,7 @@ function HotspotInspectorWindow({
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
             <div className="four-grid">
               {(
@@ -2828,7 +3244,7 @@ function HotspotInspectorWindow({
             </div>
             <label title="Scene that should open when this hotspot is activated.">
               <span className="field-label--inset">Target Scene</span>
-              <select
+              <DropdownSelect
                 value={selectedHotspot.targetSceneId ?? ""}
                 onChange={(event) =>
                   mutateSelectedHotspot((hotspot) => {
@@ -2842,7 +3258,7 @@ function HotspotInspectorWindow({
                     {scene.name}
                   </option>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
             <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
               <span className="field-label--inset">Required Item IDs</span>

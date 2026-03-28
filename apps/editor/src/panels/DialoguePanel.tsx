@@ -1,5 +1,6 @@
 import ReactFlow, { Background, Controls, type Edge, type Node } from "reactflow";
 import { getLocaleStringValues, type DialogueChoice, type DialogueNode, type ProjectBundle } from "@mage2/schema";
+import { DropdownSelect } from "../DropdownSelect";
 import { addDialogueTree, createId, ensureString } from "../project-helpers";
 import { setEditorLocalizedText } from "../localized-project";
 import { useEditorStore } from "../store";
@@ -74,7 +75,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
       <section className="panel panel--flow">
         <div className="panel__toolbar">
           <div className="stack-inline">
-            <select
+            <DropdownSelect
               value={currentDialogue?.id}
               title="Choose which dialogue tree to inspect and edit."
               onChange={(event) => {
@@ -87,7 +88,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                   {dialogue.name}
                 </option>
               ))}
-            </select>
+            </DropdownSelect>
             <button
               type="button"
               title="Create a new dialogue tree with a starter node and make it the active editor target."
@@ -162,7 +163,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
             </label>
             <label title="Select which node acts as the entry point when this dialogue begins.">
               <span className="field-label--inset">Start Node</span>
-              <select
+              <DropdownSelect
                 value={currentDialogue.startNodeId}
                 title="Select which node acts as the entry point when this dialogue begins."
                 onChange={(event) =>
@@ -179,7 +180,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                     {node.id}
                   </option>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
 
             {currentDialogue.nodes.map((node) => (
@@ -218,7 +219,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                 </label>
                 <label title="Fallback node to visit after this line when no explicit choice is selected.">
                   <span className="field-label--inset">Next Node</span>
-                  <select
+                  <DropdownSelect
                     value={node.nextNodeId ?? ""}
                     title="Fallback node to visit after this line when no explicit choice is selected."
                     onFocus={() => setSelectedDialogueNodeId(node.id)}
@@ -239,7 +240,7 @@ export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
                           {option.id}
                         </option>
                       ))}
-                  </select>
+                  </DropdownSelect>
                 </label>
                 <JsonField
                   label="Node Effects JSON"
@@ -347,7 +348,7 @@ function ChoiceEditor({
       </label>
       <label title="Node that should be opened when the player selects this choice.">
         <span className="field-label--inset">Next Node</span>
-        <select
+        <DropdownSelect
           value={choice.nextNodeId ?? ""}
           title="Node that should be opened when the player selects this choice."
           onFocus={onFocus}
@@ -359,7 +360,7 @@ function ChoiceEditor({
               {node.id}
             </option>
           ))}
-        </select>
+        </DropdownSelect>
       </label>
       <JsonField
         label="Conditions JSON"

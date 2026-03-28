@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
 import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
+import { DropdownSelect } from "./DropdownSelect";
 import { MediaSurface } from "./MediaSurface";
 import { resolveFileUrl } from "./file-url-cache";
 import { resolveHotspotVisuals } from "./hotspot-visuals";
@@ -199,13 +200,13 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           </label>
           <label>
             Locale
-            <select value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+            <DropdownSelect value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
               {supportedLocales.map((locale) => (
                 <option key={locale} value={locale}>
                   {locale}
                 </option>
               ))}
-            </select>
+            </DropdownSelect>
           </label>
           <button
             type="button"
