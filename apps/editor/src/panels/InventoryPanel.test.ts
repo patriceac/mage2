@@ -51,5 +51,6 @@ describe("InventoryPanel locale behavior", () => {
     expect(markup).not.toContain("asset-preview--intrinsic");
     expect(markup).not.toContain("Lanterne");
     expect(markup).not.toContain("Description francaise");
+    expect(markup).toContain("button-danger-quiet");
   });
 });

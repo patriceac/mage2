@@ -69,11 +69,11 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("height: 0.95rem;");
   });
 
-  it("caps the title-bar project path so it truncates earlier for future actions", () => {
+  it("lets the title-bar project path consume the remaining identity width", () => {
     expect(styles).toContain(".titlebar-shell__path {");
-    expect(styles).toContain("--titlebar-path-max-width: clamp(10rem, 20vw, 14rem);");
-    expect(styles).toContain("flex: 0 1 var(--titlebar-path-max-width);");
-    expect(styles).toContain("max-width: var(--titlebar-path-max-width);");
+    expect(styles).toContain("flex: 1 1 auto;");
+    expect(styles).not.toContain("--titlebar-path-max-width:");
+    expect(styles).not.toContain("max-width: var(--titlebar-path-max-width);");
   });
 
   it("defines the shared non-editable dropdown shell", () => {

@@ -31,9 +31,15 @@ interface ProjectDirectoryInspection {
   reason?: string;
 }
 
+interface EditorLaunchOptions {
+  projectDir?: string;
+  tab?: "world" | "scenes" | "assets" | "dialogue" | "inventory" | "localization" | "playtest";
+}
+
 declare global {
   interface Window {
     editorApi: {
+      getLaunchOptionsSync(): EditorLaunchOptions;
       getRecentProjectsSync(): RecentProjectSummary[];
       getRecentProjects(): Promise<RecentProjectSummary[]>;
       rememberRecentProject(projectDir: string, projectName?: string): Promise<RecentProjectSummary[]>;

@@ -20,6 +20,7 @@ import {
   loadProjectFromDirectory,
   saveProjectToDirectory
 } from "./project-io";
+import { parseEditorLaunchOptions, resolveEditorLaunchArguments } from "./launch-options";
 import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
 import { resolveEditorWindowChromeOptions } from "./window-chrome";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
@@ -29,6 +30,10 @@ const WINDOW_STATE_SAVE_DELAY_MS = 150;
 const APP_NAME = appMetadata.productName;
 const APP_ID = appMetadata.appId;
 const WINDOW_ICON_FILENAME = "icon.png";
+let pendingLaunchOptions = parseEditorLaunchOptions(
+  resolveEditorLaunchArguments(process.argv, Boolean(process.defaultApp)),
+  process.cwd()
+);
 
 app.setName(APP_NAME);
 
@@ -158,6 +163,11 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.on("mage2:get-launch-options-sync", (event) => {
+    event.returnValue = pendingLaunchOptions;
+    pendingLaunchOptions = {};
+  });
+
   ipcMain.on("mage2:get-recent-projects-sync", (event) => {
     event.returnValue = loadRecentProjects(app.getPath("userData"));
   });

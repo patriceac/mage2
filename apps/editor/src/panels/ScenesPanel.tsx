@@ -1520,7 +1520,7 @@ export function ScenesPanel({
           <div className="stack-inline scenes-panel__actions">
             <button
               type="button"
-              className="button-danger"
+              className="button-danger-quiet"
               title="Delete this scene and choose whether to clean or rewire references to it."
               onClick={() => void handleDeleteScene()}
             >
@@ -1608,7 +1608,7 @@ export function ScenesPanel({
           </button>
           <button
             type="button"
-            className="button-danger"
+            className="button-danger-quiet"
             disabled={!selectedHotspotId}
             title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
             onClick={() => deleteHotspot(selectedHotspotId)}
@@ -1727,73 +1727,79 @@ export function ScenesPanel({
               ? "Use an audio file to attach optional ambience or music to this image scene."
               : "Scene audio can stay assigned for reference, but imports and playback are disabled while the background is video."}
           </span>
-          <div className="scenes-panel__scene-audio-preview">
-            <AssetPreview
-              asset={currentSceneAudioAsset}
-              locale={activeLocale}
-              allowSourceFallback
-              emptyTitle="No scene audio"
-              emptyBody="Assign or drop an audio file here to attach optional scene audio."
-            />
-          </div>
-          <div className="scenes-panel__scene-audio-controls">
-            <div className="list-card__actions">
-              <button
-                type="button"
-                className="button-danger"
-                disabled={!currentScene.sceneAudioAssetId}
-                onClick={clearSceneAudio}
-                title={
-                  currentScene.sceneAudioAssetId
-                    ? "Remove the current scene audio assignment from this scene."
-                    : "No scene audio is currently assigned."
-                }
-              >
-                Clear Scene Audio
-              </button>
-            </div>
-            <label title="Delay before scene audio starts, and before it restarts again when looping.">
-              <span className="field-label--inset">Start Delay (ms)</span>
-              <input
-                type="number"
-                min={0}
-                step={100}
-                value={currentScene.sceneAudioDelayMs}
-                disabled={!currentScene.sceneAudioAssetId || !sceneSupportsAudio}
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                    if (scene) {
-                      scene.sceneAudioDelayMs = Math.max(0, Number(event.target.value) || 0);
-                    }
-                  })
-                }
+          <div className="scenes-panel__scene-audio-frame">
+            <div className="scenes-panel__scene-audio-preview">
+              <AssetPreview
+                asset={currentSceneAudioAsset}
+                locale={activeLocale}
+                allowSourceFallback
+                emptyTitle="No scene audio"
+                emptyBody="Assign or drop an audio file here to attach optional scene audio."
               />
-            </label>
+            </div>
+            <div className="scenes-panel__scene-audio-controls">
+              <div className="list-card__actions scenes-panel__scene-audio-actions">
+                <button
+                  type="button"
+                  className="button-danger-quiet scenes-panel__scene-audio-clear-button"
+                  disabled={!currentScene.sceneAudioAssetId}
+                  onClick={clearSceneAudio}
+                  title={
+                    currentScene.sceneAudioAssetId
+                      ? "Remove the current scene audio assignment from this scene."
+                      : "No scene audio is currently assigned."
+                  }
+                >
+                  Clear audio
+                </button>
+              </div>
+              <div className="scenes-panel__scene-audio-settings">
+                <label
+                  className="scenes-panel__scene-audio-delay"
+                  title="Delay before scene audio starts, and before it restarts again when looping."
+                >
+                  <span className="scenes-panel__scene-audio-delay-label">Delay (ms)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={currentScene.sceneAudioDelayMs}
+                    disabled={!currentScene.sceneAudioAssetId || !sceneSupportsAudio}
+                    onChange={(event) =>
+                      mutateProject((draft) => {
+                        const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                        if (scene) {
+                          scene.sceneAudioDelayMs = Math.max(0, Number(event.target.value) || 0);
+                        }
+                      })
+                    }
+                  />
+                </label>
+                {currentScene.sceneAudioAssetId ? (
+                  <label
+                    className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
+                    title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={currentScene.sceneAudioLoop}
+                      disabled={!sceneSupportsAudio}
+                      onChange={(event) =>
+                        mutateProject((draft) => {
+                          const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                          if (scene) {
+                            scene.sceneAudioLoop = event.target.checked;
+                          }
+                        })
+                      }
+                    />
+                    <span>Loop</span>
+                  </label>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
-
-        {currentScene.sceneAudioAssetId ? (
-          <label
-            className="scene-video-loop-toggle"
-            title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
-          >
-            <input
-              type="checkbox"
-              checked={currentScene.sceneAudioLoop}
-              disabled={!sceneSupportsAudio}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (scene) {
-                    scene.sceneAudioLoop = event.target.checked;
-                  }
-                })
-              }
-            />
-            <span>Loop scene audio with delay between restarts</span>
-          </label>
-        ) : null}
 
         {!sceneSupportsAudio ? (
           <p className="muted">
@@ -1938,7 +1944,7 @@ export function ScenesPanel({
                     </button>
                     <button
                       type="button"
-                      className="button-danger"
+                      className="button-danger-quiet"
                       title="Delete this subtitle track from the current scene."
                       onClick={() => deleteSubtitleTrack(track.id)}
                     >
@@ -2006,7 +2012,7 @@ export function ScenesPanel({
                         />
                         <button
                           type="button"
-                          className="button-danger cue-row__delete-button"
+                          className="button-danger-quiet cue-row__delete-button"
                           aria-label="Remove cue"
                           title="Delete this subtitle cue from the track."
                           onClick={() => deleteSubtitleCue(track.id, cue.id)}

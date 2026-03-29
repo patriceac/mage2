@@ -48,6 +48,7 @@ describe("AssetsPanel proxy UI", () => {
     expect(markup).not.toContain("Manage locale-specific variants");
     expect(markup).toContain("Loading preview...");
     expect(markup).toContain("Not currently in use.");
+    expect(markup).toContain("button-danger-quiet");
   });
 
   it("lists scene-audio as a first-class asset library category", () => {

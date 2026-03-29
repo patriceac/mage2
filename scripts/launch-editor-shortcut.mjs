@@ -71,7 +71,7 @@ async function main() {
   console.log(formatWindowsLaunchShortcutReport(shortcutReport));
   console.log(`Launching packaged editor from ${packagedExePath}`);
 
-  const child = spawn(packagedExePath, [], {
+  const child = spawn(packagedExePath, resolveForwardedLaunchArguments(process.argv.slice(2)), {
     cwd: path.dirname(packagedExePath),
     detached: true,
     stdio: "ignore"
@@ -127,6 +127,31 @@ async function getStat(targetPath) {
 
 function isMissingPathError(error) {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
+}
+
+function resolveForwardedLaunchArguments(args) {
+  const normalizedArgs = [...args];
+
+  for (let index = 0; index < normalizedArgs.length; index += 1) {
+    const argument = normalizedArgs[index];
+    if (argument === "--project") {
+      const projectDir = normalizedArgs[index + 1];
+      if (projectDir && !projectDir.startsWith("--")) {
+        normalizedArgs[index + 1] = path.resolve(projectDir);
+        index += 1;
+      }
+      continue;
+    }
+
+    if (argument.startsWith("--project=")) {
+      const projectDir = argument.slice("--project=".length);
+      if (projectDir) {
+        normalizedArgs[index] = `--project=${path.resolve(projectDir)}`;
+      }
+    }
+  }
+
+  return normalizedArgs;
 }
 
 async function runCommand(command, args) {

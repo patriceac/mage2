@@ -187,9 +187,10 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
     <div className="panel-grid panel-grid--playtest">
       <section className="panel">
         <div className="panel__toolbar playtest-panel__toolbar">
-          <label>
-            Playhead
+          <label className="playtest-panel__toolbar-field playtest-panel__toolbar-field--playhead">
+            <span className="playtest-panel__toolbar-label">Playhead</span>
             <input
+              className="playtest-panel__toolbar-range"
               type="range"
               min={0}
               max={sceneTimelineDurationMs}
@@ -198,8 +199,8 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
           </label>
-          <label>
-            Locale
+          <label className="playtest-panel__toolbar-field playtest-panel__toolbar-field--locale">
+            <span className="playtest-panel__toolbar-label">Locale</span>
             <DropdownSelect value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
               {supportedLocales.map((locale) => (
                 <option key={locale} value={locale}>
@@ -208,47 +209,55 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
               ))}
             </DropdownSelect>
           </label>
-          <button
-            type="button"
-            title="Store the current runtime state in the editor's local playtest save slot."
-            onClick={() => {
-              const nextSave = controller.save();
-              nextSave.playheadMs = playheadMs;
-              const serialized = JSON.stringify(nextSave);
-              localStorage.setItem(STORAGE_KEY, serialized);
-            }}
-          >
-            Save Slot
-          </button>
-          <button
-            type="button"
-            title="Restore the last runtime state saved in the local playtest slot."
-            onClick={() => {
-              const raw = localStorage.getItem(STORAGE_KEY);
-              if (!raw) {
-                return;
-              }
+          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--action">
+            <button
+              type="button"
+              className="playtest-panel__toolbar-button"
+              title="Store the current runtime state in the editor's local playtest save slot."
+              onClick={() => {
+                const nextSave = controller.save();
+                nextSave.playheadMs = playheadMs;
+                const serialized = JSON.stringify(nextSave);
+                localStorage.setItem(STORAGE_KEY, serialized);
+              }}
+            >
+              Save Slot
+            </button>
+          </div>
+          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--action">
+            <button
+              type="button"
+              className="playtest-panel__toolbar-button"
+              title="Restore the last runtime state saved in the local playtest slot."
+              onClick={() => {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) {
+                  return;
+                }
 
-              const nextController = createPlayerController(project, JSON.parse(raw));
-              setController(nextController);
-              const nextSnapshot = nextController.getSnapshot();
-              setSnapshot(nextSnapshot);
-              setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
-            }}
-          >
-            Load Slot
-          </button>
-          <label
-            className="playtest-hotspot-visibility-toggle"
-            title="Show translucent hotspot regions in playtest for debugging. Labels remain hidden so playtest matches runtime."
-          >
-            <input
-              type="checkbox"
-              checked={showHotspots}
-              onChange={(event) => setShowHotspots(event.target.checked)}
-            />
-            <span>Show hotspots</span>
-          </label>
+                const nextController = createPlayerController(project, JSON.parse(raw));
+                setController(nextController);
+                const nextSnapshot = nextController.getSnapshot();
+                setSnapshot(nextSnapshot);
+                setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
+              }}
+            >
+              Load Slot
+            </button>
+          </div>
+          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--toggle">
+            <label
+              className="playtest-hotspot-visibility-toggle playtest-panel__toolbar-toggle"
+              title="Show translucent hotspot regions in playtest for debugging. Labels remain hidden so playtest matches runtime."
+            >
+              <input
+                type="checkbox"
+                checked={showHotspots}
+                onChange={(event) => setShowHotspots(event.target.checked)}
+              />
+              <span>Show hotspots</span>
+            </label>
+          </div>
         </div>
 
         <MediaSurface

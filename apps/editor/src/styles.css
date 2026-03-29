@@ -8,7 +8,6 @@
   --editor-shell-padding: 1rem;
   --titlebar-overlay-height: 3.5rem;
   --titlebar-controls-reserved-width: 10rem;
-  --titlebar-path-max-width: clamp(10rem, 20vw, 14rem);
   background:
     radial-gradient(circle at top left, rgba(125, 211, 252, 0.12), transparent 32%),
     radial-gradient(circle at top right, rgba(246, 193, 119, 0.14), transparent 26%),
@@ -218,11 +217,10 @@ label > .checkbox-list {
 }
 
 .titlebar-shell__path {
-  flex: 0 1 var(--titlebar-path-max-width);
-  max-width: var(--titlebar-path-max-width);
+  flex: 1 1 auto;
   min-width: 0;
   color: #9fb0be;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -678,7 +676,64 @@ label > .checkbox-list {
 
 .playtest-panel__toolbar {
   align-items: end;
-  gap: var(--space-md) var(--space-lg);
+  gap: var(--space-sm) var(--space-md);
+}
+
+.playtest-panel__toolbar-field {
+  display: grid;
+  gap: 0.35rem;
+  align-content: end;
+  min-width: 0;
+}
+
+.playtest-panel__toolbar-field > :is(input, .dropdown-select) {
+  margin-top: 0;
+}
+
+.playtest-panel__toolbar-label {
+  display: block;
+  padding-left: 0.1rem;
+  color: #b6c5d2;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.playtest-panel__toolbar-field--playhead {
+  position: relative;
+  top: -0.95rem;
+  flex: 1 1 16rem;
+  min-width: 15rem;
+  max-width: 16rem;
+}
+
+.playtest-panel__toolbar-field--locale {
+  flex: 0 0 7rem;
+}
+
+.playtest-panel__toolbar-field--action,
+.playtest-panel__toolbar-field--toggle {
+  flex: 0 0 auto;
+  padding-top: 1.35rem;
+}
+
+.playtest-panel__toolbar-field--toggle {
+  position: relative;
+  top: -0.2rem;
+  padding-top: 1.1rem;
+}
+
+.playtest-panel__toolbar-range {
+  width: 100%;
+  margin: 0;
+}
+
+.playtest-panel__toolbar-button {
+  min-height: 3rem;
+  padding-inline: 1.15rem;
+}
+
+.playtest-panel__toolbar-toggle {
+  min-height: 3rem;
 }
 
 .scenes-panel__selectors {
@@ -959,18 +1014,85 @@ label > .checkbox-list {
 
 .scenes-panel__scene-audio-preview {
   width: 100%;
+  min-width: 0;
+}
+
+.scenes-panel__scene-audio-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.1rem;
+  width: 100%;
+  padding: 0.95rem 1rem 0.9rem;
+  border: 1px solid rgba(125, 211, 252, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(7, 12, 17, 0.2), rgba(7, 12, 17, 0.05)),
+    rgba(10, 15, 20, 0.38);
 }
 
 .scenes-panel__scene-audio-preview .asset-preview {
-  min-height: 5.5rem;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.scenes-panel__scene-audio-preview .asset-preview--audio {
+  min-height: 0;
+  padding: 0;
 }
 
 .scenes-panel__scene-audio-controls {
-  display: grid;
-  grid-template-columns: auto minmax(0, 16rem);
-  gap: var(--space-md);
-  align-items: end;
-  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 1rem;
+  align-items: center;
+  width: auto;
+}
+
+.scenes-panel__scene-audio-actions {
+  flex: 0 0 auto;
+  padding-right: 0.95rem;
+  border-right: 1px solid rgba(125, 211, 252, 0.12);
+}
+
+.scenes-panel__scene-audio-clear-button {
+  padding: 0.35rem 0.15rem;
+  border-radius: 10px;
+}
+
+.scenes-panel__scene-audio-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.15rem;
+  align-items: center;
+}
+
+.scenes-panel__scene-audio-loop-toggle {
+  align-self: center;
+  padding: 0;
+  margin-left: 0.1rem;
+}
+
+.scenes-panel__scene-audio-delay {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: auto;
+}
+
+.scenes-panel__scene-audio-delay-label {
+  color: #b6c5d2;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.scenes-panel__scene-audio-delay input {
+  width: 6.75rem;
+  margin: 0;
+  padding: 0.52rem 0.8rem;
 }
 
 .asset-assignment-row {
@@ -2083,6 +2205,11 @@ label > .checkbox-list {
   background: rgba(125, 211, 252, 0.1);
 }
 
+.hotspot__body--runtime.hotspot__body--pointer-inactive:hover {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(125, 211, 252, 0.04);
+}
+
 .hotspot__body--runtime:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.72);
 }
@@ -2944,6 +3071,25 @@ label > .checkbox-list {
   background: rgba(251, 113, 133, 0.24);
 }
 
+.button-danger-quiet {
+  background: transparent;
+  color: rgba(231, 166, 176, 0.9);
+}
+
+.button-danger-quiet:hover {
+  background: rgba(251, 113, 133, 0.08);
+}
+
+.button-danger-quiet:disabled {
+  background: transparent;
+  color: rgba(231, 166, 176, 0.45);
+  opacity: 1;
+}
+
+.button-danger-quiet:disabled:hover {
+  background: transparent;
+}
+
 .button-danger--compact {
   padding: 0.42rem 0.78rem;
 }
@@ -3428,6 +3574,31 @@ label > .checkbox-list {
   .asset-assignment-row,
   .scenes-panel__scene-audio-controls {
     grid-template-columns: 1fr;
+  }
+
+  .scenes-panel__scene-audio-frame {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .scenes-panel__scene-audio-controls {
+    flex-wrap: wrap;
+    width: 100%;
+    align-items: start;
+  }
+
+  .scenes-panel__scene-audio-actions,
+  .scenes-panel__scene-audio-settings {
+    width: 100%;
+  }
+
+  .scenes-panel__scene-audio-actions {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .scenes-panel__scene-audio-settings {
+    justify-content: flex-start;
   }
 
   .issues-sidebar {

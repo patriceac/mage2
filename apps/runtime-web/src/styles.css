@@ -242,6 +242,11 @@ input[type="range"]:focus-visible {
   background: rgba(125, 211, 252, 0.1);
 }
 
+.runtime-hotspot.runtime-hotspot--pointer-inactive:hover {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(125, 211, 252, 0.04);
+}
+
 .runtime-hotspot:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.72);
   outline-offset: 2px;
