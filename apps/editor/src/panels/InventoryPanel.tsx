@@ -312,7 +312,7 @@ export function InventoryPanel({
                     </button>
                     <button
                       type="button"
-                      className="button-danger"
+                      className="button-danger-quiet"
                       disabled={!item.imageAssetId}
                       onClick={() =>
                         mutateProject((draft) => {

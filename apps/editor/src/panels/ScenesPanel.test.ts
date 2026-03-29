@@ -131,8 +131,19 @@ describe("ScenesPanel scene audio UI", () => {
 
     expect(markup).toContain(">Scene Audio</span>");
     expect(markup).toContain("Replace Scene Audio");
-    expect(markup).toContain("Loop scene audio with delay between restarts");
-    expect(markup).toContain("Start Delay (ms)");
+    expect(markup).toContain("Clear audio");
+    expect(markup).toContain('scenes-panel__scene-audio-loop-toggle');
+    expect(markup).toContain(">Loop</span>");
+    expect(markup).toContain(">Delay (ms)</span>");
+    expect(markup).toContain("scenes-panel__scene-audio-frame");
+    expect(markup).toContain("scenes-panel__scene-audio-settings");
+    expect(markup).not.toContain("Loop scene audio");
+    expect(markup).not.toContain("Start/Restart Delay (ms)");
+    expect(markup).not.toContain("Applies before the first start and before each loop restart.");
+    expect(markup).not.toContain("Clear Scene Audio");
+    expect(markup).not.toContain(">Playback</span>");
+    expect(markup.indexOf("Clear audio")).toBeLessThan(markup.indexOf(">Delay (ms)</span>"));
+    expect(markup.indexOf(">Delay (ms)</span>")).toBeLessThan(markup.indexOf(">Loop</span>"));
   });
 
   it("renders a merged scene switcher and removes the standalone scene-name field", () => {
@@ -181,6 +192,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(createHotspotIndex).toBeLessThan(deleteHotspotIndex);
     expect(deleteHotspotIndex).toBeLessThan(addInventoryItemIndex);
     expect(markup).not.toContain("Clear Hotspot");
+    expect(markup).toContain("button-danger-quiet");
   });
 
   it("builds scene switcher options with location subtitles", () => {

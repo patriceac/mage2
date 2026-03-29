@@ -19,6 +19,11 @@ import {
   type InventoryItem,
   parseBuildManifest
 } from "@mage2/schema";
+import {
+  isOpaqueHotspotVisualHit,
+  loadHotspotVisualAlphaMask,
+  type HotspotVisualAlphaMask
+} from "./hotspot-alpha-hit-test";
 
 export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "manifest">): {
   projectName: string;
@@ -101,6 +106,7 @@ export function App() {
   const runtimeOverlayRef = useRef<HTMLDivElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
   const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
+  const [runtimeHotspotAlphaMasks, setRuntimeHotspotAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
 
   useEffect(() => {
     async function loadBuild() {
@@ -191,6 +197,11 @@ export function App() {
     content && snapshot
       ? resolveRuntimeHotspotVisuals(visibleHotspots, content.inventoryItems, content.assets, locale, localeStrings)
       : {};
+  const runtimeHotspotVisualEntries = Object.entries(runtimeHotspotVisuals);
+  const runtimeHotspotVisualSignature = runtimeHotspotVisualEntries
+    .map(([hotspotId, visual]) => `${hotspotId}:${visual.imageSrc}`)
+    .sort()
+    .join("|");
 
   useEffect(() => {
     const video = runtimeVideoRef.current;
@@ -294,6 +305,43 @@ export function App() {
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRuntimeHotspotAlphaMasks() {
+      if (runtimeHotspotVisualEntries.length === 0) {
+        setRuntimeHotspotAlphaMasks({});
+        return;
+      }
+
+      const resolvedEntries = await Promise.all(
+        runtimeHotspotVisualEntries.map(async ([hotspotId, visual]) => {
+          try {
+            const alphaMask = await loadHotspotVisualAlphaMask(visual.imageSrc);
+            return alphaMask ? ([hotspotId, alphaMask] as const) : undefined;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setRuntimeHotspotAlphaMasks(
+          Object.fromEntries(
+            resolvedEntries.filter(
+              (entry): entry is readonly [string, HotspotVisualAlphaMask] => Boolean(entry)
+            )
+          )
+        );
+      }
+    }
+
+    void loadRuntimeHotspotAlphaMasks();
+    return () => {
+      cancelled = true;
+    };
+  }, [runtimeHotspotVisualSignature]);
 
   if (errorMessage) {
     return (
@@ -442,6 +490,7 @@ export function App() {
                   showHotspots={showHotspots}
                   surfaceSize={runtimeOverlaySize}
                   visual={runtimeHotspotVisuals[hotspot.id]}
+                  alphaMask={runtimeHotspotAlphaMasks[hotspot.id]}
                   strings={localeStrings}
                   onActivate={() => {
                     controller.selectHotspot(hotspot.id, playheadMs);
@@ -546,6 +595,7 @@ function RuntimeHotspotButton({
   showHotspots,
   surfaceSize,
   visual,
+  alphaMask,
   strings,
   onActivate
 }: {
@@ -556,6 +606,7 @@ function RuntimeHotspotButton({
     imageSrc: string;
     alt: string;
   };
+  alphaMask?: HotspotVisualAlphaMask;
   strings: Record<string, string>;
   onActivate: () => void;
 }) {
@@ -566,20 +617,73 @@ function RuntimeHotspotButton({
   const rotationDegrees =
     hotspot.inventoryItemId && relativeFrame ? relativeFrame.rotationDegrees : resolveHotspotRotationDegrees(hotspot);
   const visualBox = resolveRelativeHotspotVisualBox(hotspot, surfaceSize ?? { width: 1, height: 1 });
+  const [isPointerOverOpaquePixel, setIsPointerOverOpaquePixel] = useState(false);
+  const usesAlphaAwarePointerFeedback = Boolean(visual?.imageSrc);
+  const isOpaquePointerEvent = (
+    event: Pick<React.MouseEvent<HTMLButtonElement>, "clientX" | "clientY" | "currentTarget">
+  ) => {
+    if (!visual?.imageSrc || !alphaMask) {
+      return false;
+    }
+
+    return isOpaqueHotspotVisualHit(alphaMask, {
+      pointX: event.clientX - event.currentTarget.getBoundingClientRect().left,
+      pointY: event.clientY - event.currentTarget.getBoundingClientRect().top,
+      hotspotWidth: event.currentTarget.getBoundingClientRect().width,
+      hotspotHeight: event.currentTarget.getBoundingClientRect().height,
+      visualBox,
+      rotationDegrees,
+      imageWidth: alphaMask.width,
+      imageHeight: alphaMask.height
+    });
+  };
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (visual?.imageSrc && alphaMask) {
+      const isPointerHit = isOpaquePointerEvent(event);
+      setIsPointerOverOpaquePixel(isPointerHit);
+      if (!isPointerHit) {
+        return;
+      }
+    }
+
+    onActivate();
+  };
+  const handleMouseMoveOrEnter: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (!usesAlphaAwarePointerFeedback) {
+      return;
+    }
+
+    if (!alphaMask) {
+      setIsPointerOverOpaquePixel(false);
+      return;
+    }
+
+    setIsPointerOverOpaquePixel(isOpaquePointerEvent(event));
+  };
+  const className = [
+    showHotspots ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden",
+    usesAlphaAwarePointerFeedback && !isPointerOverOpaquePixel ? "runtime-hotspot--pointer-inactive" : undefined
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <button
       type="button"
-      className={showHotspots ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden"}
+      className={className}
       aria-label={`${resolveRuntimeHotspotTitle(hotspot, strings)}: activate this hotspot.`}
       style={{
         left: `${bounds.x * 100}%`,
         top: `${bounds.y * 100}%`,
         width: `${bounds.width * 100}%`,
         height: `${bounds.height * 100}%`,
-        clipPath
+        clipPath,
+        ...(usesAlphaAwarePointerFeedback ? { cursor: isPointerOverOpaquePixel ? "pointer" : "default" } : undefined)
       }}
-      onClick={onActivate}
+      onClick={handleClick}
+      onMouseEnter={handleMouseMoveOrEnter}
+      onMouseMove={handleMouseMoveOrEnter}
+      onMouseLeave={() => setIsPointerOverOpaquePixel(false)}
     >
       {visual ? (
         <div className="runtime-hotspot__visual-content" style={resolveRuntimeHotspotVisualContentStyle(visualBox, rotationDegrees)}>

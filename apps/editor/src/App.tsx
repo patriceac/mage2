@@ -47,6 +47,11 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
 };
 
+interface InitialLaunchOptions {
+  projectDir?: string;
+  tab?: EditorTab;
+}
+
 export function App() {
   const {
     project,
@@ -80,12 +85,14 @@ export function App() {
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
+  const [initialLaunchOptions] = useState(() => getInitialLaunchOptions());
   const fileMenuId = useId();
   const fileMenuRef = useRef<HTMLDivElement | null>(null);
   const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const exportMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const hasEditorApi = typeof window.editorApi !== "undefined";
+  const hasHandledInitialLaunchRef = useRef(false);
   const dialogs = useDialogs();
 
   async function withBusy<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
@@ -134,24 +141,37 @@ export function App() {
     }
   }
 
-  async function openProjectDirectory(targetProjectDir: string, source: "picker" | "recent" = "picker") {
+  async function openProjectDirectory(
+    targetProjectDir: string,
+    source: "picker" | "recent" | "launch" = "picker",
+    nextActiveTab?: EditorTab
+  ) {
     const loadedProject = await withBusy(
-      source === "recent" ? "Opening recent project" : "Loading project",
+      source === "recent" ? "Opening recent project" : source === "launch" ? "Opening launch project" : "Loading project",
       () => window.editorApi.loadProject(targetProjectDir)
     );
     if (!loadedProject) {
-      if (source === "recent") {
+      if (source === "recent" || source === "launch") {
         await forgetRecentProjectEntry(targetProjectDir);
-        setStatusMessage("Could not open that recent project. It has been removed from the recent list.");
+        setStatusMessage(
+          source === "launch"
+            ? "Could not open the project requested on launch. It has been removed from the recent list."
+            : "Could not open that recent project. It has been removed from the recent list."
+        );
       }
       return;
     }
 
     setProjectContext(loadedProject, targetProjectDir);
+    if (nextActiveTab) {
+      setActiveTab(nextActiveTab);
+    }
     await rememberRecentProjectEntry(targetProjectDir, loadedProject.manifest.projectName);
     setStatusMessage(
       source === "recent"
         ? `Reopened ${loadedProject.manifest.projectName}`
+        : source === "launch"
+          ? `Opened ${loadedProject.manifest.projectName}${nextActiveTab ? ` on ${resolveTabLabel(nextActiveTab)}` : ""}.`
         : `Loaded ${loadedProject.manifest.projectName}`
     );
   }
@@ -189,6 +209,19 @@ export function App() {
       cancelled = true;
     };
   }, [hasEditorApi]);
+
+  useEffect(() => {
+    if (!hasEditorApi || hasHandledInitialLaunchRef.current) {
+      return;
+    }
+
+    hasHandledInitialLaunchRef.current = true;
+    if (!initialLaunchOptions.projectDir) {
+      return;
+    }
+
+    void openProjectDirectory(initialLaunchOptions.projectDir, "launch", resolveLaunchTab(initialLaunchOptions.tab));
+  }, [hasEditorApi, initialLaunchOptions]);
 
   useEffect(() => {
     if (!hasEditorApi) {
@@ -803,6 +836,28 @@ function getInitialRecentProjects(): RecentProjectSummary[] {
   }
 
   return [];
+}
+
+function getInitialLaunchOptions(): InitialLaunchOptions {
+  const hasEditorApi = typeof window !== "undefined" && typeof window.editorApi !== "undefined";
+
+  if (hasEditorApi) {
+    try {
+      return window.editorApi.getLaunchOptionsSync();
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function resolveLaunchTab(tab: InitialLaunchOptions["tab"]): EditorTab | undefined {
+  return TABS.find((candidate) => candidate.id === tab)?.id;
+}
+
+function resolveTabLabel(tab: EditorTab): string {
+  return TABS.find((candidate) => candidate.id === tab)?.label ?? tab;
 }
 
 interface IssueTextLinkProps {

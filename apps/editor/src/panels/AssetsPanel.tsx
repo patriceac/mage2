@@ -199,7 +199,7 @@ export function AssetsPanel({
                   <div className="list-card__actions">
                     <button
                       type="button"
-                      className="button-danger"
+                      className="button-danger-quiet"
                       disabled={deleteDisabled}
                       onClick={() => void handleDeleteAsset(asset)}
                       title={

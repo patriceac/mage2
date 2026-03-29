@@ -16,6 +16,11 @@ import {
   type HotspotDragHandle,
   type HotspotGeometry
 } from "./hotspot-geometry";
+import {
+  isOpaqueHotspotVisualHit,
+  loadHotspotVisualAlphaMask,
+  type HotspotVisualAlphaMask
+} from "./hotspot-alpha-hit-test";
 import { resolveHotspotLabelPlacement, type HotspotLabelPlacement } from "./hotspot-label-placement";
 import { getLocalizedAssetVariant } from "./localized-project";
 import {
@@ -78,6 +83,7 @@ export function MediaSurface({
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
+  const [hotspotVisualAlphaMasks, setHotspotVisualAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
   const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
   const hotspotVisualEntries = Object.entries(hotspotVisuals ?? {}).filter(([, visual]) => Boolean(visual?.sourcePath));
   const hotspotVisualSourceSignature = hotspotVisualEntries
@@ -161,6 +167,44 @@ export function MediaSurface({
       cancelled = true;
     };
   }, [hotspotVisualSourceSignature]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHotspotVisualAlphaMasks() {
+      const hotspotVisualUrlEntries = Object.entries(hotspotVisualUrls);
+      if (hotspotVisualUrlEntries.length === 0) {
+        setHotspotVisualAlphaMasks({});
+        return;
+      }
+
+      const resolvedEntries = await Promise.all(
+        hotspotVisualUrlEntries.map(async ([hotspotId, hotspotVisualUrl]) => {
+          try {
+            const alphaMask = await loadHotspotVisualAlphaMask(hotspotVisualUrl);
+            return alphaMask ? ([hotspotId, alphaMask] as const) : undefined;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setHotspotVisualAlphaMasks(
+          Object.fromEntries(
+            resolvedEntries.filter(
+              (entry): entry is readonly [string, HotspotVisualAlphaMask] => Boolean(entry)
+            )
+          )
+        );
+      }
+    }
+
+    void loadHotspotVisualAlphaMasks();
+    return () => {
+      cancelled = true;
+    };
+  }, [hotspotVisualUrls]);
 
   useEffect(() => {
     return () => {
@@ -525,7 +569,7 @@ export function MediaSurface({
             ? editableHotspots
               ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
               : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position."
-            : "Scene preview with active hotspots overlaid on the selected media."
+            : undefined
           : undefined
       }
     >
@@ -598,6 +642,7 @@ export function MediaSurface({
             strings={strings}
             surfaceSize={overlaySurfaceSize}
             appearance={hotspotAppearance}
+            alphaMask={hotspotVisualAlphaMasks[hotspot.id]}
             editable={editableHotspots}
             selected={hotspot.id === selectedHotspotId}
             showLabels={showHotspotLabels}
@@ -651,6 +696,7 @@ interface HotspotButtonProps {
   strings?: Record<string, string>;
   surfaceSize?: HotspotSurfaceSize;
   appearance: "editor" | "runtime" | "hidden";
+  alphaMask?: HotspotVisualAlphaMask;
   editable: boolean;
   selected: boolean;
   showLabels: boolean;
@@ -666,12 +712,37 @@ interface HotspotButtonProps {
   ariaLabel: string;
 }
 
+function isOpaqueHotspotPointerEvent(
+  event: Pick<React.MouseEvent<HTMLButtonElement>, "clientX" | "clientY" | "currentTarget">,
+  alphaMask: HotspotVisualAlphaMask | undefined,
+  visualUrl: string | undefined,
+  visualBox: { x: number; y: number; width: number; height: number },
+  rotationDegrees: number
+): boolean {
+  if (!visualUrl || !alphaMask) {
+    return false;
+  }
+
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return isOpaqueHotspotVisualHit(alphaMask, {
+    pointX: event.clientX - bounds.left,
+    pointY: event.clientY - bounds.top,
+    hotspotWidth: bounds.width,
+    hotspotHeight: bounds.height,
+    visualBox,
+    rotationDegrees,
+    imageWidth: alphaMask.width,
+    imageHeight: alphaMask.height
+  });
+}
+
 function HotspotButton({
   hotspot,
   visual,
   strings,
   surfaceSize,
   appearance,
+  alphaMask,
   editable,
   selected,
   showLabels,
@@ -709,10 +780,41 @@ function HotspotButton({
   const showsShapeChrome = appearance === "editor" && (!hotspot.inventoryItemId || Math.abs(rotationDegrees) > 0.001);
   const suppressAxisAlignedChrome = Boolean(hotspot.inventoryItemId) && Math.abs(rotationDegrees) > 0.001;
   const [tooltipText, setTooltipText] = useState<string>();
+  const [isPointerOverOpaquePixel, setIsPointerOverOpaquePixel] = useState(false);
+  const usesAlphaAwarePointerFeedback = appearance !== "editor" && Boolean(visual?.url);
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
     event.preventDefault();
     event.stopPropagation();
   };
+  const handleBodyClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (appearance !== "editor" && visual?.url && alphaMask) {
+      const isPointerHit = isOpaqueHotspotPointerEvent(event, alphaMask, visual.url, visualBox, rotationDegrees);
+      setIsPointerOverOpaquePixel(isPointerHit);
+      if (!isPointerHit) {
+        return;
+      }
+    }
+
+    onClick(event);
+  };
+  const handleBodyMouseMoveOrEnter: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (!usesAlphaAwarePointerFeedback) {
+      return;
+    }
+
+    if (!alphaMask) {
+      setIsPointerOverOpaquePixel(false);
+      return;
+    }
+
+    setIsPointerOverOpaquePixel(isOpaqueHotspotPointerEvent(event, alphaMask, visual?.url, visualBox, rotationDegrees));
+  };
+  const bodyClassName = [
+    resolveHotspotBodyClassName(appearance, Boolean(visual)),
+    usesAlphaAwarePointerFeedback && !isPointerOverOpaquePixel ? "hotspot__body--pointer-inactive" : undefined
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -756,10 +858,16 @@ function HotspotButton({
         </div>
       ) : null}
       <button
-        className={resolveHotspotBodyClassName(appearance, Boolean(visual))}
-        onClick={onClick}
+        className={bodyClassName}
+        onClick={handleBodyClick}
+        onMouseEnter={handleBodyMouseMoveOrEnter}
+        onMouseMove={handleBodyMouseMoveOrEnter}
+        onMouseLeave={() => setIsPointerOverOpaquePixel(false)}
         onMouseDown={editable ? onMoveStart : undefined}
-        style={{ clipPath }}
+        style={{
+          clipPath,
+          ...(usesAlphaAwarePointerFeedback ? { cursor: isPointerOverOpaquePixel ? "pointer" : "default" } : undefined)
+        }}
         aria-label={ariaLabel}
         title={showLabels && showTooltips ? tooltipText : undefined}
         type="button"

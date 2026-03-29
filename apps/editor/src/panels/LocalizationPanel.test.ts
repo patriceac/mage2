@@ -187,6 +187,7 @@ describe("LocalizationPanel shared header", () => {
     expect(markup).toContain("Add Locale");
     expect(markup).toContain("Set Default");
     expect(markup).toContain("Remove Locale");
+    expect(markup).toContain("button-danger-quiet");
   });
 });
 

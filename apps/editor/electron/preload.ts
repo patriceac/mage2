@@ -1,9 +1,13 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
+import type { EditorLaunchOptions } from "./launch-options";
 import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
 
+const initialLaunchOptions = ipcRenderer.sendSync("mage2:get-launch-options-sync") as EditorLaunchOptions;
+
 const editorApi = {
+  getLaunchOptionsSync: (): EditorLaunchOptions => initialLaunchOptions,
   getRecentProjectsSync: (): RecentProject[] => ipcRenderer.sendSync("mage2:get-recent-projects-sync"),
   getRecentProjects: (): Promise<RecentProject[]> => ipcRenderer.invoke("mage2:get-recent-projects"),
   rememberRecentProject: (projectDir: string, projectName?: string): Promise<RecentProject[]> =>

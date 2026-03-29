@@ -3,6 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { resolveHotspotClipPath, type Hotspot } from "@mage2/schema";
 import {
+  isOpaqueHotspotVisualHit,
+  resolveContainedImageBox,
+  resolveHotspotVisualHitPoint
+} from "./hotspot-alpha-hit-test";
+import {
   MediaSurface,
   resolveHotspotRotationHandleGeometry,
   resolveHotspotSelectionAfterDrag
@@ -251,5 +256,155 @@ describe("MediaSurface hotspot chrome geometry", () => {
   it("preserves a hidden inspector state when dragging an unselected hotspot", () => {
     expect(resolveHotspotSelectionAfterDrag(undefined, "hotspot_item")).toBeUndefined();
     expect(resolveHotspotSelectionAfterDrag("hotspot_map", "hotspot_item")).toBe("hotspot_item");
+  });
+});
+
+describe("hotspot alpha hit testing", () => {
+  it("centers contained art inside the hotspot frame", () => {
+    expect(resolveContainedImageBox(120, 120, 240, 120)).toEqual({
+      x: 0,
+      y: 30,
+      width: 120,
+      height: 60
+    });
+  });
+
+  it("maps click coordinates into the contained source image", () => {
+    expect(
+      resolveHotspotVisualHitPoint({
+        pointX: 30,
+        pointY: 45,
+        hotspotWidth: 120,
+        hotspotHeight: 120,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 0,
+        imageWidth: 2,
+        imageHeight: 1
+      })
+    ).toEqual({
+      x: 0,
+      y: 0
+    });
+
+    expect(
+      resolveHotspotVisualHitPoint({
+        pointX: 30,
+        pointY: 15,
+        hotspotWidth: 120,
+        hotspotHeight: 120,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 0,
+        imageWidth: 2,
+        imageHeight: 1
+      })
+    ).toBeUndefined();
+  });
+
+  it("rejects transparent pixels inside the hotspot bounds", () => {
+    const alphaMask = {
+      width: 2,
+      height: 2,
+      alpha: new Uint8ClampedArray([
+        255,
+        0,
+        0,
+        255
+      ])
+    };
+
+    expect(
+      isOpaqueHotspotVisualHit(alphaMask, {
+        pointX: 25,
+        pointY: 25,
+        hotspotWidth: 100,
+        hotspotHeight: 100,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 0,
+        imageWidth: alphaMask.width,
+        imageHeight: alphaMask.height
+      })
+    ).toBe(true);
+
+    expect(
+      isOpaqueHotspotVisualHit(alphaMask, {
+        pointX: 75,
+        pointY: 25,
+        hotspotWidth: 100,
+        hotspotHeight: 100,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 0,
+        imageWidth: alphaMask.width,
+        imageHeight: alphaMask.height
+      })
+    ).toBe(false);
+  });
+
+  it("accounts for rotated hotspot visuals before sampling alpha", () => {
+    const alphaMask = {
+      width: 2,
+      height: 2,
+      alpha: new Uint8ClampedArray([
+        255,
+        0,
+        0,
+        0
+      ])
+    };
+
+    expect(
+      isOpaqueHotspotVisualHit(alphaMask, {
+        pointX: 75,
+        pointY: 25,
+        hotspotWidth: 100,
+        hotspotHeight: 100,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 90,
+        imageWidth: alphaMask.width,
+        imageHeight: alphaMask.height
+      })
+    ).toBe(true);
+
+    expect(
+      isOpaqueHotspotVisualHit(alphaMask, {
+        pointX: 25,
+        pointY: 25,
+        hotspotWidth: 100,
+        hotspotHeight: 100,
+        visualBox: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1
+        },
+        rotationDegrees: 90,
+        imageWidth: alphaMask.width,
+        imageHeight: alphaMask.height
+      })
+    ).toBe(false);
   });
 });

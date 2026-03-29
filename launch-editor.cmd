@@ -9,7 +9,7 @@ if not exist "%~dp0node.exe" (
   )
 )
 
-node "%~dp0scripts\launch-editor-shortcut.mjs"
+node "%~dp0scripts\launch-editor-shortcut.mjs" %*
 if errorlevel 1 (
   exit /b 1
 )

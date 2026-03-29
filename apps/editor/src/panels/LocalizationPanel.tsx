@@ -431,7 +431,7 @@ export function LocalizationPanel({
               </button>
               <button
                 type="button"
-                className="button-danger"
+                className="button-danger-quiet"
                 disabled={isDefaultLocale}
                 onClick={() => void handleRemoveLocale()}
                 title="Remove the selected non-default locale from the project."
@@ -597,7 +597,7 @@ export function LocalizationPanel({
                   </p>
                   <button
                     type="button"
-                    className="button-danger"
+                    className="button-danger-quiet"
                     title="Delete all orphaned entries currently visible in this filtered list."
                     onClick={() => void handleDeleteOrphanedEntries(visibleOrphanedEntries.map((entry) => entry.textId))}
                   >
@@ -644,7 +644,7 @@ export function LocalizationPanel({
                             {entry.status === "orphaned" ? (
                               <button
                                 type="button"
-                                className="button-danger button-danger--compact"
+                                className="button-danger-quiet button-danger--compact"
                                 title={`Delete the orphaned string ${entry.textId}.`}
                                 onClick={() => void handleDeleteOrphanedEntries([entry.textId])}
                               >
@@ -936,7 +936,7 @@ export function LocalizationPanel({
                       </button>
                       <button
                         type="button"
-                        className="button-danger"
+                        className="button-danger-quiet"
                         disabled={!activeVariant || Object.keys(asset.variants).length <= 1}
                         onClick={(event) => {
                           event.stopPropagation();
