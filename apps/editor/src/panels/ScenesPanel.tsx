@@ -287,7 +287,6 @@ export function ScenesPanel({
       return;
     }
 
-    setIsHotspotInspectorOpen(false);
     setIsHotspotInspectorActive(false);
   }, [selectedHotspot]);
 
@@ -1607,15 +1606,6 @@ export function ScenesPanel({
             Create Hotspot
           </button>
           <button
-            type="button"
-            className="button-danger-quiet"
-            disabled={!selectedHotspotId}
-            title="Delete the currently selected hotspot from this scene. Shortcut: Delete."
-            onClick={() => deleteHotspot(selectedHotspotId)}
-          >
-            Delete Hotspot
-          </button>
-          <button
             ref={inventoryPickerAnchorRef}
             type="button"
             className="button-secondary"
@@ -1624,6 +1614,15 @@ export function ScenesPanel({
             onClick={handleInventoryPickerToggle}
           >
             Add Inventory Item
+          </button>
+          <button
+            type="button"
+            className="button-danger-quiet"
+            disabled={!selectedHotspotId}
+            title="Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete."
+            onClick={() => deleteHotspot(selectedHotspotId)}
+          >
+            Delete
           </button>
         </div>
 
@@ -2112,7 +2111,7 @@ export function resolveNextHotspotInspectorOpenState(
   inspectorSelectionMode: HotspotInspectorSelectionMode
 ) {
   if (!nextSelectedHotspotId) {
-    return false;
+    return currentIsHotspotInspectorOpen;
   }
 
   if (inspectorSelectionMode === "toggle") {
