@@ -24,6 +24,17 @@ function renderHotspotMarkup(hotspot: Hotspot): string {
   );
 }
 
+function renderPlaytestHotspotMarkup(hotspot: Hotspot): string {
+  return renderToStaticMarkup(
+    React.createElement(MediaSurface, {
+      hotspots: [hotspot],
+      hotspotAppearance: "playtest",
+      showHotspotLabels: false,
+      showHotspotTooltips: false
+    })
+  );
+}
+
 function renderEditableSelectedHotspotMarkup(hotspot: Hotspot): string {
   return renderToStaticMarkup(
     React.createElement(MediaSurface, {
@@ -107,6 +118,28 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(markup).toContain("clip-path:polygon(");
     expect(markup).toContain("hotspot--inventory-item");
     expect(markup).toContain("hotspot__chrome-shape");
+  });
+
+  it("uses dedicated playtest hotspot chrome without editor handles or labels", () => {
+    const hotspot: Hotspot = {
+      id: "hotspot_debug",
+      name: "Debug",
+      x: 0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4,
+      startMs: 0,
+      endMs: 1_000,
+      requiredItemIds: [],
+      conditions: [],
+      effects: []
+    };
+
+    const markup = renderPlaytestHotspotMarkup(hotspot);
+
+    expect(markup).toContain("hotspot__body hotspot__body--playtest");
+    expect(markup).not.toContain("hotspot__chrome");
+    expect(markup).not.toContain("hotspot__label-card");
   });
 
   it("renders rotated inventory hotspots with polygon chrome", () => {

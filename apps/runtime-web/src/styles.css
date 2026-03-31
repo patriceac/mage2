@@ -212,9 +212,16 @@ input[type="range"]:focus-visible {
   place-items: center;
   min-width: 0;
   padding: 0;
-  border: 1px solid rgba(125, 211, 252, 0.18);
+  border: 2px solid rgba(186, 230, 253, 0.94);
   border-radius: 0;
-  background: rgba(125, 211, 252, 0.04);
+  background:
+    linear-gradient(180deg, rgba(10, 45, 61, 0.34), rgba(7, 97, 122, 0.44)),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.28), rgba(125, 211, 252, 0.28));
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.26),
+    0 0 0 1px rgba(56, 189, 248, 0.3),
+    0 0 0 4px rgba(14, 165, 233, 0.14),
+    0 16px 34px rgba(8, 47, 73, 0.24);
   overflow: hidden;
 }
 
@@ -238,13 +245,27 @@ input[type="range"]:focus-visible {
 
 .runtime-hotspot:hover,
 .runtime-hotspot:focus-visible {
-  border-color: rgba(125, 211, 252, 0.42);
-  background: rgba(125, 211, 252, 0.1);
+  border-color: rgba(224, 242, 254, 0.98);
+  background:
+    linear-gradient(180deg, rgba(14, 52, 69, 0.42), rgba(8, 121, 152, 0.54)),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.36), rgba(125, 211, 252, 0.36));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.32),
+    0 0 0 1px rgba(125, 211, 252, 0.34),
+    0 0 0 5px rgba(14, 165, 233, 0.18),
+    0 18px 40px rgba(8, 47, 73, 0.28);
 }
 
 .runtime-hotspot.runtime-hotspot--pointer-inactive:hover {
-  border-color: rgba(125, 211, 252, 0.18);
-  background: rgba(125, 211, 252, 0.04);
+  border-color: rgba(186, 230, 253, 0.94);
+  background:
+    linear-gradient(180deg, rgba(10, 45, 61, 0.34), rgba(7, 97, 122, 0.44)),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.28), rgba(125, 211, 252, 0.28));
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.26),
+    0 0 0 1px rgba(56, 189, 248, 0.3),
+    0 0 0 4px rgba(14, 165, 233, 0.14),
+    0 16px 34px rgba(8, 47, 73, 0.24);
 }
 
 .runtime-hotspot:focus-visible {

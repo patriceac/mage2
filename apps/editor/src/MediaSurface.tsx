@@ -38,7 +38,7 @@ interface MediaSurfaceProps {
   hotspots?: Hotspot[];
   hotspotVisuals?: Record<string, HotspotVisual | undefined>;
   strings?: Record<string, string>;
-  hotspotAppearance?: "editor" | "runtime" | "hidden";
+  hotspotAppearance?: "editor" | "runtime" | "playtest" | "hidden";
   showHotspotLabels?: boolean;
   showHotspotTooltips?: boolean;
   showSurfaceTooltips?: boolean;
@@ -776,7 +776,7 @@ interface HotspotButtonProps {
   };
   strings?: Record<string, string>;
   surfaceSize?: HotspotSurfaceSize;
-  appearance: "editor" | "runtime" | "hidden";
+  appearance: "editor" | "runtime" | "playtest" | "hidden";
   alphaMask?: HotspotVisualAlphaMask;
   editable: boolean;
   selected: boolean;
@@ -1330,11 +1330,16 @@ export function resolveHotspotSelectionAfterDrag(
   return selectedHotspotId ? draggedHotspotId : undefined;
 }
 
-function resolveHotspotBodyClassName(appearance: "editor" | "runtime" | "hidden", hasVisual: boolean): string {
+function resolveHotspotBodyClassName(
+  appearance: "editor" | "runtime" | "playtest" | "hidden",
+  hasVisual: boolean
+): string {
   const classNames = ["hotspot__body"];
 
   if (appearance === "runtime") {
     classNames.push("hotspot__body--runtime");
+  } else if (appearance === "playtest") {
+    classNames.push("hotspot__body--playtest");
   } else if (appearance === "hidden") {
     classNames.push("hotspot__body--hidden");
   }
