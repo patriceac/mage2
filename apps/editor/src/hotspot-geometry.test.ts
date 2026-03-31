@@ -4,8 +4,8 @@ import {
   applyHotspotBounds,
   applyHotspotDrag,
   applyHotspotKeyboardTransform,
-  applyInventoryHotspotRotationDegrees,
-  applyInventoryHotspotRotationDrag
+  applyHotspotRotationDegrees,
+  applyHotspotRotationDrag
 } from "./hotspot-geometry";
 
 function expectRectangularPolygon(
@@ -361,6 +361,45 @@ describe("applyHotspotKeyboardTransform", () => {
     });
   });
 
+  it("resizes regular hotspots from center without flattening their polygon", () => {
+    expect(
+      applyHotspotKeyboardTransform(
+        {
+          x: 0.15,
+          y: 0.2,
+          width: 0.25,
+          height: 0.2,
+          polygon: [
+            { x: 0.2, y: 0.2 },
+            { x: 0.4, y: 0.2 },
+            { x: 0.35, y: 0.4 },
+            { x: 0.15, y: 0.4 }
+          ]
+        },
+        {
+          kind: "resize",
+          axis: "x",
+          deltaPx: 20
+        },
+        {
+          width: 100,
+          height: 100
+        }
+      )
+    ).toEqual({
+      x: 0.03,
+      y: 0.2,
+      width: 0.5,
+      height: 0.2,
+      polygon: [
+        { x: 0.125, y: 0.2 },
+        { x: 0.525, y: 0.2 },
+        { x: 0.425, y: 0.4 },
+        { x: 0.025, y: 0.4 }
+      ]
+    });
+  });
+
   it("resizes inventory hotspots from center using surface pixels", () => {
     expect(
       applyHotspotKeyboardTransform(
@@ -431,6 +470,44 @@ describe("applyHotspotKeyboardTransform", () => {
     expect(resolveHotspotRotationDegrees(geometry)).toBe(45);
   });
 
+  it("rotates regular hotspots without flattening their polygon", () => {
+    const geometry = applyHotspotKeyboardTransform(
+      {
+        x: 0.15,
+        y: 0.2,
+        width: 0.25,
+        height: 0.2,
+        polygon: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.4, y: 0.2 },
+          { x: 0.35, y: 0.4 },
+          { x: 0.15, y: 0.4 }
+        ]
+      },
+      {
+        kind: "rotate",
+        deltaDegrees: 90
+      },
+      {
+        width: 100,
+        height: 100
+      }
+    );
+
+    expect(geometry).toEqual({
+      x: 0.18,
+      y: 0.18,
+      width: 0.2,
+      height: 0.25,
+      polygon: [
+        { x: 0.375, y: 0.225 },
+        { x: 0.375, y: 0.425 },
+        { x: 0.175, y: 0.375 },
+        { x: 0.175, y: 0.175 }
+      ]
+    });
+  });
+
   it("enforces the minimum hotspot size when shrinking with the keyboard", () => {
     expect(
       applyHotspotKeyboardTransform(
@@ -467,11 +544,10 @@ describe("applyHotspotKeyboardTransform", () => {
   });
 });
 
-describe("applyInventoryHotspotRotationDegrees", () => {
-  it("sets an inventory hotspot to an absolute rendered angle", () => {
-    const geometry = applyInventoryHotspotRotationDegrees(
+describe("applyHotspotRotationDegrees", () => {
+  it("sets a regular hotspot to an absolute rendered angle", () => {
+    const geometry = applyHotspotRotationDegrees(
       {
-        inventoryItemId: "item_lantern",
         x: 0.4,
         y: 0.4,
         width: 0.2,
@@ -489,12 +565,11 @@ describe("applyInventoryHotspotRotationDegrees", () => {
   });
 });
 
-describe("applyInventoryHotspotRotationDrag", () => {
-  it("rotates inventory hotspots from the pointer while preserving size and rectangularity", () => {
+describe("applyHotspotRotationDrag", () => {
+  it("rotates regular hotspots from the pointer while preserving size and rectangularity", () => {
     const surfaceSize = { width: 100, height: 100 };
-    const result = applyInventoryHotspotRotationDrag(
+    const result = applyHotspotRotationDrag(
       {
-        inventoryItemId: "item_lantern",
         x: 0.4,
         y: 0.4,
         width: 0.2,
@@ -519,11 +594,50 @@ describe("applyInventoryHotspotRotationDrag", () => {
     expect(Math.hypot(se.x - ne.x, se.y - ne.y)).toBeCloseTo(20, 1);
   });
 
+  it("rotates skewed regular hotspots from the pointer without flattening their polygon", () => {
+    const surfaceSize = { width: 100, height: 100 };
+    const result = applyHotspotRotationDrag(
+      {
+        x: 0.15,
+        y: 0.2,
+        width: 0.25,
+        height: 0.2,
+        polygon: [
+          { x: 0.2, y: 0.2 },
+          { x: 0.4, y: 0.2 },
+          { x: 0.35, y: 0.4 },
+          { x: 0.15, y: 0.4 }
+        ]
+      },
+      {
+        startPointerXPx: 27.5,
+        startPointerYPx: 10,
+        pointerXPx: 47.5,
+        pointerYPx: 30,
+        shiftKey: false,
+        surfaceSize
+      }
+    );
+
+    expect(result.geometry).toEqual({
+      x: 0.18,
+      y: 0.18,
+      width: 0.2,
+      height: 0.25,
+      polygon: [
+        { x: 0.375, y: 0.225 },
+        { x: 0.375, y: 0.425 },
+        { x: 0.175, y: 0.375 },
+        { x: 0.175, y: 0.175 }
+      ]
+    });
+    expect(result.rotationDegrees).toBeCloseTo(90, 1);
+  });
+
   it("snaps pointer rotation to absolute 15-degree steps while shift is held", () => {
     const angleDegrees = -53;
-    const result = applyInventoryHotspotRotationDrag(
+    const result = applyHotspotRotationDrag(
       {
-        inventoryItemId: "item_lantern",
         x: 0.4,
         y: 0.4,
         width: 0.2,
@@ -548,9 +662,8 @@ describe("applyInventoryHotspotRotationDrag", () => {
   });
 
   it("clamps pointer rotation when the requested angle would push the hotspot outside the surface", () => {
-    const result = applyInventoryHotspotRotationDrag(
+    const result = applyHotspotRotationDrag(
       {
-        inventoryItemId: "item_lantern",
         x: 0,
         y: 0,
         width: 0.2,

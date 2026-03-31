@@ -40,7 +40,7 @@ import { resolveHotspotVisuals } from "../hotspot-visuals";
 import {
   MIN_HOTSPOT_SIZE,
   applyHotspotKeyboardTransform,
-  applyInventoryHotspotRotationDegrees,
+  applyHotspotRotationDegrees,
   applyHotspotBounds,
   formatHotspotCoordinate,
   formatHotspotRotationDegrees,
@@ -966,7 +966,7 @@ export function ScenesPanel({
   }
 
   function updateSelectedHotspotRotationDegrees(rotationDegrees: number) {
-    if (!selectedHotspot?.inventoryItemId || !Number.isFinite(rotationDegrees)) {
+    if (!selectedHotspot || !Number.isFinite(rotationDegrees)) {
       return;
     }
 
@@ -976,7 +976,7 @@ export function ScenesPanel({
     }
 
     mutateSelectedHotspot((hotspot) => {
-      const nextGeometry = applyInventoryHotspotRotationDegrees(
+      const nextGeometry = applyHotspotRotationDegrees(
         {
           inventoryItemId: hotspot.inventoryItemId,
           x: hotspot.x,
@@ -1202,7 +1202,7 @@ export function ScenesPanel({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const action = resolveInventoryHotspotTransformKeyboardAction(event.key, {
+      const action = resolveHotspotTransformKeyboardAction(event.key, {
         altKey: event.altKey,
         ctrlKey: event.ctrlKey,
         metaKey: event.metaKey,
@@ -1218,10 +1218,10 @@ export function ScenesPanel({
           : document.activeElement instanceof HTMLElement
             ? document.activeElement
             : undefined;
-      const shouldHandleTransform = shouldHandleInventoryHotspotTransformShortcut({
+      const shouldHandleTransform = shouldHandleHotspotTransformShortcut({
         defaultPrevented: event.defaultPrevented,
         hasDialogOverlay: Boolean(document.querySelector(".dialog-overlay")),
-        hasSelectedInventoryHotspot: Boolean(selectedHotspot?.inventoryItemId),
+        hasSelectedHotspot: Boolean(selectedHotspot),
         isScenePreviewFocused: isScenePreviewKeyboardTarget(targetElement),
         isScenesTabActive: activeTab === "scenes",
         isTargetInsideFloatingWindow: isScenesFloatingWindowTarget(targetElement),
@@ -1245,7 +1245,7 @@ export function ScenesPanel({
       const currentHotspot = currentProject.scenes.items
         .find((entry) => entry.id === activeSceneId)
         ?.hotspots.find((entry) => entry.id === activeHotspotId);
-      if (!activeSceneId || !activeHotspotId || !currentHotspot?.inventoryItemId) {
+      if (!activeSceneId || !activeHotspotId || !currentHotspot) {
         return;
       }
 
@@ -1262,7 +1262,7 @@ export function ScenesPanel({
         return;
       }
 
-      const batchSignature = `${activeHotspotId}:${resolveInventoryHotspotTransformBatchSignature(action.transform)}`;
+      const batchSignature = `${activeHotspotId}:${resolveHotspotTransformBatchSignature(action.transform)}`;
       if (
         hotspotKeyboardTransformBatchRef.current.hotspotId !== activeHotspotId ||
         hotspotKeyboardTransformBatchRef.current.signature !== batchSignature
@@ -2331,7 +2331,7 @@ export function shouldDismissScenesHotspotSelectionOnEscape(
   return true;
 }
 
-type InventoryHotspotTransformKeyboardAction =
+type HotspotTransformKeyboardAction =
   | {
       handled: false;
       transform?: undefined;
@@ -2341,10 +2341,10 @@ type InventoryHotspotTransformKeyboardAction =
       transform: HotspotKeyboardTransform;
     };
 
-export function resolveInventoryHotspotTransformKeyboardAction(
+export function resolveHotspotTransformKeyboardAction(
   key: string,
   modifiers: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">
-): InventoryHotspotTransformKeyboardAction {
+): HotspotTransformKeyboardAction {
   const fineAdjustment = modifiers.ctrlKey || modifiers.metaKey;
   const translationStepPx = fineAdjustment ? 1 : 10;
 
@@ -2468,10 +2468,10 @@ export function resolveInventoryHotspotTransformKeyboardAction(
   }
 }
 
-export function shouldHandleInventoryHotspotTransformShortcut({
+export function shouldHandleHotspotTransformShortcut({
   defaultPrevented,
   hasDialogOverlay,
-  hasSelectedInventoryHotspot,
+  hasSelectedHotspot,
   isScenePreviewFocused,
   isScenesTabActive,
   isTargetInsideFloatingWindow,
@@ -2479,13 +2479,13 @@ export function shouldHandleInventoryHotspotTransformShortcut({
 }: {
   defaultPrevented: boolean;
   hasDialogOverlay: boolean;
-  hasSelectedInventoryHotspot: boolean;
+  hasSelectedHotspot: boolean;
   isScenePreviewFocused: boolean;
   isScenesTabActive: boolean;
   isTargetInsideFloatingWindow: boolean;
   isTargetTextEntry: boolean;
 }) {
-  if (defaultPrevented || hasDialogOverlay || !hasSelectedInventoryHotspot || !isScenePreviewFocused || !isScenesTabActive) {
+  if (defaultPrevented || hasDialogOverlay || !hasSelectedHotspot || !isScenePreviewFocused || !isScenesTabActive) {
     return false;
   }
 
@@ -2496,7 +2496,7 @@ export function shouldHandleInventoryHotspotTransformShortcut({
   return true;
 }
 
-function resolveInventoryHotspotTransformBatchSignature(
+function resolveHotspotTransformBatchSignature(
   transform:
     | { kind: "move"; deltaXPx: number; deltaYPx: number }
     | { kind: "resize"; axis: "x" | "y"; deltaPx: number }
@@ -2985,10 +2985,9 @@ function HotspotInspectorWindow({
     };
   }, [anchorRef, onPositionChange, selectedHotspot.id]);
 
-  const selectedHotspotRotationDegrees =
-    selectedHotspot.inventoryItemId && rotationSurfaceSize
-      ? resolveRelativeHotspotFrame(selectedHotspot, rotationSurfaceSize).rotationDegrees
-      : resolveHotspotRotationDegrees(selectedHotspot);
+  const selectedHotspotRotationDegrees = rotationSurfaceSize
+    ? resolveRelativeHotspotFrame(selectedHotspot, rotationSurfaceSize).rotationDegrees
+    : resolveHotspotRotationDegrees(selectedHotspot);
 
   useEffect(() => {
     return () => {
@@ -3101,12 +3100,10 @@ function HotspotInspectorWindow({
             <summary className="scenes-floating-inspector__help-summary">Editing Help</summary>
             <div className="scenes-floating-inspector__help-copy">
               <p className="muted">Drag the hotspot or its orange handles in the preview to edit it quickly.</p>
-              {selectedHotspot.inventoryItemId ? (
-                <p className="muted">
-                  Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps,
-                  and Ctrl fine-tunes.
-                </p>
-              ) : null}
+              <p className="muted">
+                Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps,
+                and Ctrl fine-tunes.
+              </p>
             </div>
           </details>
           <article className="list-card list-card--selected">
@@ -3198,15 +3195,14 @@ function HotspotInspectorWindow({
                 </label>
               ))}
             </div>
-            {selectedHotspot.inventoryItemId ? (
-              <div className="stack-inline">
-                <label title="Rendered rotation angle in degrees for this inventory hotspot.">
+            <div className="stack-inline">
+              <label title="Rendered rotation angle in degrees for this hotspot.">
                   <span className="field-label--inset">Angle (°)</span>
                   <input
                     type="number"
                     step="0.1"
                     value={formatHotspotRotationDegrees(selectedHotspotRotationDegrees)}
-                    title="Rendered rotation angle in degrees for this inventory hotspot."
+                    title="Rendered rotation angle in degrees for this hotspot."
                     disabled={!rotationSurfaceSize}
                     onChange={(event) => {
                       const nextRotationDegrees = Number(event.target.value);
@@ -3217,9 +3213,8 @@ function HotspotInspectorWindow({
                       onRotationDegreesChange(nextRotationDegrees);
                     }}
                   />
-                </label>
-              </div>
-            ) : null}
+              </label>
+            </div>
             <div className="stack-inline">
               <label title="Time in milliseconds when this hotspot becomes clickable.">
                 <span className="field-label--inset">Start (ms)</span>

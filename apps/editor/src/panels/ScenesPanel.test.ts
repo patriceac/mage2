@@ -7,7 +7,7 @@ import {
   ScenesPanel,
   filterInventoryPlacementOptions,
   resolveInventoryPickerKeyboardAction,
-  resolveInventoryHotspotTransformKeyboardAction,
+  resolveHotspotTransformKeyboardAction,
   resolveLocationSwitcherOptions,
   resolveNextHotspotInspectorOpenState,
   resolveInventoryPickerToggleResult,
@@ -18,7 +18,7 @@ import {
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
   shouldDismissScenesHotspotSelectionOnEscape,
-  shouldHandleInventoryHotspotTransformShortcut,
+  shouldHandleHotspotTransformShortcut,
   shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
 
@@ -464,13 +464,15 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain(
       '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
     );
-    expect(markup).not.toContain(">Angle (°)</span>");
-    expect(markup).not.toContain("Arrows move, Shift+arrows resize, Alt+Left/Right rotate");
+    expect(markup).toContain(">Angle (");
+    expect(markup).toContain(
+      "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
+    );
     expect(markup).not.toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 
-  it("shows keyboard transform guidance for selected inventory hotspots", () => {
+  it("shows shared transform guidance for selected inventory hotspots", () => {
     const markup = renderScenesPanel(
       (project) => {
         project.scenes.items[0].hotspots[0]!.inventoryItemId = "item_lantern";
@@ -483,7 +485,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(
       "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
     );
-    expect(markup).toContain(">Angle (°)</span>");
+    expect(markup).toContain(">Angle (");
   });
 
   it("shows only the hotspot inspector when both floating-window sources are active", () => {
@@ -681,9 +683,9 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("maps inventory hotspot transform shortcuts to move, resize, and rotate actions", () => {
+  it("maps hotspot transform shortcuts to move, resize, and rotate actions", () => {
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowLeft", {
+      resolveHotspotTransformKeyboardAction("ArrowLeft", {
         altKey: false,
         ctrlKey: false,
         metaKey: false,
@@ -699,7 +701,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowUp", {
+      resolveHotspotTransformKeyboardAction("ArrowUp", {
         altKey: false,
         ctrlKey: true,
         metaKey: false,
@@ -715,7 +717,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowRight", {
+      resolveHotspotTransformKeyboardAction("ArrowRight", {
         altKey: false,
         ctrlKey: false,
         metaKey: false,
@@ -731,7 +733,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowUp", {
+      resolveHotspotTransformKeyboardAction("ArrowUp", {
         altKey: false,
         ctrlKey: true,
         metaKey: false,
@@ -747,7 +749,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowDown", {
+      resolveHotspotTransformKeyboardAction("ArrowDown", {
         altKey: false,
         ctrlKey: true,
         metaKey: false,
@@ -763,7 +765,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowRight", {
+      resolveHotspotTransformKeyboardAction("ArrowRight", {
         altKey: true,
         ctrlKey: false,
         metaKey: false,
@@ -778,7 +780,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(
-      resolveInventoryHotspotTransformKeyboardAction("ArrowLeft", {
+      resolveHotspotTransformKeyboardAction("ArrowLeft", {
         altKey: true,
         ctrlKey: true,
         metaKey: false,
@@ -793,12 +795,12 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("gates inventory hotspot transforms to the focused scene preview", () => {
+  it("gates hotspot transforms to the focused scene preview", () => {
     expect(
-      shouldHandleInventoryHotspotTransformShortcut({
+      shouldHandleHotspotTransformShortcut({
         defaultPrevented: false,
         hasDialogOverlay: false,
-        hasSelectedInventoryHotspot: true,
+        hasSelectedHotspot: true,
         isScenePreviewFocused: true,
         isScenesTabActive: true,
         isTargetInsideFloatingWindow: false,
@@ -807,10 +809,10 @@ describe("ScenesPanel scene audio UI", () => {
     ).toBe(true);
 
     expect(
-      shouldHandleInventoryHotspotTransformShortcut({
+      shouldHandleHotspotTransformShortcut({
         defaultPrevented: false,
         hasDialogOverlay: false,
-        hasSelectedInventoryHotspot: true,
+        hasSelectedHotspot: true,
         isScenePreviewFocused: false,
         isScenesTabActive: true,
         isTargetInsideFloatingWindow: false,
@@ -819,10 +821,10 @@ describe("ScenesPanel scene audio UI", () => {
     ).toBe(false);
 
     expect(
-      shouldHandleInventoryHotspotTransformShortcut({
+      shouldHandleHotspotTransformShortcut({
         defaultPrevented: false,
         hasDialogOverlay: false,
-        hasSelectedInventoryHotspot: true,
+        hasSelectedHotspot: true,
         isScenePreviewFocused: true,
         isScenesTabActive: true,
         isTargetInsideFloatingWindow: true,
@@ -831,10 +833,10 @@ describe("ScenesPanel scene audio UI", () => {
     ).toBe(false);
 
     expect(
-      shouldHandleInventoryHotspotTransformShortcut({
+      shouldHandleHotspotTransformShortcut({
         defaultPrevented: false,
         hasDialogOverlay: false,
-        hasSelectedInventoryHotspot: true,
+        hasSelectedHotspot: true,
         isScenePreviewFocused: true,
         isScenesTabActive: true,
         isTargetInsideFloatingWindow: false,

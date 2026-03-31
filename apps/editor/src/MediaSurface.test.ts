@@ -144,7 +144,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(markup).toContain("hotspot__chrome-shape");
   });
 
-  it("renders a rotation handle for selected inventory hotspots only", () => {
+  it("renders a rotation handle for selected hotspots", () => {
     const inventoryHotspot: Hotspot = {
       id: "hotspot_item",
       name: "Potion",
@@ -173,10 +173,10 @@ describe("MediaSurface hotspot chrome geometry", () => {
 
     expect(renderEditableSelectedHotspotMarkup(inventoryHotspot)).toContain("hotspot__handle hotspot__handle--rotate");
     expect(renderEditableSelectedHotspotMarkup(inventoryHotspot)).toContain("hotspot__rotation-ui");
-    expect(renderEditableSelectedHotspotMarkup(plainHotspot)).not.toContain("hotspot__handle hotspot__handle--rotate");
+    expect(renderEditableSelectedHotspotMarkup(plainHotspot)).toContain("hotspot__handle hotspot__handle--rotate");
   });
 
-  it("adds extra top clearance to selected inventory labels above the rotation handle", () => {
+  it("adds extra top clearance to selected hotspot labels above the rotation handle", () => {
     const hotspot: Hotspot = {
       id: "hotspot_item",
       name: "Potion",
