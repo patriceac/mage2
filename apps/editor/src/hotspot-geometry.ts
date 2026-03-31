@@ -116,10 +116,7 @@ export function applyHotspotKeyboardTransform(
 
   const polygon = resolveHotspotPolygon(geometry);
   const pixelPolygon = polygon.map((point) => toSurfacePixelPoint(point, surfaceSize));
-  const preferredAngleRad = geometry.inventoryItemId
-    ? resolveSurfaceAngleFromNormalizedPolygon(polygon, surfaceSize)
-    : undefined;
-  const nextPixelPolygon = resolveNextKeyboardTransformPolygon(pixelPolygon, transform, surfaceSize, preferredAngleRad);
+  const nextPixelPolygon = resolveNextKeyboardTransformPolygon(pixelPolygon, transform, surfaceSize);
 
   if (pixelPolygonsMatch(pixelPolygon, nextPixelPolygon)) {
     return roundGeometry(geometry);
@@ -128,15 +125,11 @@ export function applyHotspotKeyboardTransform(
   return roundGeometry(withPolygon(nextPixelPolygon.map((point) => toNormalizedHotspotPoint(point, surfaceSize)), geometry));
 }
 
-export function applyInventoryHotspotRotationDegrees(
+export function applyHotspotRotationDegrees(
   geometry: HotspotGeometry,
   rotationDegrees: number,
   surfaceSize: HotspotSurfaceSize
 ): HotspotGeometry {
-  if (!geometry.inventoryItemId) {
-    return roundGeometry(geometry);
-  }
-
   const workingSurfaceSize = resolveWorkingSurfaceSize(surfaceSize);
   const currentRotationDegrees = roundRotationDegrees(
     resolveSurfaceAngleFromNormalizedPolygon(resolveHotspotPolygon(geometry), workingSurfaceSize)
@@ -155,25 +148,14 @@ export function applyInventoryHotspotRotationDegrees(
   );
 }
 
-export function applyInventoryHotspotRotationDrag(
+export function applyHotspotRotationDrag(
   geometry: HotspotGeometry,
   drag: HotspotRotationDrag
 ): HotspotRotationDragResult {
-  if (!geometry.inventoryItemId) {
-    return {
-      geometry: roundGeometry(geometry),
-      rotationDegrees: 0,
-      snapped: drag.shiftKey
-    };
-  }
-
   const workingSurfaceSize = resolveWorkingSurfaceSize(drag.surfaceSize);
   const polygon = resolveHotspotPolygon(geometry);
   const pixelPolygon = polygon.map((point) => toSurfacePixelPoint(point, workingSurfaceSize));
-  const preferredAngleRad = geometry.inventoryItemId
-    ? resolveSurfaceAngleFromNormalizedPolygon(polygon, workingSurfaceSize)
-    : undefined;
-  const nextPixelPolygon = rotatePolygonByPointerDrag(pixelPolygon, drag, workingSurfaceSize, preferredAngleRad);
+  const nextPixelPolygon = rotatePolygonByPointerDrag(pixelPolygon, drag, workingSurfaceSize);
   const nextGeometry = pixelPolygonsMatch(pixelPolygon, nextPixelPolygon)
     ? roundGeometry(geometry)
     : roundGeometry(
@@ -461,16 +443,15 @@ function moveHotspotCorner(
 function resolveNextKeyboardTransformPolygon(
   polygon: HotspotPixelPoint[],
   transform: HotspotKeyboardTransform,
-  surfaceSize: HotspotSurfaceSize,
-  preferredAngleRad?: number
+  surfaceSize: HotspotSurfaceSize
 ): HotspotPixelPoint[] {
   switch (transform.kind) {
     case "move":
       return translatePolygonByPixels(polygon, transform.deltaXPx, transform.deltaYPx, surfaceSize);
     case "resize":
-      return resizePolygonByPixels(polygon, transform.axis, transform.deltaPx, surfaceSize, preferredAngleRad);
+      return resizePolygonByPixels(polygon, transform.axis, transform.deltaPx, surfaceSize);
     case "rotate":
-      return rotatePolygonByDegrees(polygon, transform.deltaDegrees, surfaceSize, preferredAngleRad);
+      return rotatePolygonByDegrees(polygon, transform.deltaDegrees, surfaceSize);
   }
 }
 
@@ -494,21 +475,28 @@ function resizePolygonByPixels(
   polygon: HotspotPixelPoint[],
   axis: "x" | "y",
   deltaPx: number,
-  surfaceSize: HotspotSurfaceSize,
-  preferredAngleRad?: number
+  surfaceSize: HotspotSurfaceSize
 ): HotspotPixelPoint[] {
-  const rect = resolveOrientedHotspotRect(polygon, preferredAngleRad);
+  const rect = resolveOrientedHotspotRect(polygon);
+  const currentSizePx = axis === "x" ? rect.width : rect.height;
   const minimumSizePx =
     axis === "x" ? surfaceSize.width * MIN_HOTSPOT_SIZE : surfaceSize.height * MIN_HOTSPOT_SIZE;
-  const minimumDeltaPx = minimumSizePx - (axis === "x" ? rect.width : rect.height);
+  const minimumDeltaPx = minimumSizePx - currentSizePx;
   const clampedDeltaPx = Math.max(deltaPx, minimumDeltaPx);
+  if (currentSizePx <= HOTSPOT_GEOMETRY_EPSILON) {
+    return polygon;
+  }
 
+  const targetScale = (currentSizePx + clampedDeltaPx) / currentSizePx;
   const buildPolygon = (scale: number) =>
-    buildPolygonFromOrientedRect({
-      ...rect,
-      width: axis === "x" ? rect.width + clampedDeltaPx * scale : rect.width,
-      height: axis === "y" ? rect.height + clampedDeltaPx * scale : rect.height
-    });
+    transformPolygonInLocalSpace(
+      polygon,
+      rect.centerX,
+      rect.centerY,
+      rect.angleRad,
+      axis === "x" ? 1 + (targetScale - 1) * scale : 1,
+      axis === "y" ? 1 + (targetScale - 1) * scale : 1
+    );
 
   if (clampedDeltaPx <= 0) {
     return buildPolygon(1);
@@ -520,15 +508,11 @@ function resizePolygonByPixels(
 function rotatePolygonByDegrees(
   polygon: HotspotPixelPoint[],
   deltaDegrees: number,
-  surfaceSize: HotspotSurfaceSize,
-  preferredAngleRad?: number
+  surfaceSize: HotspotSurfaceSize
 ): HotspotPixelPoint[] {
-  const rect = resolveOrientedHotspotRect(polygon, preferredAngleRad);
+  const rect = resolveOrientedHotspotRect(polygon);
   const buildPolygon = (scale: number) =>
-    buildPolygonFromOrientedRect({
-      ...rect,
-      angleRad: rect.angleRad + degreesToRadians(deltaDegrees * scale)
-    });
+    rotatePolygonAroundCenter(polygon, rect.centerX, rect.centerY, degreesToRadians(deltaDegrees * scale));
 
   return clampKeyboardPolygonTransform(polygon, buildPolygon, surfaceSize);
 }
@@ -536,10 +520,9 @@ function rotatePolygonByDegrees(
 function rotatePolygonByPointerDrag(
   polygon: HotspotPixelPoint[],
   drag: HotspotRotationDrag,
-  surfaceSize: HotspotSurfaceSize,
-  preferredAngleRad?: number
+  surfaceSize: HotspotSurfaceSize
 ): HotspotPixelPoint[] {
-  const rect = resolveOrientedHotspotRect(polygon, preferredAngleRad);
+  const rect = resolveOrientedHotspotRect(polygon);
   const startPointerAngle = resolvePointerAngleFromCenter(
     drag.startPointerXPx,
     drag.startPointerYPx,
@@ -559,11 +542,7 @@ function rotatePolygonByPointerDrag(
     ? snapAngleRadians(freeformTargetAngle, degreesToRadians(15))
     : freeformTargetAngle;
   const deltaAngle = normalizeAngleRadians(targetAngle - rect.angleRad);
-  const buildPolygon = (scale: number) =>
-    buildPolygonFromOrientedRect({
-      ...rect,
-      angleRad: normalizeAngleRadians(rect.angleRad + deltaAngle * scale)
-    });
+  const buildPolygon = (scale: number) => rotatePolygonAroundCenter(polygon, rect.centerX, rect.centerY, deltaAngle * scale);
 
   return clampKeyboardPolygonTransform(polygon, buildPolygon, surfaceSize);
 }
@@ -645,6 +624,58 @@ function resolveProjectedOrientedHotspotRect(
     height: maxProjectedY - minProjectedY,
     angleRad
   };
+}
+
+function transformPolygonInLocalSpace(
+  polygon: HotspotPixelPoint[],
+  centerX: number,
+  centerY: number,
+  angleRad: number,
+  scaleX: number,
+  scaleY: number
+): HotspotPixelPoint[] {
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  const horizontal = { x: cos, y: sin };
+  const vertical = { x: -sin, y: cos };
+
+  return polygon.map((point) => {
+    const offset = {
+      x: point.x - centerX,
+      y: point.y - centerY
+    };
+    const localX = dotProduct(offset, horizontal) * scaleX;
+    const localY = dotProduct(offset, vertical) * scaleY;
+
+    return {
+      x: centerX + horizontal.x * localX + vertical.x * localY,
+      y: centerY + horizontal.y * localX + vertical.y * localY
+    };
+  });
+}
+
+function rotatePolygonAroundCenter(
+  polygon: HotspotPixelPoint[],
+  centerX: number,
+  centerY: number,
+  deltaAngleRad: number
+): HotspotPixelPoint[] {
+  if (Math.abs(deltaAngleRad) <= HOTSPOT_GEOMETRY_EPSILON) {
+    return polygon;
+  }
+
+  const cos = Math.cos(deltaAngleRad);
+  const sin = Math.sin(deltaAngleRad);
+
+  return polygon.map((point) => {
+    const offsetX = point.x - centerX;
+    const offsetY = point.y - centerY;
+
+    return {
+      x: centerX + offsetX * cos - offsetY * sin,
+      y: centerY + offsetX * sin + offsetY * cos
+    };
+  });
 }
 
 function buildPolygonFromOrientedRect(rect: OrientedHotspotRect): HotspotPixelPoint[] {

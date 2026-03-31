@@ -11,7 +11,7 @@ import {
 } from "@mage2/schema";
 import {
   applyHotspotDrag,
-  applyInventoryHotspotRotationDrag,
+  applyHotspotRotationDrag,
   geometryMatches,
   type HotspotDragHandle,
   type HotspotGeometry
@@ -428,14 +428,8 @@ export function MediaSurface({
       const startPointerXPx = startClientX - bounds.left;
       const startPointerYPx = startClientY - bounds.top;
 
-      if (handle === "rotate" && !hotspot.inventoryItemId) {
-        body.style.cursor = previousCursor;
-        body.style.userSelect = previousUserSelect;
-        return;
-      }
-
       if (handle === "rotate") {
-        const initialRotation = applyInventoryHotspotRotationDrag(startingGeometry, {
+        const initialRotation = applyHotspotRotationDrag(startingGeometry, {
           startPointerXPx,
           startPointerYPx,
           pointerXPx: startPointerXPx,
@@ -452,7 +446,7 @@ export function MediaSurface({
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         if (handle === "rotate") {
-          const nextRotation = applyInventoryHotspotRotationDrag(startingGeometry, {
+          const nextRotation = applyHotspotRotationDrag(startingGeometry, {
             startPointerXPx,
             startPointerYPx,
             pointerXPx: moveEvent.clientX - bounds.left,
@@ -657,7 +651,7 @@ export function MediaSurface({
               onHotspotClick?.(hotspot.id, "click");
             }}
             onMoveStart={startHotspotDrag(hotspot, "move")}
-            onRotateStart={hotspot.inventoryItemId ? startHotspotDrag(hotspot, "rotate") : undefined}
+            onRotateStart={startHotspotDrag(hotspot, "rotate")}
             onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
             rotationFeedback={
               hotspotRotationFeedback?.hotspotId === hotspot.id ? hotspotRotationFeedback : undefined
@@ -766,19 +760,17 @@ function HotspotButton({
   const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
   const labelPlacement = resolveHotspotLabelPlacement(bounds);
   const handlePositions = resolveHotspotHandlePositions(relativePolygon);
-  const rotationHandle = hotspot.inventoryItemId
-    ? resolveHotspotRotationHandleGeometry(
-        relativePolygon,
-        surfaceSize
-          ? {
-              width: Math.max(bounds.width * surfaceSize.width, 1),
-              height: Math.max(bounds.height * surfaceSize.height, 1)
-            }
-          : undefined
-      )
-    : undefined;
+  const rotationHandle = resolveHotspotRotationHandleGeometry(
+    relativePolygon,
+    surfaceSize
+      ? {
+          width: Math.max(bounds.width * surfaceSize.width, 1),
+          height: Math.max(bounds.height * surfaceSize.height, 1)
+        }
+      : undefined
+  );
   const showsShapeChrome = appearance === "editor" && (!hotspot.inventoryItemId || Math.abs(rotationDegrees) > 0.001);
-  const suppressAxisAlignedChrome = Boolean(hotspot.inventoryItemId) && Math.abs(rotationDegrees) > 0.001;
+  const suppressAxisAlignedChrome = Math.abs(rotationDegrees) > 0.001;
   const [tooltipText, setTooltipText] = useState<string>();
   const [isPointerOverOpaquePixel, setIsPointerOverOpaquePixel] = useState(false);
   const usesAlphaAwarePointerFeedback = appearance !== "editor" && Boolean(visual?.url);
