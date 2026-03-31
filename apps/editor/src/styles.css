@@ -2314,7 +2314,7 @@ label > .checkbox-list {
   cursor: grab;
 }
 
-.hotspot__body:active {
+.hotspot--editable .hotspot__body:active {
   cursor: grabbing;
 }
 
