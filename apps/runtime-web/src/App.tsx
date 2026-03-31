@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
+import {
+  clampPlayheadMs,
+  createPlayerController,
+  getVideoPlayheadMs,
+  resolvePlayableDurationMs,
+  resolveSceneTimelineDurationMs,
+  shouldSyncPlayheadMs
+} from "@mage2/player";
 import {
   createInitialSaveState,
   normalizeSupportedLocales,
@@ -105,8 +112,13 @@ export function App() {
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
   const runtimeOverlayRef = useRef<HTMLDivElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
+  const latestPlayheadMsRef = useRef(playheadMs);
   const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
   const [runtimeHotspotAlphaMasks, setRuntimeHotspotAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
+
+  useEffect(() => {
+    latestPlayheadMsRef.current = playheadMs;
+  }, [playheadMs]);
 
   useEffect(() => {
     async function loadBuild() {
@@ -214,6 +226,102 @@ export function App() {
       // If autoplay is blocked, keep the runtime surface clean and leave playback stopped.
     });
   }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.sourcePath, snapshot?.scene.id]);
+
+  useEffect(() => {
+    const video = runtimeVideoRef.current;
+    if (!video || currentAsset?.kind !== "video") {
+      return;
+    }
+
+    const durationMs = resolvePlayableDurationMs(video.duration, currentAssetVariant?.durationMs);
+    const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
+    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, currentAssetVariant?.durationMs);
+    if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
+      return;
+    }
+
+    video.currentTime = nextPlayheadMs / 1000;
+  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.durationMs, currentAssetVariant?.sourcePath, playheadMs]);
+
+  useEffect(() => {
+    const video = runtimeVideoRef.current;
+    if (!video || currentAsset?.kind !== "video") {
+      return;
+    }
+
+    let animationFrameId: number | undefined;
+    let videoFrameRequestId: number | undefined;
+
+    const cancelScheduledSync = () => {
+      if (animationFrameId !== undefined) {
+        window.cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      }
+
+      if (videoFrameRequestId !== undefined && typeof video.cancelVideoFrameCallback === "function") {
+        video.cancelVideoFrameCallback(videoFrameRequestId);
+        videoFrameRequestId = undefined;
+      }
+    };
+
+    const syncFromVideoClock = () => {
+      const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, currentAssetVariant?.durationMs);
+      if (!shouldSyncPlayheadMs(latestPlayheadMsRef.current, nextPlayheadMs)) {
+        return;
+      }
+
+      setPlayheadMs(nextPlayheadMs);
+    };
+
+    const step = () => {
+      syncFromVideoClock();
+      if (video.paused || video.ended) {
+        return;
+      }
+
+      if (typeof video.requestVideoFrameCallback === "function") {
+        videoFrameRequestId = video.requestVideoFrameCallback(() => {
+          videoFrameRequestId = undefined;
+          step();
+        });
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = undefined;
+        step();
+      });
+    };
+
+    const startSync = () => {
+      cancelScheduledSync();
+      step();
+    };
+
+    const stopSync = () => {
+      cancelScheduledSync();
+      syncFromVideoClock();
+    };
+
+    if (!video.paused && !video.ended) {
+      startSync();
+    } else {
+      syncFromVideoClock();
+    }
+
+    video.addEventListener("play", startSync);
+    video.addEventListener("pause", stopSync);
+    video.addEventListener("ended", stopSync);
+    video.addEventListener("seeked", syncFromVideoClock);
+
+    return () => {
+      cancelScheduledSync();
+      video.removeEventListener("play", startSync);
+      video.removeEventListener("pause", stopSync);
+      video.removeEventListener("ended", stopSync);
+      video.removeEventListener("seeked", syncFromVideoClock);
+    };
+  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.durationMs, currentAssetVariant?.sourcePath]);
 
   useEffect(() => {
     const audio = runtimeAudioRef.current;
@@ -471,6 +579,32 @@ export function App() {
               loop={snapshot.scene.backgroundVideoLoop}
               playsInline
               className="runtime-media__asset"
+              onLoadedMetadata={(event) => {
+                const durationMs = resolvePlayableDurationMs(event.currentTarget.duration, currentAssetVariant?.durationMs);
+                const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
+                const currentPlayheadMs = getVideoPlayheadMs(
+                  event.currentTarget.currentTime,
+                  event.currentTarget.duration,
+                  currentAssetVariant?.durationMs
+                );
+
+                if (shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
+                  event.currentTarget.currentTime = nextPlayheadMs / 1000;
+                }
+
+                setPlayheadMs(
+                  getVideoPlayheadMs(
+                    event.currentTarget.currentTime,
+                    event.currentTarget.duration,
+                    currentAssetVariant?.durationMs
+                  )
+                );
+              }}
+              onSeeked={(event) =>
+                setPlayheadMs(
+                  getVideoPlayheadMs(event.currentTarget.currentTime, event.currentTarget.duration, currentAssetVariant?.durationMs)
+                )
+              }
             />
           ) : currentAsset?.kind === "image" && currentAssetVariant ? (
             <img src={currentAssetVariant.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />

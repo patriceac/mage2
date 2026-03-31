@@ -46,6 +46,12 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".hotspot--selected .hotspot__handle--rotate");
   });
 
+  it("limits grab cursors to editable hotspots so playtest clicks stay pointer-based", () => {
+    expect(styles).toContain(".hotspot--editable .hotspot__body {");
+    expect(styles).toContain(".hotspot--editable .hotspot__body:active {");
+    expect(styles).not.toMatch(/^\s*\.hotspot__body:active\s*\{/m);
+  });
+
   it("reserves top label clearance for rotation controls and keeps handles above labels", () => {
     expect(styles).toContain("bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));");
     expect(styles).toContain(".hotspot__handles {");

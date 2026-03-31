@@ -101,6 +101,8 @@ export function MediaSurface({
   const previousLoopVideoRef = useRef(loopVideo);
   const shouldResumeLoopPlaybackRef = useRef(false);
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
+  const latestControlledPlayheadMsRef = useRef(playheadMs);
+  const latestOnPlayheadMsChangeRef = useRef(onPlayheadMsChange);
   const [hotspotRotationFeedback, setHotspotRotationFeedback] = useState<{
     hotspotId: string;
     rotationDegrees: number;
@@ -109,6 +111,11 @@ export function MediaSurface({
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
   const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
+
+  useEffect(() => {
+    latestControlledPlayheadMsRef.current = playheadMs;
+    latestOnPlayheadMsChangeRef.current = onPlayheadMsChange;
+  }, [onPlayheadMsChange, playheadMs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,17 +314,97 @@ export function MediaSurface({
     video.currentTime = nextPlayheadMs / 1000;
   }, [asset?.id, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead, playheadMs]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isControlledVideoPlayhead) {
+      return;
+    }
+
+    let animationFrameId: number | undefined;
+    let videoFrameRequestId: number | undefined;
+
+    const cancelScheduledSync = () => {
+      if (animationFrameId !== undefined) {
+        window.cancelAnimationFrame(animationFrameId);
+        animationFrameId = undefined;
+      }
+
+      if (videoFrameRequestId !== undefined && typeof video.cancelVideoFrameCallback === "function") {
+        video.cancelVideoFrameCallback(videoFrameRequestId);
+        videoFrameRequestId = undefined;
+      }
+    };
+
+    const syncFromVideoClock = () => {
+      const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, assetVariant?.durationMs);
+      if (!shouldSyncPlayheadMs(latestControlledPlayheadMsRef.current ?? 0, nextPlayheadMs)) {
+        return;
+      }
+
+      latestOnPlayheadMsChangeRef.current?.(nextPlayheadMs);
+    };
+
+    const step = () => {
+      syncFromVideoClock();
+      if (video.paused || video.ended) {
+        return;
+      }
+
+      if (typeof video.requestVideoFrameCallback === "function") {
+        videoFrameRequestId = video.requestVideoFrameCallback(() => {
+          videoFrameRequestId = undefined;
+          step();
+        });
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = undefined;
+        step();
+      });
+    };
+
+    const startSync = () => {
+      cancelScheduledSync();
+      step();
+    };
+
+    const stopSync = () => {
+      cancelScheduledSync();
+      syncFromVideoClock();
+    };
+
+    if (!video.paused && !video.ended) {
+      startSync();
+    } else {
+      syncFromVideoClock();
+    }
+
+    video.addEventListener("play", startSync);
+    video.addEventListener("pause", stopSync);
+    video.addEventListener("ended", stopSync);
+    video.addEventListener("seeked", syncFromVideoClock);
+
+    return () => {
+      cancelScheduledSync();
+      video.removeEventListener("play", startSync);
+      video.removeEventListener("pause", stopSync);
+      video.removeEventListener("ended", stopSync);
+      video.removeEventListener("seeked", syncFromVideoClock);
+    };
+  }, [asset?.id, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead]);
+
   function syncPlayheadFromVideo(video: HTMLVideoElement) {
     if (!isControlledVideoPlayhead) {
       return;
     }
 
     const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, assetVariant?.durationMs);
-    if (!shouldSyncPlayheadMs(playheadMs, nextPlayheadMs)) {
+    if (!shouldSyncPlayheadMs(latestControlledPlayheadMsRef.current ?? 0, nextPlayheadMs)) {
       return;
     }
 
-    onPlayheadMsChange(nextPlayheadMs);
+    latestOnPlayheadMsChangeRef.current?.(nextPlayheadMs);
   }
 
   function syncVideoFromPlayhead(video: HTMLVideoElement) {

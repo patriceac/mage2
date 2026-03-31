@@ -15,6 +15,7 @@ import {
   type SubtitleTrack,
   createInitialSaveState
 } from "@mage2/schema";
+export * from "./media-playhead";
 
 export interface ActiveDialogueState {
   tree: DialogueTree;
