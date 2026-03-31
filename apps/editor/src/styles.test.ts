@@ -29,10 +29,15 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).not.toContain(".hotspot--inventory-item:not(.hotspot--selected) .hotspot__chrome::before");
   });
 
-  it("removes only the hover fill for inventory hotspots", () => {
+  it("uses a light hover fill for regular hotspots without changing inventory hotspot art treatment", () => {
     expect(styles).toContain(
-      ".hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)"
+      ".hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)"
     );
+    expect(styles).toMatch(
+      /\.hotspot:hover \.hotspot__body:not\(\.hotspot__body--runtime\):not\(\.hotspot__body--hidden\),[\s\S]*background: rgba\(125, 211, 252, 0\.08\);/
+    );
+    expect(styles).not.toContain("repeating-linear-gradient(");
+    expect(styles).toContain(".hotspot--inventory-item:hover .hotspot__body");
     expect(styles).toContain("background: transparent;");
   });
 
