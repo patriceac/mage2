@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, createInitialSaveState } from "@mage2/schema";
-import { createPlayerController, resolveSceneTimelineDurationMs } from "./index";
+import {
+  createPlayerController,
+  getSceneAudioPlayheadMs,
+  resolveSceneAudioSyncState,
+  resolveSceneTimelineDurationMs
+} from "./index";
 
 describe("player controller", () => {
   it("activates hotspots inside their timing window", () => {
@@ -115,5 +120,51 @@ describe("player controller", () => {
   it("extends the scene timeline to cover the first delayed scene-audio pass", () => {
     expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(30000);
     expect(resolveSceneTimelineDurationMs(18000, 12000, 22000)).toBe(34000);
+  });
+
+  it("maps audio playback positions back onto the scene playhead", () => {
+    expect(getSceneAudioPlayheadMs(1.5, 9, 4000)).toBe(5500);
+    expect(getSceneAudioPlayheadMs(15, 9, 4000)).toBe(13000);
+  });
+
+  it("resolves waiting, playing, and ended scene-audio sync states", () => {
+    expect(resolveSceneAudioSyncState(1200, 4000, 9000)).toEqual({
+      phase: "waiting",
+      effectivePlayheadMs: 1200,
+      cycleDurationMs: 13000,
+      targetAudioCurrentTimeMs: 0,
+      startDelayMs: 2800
+    });
+    expect(resolveSceneAudioSyncState(5500, 4000, 9000)).toEqual({
+      phase: "playing",
+      effectivePlayheadMs: 5500,
+      cycleDurationMs: 13000,
+      targetAudioCurrentTimeMs: 1500,
+      startDelayMs: 0
+    });
+    expect(resolveSceneAudioSyncState(18000, 4000, 9000)).toEqual({
+      phase: "ended",
+      effectivePlayheadMs: 13000,
+      cycleDurationMs: 13000,
+      targetAudioCurrentTimeMs: 9000,
+      startDelayMs: 0
+    });
+  });
+
+  it("wraps looping scene-audio sync states back into the current cycle", () => {
+    expect(resolveSceneAudioSyncState(14500, 4000, 9000, true)).toEqual({
+      phase: "waiting",
+      effectivePlayheadMs: 1500,
+      cycleDurationMs: 13000,
+      targetAudioCurrentTimeMs: 0,
+      startDelayMs: 2500
+    });
+    expect(resolveSceneAudioSyncState(22500, 4000, 9000, true)).toEqual({
+      phase: "playing",
+      effectivePlayheadMs: 9500,
+      cycleDurationMs: 13000,
+      targetAudioCurrentTimeMs: 5500,
+      startDelayMs: 0
+    });
   });
 });
