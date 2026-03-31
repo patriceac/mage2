@@ -2187,13 +2187,62 @@ label > .checkbox-list {
   box-shadow: none;
 }
 
+.hotspot__body--playtest {
+  padding: 0;
+  border: 3px solid rgba(186, 230, 253, 0.94);
+  background:
+    linear-gradient(180deg, rgba(10, 45, 61, 0.3), rgba(7, 97, 122, 0.42)),
+    linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.16) 0%,
+      rgba(247, 250, 252, 0.16) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(247, 250, 252, 0.16) 50%,
+      rgba(247, 250, 252, 0.16) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.24), rgba(125, 211, 252, 0.24));
+  background-size:
+    auto,
+    14px 14px,
+    auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.24),
+    0 0 0 1px rgba(56, 189, 248, 0.26),
+    0 0 0 6px rgba(14, 165, 233, 0.12),
+    0 18px 36px rgba(8, 47, 73, 0.26);
+}
+
 .hotspot__body--runtime .hotspot__beacon,
 .hotspot__body--hidden .hotspot__beacon {
   display: none;
 }
 
+.hotspot__body--playtest .hotspot__beacon {
+  display: block;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-width: 2px;
+  border-color: rgba(255, 252, 248, 0.98);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(186, 230, 253, 0.96) 44%, rgba(8, 47, 73, 0.98) 100%);
+  box-shadow:
+    0 0 0 3px rgba(186, 230, 253, 0.26),
+    0 0 18px rgba(125, 211, 252, 0.5),
+    0 0 32px rgba(14, 165, 233, 0.22);
+  animation: none;
+}
+
+.hotspot__body--playtest.hotspot__body--with-visual .hotspot__beacon {
+  display: block;
+}
+
 .hotspot__body--runtime::before,
 .hotspot__body--runtime::after,
+.hotspot__body--playtest::before,
+.hotspot__body--playtest::after,
 .hotspot__body--hidden::before,
 .hotspot__body--hidden::after {
   content: none;
@@ -2205,13 +2254,72 @@ label > .checkbox-list {
   background: rgba(125, 211, 252, 0.1);
 }
 
+.hotspot__body--playtest:hover,
+.hotspot__body--playtest:focus-visible {
+  border-color: rgba(240, 249, 255, 0.98);
+  background:
+    linear-gradient(180deg, rgba(12, 54, 72, 0.4), rgba(14, 116, 144, 0.52)),
+    linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.2) 0%,
+      rgba(247, 250, 252, 0.2) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(247, 250, 252, 0.2) 50%,
+      rgba(247, 250, 252, 0.2) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.32), rgba(125, 211, 252, 0.32));
+  background-size:
+    auto,
+    14px 14px,
+    auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.28),
+    0 0 0 1px rgba(125, 211, 252, 0.34),
+    0 0 0 6px rgba(125, 211, 252, 0.16),
+    0 20px 40px rgba(8, 47, 73, 0.28);
+}
+
 .hotspot__body--runtime.hotspot__body--pointer-inactive:hover {
   border-color: rgba(125, 211, 252, 0.18);
   background: rgba(125, 211, 252, 0.04);
 }
 
+.hotspot__body--playtest.hotspot__body--pointer-inactive:hover {
+  border-color: rgba(186, 230, 253, 0.94);
+  background:
+    linear-gradient(180deg, rgba(10, 45, 61, 0.3), rgba(7, 97, 122, 0.42)),
+    linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.16) 0%,
+      rgba(247, 250, 252, 0.16) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(247, 250, 252, 0.16) 50%,
+      rgba(247, 250, 252, 0.16) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.24), rgba(125, 211, 252, 0.24));
+  background-size:
+    auto,
+    14px 14px,
+    auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.24),
+    0 0 0 1px rgba(56, 189, 248, 0.26),
+    0 0 0 6px rgba(14, 165, 233, 0.12),
+    0 18px 36px rgba(8, 47, 73, 0.26);
+}
+
 .hotspot__body--runtime:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.72);
+}
+
+.hotspot__body--playtest:focus-visible {
+  outline: 2px solid rgba(186, 230, 253, 0.98);
 }
 
 .hotspot__body--hidden,
@@ -2290,6 +2398,33 @@ label > .checkbox-list {
   background: rgba(125, 211, 252, 0.1);
 }
 
+.hotspot--selected .hotspot__body--playtest {
+  border-color: rgba(240, 249, 255, 0.98);
+  background:
+    linear-gradient(180deg, rgba(12, 54, 72, 0.4), rgba(14, 116, 144, 0.52)),
+    linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.2) 0%,
+      rgba(247, 250, 252, 0.2) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(247, 250, 252, 0.2) 50%,
+      rgba(247, 250, 252, 0.2) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.32), rgba(125, 211, 252, 0.32));
+  background-size:
+    auto,
+    14px 14px,
+    auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.28),
+    0 0 0 1px rgba(125, 211, 252, 0.34),
+    0 0 0 6px rgba(125, 211, 252, 0.16),
+    0 20px 40px rgba(8, 47, 73, 0.28);
+}
+
 .hotspot--selected .hotspot__body--hidden {
   border-color: transparent;
   background: transparent;
@@ -2323,7 +2458,7 @@ label > .checkbox-list {
   outline-offset: 2px;
 }
 
-.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+.media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest) {
   opacity: 0;
   transform: scale(0.98);
 }
@@ -2359,7 +2494,7 @@ label > .checkbox-list {
   opacity: 0;
 }
 
-.media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+.media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest) {
   opacity: 0;
   transform: scale(0.98);
 }
@@ -2395,8 +2530,8 @@ label > .checkbox-list {
   opacity: 0;
 }
 
-.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden),
-.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+.hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest),
+.hotspot:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest) {
   border-color: rgba(206, 244, 255, 1);
   background: rgba(125, 211, 252, 0.08);
   box-shadow:
@@ -2406,8 +2541,8 @@ label > .checkbox-list {
     0 16px 30px rgba(5, 10, 14, 0.18);
 }
 
-.hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden),
-.hotspot--inventory-item:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden) {
+.hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest),
+.hotspot--inventory-item:focus-within .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest) {
   background: transparent;
 }
 

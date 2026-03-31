@@ -9,7 +9,7 @@ describe("hotspot idle visibility styles", () => {
       ".media-surface:not(:hover):not(.media-surface--hotspot-locked) .hotspot:not(.hotspot--selected):not(:focus-within) ";
 
     expect(styles).toContain(
-      `${idleSelectorPrefix}.hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)`
+      `${idleSelectorPrefix}.hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest)`
     );
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__chrome`);
     expect(styles).toContain(`${idleSelectorPrefix}.hotspot__chrome-shape`);
@@ -31,14 +31,23 @@ describe("hotspot idle visibility styles", () => {
 
   it("uses a light hover fill for regular hotspots without changing inventory hotspot art treatment", () => {
     expect(styles).toContain(
-      ".hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden)"
+      ".hotspot:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest)"
     );
     expect(styles).toMatch(
-      /\.hotspot:hover \.hotspot__body:not\(\.hotspot__body--runtime\):not\(\.hotspot__body--hidden\),[\s\S]*background: rgba\(125, 211, 252, 0\.08\);/
+      /\.hotspot:hover \.hotspot__body:not\(\.hotspot__body--runtime\):not\(\.hotspot__body--hidden\):not\(\.hotspot__body--playtest\),[\s\S]*background: rgba\(125, 211, 252, 0\.08\);/
     );
     expect(styles).not.toContain("repeating-linear-gradient(");
     expect(styles).toContain(".hotspot--inventory-item:hover .hotspot__body");
     expect(styles).toContain("background: transparent;");
+  });
+
+  it("keeps playtest hotspots out of the idle-hide and authoring hover selectors", () => {
+    expect(styles).toContain(
+      ".media-surface--hotspot-locked .hotspot:not(.hotspot--selected) .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest)"
+    );
+    expect(styles).toContain(
+      ".hotspot--inventory-item:hover .hotspot__body:not(.hotspot__body--runtime):not(.hotspot__body--hidden):not(.hotspot__body--playtest)"
+    );
   });
 
   it("keeps the selected inventory rotation affordance visible without hover", () => {
@@ -50,6 +59,17 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".hotspot--editable .hotspot__body {");
     expect(styles).toContain(".hotspot--editable .hotspot__body:active {");
     expect(styles).not.toMatch(/^\s*\.hotspot__body:active\s*\{/m);
+  });
+
+  it("gives the playtest hotspot overlay a higher-contrast debug treatment", () => {
+    expect(styles).toContain(".hotspot__body--playtest {");
+    expect(styles).toContain("border: 3px solid rgba(186, 230, 253, 0.94);");
+    expect(styles).toContain("14px 14px,");
+    expect(styles).toContain("0 0 0 6px rgba(14, 165, 233, 0.12),");
+    expect(styles).toContain("0 18px 36px rgba(8, 47, 73, 0.26);");
+    expect(styles).toContain(".hotspot__body--playtest .hotspot__beacon {");
+    expect(styles).toContain(".hotspot__body--playtest:hover,");
+    expect(styles).toContain(".hotspot__body--playtest.hotspot__body--pointer-inactive:hover {");
   });
 
   it("reserves top label clearance for rotation controls and keeps handles above labels", () => {

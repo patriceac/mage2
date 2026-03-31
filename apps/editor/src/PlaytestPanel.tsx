@@ -479,7 +479,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           loopVideo={snapshot.scene.backgroundVideoLoop}
           hotspots={visibleHotspots}
           hotspotVisuals={hotspotVisuals}
-          hotspotAppearance={showHotspots ? "runtime" : "hidden"}
+          hotspotAppearance={showHotspots ? "playtest" : "hidden"}
           showHotspotLabels={false}
           strings={localeStrings}
           playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
