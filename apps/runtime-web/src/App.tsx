@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  PLAYHEAD_SYNC_TOLERANCE_MS,
   clampPlayheadMs,
   createPlayerController,
+  getSceneAudioPlayheadMs,
   getVideoPlayheadMs,
   resolvePlayableDurationMs,
+  resolveSceneAudioSyncState,
   resolveSceneTimelineDurationMs,
   shouldSyncPlayheadMs
 } from "@mage2/player";
@@ -112,6 +115,10 @@ export function App() {
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
   const runtimeOverlayRef = useRef<HTMLDivElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
+  const sceneAudioAnimationFrameRef = useRef<number | undefined>(undefined);
+  const sceneAudioDrivenPlayheadMsRef = useRef<number | undefined>(undefined);
+  const syncSceneAudioToPlayheadRef = useRef<((playheadMs: number) => void) | undefined>(undefined);
+  const sceneAudioPhaseRef = useRef<"idle" | "waiting" | "playing" | "ended">("idle");
   const latestPlayheadMsRef = useRef(playheadMs);
   const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
   const [runtimeHotspotAlphaMasks, setRuntimeHotspotAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
@@ -325,50 +332,229 @@ export function App() {
 
   useEffect(() => {
     const audio = runtimeAudioRef.current;
+    syncSceneAudioToPlayheadRef.current = undefined;
     if (sceneAudioTimeoutRef.current !== undefined) {
       window.clearTimeout(sceneAudioTimeoutRef.current);
       sceneAudioTimeoutRef.current = undefined;
     }
+    if (sceneAudioAnimationFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(sceneAudioAnimationFrameRef.current);
+      sceneAudioAnimationFrameRef.current = undefined;
+    }
 
-    if (!audio) {
+    if (!audio || !snapshot) {
       return;
     }
+
+    const cancelAnimationFrameSync = () => {
+      if (sceneAudioAnimationFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(sceneAudioAnimationFrameRef.current);
+        sceneAudioAnimationFrameRef.current = undefined;
+      }
+    };
 
     const clearPlayback = () => {
       if (sceneAudioTimeoutRef.current !== undefined) {
         window.clearTimeout(sceneAudioTimeoutRef.current);
         sceneAudioTimeoutRef.current = undefined;
       }
+      cancelAnimationFrameSync();
       audio.pause();
       audio.currentTime = 0;
     };
 
-    clearPlayback();
+    const updatePlayheadFromSceneAudio = (nextPlayheadMs: number) => {
+      sceneAudioDrivenPlayheadMsRef.current = nextPlayheadMs;
+      if (!shouldSyncPlayheadMs(latestPlayheadMsRef.current, nextPlayheadMs)) {
+        return;
+      }
 
-    if (!sceneAudioVariant?.sourcePath || currentAsset?.kind !== "image" || !snapshot?.scene.sceneAudioAssetId) {
-      return clearPlayback;
-    }
-
-    const schedulePlayback = () => {
-      sceneAudioTimeoutRef.current = window.setTimeout(() => {
-        sceneAudioTimeoutRef.current = undefined;
-        void audio.play().catch(() => {
-          // If autoplay is blocked, leave playback stopped without interrupting runtime.
-        });
-      }, Math.max(snapshot.scene.sceneAudioDelayMs, 0));
+      latestPlayheadMsRef.current = nextPlayheadMs;
+      setPlayheadMs(nextPlayheadMs);
     };
 
-    const handleEnded = () => {
-      audio.currentTime = 0;
-      if (snapshot.scene.sceneAudioLoop) {
-        schedulePlayback();
+    const syncFromAudioClock = () => {
+      updatePlayheadFromSceneAudio(
+        getSceneAudioPlayheadMs(
+          audio.currentTime,
+          audio.duration,
+          snapshot.scene.sceneAudioDelayMs,
+          sceneAudioVariant?.durationMs
+        )
+      );
+    };
+
+    const startPlaybackClock = () => {
+      cancelAnimationFrameSync();
+
+      const step = () => {
+        syncFromAudioClock();
+        if (audio.paused || audio.ended) {
+          sceneAudioAnimationFrameRef.current = undefined;
+          return;
+        }
+
+        sceneAudioAnimationFrameRef.current = window.requestAnimationFrame(step);
+      };
+
+      step();
+    };
+
+    const startDelayClock = (startingPlayheadMs: number) => {
+      cancelAnimationFrameSync();
+
+      const delayMs = Math.max(snapshot.scene.sceneAudioDelayMs, 0);
+      const anchorMs = performance.now() - startingPlayheadMs;
+
+      const step = () => {
+        const elapsedMs = performance.now() - anchorMs;
+        const nextPlayheadMs = Math.min(Math.max(elapsedMs, startingPlayheadMs), delayMs);
+        updatePlayheadFromSceneAudio(nextPlayheadMs);
+        if (nextPlayheadMs >= delayMs - PLAYHEAD_SYNC_TOLERANCE_MS) {
+          sceneAudioAnimationFrameRef.current = undefined;
+          return;
+        }
+
+        sceneAudioAnimationFrameRef.current = window.requestAnimationFrame(step);
+      };
+
+      step();
+    };
+
+    const syncSceneAudioToPlayhead = (nextPlayheadMs: number) => {
+      if (!sceneAudioVariant?.sourcePath || currentAsset?.kind !== "image" || !snapshot.scene.sceneAudioAssetId) {
+        sceneAudioPhaseRef.current = "idle";
+        clearPlayback();
+        return;
+      }
+
+      if (sceneAudioTimeoutRef.current !== undefined) {
+        window.clearTimeout(sceneAudioTimeoutRef.current);
+        sceneAudioTimeoutRef.current = undefined;
+      }
+      cancelAnimationFrameSync();
+
+      const syncState = resolveSceneAudioSyncState(
+        nextPlayheadMs,
+        snapshot.scene.sceneAudioDelayMs,
+        resolvePlayableDurationMs(audio.duration, sceneAudioVariant?.durationMs),
+        snapshot.scene.sceneAudioLoop
+      );
+      sceneAudioPhaseRef.current = syncState.phase;
+
+      if (syncState.phase === "waiting") {
+        audio.pause();
+        if (Math.abs(audio.currentTime * 1000) > PLAYHEAD_SYNC_TOLERANCE_MS) {
+          audio.currentTime = 0;
+        }
+
+        if (syncState.startDelayMs > PLAYHEAD_SYNC_TOLERANCE_MS) {
+          startDelayClock(syncState.effectivePlayheadMs);
+          sceneAudioTimeoutRef.current = window.setTimeout(() => {
+            sceneAudioTimeoutRef.current = undefined;
+            updatePlayheadFromSceneAudio(Math.max(snapshot.scene.sceneAudioDelayMs, 0));
+            void audio
+              .play()
+              .then(() => {
+                sceneAudioPhaseRef.current = "playing";
+                startPlaybackClock();
+              })
+              .catch(() => {
+                // If autoplay is blocked, leave playback stopped without interrupting runtime.
+              });
+          }, syncState.startDelayMs);
+          return;
+        }
+      }
+
+      if (syncState.phase === "playing" || syncState.phase === "waiting") {
+        if (Math.abs(audio.currentTime * 1000 - syncState.targetAudioCurrentTimeMs) > PLAYHEAD_SYNC_TOLERANCE_MS) {
+          audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
+        }
+
+        if (audio.paused) {
+          void audio
+            .play()
+            .then(() => {
+              sceneAudioPhaseRef.current = "playing";
+              startPlaybackClock();
+            })
+            .catch(() => {
+              // If autoplay is blocked, leave playback stopped without interrupting runtime.
+            });
+        } else {
+          sceneAudioPhaseRef.current = "playing";
+          startPlaybackClock();
+        }
+        return;
+      }
+
+      audio.pause();
+      if (Math.abs(audio.currentTime * 1000 - syncState.targetAudioCurrentTimeMs) > PLAYHEAD_SYNC_TOLERANCE_MS) {
+        audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
+      }
+      updatePlayheadFromSceneAudio(syncState.effectivePlayheadMs);
+    };
+
+    syncSceneAudioToPlayheadRef.current = syncSceneAudioToPlayhead;
+
+    const handlePlay = () => {
+      sceneAudioPhaseRef.current = "playing";
+      startPlaybackClock();
+    };
+
+    const handlePause = () => {
+      cancelAnimationFrameSync();
+      if (sceneAudioPhaseRef.current === "playing") {
+        syncFromAudioClock();
       }
     };
 
+    const handleSeeked = () => {
+      sceneAudioPhaseRef.current = audio.paused ? "ended" : "playing";
+      syncFromAudioClock();
+    };
+
+    const handleTimeUpdate = () => {
+      syncFromAudioClock();
+    };
+
+    const handleLoadedMetadata = () => {
+      syncSceneAudioToPlayhead(latestPlayheadMsRef.current);
+    };
+
+    const handleEnded = () => {
+      cancelAnimationFrameSync();
+      if (snapshot.scene.sceneAudioLoop) {
+        syncSceneAudioToPlayhead(0);
+        return;
+      }
+
+      const durationMs = resolvePlayableDurationMs(audio.duration, sceneAudioVariant?.durationMs);
+      sceneAudioPhaseRef.current = "ended";
+      if (durationMs !== undefined) {
+        updatePlayheadFromSceneAudio(Math.max(snapshot.scene.sceneAudioDelayMs, 0) + durationMs);
+        return;
+      }
+
+      syncFromAudioClock();
+    };
+
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("seeked", handleSeeked);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("ended", handleEnded);
-    schedulePlayback();
+    syncSceneAudioToPlayhead(latestPlayheadMsRef.current);
 
     return () => {
+      syncSceneAudioToPlayheadRef.current = undefined;
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("seeked", handleSeeked);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
       clearPlayback();
     };
@@ -378,8 +564,26 @@ export function App() {
     snapshot?.scene.id,
     snapshot?.scene.sceneAudioAssetId,
     snapshot?.scene.sceneAudioDelayMs,
-    snapshot?.scene.sceneAudioLoop
+    snapshot?.scene.sceneAudioLoop,
+    sceneAudioVariant?.durationMs
   ]);
+
+  useEffect(() => {
+    const syncSceneAudioToPlayhead = syncSceneAudioToPlayheadRef.current;
+    if (!syncSceneAudioToPlayhead || !sceneAudioVariant?.sourcePath || currentAsset?.kind !== "image" || !snapshot?.scene.sceneAudioAssetId) {
+      return;
+    }
+
+    if (
+      sceneAudioDrivenPlayheadMsRef.current !== undefined &&
+      !shouldSyncPlayheadMs(sceneAudioDrivenPlayheadMsRef.current, playheadMs)
+    ) {
+      sceneAudioDrivenPlayheadMsRef.current = undefined;
+      return;
+    }
+
+    syncSceneAudioToPlayhead(playheadMs);
+  }, [playheadMs, currentAsset?.kind, sceneAudioVariant?.sourcePath, snapshot?.scene.sceneAudioAssetId]);
 
   useEffect(() => {
     if (localeStorageKey && activeLocale) {
