@@ -171,27 +171,28 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("dropdown-select__trigger");
   });
 
-  it("renders hotspot create, delete, and inventory placement actions above the scene-audio section", () => {
+  it("renders hotspot create, inventory placement, and delete actions above the scene-audio section", () => {
     const markup = renderScenesPanel(() => {});
     const createHotspotIndex = markup.indexOf("Create Hotspot");
-    const deleteHotspotIndex = markup.indexOf("Delete Hotspot");
     const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
+    const deleteButtonIndex = markup.indexOf(">Delete</button>");
     const backgroundAssetIndex = markup.indexOf(">Background Asset</span>");
     const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
 
     expect(createHotspotIndex).toBeGreaterThanOrEqual(0);
-    expect(deleteHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
+    expect(deleteButtonIndex).toBeGreaterThanOrEqual(0);
     expect(backgroundAssetIndex).toBeGreaterThanOrEqual(0);
     expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
     expect(createHotspotIndex).toBeLessThan(sceneAudioIndex);
-    expect(deleteHotspotIndex).toBeLessThan(sceneAudioIndex);
     expect(addInventoryItemIndex).toBeLessThan(sceneAudioIndex);
+    expect(deleteButtonIndex).toBeLessThan(sceneAudioIndex);
     expect(addInventoryItemIndex).toBeLessThan(backgroundAssetIndex);
     expect(backgroundAssetIndex).toBeLessThan(sceneAudioIndex);
-    expect(createHotspotIndex).toBeLessThan(deleteHotspotIndex);
-    expect(deleteHotspotIndex).toBeLessThan(addInventoryItemIndex);
+    expect(createHotspotIndex).toBeLessThan(addInventoryItemIndex);
+    expect(addInventoryItemIndex).toBeLessThan(deleteButtonIndex);
     expect(markup).not.toContain("Clear Hotspot");
+    expect(markup).not.toContain("Delete Hotspot");
     expect(markup).toContain("button-danger-quiet");
   });
 
@@ -502,7 +503,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("requires a second click to open the inspector after hotspot selection", () => {
+  it("requires a second click to open the inspector after hotspot selection and preserves that state across deselection", () => {
     expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "preserve")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "preserve")).toBe(true);
     expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "open")).toBe(true);
@@ -511,7 +512,9 @@ describe("ScenesPanel scene audio UI", () => {
     expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "hotspot_item", "toggle")).toBe(true);
     expect(resolveNextHotspotInspectorOpenState(false, "hotspot_other", "hotspot_item", "toggle")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(true, "hotspot_other", "hotspot_item", "toggle")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", undefined, "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "toggle")).toBe(true);
   });
 
   it("clears the hotspot selection when opening the inventory picker", () => {
