@@ -4,6 +4,7 @@ export {
   getSceneAudioPlayheadMs,
   getVideoPlayheadMs,
   resolvePlayableDurationMs,
+  resolveSceneAudioPlaybackDirective,
   resolveSceneAudioCycleDurationMs,
   resolveSceneAudioSyncState,
   shouldSyncPlayheadMs

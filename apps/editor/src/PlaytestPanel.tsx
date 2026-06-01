@@ -10,6 +10,7 @@ import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
   getSceneAudioPlayheadMs,
   resolvePlayableDurationMs,
+  resolveSceneAudioPlaybackDirective,
   resolveSceneAudioSyncState,
   shouldSyncPlayheadMs
 } from "./media-playhead";
@@ -56,6 +57,8 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   const latestPlayheadMsRef = useRef(playheadMs);
   const sceneAudioDrivenPlayheadMsRef = useRef<number | undefined>(undefined);
   const syncSceneAudioToPlayheadRef = useRef<((playheadMs: number) => void) | undefined>(undefined);
+  const sceneAudioPlaybackIntentRef = useRef(true);
+  const sceneAudioInternalPauseRef = useRef(false);
   const sceneAudioPhaseRef = useRef<"idle" | "waiting" | "playing" | "ended">("idle");
   const supportedLocales = useMemo(
     () => normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales),
@@ -156,6 +159,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
     if (!audio) {
       return;
     }
+    sceneAudioInternalPauseRef.current = false;
 
     const cancelAnimationFrameSync = () => {
       if (sceneAudioAnimationFrameRef.current !== undefined) {
@@ -164,13 +168,22 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
       }
     };
 
+    const pauseSceneAudio = () => {
+      if (audio.paused) {
+        return;
+      }
+
+      sceneAudioInternalPauseRef.current = true;
+      audio.pause();
+    };
+
     const clearPlayback = () => {
       if (sceneAudioTimeoutRef.current !== undefined) {
         window.clearTimeout(sceneAudioTimeoutRef.current);
         sceneAudioTimeoutRef.current = undefined;
       }
       cancelAnimationFrameSync();
-      audio.pause();
+      pauseSceneAudio();
       audio.currentTime = 0;
     };
 
@@ -251,15 +264,16 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         resolvePlayableDurationMs(audio.duration, sceneAudioVariant?.durationMs),
         snapshot.scene.sceneAudioLoop
       );
+      const playbackDirective = resolveSceneAudioPlaybackDirective(syncState, sceneAudioPlaybackIntentRef.current);
       sceneAudioPhaseRef.current = syncState.phase;
 
       if (syncState.phase === "waiting") {
-        audio.pause();
+        pauseSceneAudio();
         if (Math.abs(audio.currentTime * 1000) > PLAYHEAD_SYNC_TOLERANCE_MS) {
           audio.currentTime = 0;
         }
 
-        if (syncState.startDelayMs > PLAYHEAD_SYNC_TOLERANCE_MS) {
+        if (playbackDirective.shouldScheduleDelayedPlayback) {
           startDelayClock(syncState.effectivePlayheadMs);
           sceneAudioTimeoutRef.current = window.setTimeout(() => {
             sceneAudioTimeoutRef.current = undefined;
@@ -283,6 +297,11 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
         }
 
+        if (!playbackDirective.shouldPlay) {
+          pauseSceneAudio();
+          return;
+        }
+
         if (audio.paused) {
           void audio
             .play()
@@ -300,7 +319,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
         return;
       }
 
-      audio.pause();
+      pauseSceneAudio();
       if (Math.abs(audio.currentTime * 1000 - syncState.targetAudioCurrentTimeMs) > PLAYHEAD_SYNC_TOLERANCE_MS) {
         audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
       }
@@ -310,12 +329,20 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
     syncSceneAudioToPlayheadRef.current = syncSceneAudioToPlayhead;
 
     const handlePlay = () => {
+      sceneAudioPlaybackIntentRef.current = true;
+      sceneAudioInternalPauseRef.current = false;
       sceneAudioPhaseRef.current = "playing";
       startPlaybackClock();
     };
 
     const handlePause = () => {
       cancelAnimationFrameSync();
+      if (sceneAudioInternalPauseRef.current) {
+        sceneAudioInternalPauseRef.current = false;
+        return;
+      }
+
+      sceneAudioPlaybackIntentRef.current = false;
       if (sceneAudioPhaseRef.current === "playing") {
         syncFromAudioClock();
       }

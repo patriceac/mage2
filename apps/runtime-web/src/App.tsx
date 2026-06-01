@@ -6,6 +6,7 @@ import {
   getSceneAudioPlayheadMs,
   getVideoPlayheadMs,
   resolvePlayableDurationMs,
+  resolveSceneAudioPlaybackDirective,
   resolveSceneAudioSyncState,
   resolveSceneTimelineDurationMs,
   shouldSyncPlayheadMs
@@ -118,6 +119,8 @@ export function App() {
   const sceneAudioAnimationFrameRef = useRef<number | undefined>(undefined);
   const sceneAudioDrivenPlayheadMsRef = useRef<number | undefined>(undefined);
   const syncSceneAudioToPlayheadRef = useRef<((playheadMs: number) => void) | undefined>(undefined);
+  const sceneAudioPlaybackIntentRef = useRef(true);
+  const sceneAudioInternalPauseRef = useRef(false);
   const sceneAudioPhaseRef = useRef<"idle" | "waiting" | "playing" | "ended">("idle");
   const latestPlayheadMsRef = useRef(playheadMs);
   const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
@@ -345,6 +348,7 @@ export function App() {
     if (!audio || !snapshot) {
       return;
     }
+    sceneAudioInternalPauseRef.current = false;
 
     const cancelAnimationFrameSync = () => {
       if (sceneAudioAnimationFrameRef.current !== undefined) {
@@ -353,13 +357,22 @@ export function App() {
       }
     };
 
+    const pauseSceneAudio = () => {
+      if (audio.paused) {
+        return;
+      }
+
+      sceneAudioInternalPauseRef.current = true;
+      audio.pause();
+    };
+
     const clearPlayback = () => {
       if (sceneAudioTimeoutRef.current !== undefined) {
         window.clearTimeout(sceneAudioTimeoutRef.current);
         sceneAudioTimeoutRef.current = undefined;
       }
       cancelAnimationFrameSync();
-      audio.pause();
+      pauseSceneAudio();
       audio.currentTime = 0;
     };
 
@@ -440,15 +453,16 @@ export function App() {
         resolvePlayableDurationMs(audio.duration, sceneAudioVariant?.durationMs),
         snapshot.scene.sceneAudioLoop
       );
+      const playbackDirective = resolveSceneAudioPlaybackDirective(syncState, sceneAudioPlaybackIntentRef.current);
       sceneAudioPhaseRef.current = syncState.phase;
 
       if (syncState.phase === "waiting") {
-        audio.pause();
+        pauseSceneAudio();
         if (Math.abs(audio.currentTime * 1000) > PLAYHEAD_SYNC_TOLERANCE_MS) {
           audio.currentTime = 0;
         }
 
-        if (syncState.startDelayMs > PLAYHEAD_SYNC_TOLERANCE_MS) {
+        if (playbackDirective.shouldScheduleDelayedPlayback) {
           startDelayClock(syncState.effectivePlayheadMs);
           sceneAudioTimeoutRef.current = window.setTimeout(() => {
             sceneAudioTimeoutRef.current = undefined;
@@ -472,6 +486,11 @@ export function App() {
           audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
         }
 
+        if (!playbackDirective.shouldPlay) {
+          pauseSceneAudio();
+          return;
+        }
+
         if (audio.paused) {
           void audio
             .play()
@@ -489,7 +508,7 @@ export function App() {
         return;
       }
 
-      audio.pause();
+      pauseSceneAudio();
       if (Math.abs(audio.currentTime * 1000 - syncState.targetAudioCurrentTimeMs) > PLAYHEAD_SYNC_TOLERANCE_MS) {
         audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
       }
@@ -499,12 +518,20 @@ export function App() {
     syncSceneAudioToPlayheadRef.current = syncSceneAudioToPlayhead;
 
     const handlePlay = () => {
+      sceneAudioPlaybackIntentRef.current = true;
+      sceneAudioInternalPauseRef.current = false;
       sceneAudioPhaseRef.current = "playing";
       startPlaybackClock();
     };
 
     const handlePause = () => {
       cancelAnimationFrameSync();
+      if (sceneAudioInternalPauseRef.current) {
+        sceneAudioInternalPauseRef.current = false;
+        return;
+      }
+
+      sceneAudioPlaybackIntentRef.current = false;
       if (sceneAudioPhaseRef.current === "playing") {
         syncFromAudioClock();
       }

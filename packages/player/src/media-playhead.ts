@@ -8,6 +8,11 @@ export interface SceneAudioSyncState {
   startDelayMs: number;
 }
 
+export interface SceneAudioPlaybackDirective {
+  shouldPlay: boolean;
+  shouldScheduleDelayedPlayback: boolean;
+}
+
 export function resolvePlayableDurationMs(durationSeconds: number, fallbackDurationMs?: number): number | undefined {
   if (Number.isFinite(durationSeconds) && durationSeconds >= 0) {
     return Math.round(durationSeconds * 1000);
@@ -59,6 +64,31 @@ export function shouldSyncPlayheadMs(
   toleranceMs = PLAYHEAD_SYNC_TOLERANCE_MS
 ): boolean {
   return Math.abs(currentPlayheadMs - nextPlayheadMs) > toleranceMs;
+}
+
+export function resolveSceneAudioPlaybackDirective(
+  syncState: Pick<SceneAudioSyncState, "phase" | "startDelayMs">,
+  playbackRequested: boolean,
+  toleranceMs = PLAYHEAD_SYNC_TOLERANCE_MS
+): SceneAudioPlaybackDirective {
+  if (!playbackRequested) {
+    return {
+      shouldPlay: false,
+      shouldScheduleDelayedPlayback: false
+    };
+  }
+
+  if (syncState.phase === "waiting" && syncState.startDelayMs > toleranceMs) {
+    return {
+      shouldPlay: false,
+      shouldScheduleDelayedPlayback: true
+    };
+  }
+
+  return {
+    shouldPlay: syncState.phase === "playing" || syncState.phase === "waiting",
+    shouldScheduleDelayedPlayback: false
+  };
 }
 
 export function resolveSceneAudioCycleDurationMs(

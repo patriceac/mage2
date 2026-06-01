@@ -3,6 +3,7 @@ import { createDefaultProjectBundle, createInitialSaveState } from "@mage2/schem
 import {
   createPlayerController,
   getSceneAudioPlayheadMs,
+  resolveSceneAudioPlaybackDirective,
   resolveSceneAudioSyncState,
   resolveSceneTimelineDurationMs
 } from "./index";
@@ -165,6 +166,28 @@ describe("player controller", () => {
       cycleDurationMs: 13000,
       targetAudioCurrentTimeMs: 5500,
       startDelayMs: 0
+    });
+  });
+
+  it("preserves paused scene-audio playback when the playhead is scrubbed", () => {
+    const waitingState = resolveSceneAudioSyncState(1200, 4000, 9000);
+    const playingState = resolveSceneAudioSyncState(5500, 4000, 9000);
+
+    expect(resolveSceneAudioPlaybackDirective(waitingState, true)).toEqual({
+      shouldPlay: false,
+      shouldScheduleDelayedPlayback: true
+    });
+    expect(resolveSceneAudioPlaybackDirective(playingState, true)).toEqual({
+      shouldPlay: true,
+      shouldScheduleDelayedPlayback: false
+    });
+    expect(resolveSceneAudioPlaybackDirective(waitingState, false)).toEqual({
+      shouldPlay: false,
+      shouldScheduleDelayedPlayback: false
+    });
+    expect(resolveSceneAudioPlaybackDirective(playingState, false)).toEqual({
+      shouldPlay: false,
+      shouldScheduleDelayedPlayback: false
     });
   });
 });
