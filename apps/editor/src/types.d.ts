@@ -93,6 +93,9 @@ declare global {
       pathToFileUrl(inputPath: string): Promise<string>;
       getPathForDroppedFile(file: File): string;
     };
+    editorAutomation?: {
+      onCommand(handler: (command: unknown) => unknown | Promise<unknown>): () => void;
+    };
   }
 }
 

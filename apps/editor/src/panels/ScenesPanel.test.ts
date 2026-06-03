@@ -15,6 +15,7 @@ import {
   resolveSceneSwitcherOptions,
   resolveScenesFloatingWindowVisibility,
   resolveDroppedInventoryHotspotBounds,
+  resolveInventoryDragPreviewOffset,
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
   shouldDismissScenesHotspotSelectionOnEscape,
@@ -373,6 +374,27 @@ describe("ScenesPanel scene audio UI", () => {
 
     expect(previewContentSize.width).toBeCloseTo(59.6);
     expect(previewContentSize.height).toBeCloseTo(59.6);
+  });
+
+  it("preserves the cursor grab point inside the inventory drag preview art", () => {
+    const offset = resolveInventoryDragPreviewOffset({
+      clientX: 142,
+      clientY: 188,
+      previewLeftPx: 100,
+      previewTopPx: 150,
+      previewWidthPx: 76,
+      previewHeightPx: 76,
+      paddingTopPx: 7,
+      paddingRightPx: 7,
+      paddingBottomPx: 7,
+      paddingLeftPx: 7,
+      borderTopPx: 1,
+      borderRightPx: 1,
+      borderBottomPx: 1,
+      borderLeftPx: 1
+    });
+
+    expect(offset).toEqual({ x: 34, y: 30 });
   });
 
   it("converts dragged preview pixels into dropped hotspot bounds", () => {

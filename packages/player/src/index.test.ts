@@ -118,9 +118,10 @@ describe("player controller", () => {
     expect(controller.getSubtitleLines(3500, project.manifest.defaultLanguage)).toEqual([]);
   });
 
-  it("extends the scene timeline to cover the first delayed scene-audio pass", () => {
-    expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(30000);
+  it("resolves scene playback duration from active media range", () => {
+    expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(13000);
     expect(resolveSceneTimelineDurationMs(18000, 12000, 22000)).toBe(34000);
+    expect(resolveSceneTimelineDurationMs()).toBe(30000);
   });
 
   it("maps audio playback positions back onto the scene playhead", () => {

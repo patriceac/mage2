@@ -46,6 +46,7 @@ interface MediaSurfaceProps {
   playheadMs?: number;
   playbackResetKey?: string | number;
   onPlayheadMsChange?: (playheadMs: number) => void;
+  onPlayableDurationMsChange?: (durationMs: number) => void;
   onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
   onSurfaceDragEnter?: React.DragEventHandler<HTMLDivElement>;
   onSurfaceDragLeave?: React.DragEventHandler<HTMLDivElement>;
@@ -72,6 +73,7 @@ export function MediaSurface({
   playheadMs,
   playbackResetKey,
   onPlayheadMsChange,
+  onPlayableDurationMsChange,
   onSurfaceClick,
   onSurfaceDragEnter,
   onSurfaceDragLeave,
@@ -677,6 +679,11 @@ export function MediaSurface({
             className="media-surface__media"
             title={showSurfaceTooltips ? "Preview the selected video asset directly inside the editor." : undefined}
             onLoadedMetadata={(event) => {
+              const playableDurationMs = resolvePlayableDurationMs(event.currentTarget.duration, assetVariant?.durationMs);
+              if (playableDurationMs !== undefined) {
+                onPlayableDurationMsChange?.(playableDurationMs);
+              }
+
               syncVideoFromPlayhead(event.currentTarget);
               syncPlayheadFromVideo(event.currentTarget);
             }}

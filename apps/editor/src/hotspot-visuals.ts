@@ -1,4 +1,11 @@
-import { resolveAssetCategory, resolveAssetVariant, type Asset, type Hotspot, type InventoryItem } from "@mage2/schema";
+import {
+  resolveAssetCategory,
+  resolveAssetVariant,
+  shouldDisplayHotspotInventoryVisual,
+  type Asset,
+  type Hotspot,
+  type InventoryItem
+} from "@mage2/schema";
 
 export interface HotspotVisual {
   sourcePath: string;
@@ -11,6 +18,7 @@ interface ResolveHotspotVisualsOptions {
   assets: Asset[];
   locale: string;
   strings: Record<string, string>;
+  flags?: Record<string, boolean>;
 }
 
 export function resolveHotspotVisuals({
@@ -18,14 +26,15 @@ export function resolveHotspotVisuals({
   inventoryItems,
   assets,
   locale,
-  strings
+  strings,
+  flags
 }: ResolveHotspotVisualsOptions): Record<string, HotspotVisual> {
   const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
   const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
   const visuals: Record<string, HotspotVisual> = {};
 
   for (const hotspot of hotspots) {
-    if (!hotspot.inventoryItemId) {
+    if (!hotspot.inventoryItemId || !shouldDisplayHotspotInventoryVisual(hotspot, flags)) {
       continue;
     }
 

@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { type ProjectBundle, type ValidationIssue, validateProject } from "@mage2/schema";
+import {
+  buildHotspotPickupFlag,
+  buildHotspotPlacementFlag,
+  resolveHotspotInventoryAction,
+  resolvePlacedInventoryHotspotInstance,
+  type Condition,
+  type Effect,
+  type Hotspot,
+  type ProjectBundle,
+  type ValidationIssue,
+  validateProject
+} from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
 import { InventoryPanel } from "./panels/InventoryPanel";
@@ -26,6 +37,11 @@ import {
 import { isRedoShortcut, isSaveShortcut, isUndoShortcut } from "./keyboard-shortcuts";
 import { type EditorTab, useEditorStore } from "./store";
 import { formatEditorWindowTitle } from "./window-title";
+import {
+  parseEditorAutomationCommand,
+  type EditorAutomationCommand,
+  type EditorAutomationHotspotAction
+} from "./automation-commands";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "world", label: "World" },
@@ -235,6 +251,14 @@ export function App() {
 
     void openProjectDirectory(initialLaunchOptions.projectDir, "launch", resolveLaunchTab(initialLaunchOptions.tab));
   }, [hasEditorApi, initialLaunchOptions]);
+
+  useEffect(() => {
+    if (!window.editorAutomation) {
+      return;
+    }
+
+    return window.editorAutomation.onCommand((rawCommand) => handleAutomationCommand(rawCommand));
+  });
 
   useEffect(() => {
     if (!hasEditorApi) {
@@ -536,6 +560,219 @@ export function App() {
     setStatusMessage(`Navigated to ${target.label}`);
   }
 
+  async function handleAutomationCommand(rawCommand: unknown): Promise<unknown> {
+    const command = parseEditorAutomationCommand(rawCommand);
+
+    switch (command.command) {
+      case "ping":
+        return { ok: true, app: "MAGE2 Editor" };
+      case "getState":
+        return resolveEditorAutomationState(statusMessage);
+      case "listHotspots":
+        return resolveEditorAutomationHotspots(requireCurrentProject(command), command.sceneId);
+      case "listInventoryItems":
+        return resolveEditorAutomationInventoryItems(requireCurrentProject(command));
+      case "openProject":
+        await openProjectDirectory(command.projectDir, "launch", command.tab);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "selectTab":
+        setActiveTab(command.tab);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "selectScene":
+        requireCurrentProject(command);
+        setSelectedSceneId(command.sceneId);
+        setStatusMessage(`Automation selected scene ${command.sceneId}.`);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "selectHotspot":
+        requireCurrentProject(command);
+        setSelectedHotspotId(command.hotspotId);
+        setStatusMessage(command.hotspotId ? `Automation selected hotspot ${command.hotspotId}.` : "Automation cleared hotspot selection.");
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "setHotspotInventoryAction":
+        applyAutomationHotspotInventoryCommand(command);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "editor.undo":
+        requireCurrentProject(command);
+        undoProject();
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationHotspots(requireCurrentProject(command));
+      case "editor.redo":
+        requireCurrentProject(command);
+        redoProject();
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationHotspots(requireCurrentProject(command));
+      case "editor.selectHotspotActionItem":
+        applyAutomationHotspotActionItemCommand(command);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationHotspots(requireCurrentProject(command));
+      case "editor.setPlacedObjectGeometry":
+        applyAutomationPlacedObjectGeometryCommand(command);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationHotspots(requireCurrentProject(command));
+      case "editor.assertPlacedObjectExists":
+        return assertAutomationPlacedObjectExists(requireCurrentProject(command), command.dropTargetHotspotId, command.itemId);
+      case "enterPlaytest":
+        setActiveTab("playtest");
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      case "playtest.getState":
+        return requirePlaytestAutomation(command).getState();
+      case "playtest.reset": {
+        const playtest = requirePlaytestAutomation(command);
+        playtest.reset();
+        await waitForAutomationUpdate();
+        return requirePlaytestAutomation(command).getState();
+      }
+      case "playtest.clickHotspot": {
+        const playtest = requirePlaytestAutomation(command);
+        playtest.clickHotspot(command.hotspotId);
+        await waitForAutomationUpdate();
+        return requirePlaytestAutomation(command).getState();
+      }
+      case "playtest.selectInventoryItem": {
+        const playtest = requirePlaytestAutomation(command);
+        playtest.selectInventoryItem(command.itemId);
+        await waitForAutomationUpdate();
+        return requirePlaytestAutomation(command).getState();
+      }
+      case "playtest.assertPlacedItemVisible": {
+        const playtest = requirePlaytestAutomation(command);
+        return playtest.assertPlacedItemVisible(command.hotspotId, command.itemId);
+      }
+    }
+  }
+
+  function requireCurrentProject(command: EditorAutomationCommand): ProjectBundle {
+    const currentProject = useEditorStore.getState().project;
+    if (!currentProject) {
+      throw new Error(`Cannot run '${command.command}' without an open project.`);
+    }
+
+    return currentProject;
+  }
+
+  function requirePlaytestAutomation(command: EditorAutomationCommand) {
+    const playtestAutomation = window.__mage2PlaytestAutomation;
+    if (!playtestAutomation) {
+      throw new Error(`Cannot run '${command.command}' because Playtest is not active yet.`);
+    }
+
+    return playtestAutomation;
+  }
+
+  function applyAutomationHotspotInventoryCommand(command: Extract<EditorAutomationCommand, { command: "setHotspotInventoryAction" }>) {
+    const currentProject = requireCurrentProject(command);
+    const targetScene = currentProject.scenes.items.find((scene) =>
+      scene.hotspots.some((hotspot) => hotspot.id === command.hotspotId)
+    );
+    const targetHotspot = targetScene?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
+    if (!targetScene || !targetHotspot) {
+      throw new Error(`Hotspot '${command.hotspotId}' was not found.`);
+    }
+
+    if (command.action !== "none" && !command.itemId) {
+      throw new Error(`Command '${command.command}' requires itemId when action is '${command.action}'.`);
+    }
+
+    mutateProject((draft) => {
+      const draftHotspot = draft.scenes.items
+        .find((scene) => scene.id === targetScene.id)
+        ?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
+      if (!draftHotspot) {
+        return;
+      }
+
+      applyAutomationHotspotInventoryAction(draftHotspot, command.action, command.itemId ?? "");
+    });
+
+    setSelectedSceneId(targetScene.id);
+    setSelectedHotspotId(command.hotspotId);
+    setActiveTab("scenes");
+    setStatusMessage(`Automation set ${command.action} on hotspot ${command.hotspotId}.`);
+  }
+
+  function applyAutomationHotspotActionItemCommand(
+    command: Extract<EditorAutomationCommand, { command: "editor.selectHotspotActionItem" }>
+  ) {
+    const currentProject = requireCurrentProject(command);
+    const targetScene = currentProject.scenes.items.find((scene) =>
+      scene.hotspots.some((hotspot) => hotspot.id === command.hotspotId)
+    );
+    const targetHotspot = targetScene?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
+    if (!targetScene || !targetHotspot) {
+      throw new Error(`Hotspot '${command.hotspotId}' was not found.`);
+    }
+
+    mutateProject((draft) => {
+      const draftHotspot = draft.scenes.items
+        .find((scene) => scene.id === targetScene.id)
+        ?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
+      if (!draftHotspot) {
+        return;
+      }
+
+      applyAutomationHotspotInventoryAction(draftHotspot, "placeItem", command.itemId);
+    });
+
+    setSelectedSceneId(targetScene.id);
+    setSelectedHotspotId(command.hotspotId);
+    setActiveTab("scenes");
+    setStatusMessage(`Automation selected action item ${command.itemId} on hotspot ${command.hotspotId}.`);
+  }
+
+  function applyAutomationPlacedObjectGeometryCommand(
+    command: Extract<EditorAutomationCommand, { command: "editor.setPlacedObjectGeometry" }>
+  ) {
+    const currentProject = requireCurrentProject(command);
+    const target = resolveAutomationPlacedObjectTarget(currentProject, command);
+
+    mutateProject((draft) => {
+      const draftScene = draft.scenes.items.find((scene) => scene.id === target.scene.id);
+      const draftHotspot = draftScene?.hotspots.find((hotspot) => hotspot.id === target.instance.dropTargetHotspotId);
+      if (!draftHotspot) {
+        return;
+      }
+
+      draftHotspot.placedInventoryGeometry = {
+        x: command.geometry.x,
+        y: command.geometry.y,
+        width: command.geometry.width,
+        height: command.geometry.height,
+        polygon: command.geometry.polygon
+      };
+    });
+
+    setSelectedSceneId(target.scene.id);
+    setSelectedHotspotId(target.instance.dropTargetHotspotId);
+    setActiveTab("scenes");
+    setStatusMessage(`Automation updated placed object ${target.instance.id}.`);
+  }
+
+  function assertAutomationPlacedObjectExists(project: ProjectBundle, dropTargetHotspotId: string, itemId: string) {
+    const target = resolveAutomationPlacedObjectTarget(project, { dropTargetHotspotId, itemId });
+    return {
+      placedObject: {
+        id: target.instance.id,
+        itemId: target.instance.itemId,
+        dropTargetHotspotId: target.instance.dropTargetHotspotId,
+        sourceHotspotId: target.instance.sourceHotspotId,
+        geometry: {
+          x: target.instance.hotspot.x,
+          y: target.instance.hotspot.y,
+          width: target.instance.hotspot.width,
+          height: target.instance.hotspot.height,
+          polygon: target.instance.hotspot.polygon
+        }
+      },
+      dropTargetHotspot: serializeAutomationHotspot(target.scene, target.dropTargetHotspot, "authored")
+    };
+  }
+
   if (!hasEditorApi) {
     return (
       <main className="landing">
@@ -835,6 +1072,249 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+function resolveEditorAutomationState(statusMessage: string) {
+  const state = useEditorStore.getState();
+  const validationReport = state.project ? validateProject(state.project) : undefined;
+  return {
+    activeTab: state.activeTab,
+    projectDir: state.projectDir,
+    projectName: state.project?.manifest.projectName,
+    hasUnsavedChanges: state.hasUnsavedChanges,
+    selectedLocationId: state.selectedLocationId,
+    selectedSceneId: state.selectedSceneId,
+    selectedHotspotId: state.selectedHotspotId,
+    selectedInventoryItemId: state.selectedInventoryItemId,
+    statusMessage,
+    validation: validationReport
+      ? {
+          valid: validationReport.valid,
+          issueCount: validationReport.issues.length
+        }
+      : undefined,
+    playtest: window.__mage2PlaytestAutomation?.getState()
+  };
+}
+
+function resolveEditorAutomationInventoryItems(project: ProjectBundle) {
+  const defaultStrings = project.strings.byLocale[project.manifest.defaultLanguage] ?? {};
+  const assetsById = new Map(project.assets.assets.map((asset) => [asset.id, asset] as const));
+
+  return {
+    items: project.inventory.items.map((item) => {
+      const asset = item.imageAssetId ? assetsById.get(item.imageAssetId) : undefined;
+      return {
+        id: item.id,
+        name: item.name,
+        label: defaultStrings[item.textId] ?? item.name ?? item.id,
+        textId: item.textId,
+        descriptionTextId: item.descriptionTextId,
+        imageAssetId: item.imageAssetId,
+        imageAssetName: asset?.name
+      };
+    })
+  };
+}
+
+function resolveEditorAutomationHotspots(project: ProjectBundle, sceneId?: string) {
+  if (sceneId && !project.scenes.items.some((scene) => scene.id === sceneId)) {
+    throw new Error(`Scene '${sceneId}' was not found.`);
+  }
+
+  const scenes = sceneId ? project.scenes.items.filter((scene) => scene.id === sceneId) : project.scenes.items;
+  const authoredHotspots = scenes.flatMap((scene) =>
+    scene.hotspots.map((hotspot) => serializeAutomationHotspot(scene, hotspot, "authored"))
+  );
+  const placedObjects = scenes.flatMap((scene) =>
+    scene.hotspots
+      .map((hotspot) => resolvePlacedInventoryHotspotInstance(hotspot, scene.hotspots))
+      .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance))
+      .map((instance) => ({
+        ...serializeAutomationHotspot(scene, instance.hotspot, "placedInventory"),
+        itemId: instance.itemId,
+        dropTargetHotspotId: instance.dropTargetHotspotId,
+        sourceHotspotId: instance.sourceHotspotId
+      }))
+  );
+  const surfaceHotspots = [
+    ...scenes.flatMap((scene) =>
+      scene.hotspots.map((hotspot) => {
+        const action = resolveHotspotInventoryAction(hotspot);
+        const surfaceHotspot =
+          action.type === "placeItem" && hotspot.inventoryItemId ? { ...hotspot, inventoryItemId: undefined } : hotspot;
+        return serializeAutomationHotspot(scene, surfaceHotspot, "authored");
+      })
+    ),
+    ...placedObjects
+  ];
+
+  return {
+    hotspots: authoredHotspots,
+    surfaceHotspots,
+    placedObjects
+  };
+}
+
+function serializeAutomationHotspot(
+  scene: ProjectBundle["scenes"]["items"][number],
+  hotspot: Hotspot,
+  kind: "authored" | "placedInventory"
+) {
+  const action = resolveHotspotInventoryAction(hotspot);
+  return {
+    id: hotspot.id,
+    kind,
+    name: hotspot.name,
+    sceneId: scene.id,
+    sceneName: scene.name,
+    inventoryItemId: hotspot.inventoryItemId,
+    placedInventoryItemId: hotspot.placedInventoryItemId,
+    requiredItemIds: hotspot.requiredItemIds,
+    action: {
+      type: action.type,
+      itemId: action.itemId,
+      completionFlag: action.completionFlag
+    },
+    timing: {
+      startMs: hotspot.startMs,
+      endMs: hotspot.endMs
+    },
+    geometry: {
+      x: hotspot.x,
+      y: hotspot.y,
+      width: hotspot.width,
+      height: hotspot.height,
+      polygon: hotspot.polygon
+    }
+  };
+}
+
+function resolveAutomationPlacedObjectTarget(
+  project: ProjectBundle,
+  selector: {
+    placedObjectId?: string;
+    dropTargetHotspotId?: string;
+    itemId?: string;
+  }
+) {
+  for (const scene of project.scenes.items) {
+    for (const dropTargetHotspot of scene.hotspots) {
+      const instance = resolvePlacedInventoryHotspotInstance(dropTargetHotspot, scene.hotspots);
+      if (!instance) {
+        continue;
+      }
+
+      const matchesPlacedObjectId = selector.placedObjectId ? instance.id === selector.placedObjectId : true;
+      const matchesDropTarget = selector.dropTargetHotspotId
+        ? instance.dropTargetHotspotId === selector.dropTargetHotspotId
+        : true;
+      const matchesItem = selector.itemId ? instance.itemId === selector.itemId : true;
+      if (matchesPlacedObjectId && matchesDropTarget && matchesItem) {
+        return {
+          scene,
+          dropTargetHotspot,
+          instance
+        };
+      }
+    }
+  }
+
+  const selectorDescription = [
+    selector.placedObjectId ? `placedObjectId='${selector.placedObjectId}'` : undefined,
+    selector.dropTargetHotspotId ? `dropTargetHotspotId='${selector.dropTargetHotspotId}'` : undefined,
+    selector.itemId ? `itemId='${selector.itemId}'` : undefined
+  ]
+    .filter(Boolean)
+    .join(", ");
+  throw new Error(`Placed inventory object was not found${selectorDescription ? ` (${selectorDescription})` : ""}.`);
+}
+
+function waitForAutomationUpdate(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function applyAutomationHotspotInventoryAction(
+  hotspot: Hotspot,
+  actionType: EditorAutomationHotspotAction,
+  itemId: string
+) {
+  const previousAction = resolveHotspotInventoryAction(hotspot);
+  removeAutomationHotspotInventoryActionConvention(hotspot, previousAction);
+
+  if (actionType === "none" || !itemId) {
+    delete hotspot.inventoryItemId;
+    delete hotspot.placedInventoryItemId;
+    delete hotspot.placedInventoryGeometry;
+    return;
+  }
+
+  if (actionType === "pickupItem") {
+    hotspot.inventoryItemId = itemId;
+    delete hotspot.placedInventoryItemId;
+    delete hotspot.placedInventoryGeometry;
+    const completionFlag = buildHotspotPickupFlag(hotspot.id);
+    hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+    hotspot.effects = [...hotspot.effects, { type: "addItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+    return;
+  }
+
+  if (previousAction.type !== "placeItem" || previousAction.itemId !== itemId) {
+    delete hotspot.placedInventoryGeometry;
+  }
+
+  delete hotspot.inventoryItemId;
+  hotspot.placedInventoryItemId = itemId;
+  const completionFlag = buildHotspotPlacementFlag(hotspot.id);
+  hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
+  hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+  hotspot.effects = [...hotspot.effects, { type: "removeItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+}
+
+function removeAutomationHotspotInventoryActionConvention(
+  hotspot: Hotspot,
+  action: ReturnType<typeof resolveHotspotInventoryAction>
+) {
+  if (action.type === "none") {
+    return;
+  }
+
+  const actionItemId = action.itemId;
+  const actionFlag = action.completionFlag;
+
+  hotspot.effects = hotspot.effects.filter((effect) =>
+    !isAutomationHotspotInventoryActionEffect(effect, action.type, actionItemId, actionFlag)
+  );
+  hotspot.conditions = hotspot.conditions.filter((condition) => !isAutomationHotspotInventoryActionCondition(condition, actionFlag));
+
+  if (action.type === "placeItem" && actionItemId) {
+    hotspot.requiredItemIds = hotspot.requiredItemIds.filter((currentItemId) => currentItemId !== actionItemId);
+  }
+}
+
+function isAutomationHotspotInventoryActionEffect(
+  effect: Effect,
+  actionType: Exclude<EditorAutomationHotspotAction, "none">,
+  itemId?: string,
+  completionFlag?: string
+): boolean {
+  if (effect.type === "setFlag") {
+    return Boolean(completionFlag && effect.flag === completionFlag);
+  }
+
+  if (actionType === "pickupItem") {
+    return effect.type === "addItem" && effect.itemId === itemId;
+  }
+
+  return effect.type === "removeItem" && effect.itemId === itemId;
+}
+
+function isAutomationHotspotInventoryActionCondition(condition: Condition, completionFlag?: string): boolean {
+  return Boolean(completionFlag && condition.type === "flagEquals" && condition.flag === completionFlag);
 }
 
 function getInitialRecentProjects(): RecentProjectSummary[] {

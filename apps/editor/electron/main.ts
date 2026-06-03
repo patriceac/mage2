@@ -24,8 +24,10 @@ import { parseEditorLaunchOptions, resolveEditorLaunchArguments } from "./launch
 import { forgetRecentProject, loadRecentProjects, rememberRecentProject, saveRecentProjects } from "./recent-projects";
 import { resolveEditorWindowChromeOptions } from "./window-chrome";
 import { createWindowState, loadWindowState, resolveWindowState, saveWindowState } from "./window-state";
+import { startEditorAutomationServer } from "./automation-server";
 
 let mainWindow: BrowserWindow | null = null;
+let stopAutomationServer: (() => void) | undefined;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
 const APP_NAME = appMetadata.productName;
 const APP_ID = appMetadata.appId;
@@ -103,6 +105,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
   createWindow();
+  stopAutomationServer = startEditorAutomationServer({ getWindow: () => mainWindow });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -115,6 +118,11 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  stopAutomationServer?.();
+  stopAutomationServer = undefined;
 });
 
 function resolveWindowIconPath(): string | undefined {

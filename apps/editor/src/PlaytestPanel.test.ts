@@ -3,7 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
 import { addInventoryItem } from "./project-helpers";
-import { PlaytestPanel, resolvePlaytestInventorySummary, resolveStoredPlaytestLocale } from "./PlaytestPanel";
+import {
+  PlaytestPanel,
+  resolveInventoryCursorPreviewFrameStyle,
+  resolvePlaytestInventorySummary,
+  resolvePlaytestVisualDurationMs,
+  resolveStoredPlaytestLocale
+} from "./PlaytestPanel";
 import { useEditorStore } from "./store";
 
 describe("resolvePlaytestInventorySummary", () => {
@@ -31,6 +37,38 @@ describe("resolveStoredPlaytestLocale", () => {
   it("falls back to the default locale when the stored locale is missing or unsupported", () => {
     expect(resolveStoredPlaytestLocale(null, ["en", "fr"], "en")).toBe("en");
     expect(resolveStoredPlaytestLocale("de", ["en", "fr"], "en")).toBe("en");
+  });
+});
+
+describe("resolvePlaytestVisualDurationMs", () => {
+  it("uses observed video metadata over stored asset duration", () => {
+    expect(resolvePlaytestVisualDurationMs("video", 30000, 5500)).toBe(5500);
+  });
+
+  it("falls back to stored asset duration before video metadata loads", () => {
+    expect(resolvePlaytestVisualDurationMs("video", 5500, undefined)).toBe(5500);
+  });
+
+  it("ignores observed video metadata for still image scenes", () => {
+    expect(resolvePlaytestVisualDurationMs("image", 30000, 5500)).toBe(30000);
+  });
+});
+
+describe("resolveInventoryCursorPreviewFrameStyle", () => {
+  it("centers the selected inventory art on the cursor without a frame", () => {
+    const style = resolveInventoryCursorPreviewFrameStyle({ x: 120, y: 80 });
+
+    expect(style).toMatchObject({
+      left: "120px",
+      top: "80px",
+      transform: "translate(-50%, -50%)",
+      width: "48px",
+      height: "48px",
+      pointerEvents: "none"
+    });
+    expect(style).not.toHaveProperty("border");
+    expect(style).not.toHaveProperty("background");
+    expect(style).not.toHaveProperty("padding");
   });
 });
 

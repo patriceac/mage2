@@ -308,5 +308,6 @@ export function resolveSceneTimelineDurationMs(
   const sceneAudioTimelineDurationMs =
     sceneAudioDurationMs !== undefined ? Math.max(0, sceneAudioDelayMs) + sceneAudioDurationMs : 0;
 
-  return Math.max(DEFAULT_SCENE_TIMELINE_DURATION_MS, visualDurationMs ?? 0, sceneAudioTimelineDurationMs);
+  const mediaDurationMs = Math.max(0, visualDurationMs ?? 0, sceneAudioTimelineDurationMs);
+  return mediaDurationMs > 0 ? mediaDurationMs : DEFAULT_SCENE_TIMELINE_DURATION_MS;
 }

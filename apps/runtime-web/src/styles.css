@@ -273,12 +273,40 @@ input[type="range"]:focus-visible {
   outline-offset: 2px;
 }
 
+.runtime-hotspot--inventory-compatible,
+.runtime-hotspot--inventory-compatible:hover,
+.runtime-hotspot--inventory-compatible:focus-visible {
+  border-color: rgba(74, 222, 128, 0.95);
+  background:
+    linear-gradient(180deg, rgba(20, 83, 45, 0.38), rgba(22, 101, 52, 0.48)),
+    linear-gradient(180deg, rgba(74, 222, 128, 0.28), rgba(74, 222, 128, 0.22));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    0 0 0 1px rgba(74, 222, 128, 0.42),
+    0 0 0 6px rgba(34, 197, 94, 0.18),
+    0 18px 40px rgba(20, 83, 45, 0.28);
+}
+
 .runtime-hotspot--hidden,
 .runtime-hotspot--hidden:hover,
 .runtime-hotspot--hidden:focus-visible {
   border-color: transparent;
   background: transparent;
   outline: none;
+}
+
+.runtime-hotspot-placed-visual {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: center;
+  z-index: 1;
+}
+
+.runtime-hotspot-placed-visual__image {
+  position: absolute;
+  object-fit: contain;
+  pointer-events: none;
+  transform-origin: center;
 }
 
 .runtime-scrubber,
@@ -321,8 +349,24 @@ input[type="range"]:focus-visible {
   display: grid;
   gap: 0.55rem;
   padding: 0.75rem;
+  border: 1px solid transparent;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.runtime-inventory__item:hover,
+.runtime-inventory__item:focus-visible,
+.runtime-inventory__item--selected {
+  border-color: rgba(246, 193, 119, 0.72);
+  background: rgba(246, 193, 119, 0.1);
+  box-shadow: 0 0 0 4px rgba(246, 193, 119, 0.12);
 }
 
 .runtime-inventory__item strong {
@@ -344,6 +388,12 @@ input[type="range"]:focus-visible {
   place-items: center;
   color: #9fb0be;
   font-size: 0.84rem;
+}
+
+.runtime-inventory__hint {
+  margin: 0;
+  color: #9fb0be;
+  font-size: 0.9rem;
 }
 
 .runtime-sidebar pre {

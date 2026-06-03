@@ -63,11 +63,20 @@ export const HotspotPointSchema = z.object({
   y: z.number().min(0).max(1)
 });
 
+export const PlacedInventoryGeometrySchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0.01).max(1),
+  height: z.number().min(0.01).max(1),
+  polygon: z.array(HotspotPointSchema).length(4).optional()
+});
+
 export const HotspotSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   commentTextId: z.string().min(1).optional(),
   inventoryItemId: z.string().min(1).optional(),
+  placedInventoryItemId: z.string().min(1).optional(),
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
   width: z.number().min(0.01).max(1),
@@ -79,6 +88,7 @@ export const HotspotSchema = z.object({
   dialogueTreeId: z.string().optional(),
   requiredItemIds: z.array(z.string()).default([]),
   conditions: z.array(ConditionSchema).default([]),
+  placedInventoryGeometry: PlacedInventoryGeometrySchema.optional(),
   effects: z.array(EffectSchema).default([])
 });
 

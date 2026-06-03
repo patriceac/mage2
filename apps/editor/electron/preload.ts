@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
 import type { EditorLaunchOptions } from "./launch-options";
 import type { ProjectDirectoryInspection } from "./project-io";
@@ -64,4 +64,33 @@ const editorApi = {
   getPathForDroppedFile: (file: File): string => webUtils.getPathForFile(file)
 };
 
+const editorAutomation = {
+  onCommand: (handler: (command: unknown) => unknown | Promise<unknown>): (() => void) => {
+    const listener = (_event: IpcRendererEvent, request: { id: string; command: unknown }) => {
+      void Promise.resolve()
+        .then(() => handler(request.command))
+        .then((value) => {
+          ipcRenderer.send("mage2:automation-command-result", {
+            id: request.id,
+            ok: true,
+            value
+          });
+        })
+        .catch((error) => {
+          ipcRenderer.send("mage2:automation-command-result", {
+            id: request.id,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+    };
+
+    ipcRenderer.on("mage2:automation-command", listener);
+    return () => {
+      ipcRenderer.removeListener("mage2:automation-command", listener);
+    };
+  }
+};
+
 contextBridge.exposeInMainWorld("editorApi", editorApi);
+contextBridge.exposeInMainWorld("editorAutomation", editorAutomation);

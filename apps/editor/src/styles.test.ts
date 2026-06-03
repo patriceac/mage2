@@ -72,10 +72,12 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".hotspot__body--playtest.hotspot__body--pointer-inactive:hover {");
   });
 
-  it("reserves top label clearance for rotation controls and keeps handles above labels", () => {
+  it("keeps flyover labels above hotspot art, chrome, and handles", () => {
     expect(styles).toContain("bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));");
-    expect(styles).toContain(".hotspot__handles {");
-    expect(styles).toContain("z-index: 4;");
+    expect(styles).toMatch(/\.hotspot--selected\s*\{[\s\S]*?z-index: 20;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.hotspot:hover,\s*\.hotspot:focus-within\s*\{\s*z-index: 30;\s*\}/);
+    expect(styles).toMatch(/\.hotspot__label-shell\s*\{[\s\S]*?z-index: 50;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.hotspot__handles\s*\{[\s\S]*?z-index: 4;[\s\S]*?\}/);
   });
 
   it("defines drag and no-drag regions for the title-bar overlay shell", () => {

@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { normalizeSupportedLocales, type ProjectBundle } from "@mage2/schema";
+import {
+  buildHotspotPickupFlag,
+  buildHotspotPlacementFlag,
+  normalizeSupportedLocales,
+  resolveHotspotInventoryAction,
+  type ProjectBundle
+} from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
@@ -98,6 +104,144 @@ function resolveProjectRevision(project?: ProjectBundle): string | undefined {
   return project ? createProjectRevision(project) : undefined;
 }
 
+function normalizeProjectInventoryPlacement(project: ProjectBundle): ProjectBundle {
+  let projectChanged = false;
+  const scenes = project.scenes.items.map((scene) => {
+    let sceneChanged = false;
+    const hotspots = scene.hotspots.map((hotspot) => {
+      const action = resolveHotspotInventoryAction(hotspot);
+      if (action.type !== "placeItem" || !action.itemId || !hotspot.inventoryItemId) {
+        return hotspot;
+      }
+
+      sceneChanged = true;
+      const nextHotspot = {
+        ...hotspot,
+        placedInventoryItemId: hotspot.placedInventoryItemId ?? action.itemId
+      };
+      delete nextHotspot.inventoryItemId;
+      return nextHotspot;
+    });
+
+    if (!sceneChanged) {
+      return scene;
+    }
+
+    projectChanged = true;
+    return {
+      ...scene,
+      hotspots
+    };
+  });
+
+  return projectChanged
+    ? {
+        ...project,
+        scenes: {
+          ...project.scenes,
+          items: scenes
+        }
+      }
+    : project;
+}
+
+function normalizeProjectHistoryStack(stack: ProjectBundle[]): ProjectBundle[] {
+  let changed = false;
+  const normalizedStack = stack.map((project) => {
+    const normalizedProject = normalizeProjectInventoryPlacement(project);
+    if (normalizedProject !== project) {
+      changed = true;
+    }
+    return normalizedProject;
+  });
+
+  return changed ? normalizedStack : stack;
+}
+
+function normalizeUndoSnapshotForPlacementTransition(project: ProjectBundle, nextProject: ProjectBundle): ProjectBundle {
+  const nextPlacementItemIds = new Map<string, string>();
+  for (const scene of nextProject.scenes.items) {
+    for (const hotspot of scene.hotspots) {
+      const action = resolveHotspotInventoryAction(hotspot);
+      if (action.type === "placeItem" && action.itemId) {
+        nextPlacementItemIds.set(buildSceneHotspotKey(scene.id, hotspot.id), action.itemId);
+      }
+    }
+  }
+
+  if (nextPlacementItemIds.size === 0) {
+    return project;
+  }
+
+  let projectChanged = false;
+  const scenes = project.scenes.items.map((scene) => {
+    let sceneChanged = false;
+    const hotspots = scene.hotspots.map((hotspot) => {
+      const placementItemId = nextPlacementItemIds.get(buildSceneHotspotKey(scene.id, hotspot.id));
+      if (!placementItemId || hotspot.inventoryItemId !== placementItemId) {
+        return hotspot;
+      }
+
+      const action = resolveHotspotInventoryAction(hotspot);
+      if (action.type === "placeItem") {
+        return hotspot;
+      }
+
+      sceneChanged = true;
+      return clearLegacyPlacementTargetInventoryOwnership(hotspot, placementItemId);
+    });
+
+    if (!sceneChanged) {
+      return scene;
+    }
+
+    projectChanged = true;
+    return {
+      ...scene,
+      hotspots
+    };
+  });
+
+  return projectChanged
+    ? {
+        ...project,
+        scenes: {
+          ...project.scenes,
+          items: scenes
+        }
+      }
+    : project;
+}
+
+function clearLegacyPlacementTargetInventoryOwnership(
+  hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number],
+  itemId: string
+): ProjectBundle["scenes"]["items"][number]["hotspots"][number] {
+  const inventoryActionFlags = new Set([buildHotspotPickupFlag(hotspot.id), buildHotspotPlacementFlag(hotspot.id)]);
+  const nextHotspot = {
+    ...hotspot,
+    requiredItemIds: hotspot.requiredItemIds.filter((requiredItemId) => requiredItemId !== itemId),
+    conditions: hotspot.conditions.filter(
+      (condition) => condition.type !== "flagEquals" || !inventoryActionFlags.has(condition.flag)
+    ),
+    effects: hotspot.effects.filter((effect) => {
+      if ((effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId) {
+        return false;
+      }
+
+      return effect.type !== "setFlag" || !inventoryActionFlags.has(effect.flag);
+    })
+  };
+  delete nextHotspot.inventoryItemId;
+  delete nextHotspot.placedInventoryItemId;
+  delete nextHotspot.placedInventoryGeometry;
+  return nextHotspot;
+}
+
+function buildSceneHotspotKey(sceneId: string, hotspotId: string): string {
+  return `${sceneId}:${hotspotId}`;
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   hasUnsavedChanges: false,
   undoStack: [],
@@ -107,32 +251,42 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeTab: "world",
   localizationSection: "overview",
   playheadMs: 0,
-  setProjectContext: (project, projectDir) =>
+  setProjectContext: (project, projectDir) => {
+    const normalizedProject = normalizeProjectInventoryPlacement(project);
     set({
-      project,
+      project: normalizedProject,
       projectDir,
-      savedProjectRevision: createProjectRevision(project),
+      savedProjectRevision: createProjectRevision(normalizedProject),
       hasUnsavedChanges: false,
       activeTab: "world",
-      ...resolveProjectSelectionState(project),
+      ...resolveProjectSelectionState(normalizedProject),
       ...resolveHistoryState([], []),
       playheadMs: 0
-    }),
+    });
+  },
   updateProject: (project, options) =>
     set((state) => {
-      const nextRevision = createProjectRevision(project);
-      const currentProject = state.project;
+      const nextProject = normalizeProjectInventoryPlacement(project);
+      const nextRevision = createProjectRevision(nextProject);
+      const currentProject = state.project ? normalizeProjectInventoryPlacement(state.project) : undefined;
       const currentRevision = resolveProjectRevision(currentProject);
       const hasChanged = currentRevision !== nextRevision;
       const shouldRecordHistory = hasChanged && !options?.skipHistory && currentProject !== undefined;
-      const nextUndoStack = shouldRecordHistory ? trimProjectHistory([...state.undoStack, currentProject]) : state.undoStack;
+      const currentHistoryProject =
+        shouldRecordHistory && currentProject
+          ? normalizeUndoSnapshotForPlacementTransition(currentProject, nextProject)
+          : currentProject;
+      const nextUndoStack =
+        shouldRecordHistory && currentHistoryProject
+          ? trimProjectHistory([...state.undoStack, currentHistoryProject])
+          : state.undoStack;
       const nextRedoStack = shouldRecordHistory ? [] : state.redoStack;
 
       return {
-        project,
+        project: nextProject,
         hasUnsavedChanges: state.savedProjectRevision !== undefined && nextRevision !== state.savedProjectRevision,
-        ...resolveProjectSelectionState(project, state),
-        ...resolveHistoryState(nextUndoStack, nextRedoStack)
+        ...resolveProjectSelectionState(nextProject, state),
+        ...resolveHistoryState(normalizeProjectHistoryStack(nextUndoStack), normalizeProjectHistoryStack(nextRedoStack))
       };
     }),
   captureUndoCheckpoint: () =>
@@ -155,9 +309,10 @@ export const useEditorStore = create<EditorState>((set) => ({
         return {};
       }
 
-      const previousProject = state.undoStack[state.undoStack.length - 1]!;
-      const nextUndoStack = state.undoStack.slice(0, -1);
-      const nextRedoStack = trimProjectHistory([...state.redoStack, state.project]);
+      const previousProject = normalizeProjectInventoryPlacement(state.undoStack[state.undoStack.length - 1]!);
+      const nextUndoStack = normalizeProjectHistoryStack(state.undoStack.slice(0, -1));
+      const currentProject = normalizeProjectInventoryPlacement(state.project);
+      const nextRedoStack = trimProjectHistory([...normalizeProjectHistoryStack(state.redoStack), currentProject]);
 
       return {
         project: previousProject,
@@ -174,9 +329,10 @@ export const useEditorStore = create<EditorState>((set) => ({
         return {};
       }
 
-      const nextProject = state.redoStack[state.redoStack.length - 1]!;
-      const nextRedoStack = state.redoStack.slice(0, -1);
-      const nextUndoStack = trimProjectHistory([...state.undoStack, state.project]);
+      const nextProject = normalizeProjectInventoryPlacement(state.redoStack[state.redoStack.length - 1]!);
+      const nextRedoStack = normalizeProjectHistoryStack(state.redoStack.slice(0, -1));
+      const currentProject = normalizeProjectInventoryPlacement(state.project);
+      const nextUndoStack = trimProjectHistory([...normalizeProjectHistoryStack(state.undoStack), currentProject]);
 
       return {
         project: nextProject,
@@ -188,13 +344,19 @@ export const useEditorStore = create<EditorState>((set) => ({
       };
     }),
   markProjectSaved: (project, options) =>
-    set((state) => ({
-      project,
-      savedProjectRevision: createProjectRevision(project),
-      hasUnsavedChanges: false,
-      ...resolveProjectSelectionState(project, state),
-      ...resolveHistoryState(options?.clearHistory ? [] : state.undoStack, options?.clearHistory ? [] : state.redoStack)
-    })),
+    set((state) => {
+      const normalizedProject = normalizeProjectInventoryPlacement(project);
+      return {
+        project: normalizedProject,
+        savedProjectRevision: createProjectRevision(normalizedProject),
+        hasUnsavedChanges: false,
+        ...resolveProjectSelectionState(normalizedProject, state),
+        ...resolveHistoryState(
+          options?.clearHistory ? [] : normalizeProjectHistoryStack(state.undoStack),
+          options?.clearHistory ? [] : normalizeProjectHistoryStack(state.redoStack)
+        )
+      };
+    }),
   clearProjectContext: () =>
     set({
       project: undefined,

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
   clampPlayheadMs,
@@ -19,9 +20,13 @@ import {
   parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
+  resolveHotspotInventoryAction,
+  resolvePlacedInventoryHotspotInstance,
+  resolvePlacedInventoryItemId,
   resolveRelativeHotspotFrame,
   resolveHotspotRotationDegrees,
   resolveRelativeHotspotVisualBox,
+  shouldDisplayHotspotInventoryVisual,
   type Asset,
   type BuildManifest,
   type ExportProjectData,
@@ -67,14 +72,15 @@ export function resolveRuntimeHotspotVisuals(
   inventoryItems: InventoryItem[],
   assets: Asset[],
   locale: string,
-  strings: Record<string, string>
+  strings: Record<string, string>,
+  flags?: Record<string, boolean>
 ): Record<string, { imageSrc: string; alt: string }> {
   const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
   const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
   const visuals: Record<string, { imageSrc: string; alt: string }> = {};
 
   for (const hotspot of hotspots) {
-    if (!hotspot.inventoryItemId) {
+    if (!hotspot.inventoryItemId || !shouldDisplayHotspotInventoryVisual(hotspot, flags)) {
       continue;
     }
 
@@ -103,6 +109,69 @@ export function resolveRuntimeHotspotVisuals(
   return visuals;
 }
 
+export function resolveRuntimePlacedHotspotVisuals(
+  hotspots: Hotspot[],
+  flags: Record<string, boolean>,
+  inventoryItems: InventoryItem[],
+  assets: Asset[],
+  locale: string,
+  strings: Record<string, string>
+): Record<string, { imageSrc: string; alt: string }> {
+  const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
+  const visuals: Record<string, { imageSrc: string; alt: string }> = {};
+
+  for (const hotspot of hotspots) {
+    const placedItemId = resolvePlacedInventoryItemId(hotspot, flags);
+    if (!placedItemId) {
+      continue;
+    }
+
+    const item = itemsById.get(placedItemId);
+    if (!item?.imageAssetId) {
+      continue;
+    }
+
+    const asset = assetsById.get(item.imageAssetId);
+    if (!asset || asset.kind !== "image" || resolveAssetCategory(asset) !== "inventory") {
+      continue;
+    }
+
+    const variant = resolveAssetVariant(asset, locale);
+    const imageSrc = variant?.proxyPath ?? variant?.sourcePath;
+    if (!imageSrc) {
+      continue;
+    }
+
+    visuals[hotspot.id] = {
+      imageSrc,
+      alt: strings[item.textId] ?? item.name ?? hotspot.name ?? hotspot.id
+    };
+  }
+
+  return visuals;
+}
+
+const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
+
+export function resolveInventoryCursorPreviewFrameStyle(
+  point: { x: number; y: number },
+  sizePx = INVENTORY_CURSOR_PREVIEW_SIZE_PX
+): CSSProperties {
+  return {
+    position: "fixed",
+    left: `${point.x}px`,
+    top: `${point.y}px`,
+    transform: "translate(-50%, -50%)",
+    width: `${sizePx}px`,
+    height: `${sizePx}px`,
+    zIndex: 10000,
+    pointerEvents: "none",
+    display: "grid",
+    placeItems: "center"
+  };
+}
+
 export function App() {
   const [buildManifest, setBuildManifest] = useState<BuildManifest>();
   const [content, setContent] = useState<ExportProjectData>();
@@ -112,6 +181,9 @@ export function App() {
   const [showHotspots, setShowHotspots] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
+  const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
+  const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
+  const [runtimeNotice, setRuntimeNotice] = useState<string>();
   const runtimeVideoRef = useRef<HTMLVideoElement>(null);
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
   const runtimeOverlayRef = useRef<HTMLDivElement>(null);
@@ -215,15 +287,44 @@ export function App() {
   const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
   const runtimeInventoryItems =
     content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
+  const selectedRuntimeInventoryItem = runtimeInventoryItems.find((item) => item.id === selectedInventoryItemId);
   const runtimeHotspotVisuals =
     content && snapshot
-      ? resolveRuntimeHotspotVisuals(visibleHotspots, content.inventoryItems, content.assets, locale, localeStrings)
+      ? resolveRuntimeHotspotVisuals(visibleHotspots, content.inventoryItems, content.assets, locale, localeStrings, snapshot.flags)
       : {};
-  const runtimeHotspotVisualEntries = Object.entries(runtimeHotspotVisuals);
+  const runtimePlacedHotspotInstances =
+    content && snapshot
+      ? snapshot.scene.hotspots
+          .map((hotspot) =>
+            resolvePlacedInventoryItemId(hotspot, snapshot.flags)
+              ? resolvePlacedInventoryHotspotInstance(hotspot, snapshot.scene.hotspots)
+              : undefined
+          )
+          .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance))
+      : [];
+  const runtimePlacedHotspots = runtimePlacedHotspotInstances.map((instance) => instance.hotspot);
+  const runtimePlacedHotspotVisuals =
+    content && snapshot
+      ? resolveRuntimeHotspotVisuals(
+          runtimePlacedHotspots,
+          content.inventoryItems,
+          content.assets,
+          locale,
+          localeStrings,
+          snapshot.flags
+        )
+      : {};
+  const runtimeHotspotVisualEntries = [...Object.entries(runtimeHotspotVisuals), ...Object.entries(runtimePlacedHotspotVisuals)];
   const runtimeHotspotVisualSignature = runtimeHotspotVisualEntries
     .map(([hotspotId, visual]) => `${hotspotId}:${visual.imageSrc}`)
     .sort()
     .join("|");
+
+  useEffect(() => {
+    if (selectedInventoryItemId && !runtimeInventoryItems.some((item) => item.id === selectedInventoryItemId)) {
+      setSelectedInventoryItemId(undefined);
+    }
+  }, [runtimeInventoryItems, selectedInventoryItemId]);
 
   useEffect(() => {
     const video = runtimeVideoRef.current;
@@ -646,6 +747,27 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!selectedRuntimeInventoryItem) {
+      setInventoryCursorPoint(undefined);
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setInventoryCursorPoint({ x: event.clientX, y: event.clientY });
+    };
+    const clearPointer = () => setInventoryCursorPoint(undefined);
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("blur", clearPointer);
+    document.addEventListener("mouseleave", clearPointer);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("blur", clearPointer);
+      document.removeEventListener("mouseleave", clearPointer);
+    };
+  }, [selectedRuntimeInventoryItem?.id]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadRuntimeHotspotAlphaMasks() {
@@ -752,6 +874,8 @@ export function App() {
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
                 setPlayheadMs(nextSaveState.playheadMs ?? 0);
+                setSelectedInventoryItemId(undefined);
+                setRuntimeNotice(undefined);
               }}
             >
               Load
@@ -772,6 +896,8 @@ export function App() {
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
                 setPlayheadMs(0);
+                setSelectedInventoryItemId(undefined);
+                setRuntimeNotice(undefined);
               }}
             >
               Restart
@@ -848,6 +974,9 @@ export function App() {
 
           <div ref={runtimeOverlayRef} className="runtime-media__overlay">
             {visibleHotspots.map((hotspot) => {
+              const inventoryAction = resolveHotspotInventoryAction(hotspot);
+              const isCompatibleWithSelectedInventoryItem =
+                inventoryAction.type === "placeItem" && inventoryAction.itemId === selectedInventoryItemId;
               return (
                 <RuntimeHotspotButton
                   key={hotspot.id}
@@ -857,15 +986,50 @@ export function App() {
                   visual={runtimeHotspotVisuals[hotspot.id]}
                   alphaMask={runtimeHotspotAlphaMasks[hotspot.id]}
                   strings={localeStrings}
+                  isCompatibleWithSelectedInventoryItem={isCompatibleWithSelectedInventoryItem}
                   onActivate={() => {
+                    if (inventoryAction.type === "placeItem" && inventoryAction.itemId !== selectedInventoryItemId) {
+                      const requiredItem = runtimeInventoryItems.find((item) => item.id === inventoryAction.itemId);
+                      setRuntimeNotice(
+                        requiredItem
+                          ? `Select ${requiredItem.label} from inventory first.`
+                          : "Select the matching inventory item first."
+                      );
+                      return;
+                    }
+
                     controller.selectHotspot(hotspot.id, playheadMs);
                     setSnapshot(controller.getSnapshot());
                     setPlayheadMs(0);
+                    if (inventoryAction.type === "pickupItem" || inventoryAction.type === "placeItem") {
+                      setSelectedInventoryItemId(undefined);
+                      setRuntimeNotice(undefined);
+                    }
                   }}
                 />
               );
             })}
+            {runtimePlacedHotspots.map((hotspot) => (
+              <RuntimeHotspotButton
+                key={hotspot.id}
+                hotspot={hotspot}
+                showHotspots={showHotspots}
+                surfaceSize={runtimeOverlaySize}
+                visual={runtimePlacedHotspotVisuals[hotspot.id]}
+                alphaMask={runtimeHotspotAlphaMasks[hotspot.id]}
+                strings={localeStrings}
+                onActivate={() => {
+                  const placedItem = runtimeInventoryItems.find((item) => item.id === hotspot.inventoryItemId);
+                  setRuntimeNotice(placedItem ? `${placedItem.label} is placed here.` : "This placed object is here.");
+                }}
+              />
+            ))}
           </div>
+          <InventoryCursorPreview
+            imageSrc={selectedRuntimeInventoryItem?.imageSrc}
+            label={selectedRuntimeInventoryItem?.label}
+            point={inventoryCursorPoint}
+          />
         </div>
 
         <label className="runtime-scrubber">
@@ -930,19 +1094,39 @@ export function App() {
             {runtimeInventoryItems.length > 0 ? (
               <div className="runtime-inventory">
                 {runtimeInventoryItems.map((item) => (
-                  <article key={item.id} className="runtime-inventory__item">
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={
+                      item.id === selectedInventoryItemId
+                        ? "runtime-inventory__item runtime-inventory__item--selected"
+                        : "runtime-inventory__item"
+                    }
+                    aria-pressed={item.id === selectedInventoryItemId}
+                    title={`Use ${item.label} on a compatible hotspot.`}
+                    onClick={() => {
+                      const nextSelectedItemId = item.id === selectedInventoryItemId ? undefined : item.id;
+                      setSelectedInventoryItemId(nextSelectedItemId);
+                      setRuntimeNotice(nextSelectedItemId ? `Use ${item.label} on a highlighted hotspot.` : undefined);
+                    }}
+                  >
                     {item.imageSrc ? (
                       <img src={item.imageSrc} alt={item.label} className="runtime-inventory__thumb" />
                     ) : (
                       <div className="runtime-inventory__thumb runtime-inventory__thumb--placeholder">No art</div>
                     )}
                     <strong>{item.label}</strong>
-                  </article>
+                  </button>
                 ))}
               </div>
             ) : (
               <p className="runtime-sidebar__empty">Inventory empty.</p>
             )}
+            <p className="runtime-inventory__hint">
+              {selectedRuntimeInventoryItem
+                ? `Selected: ${selectedRuntimeInventoryItem.label}`
+                : runtimeNotice ?? "Select an item here, then click a compatible hotspot."}
+            </p>
           </section>
 
           <section className="runtime-sidebar__section">
@@ -962,6 +1146,7 @@ function RuntimeHotspotButton({
   visual,
   alphaMask,
   strings,
+  isCompatibleWithSelectedInventoryItem,
   onActivate
 }: {
   hotspot: Hotspot;
@@ -973,6 +1158,7 @@ function RuntimeHotspotButton({
   };
   alphaMask?: HotspotVisualAlphaMask;
   strings: Record<string, string>;
+  isCompatibleWithSelectedInventoryItem?: boolean;
   onActivate: () => void;
 }) {
   const bounds = resolveHotspotBounds(hotspot);
@@ -1026,7 +1212,8 @@ function RuntimeHotspotButton({
     setIsPointerOverOpaquePixel(isOpaquePointerEvent(event));
   };
   const className = [
-    showHotspots ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden",
+    showHotspots || isCompatibleWithSelectedInventoryItem ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden",
+    isCompatibleWithSelectedInventoryItem ? "runtime-hotspot--inventory-compatible" : undefined,
     usesAlphaAwarePointerFeedback && !isPointerOverOpaquePixel ? "runtime-hotspot--pointer-inactive" : undefined
   ]
     .filter(Boolean)
@@ -1097,4 +1284,43 @@ function normalizeHotspotText(value: string | undefined): string {
 function resolveRuntimeHotspotTitle(hotspot: Hotspot, strings: Record<string, string>): string {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings[hotspot.commentTextId]) : "";
   return hotspot.name || comment || hotspot.id;
+}
+
+function InventoryCursorPreview({
+  imageSrc,
+  label,
+  point
+}: {
+  imageSrc?: string;
+  label?: string;
+  point?: { x: number; y: number };
+}) {
+  if (!imageSrc || !point) {
+    return null;
+  }
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      aria-label={label ? `Selected item: ${label}` : "Selected inventory item"}
+      role="img"
+      style={resolveInventoryCursorPreviewFrameStyle(point)}
+    >
+      <img
+        src={imageSrc}
+        alt=""
+        draggable={false}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          filter: "drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35))"
+        }}
+      />
+    </div>,
+    document.body
+  );
 }

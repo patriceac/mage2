@@ -1,11 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
-import { getLocaleStringValues, normalizeSupportedLocales, type InventoryItem, type ProjectBundle } from "@mage2/schema";
+import {
+  getLocaleStringValues,
+  normalizeSupportedLocales,
+  resolveHotspotInventoryAction,
+  resolvePlacedInventoryHotspotInstance,
+  resolvePlacedInventoryItemId,
+  type Asset,
+  type InventoryItem,
+  type ProjectBundle
+} from "@mage2/schema";
 import { DropdownSelect } from "./DropdownSelect";
 import { MediaSurface } from "./MediaSurface";
 import { resolveFileUrl } from "./file-url-cache";
 import { resolveHotspotVisuals } from "./hotspot-visuals";
 import { getLocalizedAssetVariant } from "./localized-project";
+import type { EditorAutomationPlaytestState } from "./automation-commands";
 import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
   getSceneAudioPlayheadMs,
@@ -43,6 +54,34 @@ export function resolveStoredPlaytestLocale(
   return storedLocale && supportedLocales.includes(storedLocale) ? storedLocale : fallbackLocale;
 }
 
+export function resolvePlaytestVisualDurationMs(
+  assetKind: Asset["kind"] | undefined,
+  assetDurationMs: number | undefined,
+  observedVideoDurationMs: number | undefined
+): number | undefined {
+  return assetKind === "video" ? observedVideoDurationMs ?? assetDurationMs : assetDurationMs;
+}
+
+const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
+
+export function resolveInventoryCursorPreviewFrameStyle(
+  point: { x: number; y: number },
+  sizePx = INVENTORY_CURSOR_PREVIEW_SIZE_PX
+): CSSProperties {
+  return {
+    position: "fixed",
+    left: `${point.x}px`,
+    top: `${point.y}px`,
+    transform: "translate(-50%, -50%)",
+    width: `${sizePx}px`,
+    height: `${sizePx}px`,
+    zIndex: 10000,
+    pointerEvents: "none",
+    display: "grid",
+    placeItems: "center"
+  };
+}
+
 export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const activeLocale = useEditorStore((state) => state.playtestLocale) ?? project.manifest.defaultLanguage;
   const setActiveLocale = useEditorStore((state) => state.setPlaytestLocale);
@@ -51,7 +90,17 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
   const [playbackResetKey, setPlaybackResetKey] = useState(0);
+  const [observedVideoDuration, setObservedVideoDuration] = useState<{
+    assetId: string;
+    sourcePath?: string;
+    durationMs: number;
+  }>();
   const [showHotspots, setShowHotspots] = useState(false);
+  const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
+  const [inventoryHint, setInventoryHint] = useState<string>();
+  const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
+  const [inventoryCursorPreviewUrl, setInventoryCursorPreviewUrl] = useState<string>();
+  const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
@@ -138,6 +187,48 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setSelectedAssetId(nextSnapshot.scene.backgroundAssetId);
     setPlayheadMs(0);
     setPlaybackResetKey((value) => value + 1);
+    setSelectedInventoryItemId(undefined);
+    setInventoryHint(undefined);
+    setLastActivatedHotspotId(undefined);
+    return nextSnapshot;
+  }
+
+  function activatePlaytestHotspot(hotspotId: string) {
+    const hotspot = visibleHotspots.find((entry) => entry.id === hotspotId);
+    const placedHotspot = placedInventoryHotspots.find((entry) => entry.id === hotspotId);
+    if (!hotspot && placedHotspot) {
+      setLastActivatedHotspotId(hotspotId);
+      setInventoryHint(
+        placedHotspot.inventoryItemId
+          ? `${resolveInventoryItemLabel(placedHotspot.inventoryItemId, project.inventory.items, localeStrings)} is placed here.`
+          : "This placed object is here."
+      );
+      return { snapshot, selectedInventoryItemId, activated: true };
+    }
+
+    const inventoryAction = hotspot ? resolveHotspotInventoryAction(hotspot) : { type: "none" as const };
+    if (hotspot && inventoryAction.type === "placeItem" && inventoryAction.itemId !== selectedInventoryItemId) {
+      setInventoryHint(
+        inventoryAction.itemId
+          ? `Select ${resolveInventoryItemLabel(inventoryAction.itemId, project.inventory.items, localeStrings)} from inventory first.`
+          : "Select the matching inventory item first."
+      );
+      return { snapshot, selectedInventoryItemId, activated: false };
+    }
+
+    setLastActivatedHotspotId(hotspotId);
+    controller.selectHotspot(hotspotId, playheadMs);
+    const nextSnapshot = controller.getSnapshot();
+    setSnapshot(nextSnapshot);
+    setPlayheadMs(0);
+
+    if (inventoryAction.type === "pickupItem" || inventoryAction.type === "placeItem") {
+      setSelectedInventoryItemId(undefined);
+      setInventoryHint(undefined);
+      return { snapshot: nextSnapshot, selectedInventoryItemId: undefined, activated: true };
+    }
+
+    return { snapshot: nextSnapshot, selectedInventoryItemId, activated: true };
   }
 
   const sceneAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
@@ -146,20 +237,169 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
     : undefined;
   const sceneAudioVariant = getLocalizedAssetVariant(sceneAudioAsset, activeLocale);
+  const sceneAssetSourcePath = sceneAssetVariant?.proxyPath ?? sceneAssetVariant?.sourcePath;
+  const observedVideoDurationMs =
+    sceneAsset?.kind === "video" &&
+    observedVideoDuration?.assetId === sceneAsset.id &&
+    observedVideoDuration.sourcePath === sceneAssetSourcePath
+      ? observedVideoDuration.durationMs
+      : undefined;
   const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
-    sceneAssetVariant?.durationMs,
+    resolvePlaytestVisualDurationMs(sceneAsset?.kind, sceneAssetVariant?.durationMs, observedVideoDurationMs),
     sceneAsset?.kind === "image" ? snapshot.scene.sceneAudioDelayMs : 0,
     sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs);
   const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
+  const selectedInventoryItem = snapshot.inventoryItems.find((item) => item.id === selectedInventoryItemId);
+  const selectedInventoryItemAsset = selectedInventoryItem?.imageAssetId
+    ? project.assets.assets.find((asset) => asset.id === selectedInventoryItem.imageAssetId)
+    : undefined;
+  const selectedInventoryItemVariant = getLocalizedAssetVariant(selectedInventoryItemAsset, activeLocale);
+  const selectedInventoryCursorSourcePath =
+    selectedInventoryItemVariant?.proxyPath ?? selectedInventoryItemVariant?.sourcePath;
+  const selectedInventoryCursorLabel = selectedInventoryItem
+    ? localeStrings[selectedInventoryItem.textId] ?? selectedInventoryItem.name ?? selectedInventoryItem.id
+    : undefined;
+  const placedInventoryInstances = snapshot.scene.hotspots
+    .map((hotspot) =>
+      resolvePlacedInventoryItemId(hotspot, snapshot.flags)
+        ? resolvePlacedInventoryHotspotInstance(hotspot, snapshot.scene.hotspots)
+        : undefined
+    )
+    .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance));
+  const placedInventoryHotspots = placedInventoryInstances.map((instance) => instance.hotspot);
+  const surfaceHotspots = [...visibleHotspots, ...placedInventoryHotspots];
   const hotspotVisuals = resolveHotspotVisuals({
-    hotspots: visibleHotspots,
+    hotspots: surfaceHotspots,
     inventoryItems: project.inventory.items,
     assets: project.assets.assets,
     locale: activeLocale,
-    strings: localeStrings
+    strings: localeStrings,
+    flags: snapshot.flags
   });
+
+  useEffect(() => {
+    if (!selectedInventoryItemId) {
+      setInventoryCursorPoint(undefined);
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setInventoryCursorPoint({ x: event.clientX, y: event.clientY });
+    };
+    const clearPointer = () => setInventoryCursorPoint(undefined);
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("blur", clearPointer);
+    document.addEventListener("mouseleave", clearPointer);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("blur", clearPointer);
+      document.removeEventListener("mouseleave", clearPointer);
+    };
+  }, [selectedInventoryItemId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInventoryCursorPreviewUrl() {
+      if (!selectedInventoryCursorSourcePath) {
+        setInventoryCursorPreviewUrl(undefined);
+        return;
+      }
+
+      try {
+        const url = await resolveFileUrl(selectedInventoryCursorSourcePath);
+        if (!cancelled) {
+          setInventoryCursorPreviewUrl(url);
+        }
+      } catch {
+        if (!cancelled) {
+          setInventoryCursorPreviewUrl(undefined);
+        }
+      }
+    }
+
+    void loadInventoryCursorPreviewUrl();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedInventoryCursorSourcePath]);
+
+  function resolvePlaytestAutomationState(): EditorAutomationPlaytestState {
+    const placedVisuals: Record<string, string> = {};
+    for (const instance of placedInventoryInstances) {
+      if (hotspotVisuals[instance.id]) {
+        placedVisuals[instance.id] = instance.itemId;
+        placedVisuals[instance.dropTargetHotspotId] = instance.itemId;
+      }
+    }
+
+    return {
+      sceneId: snapshot.scene.id,
+      visibleHotspotIds: visibleHotspots.map((hotspot) => hotspot.id),
+      surfaceHotspotIds: surfaceHotspots.map((hotspot) => hotspot.id),
+      inventoryItemIds: snapshot.inventoryItems.map((item) => item.id),
+      selectedInventoryItemId,
+      lastActivatedHotspotId,
+      flags: snapshot.flags,
+      placedVisuals,
+      placedObjects: placedInventoryInstances.map((instance) => ({
+        id: instance.id,
+        itemId: instance.itemId,
+        dropTargetHotspotId: instance.dropTargetHotspotId,
+        sourceHotspotId: instance.sourceHotspotId,
+        x: instance.hotspot.x,
+        y: instance.hotspot.y,
+        width: instance.hotspot.width,
+        height: instance.hotspot.height
+      }))
+    };
+  }
+
+  useEffect(() => {
+    window.__mage2PlaytestAutomation = {
+      getState: resolvePlaytestAutomationState,
+      reset: () => {
+        resetPlaytestRun();
+        return resolvePlaytestAutomationState();
+      },
+      clickHotspot: (hotspotId: string) => {
+        activatePlaytestHotspot(hotspotId);
+        return resolvePlaytestAutomationState();
+      },
+      selectInventoryItem: (itemId?: string) => {
+        if (itemId && !snapshot.inventoryItems.some((item) => item.id === itemId)) {
+          throw new Error(`Inventory item '${itemId}' is not currently available in playtest.`);
+        }
+
+        const item = itemId ? snapshot.inventoryItems.find((entry) => entry.id === itemId) : undefined;
+        const label = item ? localeStrings[item.textId] ?? item.name ?? item.id : undefined;
+        setSelectedInventoryItemId(itemId);
+        setInventoryHint(label ? `Use ${label} on a compatible hotspot.` : undefined);
+        return resolvePlaytestAutomationState();
+      },
+      assertPlacedItemVisible: (hotspotId: string, itemId: string) => {
+        const state = resolvePlaytestAutomationState();
+        if (state.placedVisuals[hotspotId] !== itemId) {
+          throw new Error(`Expected '${itemId}' to be visibly placed on hotspot '${hotspotId}'.`);
+        }
+
+        return state;
+      }
+    };
+
+    return () => {
+      delete window.__mage2PlaytestAutomation;
+    };
+  });
+
+  useEffect(() => {
+    if (selectedInventoryItemId && !snapshot.inventoryItems.some((item) => item.id === selectedInventoryItemId)) {
+      setSelectedInventoryItemId(undefined);
+    }
+  }, [selectedInventoryItemId, snapshot.inventoryItems]);
 
   useEffect(() => {
     let cancelled = false;
@@ -568,7 +808,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           asset={sceneAsset}
           locale={activeLocale}
           loopVideo={snapshot.scene.backgroundVideoLoop}
-          hotspots={visibleHotspots}
+          hotspots={surfaceHotspots}
           hotspotVisuals={hotspotVisuals}
           hotspotAppearance={showHotspots ? "playtest" : "hidden"}
           showHotspotLabels={false}
@@ -576,12 +816,25 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
           playbackResetKey={playbackResetKey}
           onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
+          onPlayableDurationMsChange={
+            sceneAsset?.kind === "video"
+              ? (durationMs) => {
+                  setObservedVideoDuration({
+                    assetId: sceneAsset.id,
+                    sourcePath: sceneAssetSourcePath,
+                    durationMs
+                  });
+                }
+              : undefined
+          }
           onHotspotClick={(hotspotId) => {
-            controller.selectHotspot(hotspotId, playheadMs);
-            const nextSnapshot = controller.getSnapshot();
-            setSnapshot(nextSnapshot);
-            setPlayheadMs(0);
+            activatePlaytestHotspot(hotspotId);
           }}
+        />
+        <InventoryCursorPreview
+          imageSrc={inventoryCursorPreviewUrl}
+          label={selectedInventoryCursorLabel}
+          point={inventoryCursorPoint}
         />
 
         {sceneAudioUrl ? (
@@ -640,6 +893,43 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </section>
 
       <aside className="panel">
+        <section className="playtest-inventory-panel">
+          <h3>Inventory</h3>
+          {snapshot.inventoryItems.length > 0 ? (
+            <div className="playtest-inventory-list">
+              {snapshot.inventoryItems.map((item) => {
+                const label = localeStrings[item.textId] ?? item.name ?? item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={
+                      item.id === selectedInventoryItemId
+                        ? "playtest-inventory-item playtest-inventory-item--selected"
+                        : "playtest-inventory-item"
+                    }
+                    aria-pressed={item.id === selectedInventoryItemId}
+                    title={`Use ${label} on a compatible hotspot.`}
+                    onClick={() => {
+                      const nextSelectedItemId = item.id === selectedInventoryItemId ? undefined : item.id;
+                      setSelectedInventoryItemId(nextSelectedItemId);
+                      setInventoryHint(nextSelectedItemId ? `Use ${label} on a compatible hotspot.` : undefined);
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="muted">Inventory empty.</p>
+          )}
+          <p className="muted playtest-inventory-panel__hint">
+            {selectedInventoryItem
+              ? `Selected: ${localeStrings[selectedInventoryItem.textId] ?? selectedInventoryItem.name ?? selectedInventoryItem.id}`
+              : inventoryHint ?? "Pick up an item, then select it here to use it."}
+          </p>
+        </section>
         <h3>Runtime State</h3>
         <dl className="inspector-grid">
           <dt>Location</dt>
@@ -657,5 +947,49 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
         </dl>
       </aside>
     </div>
+  );
+}
+
+function resolveInventoryItemLabel(itemId: string, items: InventoryItem[], strings: Record<string, string>): string {
+  const item = items.find((entry) => entry.id === itemId);
+  return item ? strings[item.textId] ?? item.name ?? item.id : itemId;
+}
+
+function InventoryCursorPreview({
+  imageSrc,
+  label,
+  point
+}: {
+  imageSrc?: string;
+  label?: string;
+  point?: { x: number; y: number };
+}) {
+  if (!imageSrc || !point) {
+    return null;
+  }
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      aria-label={label ? `Selected item: ${label}` : "Selected inventory item"}
+      role="img"
+      style={resolveInventoryCursorPreviewFrameStyle(point)}
+    >
+      <img
+        src={imageSrc}
+        alt=""
+        draggable={false}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          filter: "drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35))"
+        }}
+      />
+    </div>,
+    document.body
   );
 }

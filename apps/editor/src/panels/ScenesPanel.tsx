@@ -2,9 +2,15 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent
 import { MediaSurface, type MediaSurfaceDropEvent } from "../MediaSurface";
 import {
   getLocaleStringValues,
+  buildHotspotPickupFlag,
+  buildHotspotPlacementFlag,
+  resolveHotspotInventoryAction,
+  resolvePlacedInventoryHotspotInstance,
   resolveHotspotRotationDegrees,
   resolveRelativeHotspotFrame,
   type Asset,
+  type Condition,
+  type Effect,
   type Hotspot,
   type InventoryItem,
   type ProjectBundle,
@@ -81,6 +87,7 @@ interface ScenesPanelProps {
 
 const INVENTORY_ITEM_DRAG_TYPE = "application/x-mage2-inventory-item";
 const INVENTORY_ITEM_DRAG_SIZE_TYPE = "application/x-mage2-inventory-preview-size";
+const INVENTORY_DRAG_PREVIEW_SCALE = 2 / 3;
 
 export function ScenesPanel({
   project,
@@ -160,7 +167,9 @@ export function ScenesPanel({
     project.inventory.items,
     project.assets.assets,
     localeStrings,
-    selectedHotspot?.inventoryItemId
+    selectedHotspot
+      ? resolveHotspotInventoryAction(selectedHotspot).itemId ?? selectedHotspot.inventoryItemId
+      : undefined
   );
   const eligibleLinkedInventoryOptions = linkedInventoryOptions.filter((option) => option.eligible);
   const visibleInventoryPickerOptions = filterInventoryPlacementOptions(eligibleLinkedInventoryOptions, inventoryPickerSearch);
@@ -181,8 +190,17 @@ export function ScenesPanel({
     sceneSwitcherOptions.findIndex((option) => option.sceneId === currentSceneId),
     0
   );
+  const placedInventoryInstances = currentScene.hotspots
+    .map((hotspot) => resolvePlacedInventoryHotspotInstance(hotspot, currentScene.hotspots))
+    .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance));
+  const authoredSceneSurfaceHotspots = currentScene.hotspots.map((hotspot) =>
+    resolveHotspotInventoryAction(hotspot).type === "placeItem" && hotspot.inventoryItemId
+      ? { ...hotspot, inventoryItemId: undefined }
+      : hotspot
+  );
+  const sceneSurfaceHotspots = [...authoredSceneSurfaceHotspots, ...placedInventoryInstances.map((instance) => instance.hotspot)];
   const hotspotVisuals = resolveHotspotVisuals({
-    hotspots: currentScene.hotspots,
+    hotspots: sceneSurfaceHotspots,
     inventoryItems: project.inventory.items,
     assets: project.assets.assets,
     locale: activeLocale,
@@ -754,6 +772,27 @@ export function ScenesPanel({
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     const currentProject = useEditorStore.getState().project ?? project;
     const nextProject = cloneProject(currentProject);
+    const placedInventoryInstance = placedInventoryInstances.find((instance) => instance.id === hotspotId);
+    if (placedInventoryInstance) {
+      const dropTarget = nextProject.scenes.items
+        .find((entry) => entry.id === currentSceneId)
+        ?.hotspots.find((entry) => entry.id === placedInventoryInstance.dropTargetHotspotId);
+
+      if (!dropTarget) {
+        return;
+      }
+
+      dropTarget.placedInventoryGeometry = {
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height,
+        polygon: geometry.polygon
+      };
+      updateProject(nextProject, { skipHistory: true });
+      return;
+    }
+
     const target = nextProject.scenes.items
       .find((entry) => entry.id === currentSceneId)
       ?.hotspots.find((entry) => entry.id === hotspotId);
@@ -1882,7 +1921,7 @@ export function ScenesPanel({
               className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
               locale={activeLocale}
               loopVideo={currentScene.backgroundVideoLoop}
-              hotspots={currentScene.hotspots}
+              hotspots={sceneSurfaceHotspots}
               hotspotVisuals={hotspotVisuals}
               onSurfaceDragEnter={handleInventoryPlacementDragEnter}
               onSurfaceDragOver={handleInventoryPlacementDragOver}
@@ -3088,7 +3127,7 @@ function InventoryPlacementPickerWindow({
     event.dataTransfer.setData(INVENTORY_ITEM_DRAG_SIZE_TYPE, JSON.stringify(previewSize));
     event.dataTransfer.setData("text/plain", itemId);
     dragImageCleanupRef.current?.();
-    dragImageCleanupRef.current = setTransparentInventoryDragImage(event.dataTransfer, event.currentTarget);
+    dragImageCleanupRef.current = setTransparentInventoryDragImage(event.dataTransfer, event.currentTarget, event.nativeEvent);
     onActiveItemIdChange(itemId);
     onDragStart(itemId, previewSize);
   }
@@ -3474,24 +3513,12 @@ function HotspotInspectorWindow({
                 }
               />
             </label>
-            <label title="Links this hotspot to an inventory item and uses that item's art in the scene.">
-              <span className="field-label--inset">Inventory Item</span>
-              <DropdownSelect
-                value={selectedHotspot.inventoryItemId ?? ""}
-                onChange={(event) =>
-                  mutateSelectedHotspot((hotspot) => {
-                    hotspot.inventoryItemId = event.target.value || undefined;
-                  })
-                }
-              >
-                <option value="">None</option>
-                {inventoryItemOptions.map((option) => (
-                  <option key={option.itemId} value={option.itemId}>
-                    {option.label}
-                  </option>
-                ))}
-              </DropdownSelect>
-            </label>
+            <HotspotInventoryActionControls
+              inventoryAction={resolveHotspotInventoryAction(selectedHotspot)}
+              inventoryItemOptions={inventoryItemOptions}
+              selectedHotspot={selectedHotspot}
+              mutateSelectedHotspot={mutateSelectedHotspot}
+            />
             <div className="four-grid">
               {(
                 [
@@ -3779,6 +3806,146 @@ function applyInventoryLinkToHotspot(hotspot: Hotspot, item: InventoryItem, stri
   hotspot.name = strings[item.textId] ?? item.name ?? hotspot.name;
 }
 
+function HotspotInventoryActionControls({
+  inventoryAction,
+  inventoryItemOptions,
+  selectedHotspot,
+  mutateSelectedHotspot
+}: {
+  inventoryAction: ReturnType<typeof resolveHotspotInventoryAction>;
+  inventoryItemOptions: LinkedInventoryOption[];
+  selectedHotspot: Hotspot;
+  mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
+}) {
+  const actionItemId = inventoryAction.itemId ?? selectedHotspot.placedInventoryItemId ?? selectedHotspot.inventoryItemId ?? "";
+  const hasInventoryItems = inventoryItemOptions.length > 0;
+  const selectedActionLabel = inventoryItemOptions.find((option) => option.itemId === actionItemId)?.label ?? actionItemId;
+
+  return (
+    <section className="scenes-hotspot-action-card" aria-label="Hotspot action">
+      <div className="scenes-hotspot-action-card__header">
+        <span className="field-label--inset">Action</span>
+        <p className="muted scenes-hotspot-action-card__summary">
+          {resolveHotspotInventoryActionSummary(inventoryAction.type, selectedActionLabel)}
+        </p>
+      </div>
+      <label title="Inventory item this hotspot accepts for placement. Placement requires it, removes it, then shows a separate placed-item frame.">
+        <span className="field-label--inset">Placed Item</span>
+        <DropdownSelect
+          value={actionItemId}
+          onChange={(event) =>
+            mutateSelectedHotspot((hotspot) => {
+              applyHotspotInventoryAction(hotspot, event.target.value ? "placeItem" : "none", event.target.value);
+            })
+          }
+        >
+          <option value="">{hasInventoryItems ? "No placed item" : "No inventory items"}</option>
+          {inventoryItemOptions.map((option) => (
+            <option key={option.itemId} value={option.itemId}>
+              {option.label}
+            </option>
+          ))}
+        </DropdownSelect>
+      </label>
+      <div
+        className="scenes-hotspot-action-card__derived"
+        title="This behavior is derived from the placed item selection above."
+      >
+        <span className="field-label--inset">When activated</span>
+        <p className="muted scenes-hotspot-action-card__summary">
+          {actionItemId ? "Place selected inventory item" : "No inventory placement"}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+type HotspotInventoryActionType = "none" | "pickupItem" | "placeItem";
+
+function resolveHotspotInventoryActionSummary(actionType: HotspotInventoryActionType, itemLabel: string): string {
+  if (actionType === "pickupItem") {
+    return "Legacy inventory action. Choose a supported hotspot action to replace it.";
+  }
+
+  if (actionType === "placeItem") {
+    return itemLabel
+      ? `Requires ${itemLabel}, removes it from inventory, and reveals it here after placement.`
+      : "Choose the inventory item that can be placed here.";
+  }
+
+  return "Use advanced fields below, or choose a simple inventory action.";
+}
+
+function applyHotspotInventoryAction(hotspot: Hotspot, actionType: HotspotInventoryActionType, itemId: string) {
+  const previousAction = resolveHotspotInventoryAction(hotspot);
+  removeHotspotInventoryActionConvention(hotspot, previousAction);
+
+  if (actionType === "none" || !itemId) {
+    delete hotspot.inventoryItemId;
+    delete hotspot.placedInventoryItemId;
+    delete hotspot.placedInventoryGeometry;
+    return;
+  }
+
+  if (actionType === "pickupItem") {
+    hotspot.inventoryItemId = itemId;
+    delete hotspot.placedInventoryItemId;
+    delete hotspot.placedInventoryGeometry;
+    const completionFlag = buildHotspotPickupFlag(hotspot.id);
+    hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+    hotspot.effects = [...hotspot.effects, { type: "addItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+    return;
+  }
+
+  if (previousAction.type !== "placeItem" || previousAction.itemId !== itemId) {
+    delete hotspot.placedInventoryGeometry;
+  }
+
+  delete hotspot.inventoryItemId;
+  hotspot.placedInventoryItemId = itemId;
+  const completionFlag = buildHotspotPlacementFlag(hotspot.id);
+  hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
+  hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+  hotspot.effects = [...hotspot.effects, { type: "removeItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+}
+
+function removeHotspotInventoryActionConvention(hotspot: Hotspot, action: ReturnType<typeof resolveHotspotInventoryAction>) {
+  if (action.type === "none") {
+    return;
+  }
+
+  const actionItemId = action.itemId;
+  const actionFlag = action.completionFlag;
+
+  hotspot.effects = hotspot.effects.filter((effect) => !isHotspotInventoryActionEffect(effect, action.type, actionItemId, actionFlag));
+  hotspot.conditions = hotspot.conditions.filter((condition) => !isHotspotInventoryActionCondition(condition, actionFlag));
+
+  if (action.type === "placeItem" && actionItemId) {
+    hotspot.requiredItemIds = hotspot.requiredItemIds.filter((itemId) => itemId !== actionItemId);
+  }
+}
+
+function isHotspotInventoryActionEffect(
+  effect: Effect,
+  actionType: Exclude<HotspotInventoryActionType, "none">,
+  itemId?: string,
+  completionFlag?: string
+): boolean {
+  if (effect.type === "setFlag") {
+    return Boolean(completionFlag && effect.flag === completionFlag);
+  }
+
+  if (actionType === "pickupItem") {
+    return effect.type === "addItem" && effect.itemId === itemId;
+  }
+
+  return effect.type === "removeItem" && effect.itemId === itemId;
+}
+
+function isHotspotInventoryActionCondition(condition: Condition, completionFlag?: string): boolean {
+  return Boolean(completionFlag && condition.type === "flagEquals" && condition.flag === completionFlag);
+}
+
 function normalizeInventoryPickerText(value: string | undefined) {
   const normalizedValue = value?.replace(/\s+/g, " ").trim() ?? "";
   return normalizedValue.length > 0 ? normalizedValue : undefined;
@@ -3882,6 +4049,58 @@ export function resolveInventoryPreviewContentSize({
   };
 }
 
+export function resolveInventoryDragPreviewOffset({
+  clientX,
+  clientY,
+  previewLeftPx,
+  previewTopPx,
+  previewWidthPx,
+  previewHeightPx,
+  paddingTopPx,
+  paddingRightPx,
+  paddingBottomPx,
+  paddingLeftPx,
+  borderTopPx,
+  borderRightPx,
+  borderBottomPx,
+  borderLeftPx
+}: {
+  clientX: number;
+  clientY: number;
+  previewLeftPx: number;
+  previewTopPx: number;
+  previewWidthPx: number;
+  previewHeightPx: number;
+  paddingTopPx: number;
+  paddingRightPx: number;
+  paddingBottomPx: number;
+  paddingLeftPx: number;
+  borderTopPx: number;
+  borderRightPx: number;
+  borderBottomPx: number;
+  borderLeftPx: number;
+}) {
+  const contentSize = resolveInventoryPreviewContentSize({
+    previewWidthPx,
+    previewHeightPx,
+    paddingTopPx,
+    paddingRightPx,
+    paddingBottomPx,
+    paddingLeftPx,
+    borderTopPx,
+    borderRightPx,
+    borderBottomPx,
+    borderLeftPx
+  });
+  const contentLeft = previewLeftPx + paddingLeftPx + borderLeftPx;
+  const contentTop = previewTopPx + paddingTopPx + borderTopPx;
+
+  return {
+    x: Math.min(Math.max(clientX - contentLeft, 0), contentSize.width),
+    y: Math.min(Math.max(clientY - contentTop, 0), contentSize.height)
+  };
+}
+
 function parseCssPixelValue(value: string) {
   const parsedValue = Number.parseFloat(value);
   return Number.isFinite(parsedValue) ? parsedValue : 0;
@@ -3919,7 +4138,7 @@ export function resolveDroppedInventoryHotspotBounds({
   };
 }
 
-function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle: HTMLElement) {
+function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle: HTMLElement, dragEvent?: DragEvent) {
   if (typeof document === "undefined") {
     return undefined;
   }
@@ -3927,28 +4146,35 @@ function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle
   const sourceImage = dragHandle.querySelector<HTMLImageElement>("img.asset-preview__media");
   if (sourceImage && (sourceImage.currentSrc || sourceImage.src)) {
     const bounds = sourceImage.getBoundingClientRect();
-    const width = Math.max(Math.round(bounds.width), 1);
-    const height = Math.max(Math.round(bounds.height), 1);
     const sourceImageStyles = window.getComputedStyle(sourceImage);
-    const sourceBorderRadius = sourceImageStyles.borderRadius;
-    const dragImageFrame = document.createElement("div");
-    dragImageFrame.dataset.inventoryDragImageFrame = "true";
-    Object.assign(dragImageFrame.style, {
-      position: "fixed",
-      left: "-10000px",
-      top: "-10000px",
-      width: `${width}px`,
-      height: `${height}px`,
-      display: "block",
-      overflow: "hidden",
-      margin: "0",
-      padding: "0",
-      border: "0",
-      borderRadius: sourceBorderRadius,
-      background: "transparent",
-      boxShadow: "none",
-      pointerEvents: "none"
-    });
+    const previewMetrics = {
+      previewWidthPx: bounds.width,
+      previewHeightPx: bounds.height,
+      paddingTopPx: parseCssPixelValue(sourceImageStyles.paddingTop),
+      paddingRightPx: parseCssPixelValue(sourceImageStyles.paddingRight),
+      paddingBottomPx: parseCssPixelValue(sourceImageStyles.paddingBottom),
+      paddingLeftPx: parseCssPixelValue(sourceImageStyles.paddingLeft),
+      borderTopPx: parseCssPixelValue(sourceImageStyles.borderTopWidth),
+      borderRightPx: parseCssPixelValue(sourceImageStyles.borderRightWidth),
+      borderBottomPx: parseCssPixelValue(sourceImageStyles.borderBottomWidth),
+      borderLeftPx: parseCssPixelValue(sourceImageStyles.borderLeftWidth)
+    };
+    const contentSize = resolveInventoryPreviewContentSize(previewMetrics);
+    const dragOffset =
+      dragEvent && dragEvent.clientX > 0 && dragEvent.clientY > 0
+        ? resolveInventoryDragPreviewOffset({
+            clientX: dragEvent.clientX,
+            clientY: dragEvent.clientY,
+            previewLeftPx: bounds.left,
+            previewTopPx: bounds.top,
+            ...previewMetrics
+          })
+        : {
+            x: 0,
+            y: 0
+          };
+    const width = Math.max(Math.round(contentSize.width * INVENTORY_DRAG_PREVIEW_SCALE), 1);
+    const height = Math.max(Math.round(contentSize.height * INVENTORY_DRAG_PREVIEW_SCALE), 1);
 
     const dragImage = document.createElement("img");
     dragImage.src = sourceImage.currentSrc || sourceImage.src;
@@ -3956,7 +4182,10 @@ function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle
     dragImage.draggable = false;
     dragImage.dataset.inventoryDragImage = "true";
     Object.assign(dragImage.style, {
-      display: sourceImageStyles.display,
+      position: "fixed",
+      left: "-10000px",
+      top: "-10000px",
+      display: "block",
       width: `${width}px`,
       height: `${height}px`,
       margin: "0",
@@ -3964,36 +4193,48 @@ function setTransparentInventoryDragImage(dataTransfer: DataTransfer, dragHandle
       minHeight: `${height}px`,
       maxWidth: `${width}px`,
       maxHeight: `${height}px`,
-      paddingTop: sourceImageStyles.paddingTop,
-      paddingRight: sourceImageStyles.paddingRight,
-      paddingBottom: sourceImageStyles.paddingBottom,
-      paddingLeft: sourceImageStyles.paddingLeft,
+      padding: "0",
       border: "0",
-      borderRadius: sourceBorderRadius,
+      borderRadius: "0",
       background: "transparent",
       boxShadow: "none",
-      boxSizing: sourceImageStyles.boxSizing,
+      boxSizing: "border-box",
       objectFit: sourceImageStyles.objectFit,
       objectPosition: sourceImageStyles.objectPosition,
       imageRendering: sourceImageStyles.imageRendering,
       pointerEvents: "none"
     });
-    dragImageFrame.appendChild(dragImage);
-    document.body.appendChild(dragImageFrame);
-    dataTransfer.setDragImage(dragImageFrame, width / 2, height / 2);
+    document.body.appendChild(dragImage);
+    dataTransfer.setDragImage(
+      dragImage,
+      Math.min(Math.max(Math.round(dragOffset.x * INVENTORY_DRAG_PREVIEW_SCALE), 0), width),
+      Math.min(Math.max(Math.round(dragOffset.y * INVENTORY_DRAG_PREVIEW_SCALE), 0), height)
+    );
     return () => {
-      dragImageFrame.remove();
+      dragImage.remove();
     };
   }
 
-  const fallbackPreview = dragHandle.querySelector<HTMLElement>(".asset-preview__media, .asset-preview") ?? dragHandle;
-  const fallbackBounds = fallbackPreview.getBoundingClientRect();
-  dataTransfer.setDragImage(
-    fallbackPreview,
-    Math.max(fallbackBounds.width / 2, 0),
-    Math.max(fallbackBounds.height / 2, 0)
-  );
-  return undefined;
+  const fallbackDragImage = document.createElement("span");
+  fallbackDragImage.dataset.inventoryDragImage = "fallback";
+  Object.assign(fallbackDragImage.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "-10000px",
+    width: "1px",
+    height: "1px",
+    margin: "0",
+    padding: "0",
+    border: "0",
+    background: "transparent",
+    boxShadow: "none",
+    pointerEvents: "none"
+  });
+  document.body.appendChild(fallbackDragImage);
+  dataTransfer.setDragImage(fallbackDragImage, 0, 0);
+  return () => {
+    fallbackDragImage.remove();
+  };
 }
 
 function shouldStartFloatingWindowDrag(target: EventTarget | null): boolean {

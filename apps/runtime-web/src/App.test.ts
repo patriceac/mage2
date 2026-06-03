@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, toExportProjectData } from "@mage2/schema";
-import { resolveRuntimeHeaderContent, resolveRuntimeHotspotVisuals, resolveRuntimeInventoryItems } from "./App";
+import {
+  resolveInventoryCursorPreviewFrameStyle,
+  resolveRuntimeHeaderContent,
+  resolveRuntimeHotspotVisuals,
+  resolveRuntimeInventoryItems
+} from "./App";
 
 describe("resolveRuntimeHeaderContent", () => {
   it("keeps only project identity in the runtime header", () => {
@@ -86,5 +91,23 @@ describe("resolveRuntimeHeaderContent", () => {
         alt: "Brass Lantern"
       }
     });
+  });
+});
+
+describe("resolveInventoryCursorPreviewFrameStyle", () => {
+  it("centers the selected inventory art on the cursor without a frame", () => {
+    const style = resolveInventoryCursorPreviewFrameStyle({ x: 120, y: 80 });
+
+    expect(style).toMatchObject({
+      left: "120px",
+      top: "80px",
+      transform: "translate(-50%, -50%)",
+      width: "48px",
+      height: "48px",
+      pointerEvents: "none"
+    });
+    expect(style).not.toHaveProperty("border");
+    expect(style).not.toHaveProperty("background");
+    expect(style).not.toHaveProperty("padding");
   });
 });

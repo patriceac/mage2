@@ -1298,6 +1298,61 @@ label > .checkbox-list {
   margin: 0;
 }
 
+.scenes-hotspot-action-card {
+  display: grid;
+  gap: var(--space-sm);
+  padding: 0.85rem;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.07), rgba(74, 222, 128, 0.035)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.scenes-hotspot-action-card__header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.scenes-hotspot-action-card__summary {
+  margin: 0;
+}
+
+.playtest-inventory-panel {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.playtest-inventory-panel h3,
+.playtest-inventory-panel__hint {
+  margin: 0;
+}
+
+.playtest-inventory-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.playtest-inventory-item {
+  justify-content: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #f7fafc;
+  text-align: left;
+}
+
+.playtest-inventory-item:hover,
+.playtest-inventory-item:focus-visible,
+.playtest-inventory-item--selected {
+  border-color: rgba(246, 193, 119, 0.68);
+  background: rgba(246, 193, 119, 0.11);
+  box-shadow: 0 0 0 4px rgba(246, 193, 119, 0.1);
+}
+
 .scenes-floating-inspector__body--inventory-picker {
   gap: var(--space-sm);
 }
@@ -1977,7 +2032,12 @@ label > .checkbox-list {
 }
 
 .hotspot--selected {
-  z-index: 2;
+  z-index: 20;
+}
+
+.hotspot:hover,
+.hotspot:focus-within {
+  z-index: 30;
 }
 
 .hotspot--editable {
@@ -2599,7 +2659,7 @@ label > .checkbox-list {
 
 .hotspot__label-shell {
   position: absolute;
-  z-index: 3;
+  z-index: 50;
   pointer-events: none;
   width: max-content;
   width: fit-content;
