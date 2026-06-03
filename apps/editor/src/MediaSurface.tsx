@@ -44,6 +44,7 @@ interface MediaSurfaceProps {
   showSurfaceTooltips?: boolean;
   loopVideo?: boolean;
   playheadMs?: number;
+  playbackResetKey?: string | number;
   onPlayheadMsChange?: (playheadMs: number) => void;
   onSurfaceClick?: (event: MediaSurfaceClickEvent) => void;
   onSurfaceDragEnter?: React.DragEventHandler<HTMLDivElement>;
@@ -69,6 +70,7 @@ export function MediaSurface({
   showSurfaceTooltips = true,
   loopVideo = false,
   playheadMs,
+  playbackResetKey,
   onPlayheadMsChange,
   onSurfaceClick,
   onSurfaceDragEnter,
@@ -101,6 +103,7 @@ export function MediaSurface({
   const previousLoopVideoRef = useRef(loopVideo);
   const shouldResumeLoopPlaybackRef = useRef(false);
   const previousVideoAssetKeyRef = useRef<string | undefined>(undefined);
+  const previousPlaybackResetKeyRef = useRef(playbackResetKey);
   const latestControlledPlayheadMsRef = useRef(playheadMs);
   const latestOnPlayheadMsChangeRef = useRef(onPlayheadMsChange);
   const [hotspotRotationFeedback, setHotspotRotationFeedback] = useState<{
@@ -268,15 +271,22 @@ export function MediaSurface({
     const nextVideoAssetKey = asset?.kind === "video" ? `${asset.id}:${assetUrl ?? ""}` : undefined;
     const hasVideoAssetChanged =
       nextVideoAssetKey !== undefined && previousVideoAssetKeyRef.current !== nextVideoAssetKey;
+    const hasPlaybackResetRequest = playbackResetKey !== previousPlaybackResetKeyRef.current;
 
     previousVideoAssetKeyRef.current = nextVideoAssetKey;
+    previousPlaybackResetKeyRef.current = playbackResetKey;
 
     const video = videoRef.current;
     if (!video || asset?.kind !== "video") {
       return;
     }
 
-    const shouldStartPlayback = hasVideoAssetChanged || (loopVideo && shouldResumeLoopPlaybackRef.current);
+    const shouldStartPlayback = shouldStartMediaSurfaceVideoPlayback(
+      hasVideoAssetChanged,
+      hasPlaybackResetRequest,
+      loopVideo,
+      shouldResumeLoopPlaybackRef.current
+    );
     if (!shouldStartPlayback) {
       return;
     }
@@ -285,6 +295,7 @@ export function MediaSurface({
 
     if (
       hasVideoAssetChanged ||
+      hasPlaybackResetRequest ||
       video.ended ||
       (Number.isFinite(video.duration) && video.currentTime >= Math.max(video.duration - 0.05, 0))
     ) {
@@ -296,7 +307,7 @@ export function MediaSurface({
     void video.play().catch(() => {
       // If autoplay is blocked or the file cannot play, keep the surface clean and leave playback stopped.
     });
-  }, [asset?.kind, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead, loopVideo, playheadMs]);
+  }, [asset?.kind, assetUrl, assetVariant?.durationMs, isControlledVideoPlayhead, loopVideo, playheadMs, playbackResetKey]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1328,6 +1339,15 @@ export function resolveHotspotSelectionAfterDrag(
   draggedHotspotId: string
 ): string | undefined {
   return selectedHotspotId ? draggedHotspotId : undefined;
+}
+
+export function shouldStartMediaSurfaceVideoPlayback(
+  hasVideoAssetChanged: boolean,
+  hasPlaybackResetRequest: boolean,
+  loopVideo: boolean,
+  shouldResumeLoopPlayback: boolean
+): boolean {
+  return hasVideoAssetChanged || hasPlaybackResetRequest || (loopVideo && shouldResumeLoopPlayback);
 }
 
 function resolveHotspotBodyClassName(

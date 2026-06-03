@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { type ProjectBundle, type ValidationIssue, validateProject } from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
@@ -91,6 +91,7 @@ export function App() {
   const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const exportMenuItemRef = useRef<HTMLButtonElement | null>(null);
+  const lastAuthoringTabRef = useRef<EditorTab>("scenes");
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const hasHandledInitialLaunchRef = useRef(false);
   const dialogs = useDialogs();
@@ -179,6 +180,18 @@ export function App() {
   useEffect(() => {
     document.title = formatEditorWindowTitle(project?.manifest.projectName, hasUnsavedChanges);
   }, [hasUnsavedChanges, project?.manifest.projectName]);
+
+  useEffect(() => {
+    if (activeTab !== "playtest") {
+      lastAuthoringTabRef.current = activeTab;
+    }
+  }, [activeTab]);
+
+  const handleExitPlaytest = useCallback(() => {
+    const nextTab = lastAuthoringTabRef.current === "playtest" ? "scenes" : lastAuthoringTabRef.current;
+    setActiveTab(nextTab);
+    setStatusMessage(`Returned to ${resolveTabLabel(nextTab)}.`);
+  }, [setActiveTab]);
 
   useEffect(() => {
     if (!hasEditorApi) {
@@ -733,7 +746,7 @@ export function App() {
                   setBusyLabel={setBusyLabel}
                 />
               ) : null}
-              {activeTab === "playtest" ? <PlaytestPanel project={project} /> : null}
+              {activeTab === "playtest" ? <PlaytestPanel project={project} onExit={handleExitPlaytest} /> : null}
             </main>
           </div>
 

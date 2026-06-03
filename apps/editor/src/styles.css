@@ -711,9 +711,15 @@ label > .checkbox-list {
 }
 
 .playtest-panel__toolbar-field--action,
+.playtest-panel__toolbar-field--session,
 .playtest-panel__toolbar-field--toggle {
   flex: 0 0 auto;
   padding-top: 1.35rem;
+}
+
+.playtest-panel__toolbar-field--session {
+  display: flex;
+  gap: var(--space-xs);
 }
 
 .playtest-panel__toolbar-field--toggle {
@@ -730,6 +736,12 @@ label > .checkbox-list {
 .playtest-panel__toolbar-button {
   min-height: 3rem;
   padding-inline: 1.15rem;
+  white-space: nowrap;
+}
+
+.playtest-panel__toolbar-button--secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #dce7ef;
 }
 
 .playtest-panel__toolbar-toggle {

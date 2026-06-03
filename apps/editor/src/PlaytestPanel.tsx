@@ -18,6 +18,7 @@ import { useEditorStore } from "./store";
 
 interface PlaytestPanelProps {
   project: ProjectBundle;
+  onExit?: () => void;
 }
 
 const STORAGE_KEY = "mage2-editor-playtest-save";
@@ -42,13 +43,14 @@ export function resolveStoredPlaytestLocale(
   return storedLocale && supportedLocales.includes(storedLocale) ? storedLocale : fallbackLocale;
 }
 
-export function PlaytestPanel({ project }: PlaytestPanelProps) {
+export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const activeLocale = useEditorStore((state) => state.playtestLocale) ?? project.manifest.defaultLanguage;
   const setActiveLocale = useEditorStore((state) => state.setPlaytestLocale);
   const [controller, setController] = useState(() => createPlayerController(project));
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
   const [playheadMs, setPlayheadMs] = useState(0);
   const [selectedAssetId, setSelectedAssetId] = useState(snapshot.scene.backgroundAssetId);
+  const [playbackResetKey, setPlaybackResetKey] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
@@ -95,6 +97,48 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
   useEffect(() => {
     setSelectedAssetId(snapshot.scene.backgroundAssetId);
   }, [snapshot.scene.backgroundAssetId]);
+
+  useEffect(() => {
+    if (!onExit) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.repeat ||
+        event.defaultPrevented ||
+        document.querySelector(".dialog-overlay")
+      ) {
+        return;
+      }
+
+      if (event.target instanceof HTMLElement && event.target.closest("input, select, textarea")) {
+        return;
+      }
+
+      event.preventDefault();
+      onExit();
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [onExit]);
+
+  function resetPlaytestRun() {
+    const nextController = createPlayerController(project);
+    const nextSnapshot = nextController.getSnapshot();
+    sceneAudioPlaybackIntentRef.current = true;
+    sceneAudioDrivenPlayheadMsRef.current = undefined;
+    setController(nextController);
+    setSnapshot(nextSnapshot);
+    setSelectedAssetId(nextSnapshot.scene.backgroundAssetId);
+    setPlayheadMs(0);
+    setPlaybackResetKey((value) => value + 1);
+  }
 
   const sceneAsset = project.assets.assets.find((asset) => asset.id === selectedAssetId);
   const sceneAssetVariant = getLocalizedAssetVariant(sceneAsset, activeLocale);
@@ -421,7 +465,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
     }
 
     syncSceneAudioToPlayhead(playheadMs);
-  }, [playheadMs, sceneAudioUrl, sceneAsset?.kind, snapshot.scene.sceneAudioAssetId]);
+  }, [playheadMs, playbackResetKey, sceneAudioUrl, sceneAsset?.kind, snapshot.scene.sceneAudioAssetId]);
 
   return (
     <div className="panel-grid panel-grid--playtest">
@@ -485,6 +529,26 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
               Load Slot
             </button>
           </div>
+          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--session" aria-label="Playtest session controls">
+            <button
+              type="button"
+              className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
+              title="Reset this playtest run to the project's starting scene without changing the saved slot."
+              onClick={resetPlaytestRun}
+            >
+              Reset Run
+            </button>
+            {onExit ? (
+              <button
+                type="button"
+                className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
+                title="Leave playtest and return to the last authoring tab. Shortcut: Escape."
+                onClick={onExit}
+              >
+                Back to Editor
+              </button>
+            ) : null}
+          </div>
           <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--toggle">
             <label
               className="playtest-hotspot-visibility-toggle playtest-panel__toolbar-toggle"
@@ -510,6 +574,7 @@ export function PlaytestPanel({ project }: PlaytestPanelProps) {
           showHotspotLabels={false}
           strings={localeStrings}
           playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
+          playbackResetKey={playbackResetKey}
           onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
           onHotspotClick={(hotspotId) => {
             controller.selectHotspot(hotspotId, playheadMs);

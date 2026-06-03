@@ -10,7 +10,8 @@ import {
 import {
   MediaSurface,
   resolveHotspotRotationHandleGeometry,
-  resolveHotspotSelectionAfterDrag
+  resolveHotspotSelectionAfterDrag,
+  shouldStartMediaSurfaceVideoPlayback
 } from "./MediaSurface";
 
 function renderHotspotMarkup(hotspot: Hotspot): string {
@@ -289,6 +290,16 @@ describe("MediaSurface hotspot chrome geometry", () => {
   it("preserves a hidden inspector state when dragging an unselected hotspot", () => {
     expect(resolveHotspotSelectionAfterDrag(undefined, "hotspot_item")).toBeUndefined();
     expect(resolveHotspotSelectionAfterDrag("hotspot_map", "hotspot_item")).toBe("hotspot_item");
+  });
+});
+
+describe("MediaSurface video playback", () => {
+  it("starts playback for a playtest reset even when the asset did not change", () => {
+    expect(shouldStartMediaSurfaceVideoPlayback(false, true, false, false)).toBe(true);
+  });
+
+  it("does not restart a paused video unless the asset, loop state, or reset request requires it", () => {
+    expect(shouldStartMediaSurfaceVideoPlayback(false, false, false, false)).toBe(false);
   });
 });
 

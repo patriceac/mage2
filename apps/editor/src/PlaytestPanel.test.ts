@@ -42,13 +42,16 @@ describe("PlaytestPanel toolbar", () => {
       playtestLocale: project.manifest.defaultLanguage
     });
 
-    const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project }));
+    const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project, onExit: () => undefined }));
 
     expect(markup).toContain("playtest-panel__toolbar-field--playhead");
     expect(markup).toContain("playtest-panel__toolbar-field--locale");
     expect(markup).toContain("playtest-panel__toolbar-button");
     expect(markup).toContain("playtest-panel__toolbar-toggle");
     expect(markup).toContain("playtest-panel__toolbar-field--action");
+    expect(markup).toContain("playtest-panel__toolbar-field--session");
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
+    expect(markup).toContain("Reset Run");
+    expect(markup).toContain("Back to Editor");
   });
 });
