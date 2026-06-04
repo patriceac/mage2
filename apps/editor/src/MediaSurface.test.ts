@@ -79,6 +79,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       ],
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []
@@ -108,6 +109,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       ],
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []
@@ -131,6 +133,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       height: 0.4,
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []
@@ -160,6 +163,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       ],
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []
@@ -195,6 +199,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       ],
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []
@@ -227,6 +232,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
       ],
       startMs: 0,
       endMs: 1_000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []

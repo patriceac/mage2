@@ -5,6 +5,7 @@ import {
   type DialogueTree,
   type Effect,
   getLocaleStringValues,
+  resolveAssetVariant,
   type Hotspot,
   type InventoryItem,
   type Location,
@@ -39,10 +40,10 @@ export interface HotspotResolution {
 
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
-  getVisibleHotspots(timeMs: number): Hotspot[];
+  getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
   getSubtitleLines(timeMs: number, locale: string): string[];
   enterScene(sceneId: string): void;
-  selectHotspot(hotspotId: string, timeMs: number): HotspotResolution;
+  selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution;
   startDialogue(dialogueTreeId: string): void;
   continueDialogue(): void;
   chooseDialogueChoice(choiceId: string): void;
@@ -228,17 +229,19 @@ export function createPlayerController(
     applyNodeEntry(activeDialogue.tree, choice.nextNodeId);
   }
 
-  function getVisibleHotspots(timeMs: number): Hotspot[] {
+  function getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[] {
     const scene = getScene();
+    const resolvedSceneTimelineDurationMs = sceneTimelineDurationMs ?? resolveProjectSceneTimelineDurationMs(project, scene);
     return scene.hotspots.filter((hotspot) => {
-      const withinWindow = timeMs >= hotspot.startMs && timeMs <= hotspot.endMs;
+      const timingWindow = resolveHotspotTimingWindow(hotspot, resolvedSceneTimelineDurationMs);
+      const withinWindow = timeMs >= timingWindow.startMs && timeMs <= timingWindow.endMs;
       const hasItems = hotspot.requiredItemIds.every(hasInventoryItem);
       return withinWindow && hasItems && areConditionsMet(hotspot.conditions);
     });
   }
 
-  function selectHotspot(hotspotId: string, timeMs: number): HotspotResolution {
-    const hotspot = getVisibleHotspots(timeMs).find((entry) => entry.id === hotspotId);
+  function selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution {
+    const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
     if (!hotspot) {
       return {};
     }
@@ -310,4 +313,46 @@ export function resolveSceneTimelineDurationMs(
 
   const mediaDurationMs = Math.max(0, visualDurationMs ?? 0, sceneAudioTimelineDurationMs);
   return mediaDurationMs > 0 ? mediaDurationMs : DEFAULT_SCENE_TIMELINE_DURATION_MS;
+}
+
+export function resolveProjectSceneTimelineDurationMs(
+  project: Pick<ProjectBundle, "assets" | "manifest">,
+  scene: Scene,
+  locale = project.manifest.defaultLanguage
+): number {
+  const backgroundAsset = project.assets.assets.find((asset) => asset.id === scene.backgroundAssetId);
+  const backgroundVariant = backgroundAsset ? resolveAssetVariant(backgroundAsset, locale) : undefined;
+  const sceneAudioAsset =
+    backgroundAsset?.kind === "image" && scene.sceneAudioAssetId
+      ? project.assets.assets.find((asset) => asset.id === scene.sceneAudioAssetId)
+      : undefined;
+  const sceneAudioVariant = sceneAudioAsset ? resolveAssetVariant(sceneAudioAsset, locale) : undefined;
+
+  return resolveSceneTimelineDurationMs(
+    backgroundVariant?.durationMs,
+    backgroundAsset?.kind === "image" ? scene.sceneAudioDelayMs : 0,
+    backgroundAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
+  );
+}
+
+export function resolveHotspotTimingWindow(
+  hotspot: Pick<Hotspot, "startMs" | "endMs" | "timingMode">,
+  sceneTimelineDurationMs = DEFAULT_SCENE_TIMELINE_DURATION_MS
+): { startMs: number; endMs: number } {
+  if (hotspot.timingMode === "sceneDuration") {
+    const resolvedSceneTimelineDurationMs =
+      Number.isFinite(sceneTimelineDurationMs) && sceneTimelineDurationMs > 0
+        ? sceneTimelineDurationMs
+        : DEFAULT_SCENE_TIMELINE_DURATION_MS;
+
+    return {
+      startMs: 0,
+      endMs: resolvedSceneTimelineDurationMs
+    };
+  }
+
+  return {
+    startMs: Math.max(0, hotspot.startMs),
+    endMs: Math.max(0, hotspot.endMs)
+  };
 }

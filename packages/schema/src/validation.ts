@@ -264,7 +264,7 @@ function validateScene(
   }
 
   for (const hotspot of scene.hotspots) {
-    if (hotspot.endMs <= hotspot.startMs) {
+    if (hotspot.timingMode !== "sceneDuration" && hotspot.endMs <= hotspot.startMs) {
       issues.push({
         level: "error",
         code: "HOTSPOT_RANGE_INVALID",

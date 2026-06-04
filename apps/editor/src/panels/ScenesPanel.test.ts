@@ -482,7 +482,7 @@ describe("ScenesPanel scene audio UI", () => {
 
     expect(markup).toContain("scenes-floating-inspector");
     expect(markup).toContain("Hide the floating hotspot inspector.");
-    expect(markup).toContain('>Inventory Item</span>');
+    expect(markup).toContain(">Placed Item</span>");
     expect(markup).toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
       '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
@@ -493,6 +493,33 @@ describe("ScenesPanel scene audio UI", () => {
     );
     expect(markup).not.toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
+  });
+
+  it("shows scene-duration timing for selected default hotspots", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        project.assets.assets.push({
+          id: "asset_video",
+          kind: "video",
+          name: "intro.mp4",
+          variants: {
+            en: {
+              sourcePath: "D:\\project\\assets\\intro.mp4",
+              importedAt: new Date().toISOString(),
+              durationMs: 5000
+            }
+          }
+        });
+        project.scenes.items[0].backgroundAssetId = "asset_video";
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0].hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain("Use scene duration");
+    expect(markup).toContain('value="5000"');
+    expect(markup).toContain("disabled");
   });
 
   it("shows shared transform guidance for selected inventory hotspots", () => {

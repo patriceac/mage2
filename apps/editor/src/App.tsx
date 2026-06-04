@@ -1178,7 +1178,8 @@ function serializeAutomationHotspot(
     },
     timing: {
       startMs: hotspot.startMs,
-      endMs: hotspot.endMs
+      endMs: hotspot.endMs,
+      mode: hotspot.timingMode
     },
     geometry: {
       x: hotspot.x,
@@ -1279,7 +1280,8 @@ function removeAutomationHotspotInventoryActionConvention(
   hotspot: Hotspot,
   action: ReturnType<typeof resolveHotspotInventoryAction>
 ) {
-  if (action.type === "none") {
+  const actionType = action.type;
+  if (actionType === "none") {
     return;
   }
 
@@ -1287,11 +1289,11 @@ function removeAutomationHotspotInventoryActionConvention(
   const actionFlag = action.completionFlag;
 
   hotspot.effects = hotspot.effects.filter((effect) =>
-    !isAutomationHotspotInventoryActionEffect(effect, action.type, actionItemId, actionFlag)
+    !isAutomationHotspotInventoryActionEffect(effect, actionType, actionItemId, actionFlag)
   );
   hotspot.conditions = hotspot.conditions.filter((condition) => !isAutomationHotspotInventoryActionCondition(condition, actionFlag));
 
-  if (action.type === "placeItem" && actionItemId) {
+  if (actionType === "placeItem" && actionItemId) {
     hotspot.requiredItemIds = hotspot.requiredItemIds.filter((currentItemId) => currentItemId !== actionItemId);
   }
 }

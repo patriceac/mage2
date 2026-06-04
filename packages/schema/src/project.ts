@@ -49,6 +49,7 @@ export function createStarterHotspot(): Hotspot {
     polygon,
     startMs: 0,
     endMs: 30000,
+    timingMode: "sceneDuration",
     requiredItemIds: [],
     conditions: [{ type: "always" }],
     effects: []

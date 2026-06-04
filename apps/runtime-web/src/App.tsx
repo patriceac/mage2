@@ -283,7 +283,7 @@ export function App() {
     currentAsset?.kind === "image" ? snapshot?.scene.sceneAudioDelayMs ?? 0 : 0,
     currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
-  const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs) : [];
+  const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs) : [];
   const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
   const runtimeInventoryItems =
     content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
@@ -998,7 +998,7 @@ export function App() {
                       return;
                     }
 
-                    controller.selectHotspot(hotspot.id, playheadMs);
+                    controller.selectHotspot(hotspot.id, playheadMs, sceneTimelineDurationMs);
                     setSnapshot(controller.getSnapshot());
                     setPlayheadMs(0);
                     if (inventoryAction.type === "pickupItem" || inventoryAction.type === "placeItem") {

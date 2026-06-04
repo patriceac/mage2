@@ -16,7 +16,7 @@ import {
   type ProjectBundle,
   validateProject
 } from "@mage2/schema";
-import { resolveSceneTimelineDurationMs } from "@mage2/player";
+import { resolveHotspotTimingWindow, resolveSceneTimelineDurationMs } from "@mage2/player";
 import { resolveFileUrl } from "../file-url-cache";
 import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
@@ -2459,6 +2459,7 @@ export function ScenesPanel({
           activeLocale={activeLocale}
           localeStrings={localeStrings}
           inventoryItemOptions={linkedInventoryOptions}
+          sceneTimelineDurationMs={sceneTimelineDurationMs}
           scenes={project.scenes.items}
           position={hotspotInspectorPosition}
           rotationSurfaceSize={resolveCurrentSceneSurfaceSize()}
@@ -2925,6 +2926,7 @@ interface HotspotInspectorWindowProps {
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
   rotationSurfaceSize?: HotspotSurfaceSize;
+  sceneTimelineDurationMs: number;
   scenes: ProjectBundle["scenes"]["items"];
   selectedHotspot: Hotspot;
   mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
@@ -3315,6 +3317,7 @@ function HotspotInspectorWindow({
   localeStrings,
   position,
   rotationSurfaceSize,
+  sceneTimelineDurationMs,
   scenes,
   selectedHotspot,
   mutateSelectedHotspot,
@@ -3370,6 +3373,8 @@ function HotspotInspectorWindow({
   const selectedHotspotRotationDegrees = rotationSurfaceSize
     ? resolveRelativeHotspotFrame(selectedHotspot, rotationSurfaceSize).rotationDegrees
     : resolveHotspotRotationDegrees(selectedHotspot);
+  const selectedHotspotTimingWindow = resolveHotspotTimingWindow(selectedHotspot, sceneTimelineDurationMs);
+  const isUsingSceneDurationTiming = selectedHotspot.timingMode === "sceneDuration";
 
   useEffect(() => {
     return () => {
@@ -3586,14 +3591,42 @@ function HotspotInspectorWindow({
               </label>
             </div>
             <div className="stack-inline">
+              <label
+                className="scene-video-loop-toggle scenes-hotspot-duration-toggle"
+                title="Keep this hotspot active for the full scene timeline."
+              >
+                <input
+                  type="checkbox"
+                  checked={isUsingSceneDurationTiming}
+                  onChange={(event) =>
+                    mutateSelectedHotspot((hotspot) => {
+                      if (event.target.checked) {
+                        hotspot.timingMode = "sceneDuration";
+                        hotspot.startMs = 0;
+                        hotspot.endMs = sceneTimelineDurationMs;
+                        return;
+                      }
+
+                      hotspot.timingMode = "fixed";
+                      hotspot.startMs = selectedHotspotTimingWindow.startMs;
+                      hotspot.endMs = selectedHotspotTimingWindow.endMs;
+                    })
+                  }
+                />
+                <span>Use scene duration</span>
+              </label>
+            </div>
+            <div className="stack-inline">
               <label title="Time in milliseconds when this hotspot becomes clickable.">
                 <span className="field-label--inset">Start (ms)</span>
                 <input
                   type="number"
-                  value={selectedHotspot.startMs}
+                  value={selectedHotspotTimingWindow.startMs}
                   title="Time in milliseconds when this hotspot becomes clickable."
+                  disabled={isUsingSceneDurationTiming}
                   onChange={(event) =>
                     mutateSelectedHotspot((hotspot) => {
+                      hotspot.timingMode = "fixed";
                       hotspot.startMs = Number(event.target.value);
                     })
                   }
@@ -3603,10 +3636,12 @@ function HotspotInspectorWindow({
                 <span className="field-label--inset">End (ms)</span>
                 <input
                   type="number"
-                  value={selectedHotspot.endMs}
+                  value={selectedHotspotTimingWindow.endMs}
                   title="Time in milliseconds when this hotspot stops being clickable."
+                  disabled={isUsingSceneDurationTiming}
                   onChange={(event) =>
                     mutateSelectedHotspot((hotspot) => {
+                      hotspot.timingMode = "fixed";
                       hotspot.endMs = Number(event.target.value);
                     })
                   }
@@ -3910,17 +3945,18 @@ function applyHotspotInventoryAction(hotspot: Hotspot, actionType: HotspotInvent
 }
 
 function removeHotspotInventoryActionConvention(hotspot: Hotspot, action: ReturnType<typeof resolveHotspotInventoryAction>) {
-  if (action.type === "none") {
+  const actionType = action.type;
+  if (actionType === "none") {
     return;
   }
 
   const actionItemId = action.itemId;
   const actionFlag = action.completionFlag;
 
-  hotspot.effects = hotspot.effects.filter((effect) => !isHotspotInventoryActionEffect(effect, action.type, actionItemId, actionFlag));
+  hotspot.effects = hotspot.effects.filter((effect) => !isHotspotInventoryActionEffect(effect, actionType, actionItemId, actionFlag));
   hotspot.conditions = hotspot.conditions.filter((condition) => !isHotspotInventoryActionCondition(condition, actionFlag));
 
-  if (action.type === "placeItem" && actionItemId) {
+  if (actionType === "placeItem" && actionItemId) {
     hotspot.requiredItemIds = hotspot.requiredItemIds.filter((itemId) => itemId !== actionItemId);
   }
 }

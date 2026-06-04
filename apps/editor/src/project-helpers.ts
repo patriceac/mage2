@@ -706,6 +706,7 @@ function createHotspot(
     polygon: createRectangleHotspotPolygon(roundedBounds),
     startMs: 0,
     endMs: 30000,
+    timingMode: "sceneDuration",
     requiredItemIds: [],
     conditions: [{ type: "always" as const }],
     effects: []

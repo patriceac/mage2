@@ -217,7 +217,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     }
 
     setLastActivatedHotspotId(hotspotId);
-    controller.selectHotspot(hotspotId, playheadMs);
+    controller.selectHotspot(hotspotId, playheadMs, sceneTimelineDurationMs);
     const nextSnapshot = controller.getSnapshot();
     setSnapshot(nextSnapshot);
     setPlayheadMs(0);
@@ -249,7 +249,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     sceneAsset?.kind === "image" ? snapshot.scene.sceneAudioDelayMs : 0,
     sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
-  const visibleHotspots = controller.getVisibleHotspots(playheadMs);
+  const visibleHotspots = controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs);
   const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
   const selectedInventoryItem = snapshot.inventoryItems.find((item) => item.id === selectedInventoryItemId);
   const selectedInventoryItemAsset = selectedInventoryItem?.imageAssetId

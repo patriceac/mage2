@@ -28,6 +28,57 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(35000)).toHaveLength(0);
   });
 
+  it("lets default hotspot timing follow scene duration changes", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "video",
+      name: "Placeholder",
+      variants: {
+        en: {
+          sourcePath: "placeholder.mp4",
+          importedAt: new Date().toISOString(),
+          durationMs: 10000
+        }
+      }
+    });
+    project.scenes.items[0]!.hotspots[0]!.timingMode = "sceneDuration";
+
+    const controller = createPlayerController(project);
+
+    expect(controller.getVisibleHotspots(9999)).toHaveLength(1);
+    expect(controller.getVisibleHotspots(10001)).toHaveLength(0);
+
+    project.assets.assets[0]!.variants.en!.durationMs = 20000;
+
+    expect(controller.getVisibleHotspots(19000)).toHaveLength(1);
+  });
+
+  it("preserves fixed hotspot timing when scene duration changes", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_placeholder",
+      kind: "video",
+      name: "Placeholder",
+      variants: {
+        en: {
+          sourcePath: "placeholder.mp4",
+          importedAt: new Date().toISOString(),
+          durationMs: 20000
+        }
+      }
+    });
+    project.scenes.items[0]!.hotspots[0]!.timingMode = "fixed";
+    project.scenes.items[0]!.hotspots[0]!.startMs = 1000;
+    project.scenes.items[0]!.hotspots[0]!.endMs = 3000;
+
+    const controller = createPlayerController(project);
+
+    expect(controller.getVisibleHotspots(999)).toHaveLength(0);
+    expect(controller.getVisibleHotspots(2500)).toHaveLength(1);
+    expect(controller.getVisibleHotspots(5000)).toHaveLength(0);
+  });
+
   it("preserves hotspot activation behavior when a hotspot is linked to an inventory item for visuals", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({

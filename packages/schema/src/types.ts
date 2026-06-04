@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
@@ -63,6 +63,8 @@ export const HotspotPointSchema = z.object({
   y: z.number().min(0).max(1)
 });
 
+export const HotspotTimingModeSchema = z.enum(["fixed", "sceneDuration"]);
+
 export const PlacedInventoryGeometrySchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1),
@@ -84,6 +86,7 @@ export const HotspotSchema = z.object({
   polygon: z.array(HotspotPointSchema).length(4).optional(),
   startMs: z.number().nonnegative(),
   endMs: z.number().positive(),
+  timingMode: HotspotTimingModeSchema.default("fixed"),
   targetSceneId: z.string().optional(),
   dialogueTreeId: z.string().optional(),
   requiredItemIds: z.array(z.string()).default([]),
@@ -258,6 +261,7 @@ export type Effect = z.infer<typeof EffectSchema>;
 export type SubtitleCue = z.infer<typeof SubtitleCueSchema>;
 export type SubtitleTrack = z.infer<typeof SubtitleTrackSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
+export type HotspotTimingMode = z.infer<typeof HotspotTimingModeSchema>;
 export type Hotspot = z.infer<typeof HotspotSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Location = z.infer<typeof LocationSchema>;

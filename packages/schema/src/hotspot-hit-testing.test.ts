@@ -80,6 +80,7 @@ describe("hotspot hit testing", () => {
       ],
       startMs: 0,
       endMs: 1000,
+      timingMode: "fixed",
       requiredItemIds: [],
       conditions: [],
       effects: []

@@ -174,6 +174,7 @@ describe("addHotspotAtBestAvailablePosition", () => {
 
     expect(hotspot?.x).toBeCloseTo(0.42);
     expect(hotspot?.y).toBeCloseTo(0.42);
+    expect(hotspot?.timingMode).toBe("sceneDuration");
   });
 
   it("avoids overlapping existing hotspots when open space is available", () => {

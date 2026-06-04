@@ -162,8 +162,9 @@ describe("project defaults", () => {
       strings: { schemaVersion: 5, byLocale: { en: {} } }
     });
 
-    expect(parsed.manifest.schemaVersion).toBe(6);
+    expect(parsed.manifest.schemaVersion).toBe(7);
     expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
+    expect(parsed.scenes.items[0]?.hotspots[0]?.timingMode).toBe("fixed");
   });
 
   it("round-trips inventory-backed hotspot links", () => {
@@ -462,6 +463,7 @@ describe("project validation", () => {
     expect(hotspot?.polygon[2]?.y).toBeCloseTo(592 / 720);
     expect(hotspot?.polygon[3]?.x).toBeCloseTo(338 / 1280);
     expect(hotspot?.polygon[3]?.y).toBeCloseTo(592 / 720);
+    expect(hotspot?.timingMode).toBe("sceneDuration");
     expect(hotspot).not.toHaveProperty("labelTextId");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.hotspot.inspect");
     expect(project.strings.byLocale[project.manifest.defaultLanguage]["text.hotspot.inspect.comment"]).toBe(
