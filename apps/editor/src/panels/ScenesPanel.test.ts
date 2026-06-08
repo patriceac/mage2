@@ -172,6 +172,28 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("dropdown-select__trigger");
   });
 
+  it("keeps dialogue triggering out of scene-level wiring", () => {
+    const markup = renderScenesPanel((project) => {
+      project.dialogues.items.push({
+        id: "dialogue_intro",
+        name: "Intro Dialogue",
+        startNodeId: "node_intro",
+        nodes: [
+          {
+            id: "node_intro",
+            speaker: "Guide",
+            textId: "text.node_intro.line",
+            choices: [],
+            effects: []
+          }
+        ]
+      });
+    });
+
+    expect(markup).not.toContain("Scene Dialogues");
+    expect(markup).not.toContain("Intro Dialogue");
+  });
+
   it("renders hotspot create, inventory placement, and delete actions above the scene-audio section", () => {
     const markup = renderScenesPanel(() => {});
     const createHotspotIndex = markup.indexOf("Create Hotspot");
@@ -483,6 +505,8 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("scenes-floating-inspector");
     expect(markup).toContain("Hide the floating hotspot inspector.");
     expect(markup).toContain(">Placed Item</span>");
+    expect(markup).toContain(">Start Dialogue</span>");
+    expect(markup).toContain("Create a dialogue in the Dialogue tab, then choose it here.");
     expect(markup).toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
       '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
@@ -493,6 +517,37 @@ describe("ScenesPanel scene audio UI", () => {
     );
     expect(markup).not.toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
+  });
+
+  it("shows available dialogue trees in the selected hotspot inspector", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        project.dialogues.items.push({
+          id: "dialogue_intro",
+          name: "Intro Dialogue",
+          startNodeId: "node_intro",
+          nodes: [
+            {
+              id: "node_intro",
+              speaker: "Guide",
+              textId: "text.node_intro.line",
+              choices: [],
+              effects: []
+            }
+          ]
+        });
+        project.scenes.items[0].hotspots[0]!.dialogueTreeId = "dialogue_intro";
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0].hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain(">Start Dialogue</span>");
+    expect(markup).toContain("No dialogue");
+    expect(markup).toContain("Intro Dialogue");
+    expect(markup).not.toContain("Create a dialogue in the Dialogue tab");
+    expect(markup).toContain("Advanced Effects JSON");
   });
 
   it("shows scene-duration timing for selected default hotspots", () => {

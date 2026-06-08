@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+const normalizeModuleId = (id: string) => id.replaceAll("\\", "/");
+
 export default defineConfig({
   base: "./",
   plugins: [react()],
@@ -18,6 +20,33 @@ export default defineConfig({
     strictPort: true
   },
   build: {
-    outDir: "dist"
+    outDir: "dist",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const moduleId = normalizeModuleId(id);
+
+          if (moduleId.includes("/node_modules/reactflow/")) {
+            return "vendor-flow";
+          }
+
+          if (
+            moduleId.includes("/node_modules/react/") ||
+            moduleId.includes("/node_modules/react-dom/") ||
+            moduleId.includes("/node_modules/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+
+          if (moduleId.includes("/node_modules/zustand/")) {
+            return "vendor-state";
+          }
+
+          if (moduleId.includes("/packages/schema/src/") || moduleId.includes("/packages/player/src/")) {
+            return "mage2-core";
+          }
+        }
+      }
+    }
   }
 });

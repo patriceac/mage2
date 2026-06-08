@@ -2253,35 +2253,6 @@ export function ScenesPanel({
                 })
               }
             />
-            <label title="Enable dialogue trees that can be referenced or triggered from this scene.">
-              Scene Dialogues
-              <div className="checkbox-list">
-                {project.dialogues.items.map((dialogue) => (
-                  <label
-                    key={dialogue.id}
-                    title={`Attach or detach the ${dialogue.name} dialogue tree from this scene.`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={currentScene.dialogueTreeIds.includes(dialogue.id)}
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                          if (!scene) {
-                            return;
-                          }
-
-                          scene.dialogueTreeIds = event.target.checked
-                            ? [...new Set([...scene.dialogueTreeIds, dialogue.id])]
-                            : scene.dialogueTreeIds.filter((dialogueId) => dialogueId !== dialogue.id);
-                        })
-                      }
-                    />
-                    {dialogue.name}
-                  </label>
-                ))}
-              </div>
-            </label>
           </section>
         </div>
 
@@ -2457,6 +2428,7 @@ export function ScenesPanel({
         <HotspotInspectorWindow
           anchorRef={scenesPanelRef}
           activeLocale={activeLocale}
+          dialogueOptions={project.dialogues.items}
           localeStrings={localeStrings}
           inventoryItemOptions={linkedInventoryOptions}
           sceneTimelineDurationMs={sceneTimelineDurationMs}
@@ -2922,6 +2894,7 @@ function isTextEntryTarget(target: HTMLElement | undefined) {
 interface HotspotInspectorWindowProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   activeLocale: string;
+  dialogueOptions: ProjectBundle["dialogues"]["items"];
   inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
@@ -3313,6 +3286,7 @@ function InventoryPlacementPickerWindow({
 function HotspotInspectorWindow({
   anchorRef,
   activeLocale,
+  dialogueOptions,
   inventoryItemOptions,
   localeStrings,
   position,
@@ -3666,6 +3640,31 @@ function HotspotInspectorWindow({
                 ))}
               </DropdownSelect>
             </label>
+            <label title="Dialogue tree that should start when this hotspot is activated.">
+              <span className="field-label--inset">Start Dialogue</span>
+              <DropdownSelect
+                value={selectedHotspot.dialogueTreeId ?? ""}
+                onChange={(event) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.dialogueTreeId = event.target.value || undefined;
+                  })
+                }
+              >
+                <option value="">No dialogue</option>
+                {selectedHotspot.dialogueTreeId &&
+                !dialogueOptions.some((dialogue) => dialogue.id === selectedHotspot.dialogueTreeId) ? (
+                  <option value={selectedHotspot.dialogueTreeId}>Missing dialogue</option>
+                ) : null}
+                {dialogueOptions.map((dialogue) => (
+                  <option key={dialogue.id} value={dialogue.id}>
+                    {dialogue.name}
+                  </option>
+                ))}
+              </DropdownSelect>
+              {dialogueOptions.length === 0 ? (
+                <span className="muted">Create a dialogue in the Dialogue tab, then choose it here.</span>
+              ) : null}
+            </label>
             <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
               <span className="field-label--inset">Required Item IDs</span>
               <input
@@ -3692,9 +3691,9 @@ function HotspotInspectorWindow({
               }
             />
             <JsonField
-              label="Effects JSON"
+              label="Advanced Effects JSON"
               value={JSON.stringify(selectedHotspot.effects, null, 2)}
-              tooltip="Advanced JSON effect list that runs after this hotspot is activated."
+              tooltip="Custom effect list that runs after this hotspot is activated. Use Start Dialogue above for normal dialogue triggers."
               labelClassName="field-label--inset"
               onCommit={(nextValue) =>
                 mutateSelectedHotspot((hotspot) => {
