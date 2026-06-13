@@ -57,7 +57,7 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   assets: "Review background, scene-audio, and inventory assets after creating them from their owning editor tabs.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
   scenes: "Edit scene media, upload background and scene-audio assets, hotspots, subtitles, and scene-level wiring.",
-  dialogue: "Author dialogue trees, node flow, branching choices, and dialogue effects.",
+  dialogue: "Write dialogue lines and player replies, then start them from scene hotspots.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
   localization: "Manage locale coverage and edit localized strings, subtitles, and media variants in one place.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
@@ -964,7 +964,28 @@ export function App() {
                   setBusyLabel={setBusyLabel}
                 />
               ) : null}
-              {activeTab === "dialogue" ? <DialoguePanel project={project} mutateProject={mutateProject} /> : null}
+              {activeTab === "dialogue" ? (
+                <DialoguePanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  onOpenScenesHotspot={(sceneId, hotspotId) => {
+                    if (sceneId) {
+                      const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+                      if (scene) {
+                        setSelectedLocationId(scene.locationId);
+                      }
+                      setSelectedSceneId(sceneId);
+                    }
+                    setSelectedHotspotId(hotspotId);
+                    setActiveTab("scenes");
+                    setStatusMessage(
+                      hotspotId
+                        ? "Opened the hotspot that starts this dialogue."
+                        : "Choose a hotspot, then set its Start Dialogue field."
+                    );
+                  }}
+                />
+              ) : null}
               {activeTab === "inventory" ? (
                 <InventoryPanel
                   project={project}

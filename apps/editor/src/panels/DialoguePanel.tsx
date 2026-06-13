@@ -1,381 +1,666 @@
-import ReactFlow, { Background, Controls, type Edge, type Node } from "reactflow";
-import { getLocaleStringValues, type DialogueChoice, type DialogueNode, type ProjectBundle } from "@mage2/schema";
+import { useMemo, useState } from "react";
+import { getLocaleStringValues, type DialogueChoice, type DialogueNode, type DialogueTree, type ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "../DropdownSelect";
 import { addDialogueTree, createId, ensureString } from "../project-helpers";
 import { setEditorLocalizedText } from "../localized-project";
+import {
+  collectOwnedGeneratedProjectTextIdsForDialogueChoice,
+  collectOwnedGeneratedProjectTextIdsForDialogueNode,
+  pruneOwnedGeneratedProjectTextEntries
+} from "../project-text";
 import { useEditorStore } from "../store";
 
 interface DialoguePanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  onOpenScenesHotspot?: (sceneId?: string, hotspotId?: string) => void;
 }
 
-export function DialoguePanel({ project, mutateProject }: DialoguePanelProps) {
+interface DialogueNodeOption {
+  id: string;
+  label: string;
+}
+
+interface DialogueUsage {
+  dialogueId: string;
+  sceneId: string;
+  sceneName: string;
+  hotspotId: string;
+  hotspotLabel: string;
+}
+
+const LINE_LABEL_PREVIEW_LENGTH = 64;
+
+export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: DialoguePanelProps) {
   const selectedDialogueId = useEditorStore((state) => state.selectedDialogueId);
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
+  const [dialogueFilter, setDialogueFilter] = useState("");
   const activeLocale = project.manifest.defaultLanguage;
-  const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
   const localeStrings = getLocaleStringValues(project, activeLocale);
-
-  const dialogueNodes: Node[] =
+  const usageByDialogue = useMemo(() => collectDialogueUsage(project), [project]);
+  const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
+  const currentUsage = currentDialogue ? usageByDialogue.get(currentDialogue.id) ?? [] : [];
+  const filteredDialogues = project.dialogues.items.filter((dialogue) =>
+    dialogue.name.toLowerCase().includes(dialogueFilter.trim().toLowerCase())
+  );
+  const selectedNode =
+    currentDialogue?.nodes.find((node) => node.id === selectedDialogueNodeId) ??
+    currentDialogue?.nodes.find((node) => node.id === currentDialogue.startNodeId) ??
+    currentDialogue?.nodes[0];
+  const selectedNodeId = selectedNode?.id;
+  const nodeOptions: DialogueNodeOption[] =
     currentDialogue?.nodes.map((node, index) => ({
       id: node.id,
-      position: { x: 80 + (index % 3) * 260, y: 80 + Math.floor(index / 3) * 180 },
-      data: { label: `${node.speaker}: ${localeStrings[node.textId] ?? node.textId}` },
-      style: {
-        background:
-          node.id === selectedDialogueNodeId
-            ? "#7dd3fc"
-            : node.id === currentDialogue.startNodeId
-              ? "#f6c177"
-              : "#24313d",
-        color:
-          node.id === selectedDialogueNodeId || node.id === currentDialogue.startNodeId
-            ? "#172026"
-            : "#f7fafc",
-        borderRadius: 14,
-        padding: 10,
-        width: 220,
-        border:
-          node.id === selectedDialogueNodeId
-            ? "2px solid rgba(125, 211, 252, 0.95)"
-            : "1px solid rgba(255,255,255,0.06)"
-      }
+      label: formatDialogueNodeOption(node, index, localeStrings)
     })) ?? [];
 
-  const dialogueEdges: Edge[] =
-    currentDialogue?.nodes.flatMap((node) => {
-      const nextEdges: Edge[] = [];
-      if (node.nextNodeId) {
-        nextEdges.push({
-          id: `${node.id}-${node.nextNodeId}`,
-          source: node.id,
-          target: node.nextNodeId,
-          label: "next"
-        });
+  const selectDialogue = (dialogue: DialogueTree) => {
+    setSelectedDialogueId(dialogue.id);
+    setSelectedDialogueNodeId(dialogue.startNodeId);
+  };
+
+  const createDialogue = () => {
+    mutateProject((draft) => {
+      const dialogue = addDialogueTree(draft);
+      setSelectedDialogueId(dialogue.id);
+      setSelectedDialogueNodeId(dialogue.startNodeId);
+    });
+  };
+
+  const addLine = () => {
+    if (!currentDialogue) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const dialogue = findDialogue(draft, currentDialogue.id);
+      if (!dialogue) {
+        return;
       }
 
-      for (const choice of node.choices) {
-        if (choice.nextNodeId) {
-          nextEdges.push({
-            id: `${choice.id}-${choice.nextNodeId}`,
-            source: node.id,
-            target: choice.nextNodeId,
-            label: localeStrings[choice.textId] ?? choice.textId
-          });
-        }
+      const nodeId = createId("node");
+      const textId = `text.${nodeId}.line`;
+      ensureString(draft, textId, "New line");
+      dialogue.nodes.push({
+        id: nodeId,
+        speaker: selectedNode?.speaker ?? "NPC",
+        textId,
+        choices: [],
+        effects: []
+      });
+      setSelectedDialogueNodeId(nodeId);
+    });
+  };
+
+  const deleteLine = (nodeId: string) => {
+    if (!currentDialogue || currentDialogue.nodes.length <= 1) {
+      return;
+    }
+
+    const nextSelectedNodeId = currentDialogue.nodes.find((node) => node.id !== nodeId)?.id;
+    mutateProject((draft) => {
+      const dialogue = findDialogue(draft, currentDialogue.id);
+      const node = dialogue?.nodes.find((entry) => entry.id === nodeId);
+      if (!dialogue || !node || dialogue.nodes.length <= 1) {
+        return;
       }
-      return nextEdges;
-    }) ?? [];
+
+      const removedTextIds = [
+        ...collectOwnedGeneratedProjectTextIdsForDialogueNode(node),
+        ...node.choices.flatMap((choice) => collectOwnedGeneratedProjectTextIdsForDialogueChoice(choice))
+      ];
+
+      dialogue.nodes = dialogue.nodes.filter((entry) => entry.id !== nodeId);
+      if (dialogue.startNodeId === nodeId) {
+        dialogue.startNodeId = dialogue.nodes[0]?.id ?? "";
+      }
+
+      for (const candidate of dialogue.nodes) {
+        if (candidate.nextNodeId === nodeId) {
+          candidate.nextNodeId = undefined;
+        }
+        candidate.choices = candidate.choices.map((choice) =>
+          choice.nextNodeId === nodeId ? { ...choice, nextNodeId: undefined } : choice
+        );
+      }
+
+      pruneOwnedGeneratedProjectTextEntries(draft, removedTextIds);
+      setSelectedDialogueNodeId(nextSelectedNodeId);
+    });
+  };
+
+  const addReply = (nodeId: string) => {
+    if (!currentDialogue) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const target = findNode(draft, currentDialogue.id, nodeId);
+      if (!target) {
+        return;
+      }
+
+      const choiceId = createId("choice");
+      const textId = `text.${choiceId}.label`;
+      ensureString(draft, textId, "Player reply");
+      target.choices.push({
+        id: choiceId,
+        textId,
+        conditions: [],
+        effects: []
+      });
+      target.nextNodeId = undefined;
+    });
+  };
+
+  const deleteReply = (nodeId: string, choiceId: string) => {
+    if (!currentDialogue) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const target = findNode(draft, currentDialogue.id, nodeId);
+      const choice = target?.choices.find((entry) => entry.id === choiceId);
+      if (!target || !choice) {
+        return;
+      }
+
+      target.choices = target.choices.filter((entry) => entry.id !== choiceId);
+      pruneOwnedGeneratedProjectTextEntries(draft, collectOwnedGeneratedProjectTextIdsForDialogueChoice(choice));
+    });
+  };
+
+  const openScenes = (usage?: DialogueUsage) => {
+    onOpenScenesHotspot?.(usage?.sceneId, usage?.hotspotId);
+  };
 
   return (
-    <div className="panel-grid panel-grid--dialogue">
-      <section className="panel panel--flow">
-        <div className="panel__toolbar">
-          <div className="stack-inline">
-            <DropdownSelect
-              value={currentDialogue?.id}
-              title="Choose which dialogue tree to inspect and edit."
-              onChange={(event) => {
-                setSelectedDialogueId(event.target.value);
-                setSelectedDialogueNodeId(undefined);
-              }}
-            >
-              {project.dialogues.items.map((dialogue) => (
-                <option key={dialogue.id} value={dialogue.id}>
-                  {dialogue.name}
-                </option>
-              ))}
-            </DropdownSelect>
-            <button
-              type="button"
-              title="Create a new dialogue tree with a starter node and make it the active editor target."
-              onClick={() =>
-                mutateProject((draft) => {
-                  const dialogue = addDialogueTree(draft);
-                  setSelectedDialogueId(dialogue.id);
-                  setSelectedDialogueNodeId(dialogue.startNodeId);
-                })
-              }
-            >
-              Add Dialogue
-            </button>
-            {currentDialogue ? (
-              <button
-                type="button"
-                title="Append a new dialogue node to the currently selected dialogue tree."
-                onClick={() =>
-                  mutateProject((draft) => {
-                    const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
-                    if (!dialogue) {
-                      return;
-                    }
-
-                    const nodeId = createId("node");
-                    const textId = `text.${nodeId}.line`;
-                    ensureString(draft, textId, "New line");
-                    dialogue.nodes.push({
-                      id: nodeId,
-                      speaker: "NPC",
-                      textId,
-                      choices: [],
-                      effects: []
-                    });
-                    setSelectedDialogueNodeId(nodeId);
-                  })
-                }
-              >
-                Add Node
-              </button>
-            ) : null}
+    <div className="panel-grid panel-grid--dialogue dialogue-workspace">
+      <aside className="panel dialogue-library" aria-label="Dialogue library">
+        <div className="dialogue-library__header">
+          <div>
+            <p className="eyebrow">Dialogue Authoring</p>
+            <h3>Dialogues</h3>
           </div>
+          <button type="button" className="button-accent" onClick={createDialogue}>
+            New Dialogue
+          </button>
         </div>
-
-        {currentDialogue ? (
-          <ReactFlow nodes={dialogueNodes} edges={dialogueEdges} fitView aria-label="Dialogue flow editor">
-            <Background color="#30404d" />
-            <Controls />
-          </ReactFlow>
+        <label className="dialogue-search">
+          <span className="field-label--inset">Find dialogue</span>
+          <input
+            value={dialogueFilter}
+            placeholder="Search by name"
+            onChange={(event) => setDialogueFilter(event.target.value)}
+          />
+        </label>
+        {project.dialogues.items.length > 0 ? (
+          <div className="dialogue-library__list">
+            {filteredDialogues.map((dialogue) => {
+              const usage = usageByDialogue.get(dialogue.id) ?? [];
+              const isSelected = dialogue.id === currentDialogue?.id;
+              return (
+                <button
+                  key={dialogue.id}
+                  type="button"
+                  className={isSelected ? "dialogue-library-item dialogue-library-item--selected" : "dialogue-library-item"}
+                  onClick={() => selectDialogue(dialogue)}
+                >
+                  <span className="dialogue-library-item__name">{dialogue.name}</span>
+                  <span className="dialogue-library-item__meta">
+                    {formatLineCount(dialogue.nodes.length)} · {formatUsageBadge(usage.length)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         ) : (
-          <p>No dialogue trees yet.</p>
+          <div className="dialogue-empty-state">
+            <h4>Create your first dialogue</h4>
+            <p className="muted">Write the conversation here, then start it from a hotspot in Scenes.</p>
+            <button type="button" className="button-accent" onClick={createDialogue}>
+              New Dialogue
+            </button>
+          </div>
         )}
-      </section>
+        {project.dialogues.items.length > 0 && filteredDialogues.length === 0 ? (
+          <p className="muted">No dialogues match this search.</p>
+        ) : null}
+      </aside>
 
-      <aside className="panel dialogue-panel__inspector">
+      <main className="panel dialogue-builder" aria-label="Conversation builder">
         {currentDialogue ? (
           <>
-            <label title="Readable editor name for this dialogue tree.">
-              <span className="field-label--inset">Dialogue Name</span>
-              <input
-                value={currentDialogue.name}
-                title="Readable editor name for this dialogue tree."
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
-                    if (dialogue) {
-                      dialogue.name = event.target.value;
-                    }
-                  })
-                }
-              />
-            </label>
-            <label title="Select which node acts as the entry point when this dialogue begins.">
-              <span className="field-label--inset">Start Node</span>
-              <DropdownSelect
-                value={currentDialogue.startNodeId}
-                title="Select which node acts as the entry point when this dialogue begins."
-                onChange={(event) =>
-                  mutateProject((draft) => {
-                    const dialogue = draft.dialogues.items.find((entry) => entry.id === currentDialogue.id);
-                    if (dialogue) {
-                      dialogue.startNodeId = event.target.value;
-                    }
-                  })
-                }
-              >
-                {currentDialogue.nodes.map((node) => (
-                  <option key={node.id} value={node.id}>
-                    {node.id}
-                  </option>
-                ))}
-              </DropdownSelect>
-            </label>
-
-            {currentDialogue.nodes.map((node) => (
-              <article
-                key={node.id}
-                className={node.id === selectedDialogueNodeId ? "list-card list-card--selected" : "list-card"}
-              >
-                <label>
-                  <span className="field-label--inset">Speaker</span>
+            <header className="dialogue-builder__header">
+              <div>
+                <p className="eyebrow">Write dialogue here. Start it from a hotspot in Scenes.</p>
+                <label className="dialogue-title-field">
+                  <span className="field-label--inset">Dialogue name</span>
                   <input
-                    value={node.speaker}
-                    title="Speaker name displayed for this dialogue node."
-                    onFocus={() => setSelectedDialogueNodeId(node.id)}
+                    value={currentDialogue.name}
                     onChange={(event) =>
                       mutateProject((draft) => {
-                        const target = findNode(draft, currentDialogue.id, node.id);
-                        if (target) {
-                          target.speaker = event.target.value;
+                        const dialogue = findDialogue(draft, currentDialogue.id);
+                        if (dialogue) {
+                          dialogue.name = event.target.value;
                         }
                       })
                     }
                   />
                 </label>
-                <label>
-                  <span className="field-label--inset">Line</span>
-                  <textarea
-                    value={localeStrings[node.textId] ?? ""}
-                    title="Dialogue line text spoken by this node."
-                    onFocus={() => setSelectedDialogueNodeId(node.id)}
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        setEditorLocalizedText(draft, activeLocale, node.textId, event.target.value);
-                      })
-                    }
-                  />
-                </label>
-                <label title="Fallback node to visit after this line when no explicit choice is selected.">
-                  <span className="field-label--inset">Next Node</span>
-                  <DropdownSelect
-                    value={node.nextNodeId ?? ""}
-                    title="Fallback node to visit after this line when no explicit choice is selected."
-                    onFocus={() => setSelectedDialogueNodeId(node.id)}
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const target = findNode(draft, currentDialogue.id, node.id);
-                        if (target) {
-                          target.nextNodeId = event.target.value || undefined;
-                        }
-                      })
-                    }
-                  >
-                    <option value="">End</option>
-                    {currentDialogue.nodes
-                      .filter((option) => option.id !== node.id)
-                      .map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.id}
-                        </option>
-                      ))}
-                  </DropdownSelect>
-                </label>
-                <JsonField
-                  label="Node Effects JSON"
-                  value={JSON.stringify(node.effects, null, 2)}
-                  tooltip="Advanced JSON effect list that runs when this dialogue node is entered."
-                  labelClassName="field-label--inset"
-                  onCommit={(nextValue) =>
+              </div>
+              <div className="dialogue-builder__actions">
+                <button type="button" className="button-secondary" onClick={() => openScenes(currentUsage[0])}>
+                  Set up in Scenes
+                </button>
+                <button type="button" className="button-accent" onClick={addLine}>
+                  Add Line
+                </button>
+              </div>
+            </header>
+
+            <section className="dialogue-start-panel">
+              <label title="First line shown when this dialogue starts.">
+                <span className="field-label--inset">First line</span>
+                <DropdownSelect
+                  value={currentDialogue.startNodeId}
+                  onChange={(event) =>
                     mutateProject((draft) => {
-                      const target = findNode(draft, currentDialogue.id, node.id);
-                      if (target) {
-                        target.effects = parseJson(nextValue, target.effects);
+                      const dialogue = findDialogue(draft, currentDialogue.id);
+                      if (dialogue) {
+                        dialogue.startNodeId = event.target.value;
                       }
+                      setSelectedDialogueNodeId(event.target.value);
                     })
                   }
-                />
-
-                <div className="choice-stack">
-                  {node.choices.map((choice) => (
-                    <ChoiceEditor
-                      key={choice.id}
-                      choice={choice}
-                      nodes={currentDialogue.nodes.filter((option) => option.id !== node.id)}
-                      strings={localeStrings}
-                      onFocus={() => setSelectedDialogueNodeId(node.id)}
-                      onTextChange={(value) =>
-                        mutateProject((draft) => {
-                          setEditorLocalizedText(draft, activeLocale, choice.textId, value);
-                        })
-                      }
-                      onUpdate={(nextChoice) =>
-                        mutateProject((draft) => {
-                          const target = findNode(draft, currentDialogue.id, node.id);
-                          if (!target) {
-                            return;
-                          }
-                          target.choices = target.choices.map((entry) =>
-                            entry.id === nextChoice.id ? nextChoice : entry
-                          );
-                        })
-                      }
-                    />
+                >
+                  {nodeOptions.map((node) => (
+                    <option key={node.id} value={node.id}>
+                      {node.label}
+                    </option>
                   ))}
+                </DropdownSelect>
+              </label>
+              <div className={currentUsage.length > 0 ? "dialogue-connection-badge" : "dialogue-connection-badge dialogue-connection-badge--warning"}>
+                {currentUsage.length > 0 ? formatUsageBadge(currentUsage.length) : "Not connected to a hotspot yet"}
+              </div>
+            </section>
 
-                  <button
-                    type="button"
-                    title="Add a new player choice to this dialogue node."
-                    onClick={() =>
-                      mutateProject((draft) => {
-                        const target = findNode(draft, currentDialogue.id, node.id);
-                        if (!target) {
-                          return;
-                        }
-
-                        const choiceId = createId("choice");
-                        const textId = `text.${choiceId}.label`;
-                        ensureString(draft, textId, "Choice");
-                        target.choices.push({
-                          id: choiceId,
-                          textId,
-                          conditions: [],
-                          effects: []
-                        });
-                      })
-                    }
-                  >
-                    Add Choice
-                  </button>
-                </div>
-              </article>
-            ))}
+            {currentDialogue.nodes.length > 0 ? (
+              <div className="dialogue-line-stack">
+                {currentDialogue.nodes.map((node, index) => (
+                  <LineCard
+                    key={node.id}
+                    activeLocale={activeLocale}
+                    currentDialogue={currentDialogue}
+                    index={index}
+                    isFirstLine={node.id === currentDialogue.startNodeId}
+                    isSelected={node.id === selectedNodeId}
+                    localeStrings={localeStrings}
+                    mutateProject={mutateProject}
+                    node={node}
+                    nodeOptions={nodeOptions}
+                    onAddReply={addReply}
+                    onDeleteLine={deleteLine}
+                    onDeleteReply={deleteReply}
+                    onSelect={() => setSelectedDialogueNodeId(node.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="dialogue-empty-state dialogue-empty-state--wide">
+                <h4>Add the first line</h4>
+                <p className="muted">Start with who speaks and what they say. Branches can come later.</p>
+                <button type="button" className="button-accent" onClick={addLine}>
+                  Add Line
+                </button>
+              </div>
+            )}
           </>
         ) : (
-          <p>Add a dialogue tree to start authoring.</p>
+          <div className="dialogue-empty-state dialogue-empty-state--wide">
+            <h4>No dialogue selected</h4>
+            <p className="muted">Create a dialogue to begin authoring conversations.</p>
+            <button type="button" className="button-accent" onClick={createDialogue}>
+              New Dialogue
+            </button>
+          </div>
+        )}
+      </main>
+
+      <aside className="panel dialogue-launch-panel" aria-label="Dialogue preview and launch locations">
+        {currentDialogue ? (
+          <>
+            <section className="dialogue-preview">
+              <div className="dialogue-panel-heading">
+                <div>
+                  <p className="eyebrow">Preview</p>
+                  <h4>{selectedNode ? `Line ${getLineNumber(currentDialogue, selectedNode.id)}` : "No line selected"}</h4>
+                </div>
+              </div>
+              {selectedNode ? (
+                <DialoguePreview node={selectedNode} nodeOptions={nodeOptions} strings={localeStrings} />
+              ) : (
+                <p className="muted">Select a line to preview it.</p>
+              )}
+            </section>
+
+            <section className="dialogue-start-callout">
+              <div>
+                <p className="eyebrow">Launch</p>
+                <h4>Start this dialogue from a hotspot in Scenes</h4>
+                <p>Choose this dialogue in the selected hotspot's Start Dialogue field.</p>
+              </div>
+              <button type="button" className="button-accent" onClick={() => openScenes(currentUsage[0])}>
+                Go to Scenes
+              </button>
+            </section>
+
+            <section className="dialogue-usage-list">
+              <div className="dialogue-panel-heading">
+                <div>
+                  <p className="eyebrow">Started From</p>
+                  <h4>{currentUsage.length > 0 ? formatUsageBadge(currentUsage.length) : "No hotspots yet"}</h4>
+                </div>
+              </div>
+              {currentUsage.length > 0 ? (
+                <div className="dialogue-usage-list__items">
+                  {currentUsage.map((usage) => (
+                    <button
+                      key={`${usage.sceneId}:${usage.hotspotId}`}
+                      type="button"
+                      className="dialogue-usage-item"
+                      onClick={() => openScenes(usage)}
+                    >
+                      <span className="dialogue-usage-item__scene">{usage.sceneName}</span>
+                      <span className="dialogue-usage-item__hotspot">{usage.hotspotLabel}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">No hotspot starts this dialogue yet.</p>
+              )}
+            </section>
+          </>
+        ) : (
+          <p className="muted">Create a dialogue to see preview and launch details.</p>
         )}
       </aside>
     </div>
   );
 }
 
+function LineCard({
+  activeLocale,
+  currentDialogue,
+  index,
+  isFirstLine,
+  isSelected,
+  localeStrings,
+  mutateProject,
+  node,
+  nodeOptions,
+  onAddReply,
+  onDeleteLine,
+  onDeleteReply,
+  onSelect
+}: {
+  activeLocale: string;
+  currentDialogue: DialogueTree;
+  index: number;
+  isFirstLine: boolean;
+  isSelected: boolean;
+  localeStrings: Record<string, string>;
+  mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  node: DialogueNode;
+  nodeOptions: DialogueNodeOption[];
+  onAddReply: (nodeId: string) => void;
+  onDeleteLine: (nodeId: string) => void;
+  onDeleteReply: (nodeId: string, choiceId: string) => void;
+  onSelect: () => void;
+}) {
+  const lineText = localeStrings[node.textId] ?? "";
+  const hasReplies = node.choices.length > 0;
+  const branchOptions = nodeOptions.filter((option) => option.id !== node.id);
+
+  return (
+    <article className={isSelected ? "dialogue-line-card dialogue-line-card--selected" : "dialogue-line-card"}>
+      <header className="dialogue-line-card__header">
+        <button type="button" className="dialogue-line-card__select" onClick={onSelect}>
+          <span className="dialogue-line-card__number">{index + 1}</span>
+          <span>
+            <span className="dialogue-line-card__title">{formatDialogueNodeLabel(node, localeStrings)}</span>
+            <span className="dialogue-line-card__meta">
+              {isFirstLine ? "First line" : "Line"} · {formatChoiceCount(node.choices.length)}
+            </span>
+          </span>
+        </button>
+        <div className="dialogue-line-card__tools">
+          <button
+            type="button"
+            className="button-danger"
+            disabled={currentDialogue.nodes.length <= 1}
+            onClick={() => onDeleteLine(node.id)}
+          >
+            Delete
+          </button>
+        </div>
+      </header>
+
+      {isSelected ? (
+        <div className="dialogue-line-editor">
+          <div className="dialogue-line-editor__fields">
+            <label>
+              <span className="field-label--inset">Who speaks</span>
+              <input
+                value={node.speaker}
+                onChange={(event) =>
+                  mutateProject((draft) => {
+                    const target = findNode(draft, currentDialogue.id, node.id);
+                    if (target) {
+                      target.speaker = event.target.value;
+                    }
+                  })
+                }
+              />
+            </label>
+            <label title="Next line when there are no player replies.">
+              <span className="field-label--inset">After this line</span>
+              <DropdownSelect
+                value={node.nextNodeId ?? ""}
+                disabled={hasReplies}
+                onChange={(event) =>
+                  mutateProject((draft) => {
+                    const target = findNode(draft, currentDialogue.id, node.id);
+                    if (target) {
+                      target.nextNodeId = event.target.value || undefined;
+                    }
+                  })
+                }
+              >
+                <option value="">End dialogue</option>
+                {branchOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </DropdownSelect>
+              {hasReplies ? <span className="dialogue-field-note">Player replies decide what happens next.</span> : null}
+            </label>
+          </div>
+
+          <label>
+            <span className="field-label--inset">What they say</span>
+            <textarea
+              value={lineText}
+              onChange={(event) =>
+                mutateProject((draft) => {
+                  setEditorLocalizedText(draft, activeLocale, node.textId, event.target.value);
+                })
+              }
+            />
+          </label>
+
+          <section className="dialogue-replies">
+            <div className="dialogue-replies__header">
+              <h5>Player replies</h5>
+              <button type="button" className="button-secondary" onClick={() => onAddReply(node.id)}>
+                Add Reply
+              </button>
+            </div>
+            {node.choices.length > 0 ? (
+              <div className="dialogue-replies__list">
+                {node.choices.map((choice, choiceIndex) => (
+                  <ChoiceEditor
+                    key={choice.id}
+                    choice={choice}
+                    choiceIndex={choiceIndex}
+                    nodeOptions={branchOptions}
+                    strings={localeStrings}
+                    onDelete={() => onDeleteReply(node.id, choice.id)}
+                    onTextChange={(value) =>
+                      mutateProject((draft) => {
+                        setEditorLocalizedText(draft, activeLocale, choice.textId, value);
+                      })
+                    }
+                    onUpdate={(nextChoice) =>
+                      mutateProject((draft) => {
+                        const target = findNode(draft, currentDialogue.id, node.id);
+                        if (!target) {
+                          return;
+                        }
+                        target.choices = target.choices.map((entry) => (entry.id === nextChoice.id ? nextChoice : entry));
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No player replies. The line follows After this line.</p>
+            )}
+          </section>
+
+          <details className="dialogue-advanced">
+            <summary>Advanced line effects</summary>
+            <JsonField
+              label="When this line starts"
+              value={JSON.stringify(node.effects, null, 2)}
+              tooltip="JSON effect list that runs when this line opens."
+              labelClassName="field-label--inset"
+              onCommit={(nextValue) =>
+                mutateProject((draft) => {
+                  const target = findNode(draft, currentDialogue.id, node.id);
+                  if (target) {
+                    target.effects = parseJson(nextValue, target.effects);
+                  }
+                })
+              }
+            />
+          </details>
+        </div>
+      ) : (
+        <p className="dialogue-line-card__summary">{lineText || "Untitled line"}</p>
+      )}
+    </article>
+  );
+}
+
 function ChoiceEditor({
   choice,
-  nodes,
+  choiceIndex,
+  nodeOptions,
   strings,
-  onFocus,
+  onDelete,
   onTextChange,
   onUpdate
 }: {
   choice: DialogueChoice;
-  nodes: DialogueNode[];
+  choiceIndex: number;
+  nodeOptions: DialogueNodeOption[];
   strings: Record<string, string>;
-  onFocus: () => void;
+  onDelete: () => void;
   onTextChange: (value: string) => void;
   onUpdate: (nextChoice: DialogueChoice) => void;
 }) {
   return (
-    <div className="choice-editor">
-      <label title="Text shown to the player for this choice.">
-        <span className="field-label--inset">Choice Text</span>
-        <input
-          value={strings[choice.textId] ?? ""}
-          title="Text shown to the player for this choice."
-          onFocus={onFocus}
-          onChange={(event) => onTextChange(event.target.value)}
-        />
-      </label>
-      <label title="Node that should be opened when the player selects this choice.">
-        <span className="field-label--inset">Next Node</span>
-        <DropdownSelect
-          value={choice.nextNodeId ?? ""}
-          title="Node that should be opened when the player selects this choice."
-          onFocus={onFocus}
-          onChange={(event) => onUpdate({ ...choice, nextNodeId: event.target.value || undefined })}
-        >
-          <option value="">End Dialogue</option>
-          {nodes.map((node) => (
-            <option key={node.id} value={node.id}>
-              {node.id}
-            </option>
+    <div className="choice-editor dialogue-reply-card">
+      <div className="dialogue-reply-card__marker">{String.fromCharCode(65 + choiceIndex)}</div>
+      <div className="dialogue-reply-card__fields">
+        <label title="Text shown to the player for this reply.">
+          <span className="field-label--inset">Player reply</span>
+          <input value={strings[choice.textId] ?? ""} onChange={(event) => onTextChange(event.target.value)} />
+        </label>
+        <label title="Line that opens when the player selects this reply.">
+          <span className="field-label--inset">After reply</span>
+          <DropdownSelect
+            value={choice.nextNodeId ?? ""}
+            onChange={(event) => onUpdate({ ...choice, nextNodeId: event.target.value || undefined })}
+          >
+            <option value="">End dialogue</option>
+            {nodeOptions.map((node) => (
+              <option key={node.id} value={node.id}>
+                {node.label}
+              </option>
+            ))}
+          </DropdownSelect>
+        </label>
+        <details className="dialogue-advanced dialogue-advanced--choice">
+          <summary>Advanced reply rules</summary>
+          <JsonField
+            label="Show reply when"
+            value={JSON.stringify(choice.conditions, null, 2)}
+            tooltip="JSON condition list that must pass before this reply appears."
+            labelClassName="field-label--inset"
+            onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
+          />
+          <JsonField
+            label="After reply effects"
+            value={JSON.stringify(choice.effects, null, 2)}
+            tooltip="JSON effect list that runs after the player selects this reply."
+            labelClassName="field-label--inset"
+            onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
+          />
+        </details>
+      </div>
+      <button type="button" className="button-danger dialogue-reply-card__delete" onClick={onDelete}>
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function DialoguePreview({
+  node,
+  nodeOptions,
+  strings
+}: {
+  node: DialogueNode;
+  nodeOptions: DialogueNodeOption[];
+  strings: Record<string, string>;
+}) {
+  const lineText = strings[node.textId] ?? "Untitled line";
+  const nextLineLabel = nodeOptions.find((option) => option.id === node.nextNodeId)?.label;
+
+  return (
+    <div className="dialogue-preview-card">
+      <div className="dialogue-preview-card__bubble">
+        <strong>{node.speaker || "Speaker"}</strong>
+        <p>{lineText}</p>
+      </div>
+      {node.choices.length > 0 ? (
+        <div className="dialogue-preview-card__choices">
+          {node.choices.map((choice, index) => (
+            <div key={choice.id} className="dialogue-preview-choice">
+              <span>{String.fromCharCode(65 + index)}</span>
+              <p>{strings[choice.textId] ?? "Player reply"}</p>
+            </div>
           ))}
-        </DropdownSelect>
-      </label>
-      <JsonField
-        label="Conditions JSON"
-        value={JSON.stringify(choice.conditions, null, 2)}
-        tooltip="Advanced JSON condition list that must pass before this choice appears."
-        labelClassName="field-label--inset"
-        onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
-      />
-      <JsonField
-        label="Effects JSON"
-        value={JSON.stringify(choice.effects, null, 2)}
-        tooltip="Advanced JSON effect list that runs after the player selects this choice."
-        labelClassName="field-label--inset"
-        onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
-      />
+        </div>
+      ) : (
+        <p className="muted">{nextLineLabel ? `Continues to ${nextLineLabel}` : "Ends after this line"}</p>
+      )}
     </div>
   );
 }
@@ -401,8 +686,70 @@ function JsonField({
   );
 }
 
+function collectDialogueUsage(project: ProjectBundle): Map<string, DialogueUsage[]> {
+  const usageByDialogue = new Map<string, DialogueUsage[]>();
+  for (const scene of project.scenes.items) {
+    scene.hotspots.forEach((hotspot, index) => {
+      if (!hotspot.dialogueTreeId) {
+        return;
+      }
+      const usages = usageByDialogue.get(hotspot.dialogueTreeId) ?? [];
+      usages.push({
+        dialogueId: hotspot.dialogueTreeId,
+        sceneId: scene.id,
+        sceneName: scene.name,
+        hotspotId: hotspot.id,
+        hotspotLabel: `Hotspot ${index + 1} (${formatCompactId(hotspot.id)})`
+      });
+      usageByDialogue.set(hotspot.dialogueTreeId, usages);
+    });
+  }
+  return usageByDialogue;
+}
+
+function findDialogue(project: ProjectBundle, dialogueId: string): DialogueTree | undefined {
+  return project.dialogues.items.find((entry) => entry.id === dialogueId);
+}
+
 function findNode(project: ProjectBundle, dialogueId: string, nodeId: string): DialogueNode | undefined {
-  return project.dialogues.items.find((entry) => entry.id === dialogueId)?.nodes.find((node) => node.id === nodeId);
+  return findDialogue(project, dialogueId)?.nodes.find((node) => node.id === nodeId);
+}
+
+function getLineNumber(dialogue: DialogueTree, nodeId: string): number {
+  return Math.max(1, dialogue.nodes.findIndex((node) => node.id === nodeId) + 1);
+}
+
+function formatDialogueNodeOption(node: DialogueNode, index: number, strings: Record<string, string>): string {
+  return `${index + 1}. ${formatDialogueNodeLabel(node, strings)}`;
+}
+
+function formatDialogueNodeLabel(node: DialogueNode, strings: Record<string, string>): string {
+  const speaker = node.speaker.trim() || "Speaker";
+  const line = strings[node.textId]?.trim() || "Untitled line";
+  return `${speaker}: ${truncateText(line, LINE_LABEL_PREVIEW_LENGTH)}`;
+}
+
+function formatChoiceCount(choiceCount: number): string {
+  return choiceCount === 1 ? "1 reply" : `${choiceCount} replies`;
+}
+
+function formatLineCount(lineCount: number): string {
+  return lineCount === 1 ? "1 line" : `${lineCount} lines`;
+}
+
+function formatUsageBadge(usageCount: number): string {
+  if (usageCount === 0) {
+    return "Not started anywhere";
+  }
+  return usageCount === 1 ? "Starts from 1 hotspot" : `Starts from ${usageCount} hotspots`;
+}
+
+function formatCompactId(id: string): string {
+  return id.length <= 10 ? id : id.slice(-8);
+}
+
+function truncateText(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}...`;
 }
 
 function parseJson<T>(input: string, fallback: T): T {
