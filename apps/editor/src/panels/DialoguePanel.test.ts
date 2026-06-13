@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { addDialogueTree } from "../project-helpers";
 import { DialoguePanel } from "./DialoguePanel";
@@ -47,6 +47,11 @@ function renderDialoguePanel(configureProject: (project: ProjectBundle) => void)
 }
 
 describe("DialoguePanel", () => {
+  beforeEach(() => {
+    mockedStore.state.selectedDialogueId = undefined;
+    mockedStore.state.selectedDialogueNodeId = undefined;
+  });
+
   it("presents dialogue authoring as a library, builder, preview, and launch handoff", () => {
     const markup = renderDialoguePanel((project) => {
       const dialogue = addDialogueTree(project);
@@ -67,6 +72,8 @@ describe("DialoguePanel", () => {
     expect(markup).toContain(">After this line</span>");
     expect(markup).toContain(">Player replies</h5>");
     expect(markup).toContain("Add Reply");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('title="Collapse this line."');
     expect(markup).toContain("Preview");
     expect(markup).toContain("Start this dialogue from a hotspot in Scenes");
     expect(markup).toContain("Go to Scenes");
@@ -96,8 +103,26 @@ describe("DialoguePanel", () => {
 
     expect(markup.match(/>Who speaks<\/span>/g)).toHaveLength(1);
     expect(markup.match(/>What they say<\/span>/g)).toHaveLength(1);
+    expect(markup.match(/aria-expanded="true"/g)).toHaveLength(1);
+    expect(markup.match(/aria-expanded="false"/g)).toHaveLength(1);
+    expect(markup).toContain('title="Edit this line."');
     expect(markup).toContain("Hero: Opening line");
     expect(markup).toContain("Guide: Second line");
+  });
+
+  it("keeps dialogue lines folded when no line is selected", () => {
+    const markup = renderDialoguePanel((project) => {
+      const dialogue = addDialogueTree(project);
+      mockedStore.state.selectedDialogueId = dialogue.id;
+      mockedStore.state.selectedDialogueNodeId = undefined;
+    });
+
+    expect(markup).not.toContain(">Who speaks</span>");
+    expect(markup).not.toContain(">What they say</span>");
+    expect(markup).not.toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('title="Edit this line."');
+    expect(markup).toContain("Select a line to preview it.");
   });
 
   it("uses a clear empty state when there are no dialogues", () => {

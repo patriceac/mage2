@@ -45,10 +45,11 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
   const filteredDialogues = project.dialogues.items.filter((dialogue) =>
     dialogue.name.toLowerCase().includes(dialogueFilter.trim().toLowerCase())
   );
-  const selectedNode =
-    currentDialogue?.nodes.find((node) => node.id === selectedDialogueNodeId) ??
-    currentDialogue?.nodes.find((node) => node.id === currentDialogue.startNodeId) ??
-    currentDialogue?.nodes[0];
+  const selectedNode = selectedDialogueNodeId
+    ? currentDialogue?.nodes.find((node) => node.id === selectedDialogueNodeId) ??
+      currentDialogue?.nodes.find((node) => node.id === currentDialogue.startNodeId) ??
+      currentDialogue?.nodes[0]
+    : undefined;
   const selectedNodeId = selectedNode?.id;
   const nodeOptions: DialogueNodeOption[] =
     currentDialogue?.nodes.map((node, index) => ({
@@ -305,7 +306,7 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
                     onAddReply={addReply}
                     onDeleteLine={deleteLine}
                     onDeleteReply={deleteReply}
-                    onSelect={() => setSelectedDialogueNodeId(node.id)}
+                    onToggle={() => setSelectedDialogueNodeId(node.id === selectedNodeId ? undefined : node.id)}
                   />
                 ))}
               </div>
@@ -405,7 +406,7 @@ function LineCard({
   onAddReply,
   onDeleteLine,
   onDeleteReply,
-  onSelect
+  onToggle
 }: {
   activeLocale: string;
   currentDialogue: DialogueTree;
@@ -419,7 +420,7 @@ function LineCard({
   onAddReply: (nodeId: string) => void;
   onDeleteLine: (nodeId: string) => void;
   onDeleteReply: (nodeId: string, choiceId: string) => void;
-  onSelect: () => void;
+  onToggle: () => void;
 }) {
   const lineText = localeStrings[node.textId] ?? "";
   const hasReplies = node.choices.length > 0;
@@ -428,7 +429,13 @@ function LineCard({
   return (
     <article className={isSelected ? "dialogue-line-card dialogue-line-card--selected" : "dialogue-line-card"}>
       <header className="dialogue-line-card__header">
-        <button type="button" className="dialogue-line-card__select" onClick={onSelect}>
+        <button
+          type="button"
+          className="dialogue-line-card__select"
+          aria-expanded={isSelected}
+          title={isSelected ? "Collapse this line." : "Edit this line."}
+          onClick={onToggle}
+        >
           <span className="dialogue-line-card__number">{index + 1}</span>
           <span>
             <span className="dialogue-line-card__title">{formatDialogueNodeLabel(node, localeStrings)}</span>
