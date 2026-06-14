@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   resolveHotspotBounds,
   resolveRelativeHotspotFrame,
@@ -95,6 +95,8 @@ export function MediaSurface({
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
   const [hotspotVisualAlphaMasks, setHotspotVisualAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
   const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
+  const [activeLabelHotspotId, setActiveLabelHotspotId] = useState<string>();
+  const [hotspotTooltipTexts, setHotspotTooltipTexts] = useState<Record<string, string | undefined>>({});
   const hotspotVisualEntries = Object.entries(hotspotVisuals ?? {}).filter(([, visual]) => Boolean(visual?.sourcePath));
   const hotspotVisualSourceSignature = hotspotVisualEntries
     .map(([hotspotId, visual]) => `${hotspotId}:${visual!.sourcePath}`)
@@ -122,6 +124,27 @@ export function MediaSurface({
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
   const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
+  const handleHotspotLabelActiveChange = useCallback((hotspotId: string, active: boolean) => {
+    setActiveLabelHotspotId((currentHotspotId) => {
+      if (active) {
+        return hotspotId;
+      }
+
+      return currentHotspotId === hotspotId ? undefined : currentHotspotId;
+    });
+  }, []);
+  const handleHotspotTooltipTextChange = useCallback((hotspotId: string, tooltipText: string | undefined) => {
+    setHotspotTooltipTexts((currentTooltipTexts) => {
+      if (currentTooltipTexts[hotspotId] === tooltipText) {
+        return currentTooltipTexts;
+      }
+
+      return {
+        ...currentTooltipTexts,
+        [hotspotId]: tooltipText
+      };
+    });
+  }, []);
 
   useEffect(() => {
     latestControlledPlayheadMsRef.current = playheadMs;
@@ -744,14 +767,14 @@ export function MediaSurface({
                   }
                 : undefined
             }
-            strings={strings}
             surfaceSize={overlaySurfaceSize}
             appearance={hotspotAppearance}
             alphaMask={hotspotVisualAlphaMasks[hotspot.id]}
             editable={editableHotspots}
             selected={hotspot.id === selectedHotspotId}
-            showLabels={showHotspotLabels}
             showTooltips={showHotspotTooltips}
+            tooltipText={hotspotTooltipTexts[hotspot.id]}
+            onLabelActiveChange={handleHotspotLabelActiveChange}
             onClick={(event) => {
               event.stopPropagation();
               if (suppressHotspotClickRef.current) {
@@ -785,6 +808,16 @@ export function MediaSurface({
           {children}
         </div>
       ) : null}
+      {showHotspotLabels ? (
+        <HotspotLabelLayer
+          hotspots={hotspots}
+          strings={strings}
+          surfaceSize={overlaySurfaceSize}
+          selectedHotspotId={selectedHotspotId}
+          activeHotspotId={activeLabelHotspotId}
+          onTooltipTextChange={handleHotspotTooltipTextChange}
+        />
+      ) : null}
     </div>
   );
 }
@@ -810,14 +843,14 @@ interface HotspotButtonProps {
     alt: string;
     url?: string;
   };
-  strings?: Record<string, string>;
   surfaceSize?: HotspotSurfaceSize;
   appearance: "editor" | "runtime" | "playtest" | "hidden";
   alphaMask?: HotspotVisualAlphaMask;
   editable: boolean;
   selected: boolean;
-  showLabels: boolean;
   showTooltips: boolean;
+  tooltipText?: string;
+  onLabelActiveChange: (hotspotId: string, active: boolean) => void;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
   onMoveStart: React.MouseEventHandler<HTMLButtonElement>;
   onRotateStart?: React.MouseEventHandler<HTMLSpanElement>;
@@ -856,14 +889,14 @@ function isOpaqueHotspotPointerEvent(
 function HotspotButton({
   hotspot,
   visual,
-  strings,
   surfaceSize,
   appearance,
   alphaMask,
   editable,
   selected,
-  showLabels,
   showTooltips,
+  tooltipText,
+  onLabelActiveChange,
   onClick,
   onMoveStart,
   onRotateStart,
@@ -871,7 +904,6 @@ function HotspotButton({
   rotationFeedback,
   ariaLabel
 }: HotspotButtonProps) {
-  const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   const bounds = resolveHotspotBounds(hotspot);
   const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
   const relativePolygon = hotspot.inventoryItemId && relativeFrame ? relativeFrame.polygon : resolveRelativeHotspotPolygon(hotspot);
@@ -881,7 +913,6 @@ function HotspotButton({
   const visualBox = resolveRelativeHotspotVisualBox(hotspot, surfaceSize ?? { width: 1, height: 1 });
   const polygonPointList = resolveHotspotPolygonPointList(relativePolygon);
   const cornerSegments = resolveHotspotCornerSegments(relativePolygon);
-  const labelPlacement = resolveHotspotLabelPlacement(bounds);
   const handlePositions = resolveHotspotHandlePositions(relativePolygon);
   const rotationHandle = resolveHotspotRotationHandleGeometry(
     relativePolygon,
@@ -894,7 +925,6 @@ function HotspotButton({
   );
   const showsShapeChrome = appearance === "editor" && (!hotspot.inventoryItemId || Math.abs(rotationDegrees) > 0.001);
   const suppressAxisAlignedChrome = Math.abs(rotationDegrees) > 0.001;
-  const [tooltipText, setTooltipText] = useState<string>();
   const [isPointerOverOpaquePixel, setIsPointerOverOpaquePixel] = useState(false);
   const usesAlphaAwarePointerFeedback = appearance !== "editor" && Boolean(visual?.url);
   const stopHandleClick: React.MouseEventHandler<HTMLSpanElement> = (event) => {
@@ -923,6 +953,14 @@ function HotspotButton({
     }
 
     setIsPointerOverOpaquePixel(isOpaqueHotspotPointerEvent(event, alphaMask, visual?.url, visualBox, rotationDegrees));
+  };
+  const handleBodyMouseEnter: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    onLabelActiveChange(hotspot.id, true);
+    handleBodyMouseMoveOrEnter(event);
+  };
+  const handleBodyMouseLeave: React.MouseEventHandler<HTMLButtonElement> = () => {
+    onLabelActiveChange(hotspot.id, false);
+    setIsPointerOverOpaquePixel(false);
   };
   const bodyClassName = [
     resolveHotspotBodyClassName(appearance, Boolean(visual)),
@@ -975,34 +1013,22 @@ function HotspotButton({
       <button
         className={bodyClassName}
         onClick={handleBodyClick}
-        onMouseEnter={handleBodyMouseMoveOrEnter}
+        onMouseEnter={handleBodyMouseEnter}
         onMouseMove={handleBodyMouseMoveOrEnter}
-        onMouseLeave={() => setIsPointerOverOpaquePixel(false)}
+        onMouseLeave={handleBodyMouseLeave}
+        onFocus={() => onLabelActiveChange(hotspot.id, true)}
+        onBlur={() => onLabelActiveChange(hotspot.id, false)}
         onMouseDown={editable ? onMoveStart : undefined}
         style={{
           clipPath,
           ...(usesAlphaAwarePointerFeedback ? { cursor: isPointerOverOpaquePixel ? "pointer" : "default" } : undefined)
         }}
         aria-label={ariaLabel}
-        title={showLabels && showTooltips ? tooltipText : undefined}
+        title={showTooltips ? tooltipText : undefined}
         type="button"
       >
         <span className="hotspot__beacon" aria-hidden="true" />
       </button>
-
-      {showLabels && (hotspot.name || comment) ? (
-        <HotspotLabelContent
-          titleText={hotspot.name}
-          commentText={comment}
-          placement={labelPlacement}
-          style={resolveHotspotLabelStyle(
-            bounds,
-            labelPlacement,
-            selected && Boolean(rotationHandle) && labelPlacement.verticalPlacement === "above"
-          )}
-          onTooltipTextChange={setTooltipText}
-        />
-      ) : null}
 
       {editable && selected ? (
         <div className="hotspot__handles" aria-hidden="true">
@@ -1062,6 +1088,76 @@ function HotspotButton({
   );
 }
 
+function HotspotLabelLayer({
+  hotspots,
+  strings,
+  surfaceSize,
+  selectedHotspotId,
+  activeHotspotId,
+  onTooltipTextChange
+}: {
+  hotspots: Hotspot[];
+  strings?: Record<string, string>;
+  surfaceSize?: HotspotSurfaceSize;
+  selectedHotspotId?: string;
+  activeHotspotId?: string;
+  onTooltipTextChange: (hotspotId: string, tooltipText: string | undefined) => void;
+}) {
+  return (
+    <div className="media-surface__label-layer">
+      {hotspots.map((hotspot) => {
+        const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
+
+        if (!hotspot.name && !comment) {
+          return null;
+        }
+
+        const bounds = resolveHotspotBounds(hotspot);
+        const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
+        const relativePolygon =
+          hotspot.inventoryItemId && relativeFrame ? relativeFrame.polygon : resolveRelativeHotspotPolygon(hotspot);
+        const labelPlacement = resolveHotspotLabelPlacement(bounds);
+        const rotationHandle = resolveHotspotRotationHandleGeometry(
+          relativePolygon,
+          surfaceSize
+            ? {
+                width: Math.max(bounds.width * surfaceSize.width, 1),
+                height: Math.max(bounds.height * surfaceSize.height, 1)
+              }
+            : undefined
+        );
+        const isActive = hotspot.id === selectedHotspotId || hotspot.id === activeHotspotId;
+
+        return (
+          <div
+            key={hotspot.id}
+            className="media-surface__label-anchor"
+            style={{
+              left: `${bounds.x * 100}%`,
+              top: `${bounds.y * 100}%`,
+              width: `${bounds.width * 100}%`,
+              height: `${bounds.height * 100}%`
+            }}
+          >
+            <HotspotLabelContent
+              titleText={hotspot.name}
+              commentText={comment}
+              placement={labelPlacement}
+              active={isActive}
+              style={resolveHotspotLabelStyle(
+                bounds,
+                labelPlacement,
+                hotspot.id === selectedHotspotId && Boolean(rotationHandle) && labelPlacement.verticalPlacement === "above"
+              )}
+              onTooltipTextChange={(tooltipText) => onTooltipTextChange(hotspot.id, tooltipText)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function resolveHotspotTitle(hotspot: Hotspot, strings?: Record<string, string>): string {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings?.[hotspot.commentTextId]) : "";
   return hotspot.name || comment || hotspot.id;
@@ -1075,12 +1171,14 @@ function HotspotLabelContent({
   titleText,
   commentText,
   placement,
+  active,
   style,
   onTooltipTextChange
 }: {
   titleText?: string;
   commentText?: string;
   placement: HotspotLabelPlacement;
+  active: boolean;
   style: React.CSSProperties;
   onTooltipTextChange: (tooltipText: string | undefined) => void;
 }) {
@@ -1101,9 +1199,12 @@ function HotspotLabelContent({
     <span
       className={[
         "hotspot__label-shell",
+        active ? "hotspot__label-shell--active" : undefined,
         `hotspot__label-shell--${placement.verticalPlacement}`,
         `hotspot__label-shell--${placement.horizontalAlignment}`
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={style}
     >
       <span className="hotspot__label-card">

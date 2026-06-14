@@ -2821,6 +2821,21 @@ label > .checkbox-list {
   pointer-events: auto;
 }
 
+.media-surface__label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.media-surface__label-anchor {
+  position: absolute;
+  min-width: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
 .media-surface__scene-overlay::before {
   content: "";
   position: absolute;
@@ -2862,22 +2877,27 @@ label > .checkbox-list {
 
 .hotspot:hover,
 .hotspot:focus-within {
-  z-index: 30;
+  z-index: 90;
 }
 
 .hotspot--with-visual,
-.hotspot--inventory-item,
-.hotspot--with-visual:hover,
-.hotspot--with-visual:focus-within,
-.hotspot--inventory-item:hover,
-.hotspot--inventory-item:focus-within {
+.hotspot--inventory-item {
   z-index: 40;
 }
 
 .hotspot--selected,
 .hotspot--selected:hover,
 .hotspot--selected:focus-within {
-  z-index: 50;
+  z-index: 70;
+}
+
+.hotspot--with-visual:hover,
+.hotspot--with-visual:focus-within,
+.hotspot--inventory-item:hover,
+.hotspot--inventory-item:focus-within,
+.hotspot--selected:hover,
+.hotspot--selected:focus-within {
+  z-index: 90;
 }
 
 .hotspot--editable {
@@ -3499,7 +3519,7 @@ label > .checkbox-list {
 
 .hotspot__label-shell {
   position: absolute;
-  z-index: 50;
+  z-index: 100;
   pointer-events: none;
   width: max-content;
   width: fit-content;
@@ -3581,7 +3601,8 @@ label > .checkbox-list {
 
 .hotspot:hover .hotspot__label-comment-shell,
 .hotspot:focus-within .hotspot__label-comment-shell,
-.hotspot--selected .hotspot__label-comment-shell {
+.hotspot--selected .hotspot__label-comment-shell,
+.hotspot__label-shell--active .hotspot__label-comment-shell {
   max-height: 2.8rem;
   margin-top: 0.22rem;
   opacity: 1;
@@ -3590,7 +3611,8 @@ label > .checkbox-list {
 
 .hotspot:hover .hotspot__label-card,
 .hotspot:focus-within .hotspot__label-card,
-.hotspot--selected .hotspot__label-card {
+.hotspot--selected .hotspot__label-card,
+.hotspot__label-shell--active .hotspot__label-card {
   border-color: rgba(166, 229, 255, 0.26);
   background:
     linear-gradient(180deg, rgba(15, 23, 30, 0.96), rgba(8, 12, 17, 0.92)),

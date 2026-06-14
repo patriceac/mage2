@@ -90,6 +90,46 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(event.stopPropagation).toHaveBeenCalledOnce();
   });
 
+  it("renders hotspot labels in a top layer above foreground scene UI", () => {
+    const hotspot: Hotspot = {
+      id: "hotspot_map",
+      name: "Map",
+      x: 0.36,
+      y: 0.36,
+      width: 0.28,
+      height: 0.28,
+      startMs: 0,
+      endMs: 1_000,
+      timingMode: "fixed",
+      requiredItemIds: [],
+      conditions: [],
+      effects: []
+    };
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        MediaSurface,
+        {
+          hotspots: [hotspot],
+          hotspotAppearance: "editor",
+          showHotspotLabels: true,
+          showHotspotTooltips: false,
+          selectedHotspotId: hotspot.id
+        },
+        React.createElement("div", { className: "test-dialogue-overlay" }, "Dialogue overlay")
+      )
+    );
+
+    expect(markup).toContain('class="media-surface__label-layer"');
+    expect(markup).toContain("hotspot__label-shell hotspot__label-shell--active");
+    expect(markup.indexOf('class="media-surface__overlay"')).toBeLessThan(
+      markup.indexOf('class="media-surface__scene-overlay"')
+    );
+    expect(markup.indexOf('class="media-surface__scene-overlay"')).toBeLessThan(
+      markup.indexOf('class="media-surface__label-layer"')
+    );
+  });
+
   it("applies the polygon clip path to the editor chrome for plain hotspots", () => {
     const hotspot: Hotspot = {
       id: "hotspot_map",
