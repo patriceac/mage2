@@ -2,13 +2,16 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
-import { addInventoryItem } from "./project-helpers";
+import { addDialogueTree, addInventoryItem } from "./project-helpers";
 import {
   PlaytestPanel,
+  PlaytestDialogueBox,
   resolveInventoryCursorPreviewFrameStyle,
+  resolvePlaytestDialogueChoiceMarker,
   resolvePlaytestInventorySummary,
   resolvePlaytestVisualDurationMs,
-  resolveStoredPlaytestLocale
+  resolveStoredPlaytestLocale,
+  shouldHandlePlaytestHotspotClick
 } from "./PlaytestPanel";
 import { useEditorStore } from "./store";
 
@@ -91,5 +94,70 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
     expect(markup).toContain("Reset Run");
     expect(markup).toContain("Back to Editor");
+  });
+});
+
+describe("PlaytestDialogueBox", () => {
+  it("uses letter markers for the first dialogue choices and numeric markers after Z", () => {
+    expect(resolvePlaytestDialogueChoiceMarker(0)).toBe("A");
+    expect(resolvePlaytestDialogueChoiceMarker(25)).toBe("Z");
+    expect(resolvePlaytestDialogueChoiceMarker(26)).toBe("27");
+  });
+
+  it("renders the active dialogue content and choices for the in-scene overlay", () => {
+    const project = createDefaultProjectBundle("Playtest dialogue");
+    const dialogue = addDialogueTree(project);
+    const node = dialogue.nodes[0]!;
+    const strings = project.strings.byLocale[project.manifest.defaultLanguage];
+
+    const markup = renderToStaticMarkup(
+      React.createElement(PlaytestDialogueBox, {
+        activeDialogue: {
+          tree: dialogue,
+          node,
+          choices: node.choices
+        },
+        strings,
+        onChoice: () => undefined,
+        onContinue: () => undefined
+      })
+    );
+
+    expect(markup).toContain("dialogue-box--playtest-scene");
+    expect(markup).toContain("dialogue-box__speaker");
+    expect(markup).toContain("dialogue-box__text");
+    expect(markup).toContain("dialogue-box__choices");
+    expect(markup).toContain("dialogue-box__choice-marker");
+    expect(markup).toContain("Hero");
+    expect(markup).toContain("Opening line");
+    expect(markup).toContain(">A</span>");
+    expect(markup).toContain("Continue");
+  });
+
+  it("falls back to Narrator when a dialogue node has no speaker", () => {
+    const project = createDefaultProjectBundle("Playtest narrator dialogue");
+    const dialogue = addDialogueTree(project);
+    const node = { ...dialogue.nodes[0]!, speaker: "" };
+
+    const markup = renderToStaticMarkup(
+      React.createElement(PlaytestDialogueBox, {
+        activeDialogue: {
+          tree: dialogue,
+          node,
+          choices: []
+        },
+        strings: project.strings.byLocale[project.manifest.defaultLanguage],
+        onChoice: () => undefined,
+        onContinue: () => undefined
+      })
+    );
+
+    expect(markup).toContain("Narrator");
+    expect(markup).toContain("dialogue-box__continue");
+  });
+
+  it("blocks map hotspot clicks while dialogue is active", () => {
+    expect(shouldHandlePlaytestHotspotClick(true)).toBe(false);
+    expect(shouldHandlePlaytestHotspotClick(false)).toBe(true);
   });
 });

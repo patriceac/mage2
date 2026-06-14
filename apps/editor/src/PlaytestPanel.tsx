@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { createPlayerController, resolveSceneTimelineDurationMs } from "@mage2/player";
+import { createPlayerController, resolveSceneTimelineDurationMs, type ActiveDialogueState } from "@mage2/player";
 import {
   getLocaleStringValues,
   normalizeSupportedLocales,
@@ -63,6 +63,71 @@ export function resolvePlaytestVisualDurationMs(
 }
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
+
+interface PlaytestDialogueBoxProps {
+  activeDialogue: ActiveDialogueState;
+  strings: Record<string, string>;
+  onChoice: (choiceId: string) => void;
+  onContinue: () => void;
+}
+
+export function PlaytestDialogueBox({
+  activeDialogue,
+  strings,
+  onChoice,
+  onContinue
+}: PlaytestDialogueBoxProps) {
+  const speaker = activeDialogue.node.speaker.trim() || "Narrator";
+  const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
+
+  return (
+    <div className="dialogue-box dialogue-box--playtest-scene" aria-live="polite">
+      <div className="dialogue-box__speaker-row">
+        <h4 className="dialogue-box__speaker">{speaker}</h4>
+      </div>
+      <p className="dialogue-box__text">{line}</p>
+
+      {activeDialogue.choices.length > 0 ? (
+        <div className="dialogue-box__choices">
+          {activeDialogue.choices.map((choice, index) => (
+            <button
+              key={choice.id}
+              type="button"
+              className="dialogue-box__choice"
+              title="Choose this dialogue response and advance to its target branch."
+              onClick={() => onChoice(choice.id)}
+            >
+              <span className="dialogue-box__choice-marker" aria-hidden="true">
+                {resolvePlaytestDialogueChoiceMarker(index)}
+              </span>
+              <span className="dialogue-box__choice-text">{strings[choice.textId] ?? choice.textId}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="dialogue-box__actions">
+          <button
+            type="button"
+            className="dialogue-box__continue"
+            title="Advance to the next dialogue node when there are no explicit choices."
+            onClick={onContinue}
+          >
+            Continue
+            <span aria-hidden="true">&gt;</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function resolvePlaytestDialogueChoiceMarker(index: number): string {
+  return index >= 0 && index < 26 ? String.fromCharCode("A".charCodeAt(0) + index) : String(index + 1);
+}
+
+export function shouldHandlePlaytestHotspotClick(hasActiveDialogue: boolean): boolean {
+  return !hasActiveDialogue;
+}
 
 export function resolveInventoryCursorPreviewFrameStyle(
   point: { x: number; y: number },
@@ -828,9 +893,28 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               : undefined
           }
           onHotspotClick={(hotspotId) => {
+            if (!shouldHandlePlaytestHotspotClick(Boolean(snapshot.activeDialogue))) {
+              return;
+            }
+
             activatePlaytestHotspot(hotspotId);
           }}
-        />
+        >
+          {snapshot.activeDialogue ? (
+            <PlaytestDialogueBox
+              activeDialogue={snapshot.activeDialogue}
+              strings={localeStrings}
+              onChoice={(choiceId) => {
+                controller.chooseDialogueChoice(choiceId);
+                setSnapshot(controller.getSnapshot());
+              }}
+              onContinue={() => {
+                controller.continueDialogue();
+                setSnapshot(controller.getSnapshot());
+              }}
+            />
+          ) : null}
+        </MediaSurface>
         <InventoryCursorPreview
           imageSrc={inventoryCursorPreviewUrl}
           label={selectedInventoryCursorLabel}
@@ -855,41 +939,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           )}
         </div>
 
-        {snapshot.activeDialogue ? (
-          <div className="dialogue-box">
-            <h4>{snapshot.activeDialogue.node.speaker}</h4>
-            <p>{localeStrings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
-
-            {snapshot.activeDialogue.choices.length > 0 ? (
-              <div className="choice-list">
-                {snapshot.activeDialogue.choices.map((choice) => (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    title="Choose this dialogue response and advance to its target branch."
-                    onClick={() => {
-                      controller.chooseDialogueChoice(choice.id);
-                      setSnapshot(controller.getSnapshot());
-                    }}
-                  >
-                    {localeStrings[choice.textId] ?? choice.textId}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <button
-                type="button"
-                title="Advance to the next dialogue node when there are no explicit choices."
-                onClick={() => {
-                  controller.continueDialogue();
-                  setSnapshot(controller.getSnapshot());
-                }}
-              >
-                Continue
-              </button>
-            )}
-          </div>
-        ) : null}
       </section>
 
       <aside className="panel">

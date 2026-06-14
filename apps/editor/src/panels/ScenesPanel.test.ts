@@ -1,13 +1,16 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
+import { createDefaultProjectBundle, resolveHotspotInventoryAction, type ProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
 import {
   ScenesPanel,
+  applyHotspotInventoryAction,
+  applyInventoryLinkToHotspot,
   filterInventoryPlacementOptions,
   resolveInventoryPickerKeyboardAction,
   resolveHotspotTransformKeyboardAction,
+  resolveHotspotInventoryActionSummary,
   resolveLocationSwitcherOptions,
   resolveNextHotspotInspectorOpenState,
   resolveInventoryPickerToggleResult,
@@ -22,6 +25,7 @@ import {
   shouldHandleHotspotTransformShortcut,
   shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
+import { addInventoryItem } from "../project-helpers";
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
@@ -504,7 +508,10 @@ describe("ScenesPanel scene audio UI", () => {
 
     expect(markup).toContain("scenes-floating-inspector");
     expect(markup).toContain("Hide the floating hotspot inspector.");
-    expect(markup).toContain(">Placed Item</span>");
+    expect(markup).toContain(">Behavior</span>");
+    expect(markup).toContain("Pick up item");
+    expect(markup).toContain("Place item here");
+    expect(markup).toContain(">Item</span>");
     expect(markup).toContain(">Start Dialogue</span>");
     expect(markup).toContain("Create a dialogue in the Dialogue tab, then choose it here.");
     expect(markup).toContain(">Editing Help</summary>");
@@ -591,6 +598,60 @@ describe("ScenesPanel scene audio UI", () => {
       "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
     );
     expect(markup).toContain(">Angle (");
+  });
+
+  it("makes newly placed inventory props pickup actions by default", () => {
+    const project = createDefaultProjectBundle("Scenes pickup item");
+    const item = addInventoryItem(project);
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    const strings = project.strings.byLocale[project.manifest.defaultLanguage];
+    strings[item.textId] = "Candle";
+
+    applyInventoryLinkToHotspot(hotspot, item, strings);
+
+    expect(hotspot.name).toBe("Candle");
+    expect(resolveHotspotInventoryAction(hotspot)).toMatchObject({
+      type: "pickupItem",
+      itemId: item.id,
+      completionFlag: `hotspot.${hotspot.id}.pickedUp`
+    });
+    expect(hotspot.conditions).toContainEqual({
+      type: "flagEquals",
+      flag: `hotspot.${hotspot.id}.pickedUp`,
+      value: false
+    });
+    expect(hotspot.effects).toContainEqual({ type: "addItem", itemId: item.id });
+    expect(hotspot.effects).toContainEqual({
+      type: "setFlag",
+      flag: `hotspot.${hotspot.id}.pickedUp`,
+      value: true
+    });
+  });
+
+  it("switches a pickup hotspot to a place-item target without keeping pickup effects", () => {
+    const project = createDefaultProjectBundle("Scenes place item");
+    const item = addInventoryItem(project);
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+
+    applyHotspotInventoryAction(hotspot, "pickupItem", item.id);
+    applyHotspotInventoryAction(hotspot, "placeItem", item.id);
+
+    expect(resolveHotspotInventoryAction(hotspot)).toMatchObject({
+      type: "placeItem",
+      itemId: item.id,
+      completionFlag: `hotspot.${hotspot.id}.placed`
+    });
+    expect(hotspot.inventoryItemId).toBeUndefined();
+    expect(hotspot.placedInventoryItemId).toBe(item.id);
+    expect(hotspot.requiredItemIds).toContain(item.id);
+    expect(hotspot.effects).not.toContainEqual({ type: "addItem", itemId: item.id });
+    expect(hotspot.effects).toContainEqual({ type: "removeItem", itemId: item.id });
+  });
+
+  it("summarizes pickup hotspots as supported inventory behavior", () => {
+    expect(resolveHotspotInventoryActionSummary("pickupItem", "Candle")).toBe(
+      "Adds Candle to inventory and hides this hotspot after pickup."
+    );
   });
 
   it("shows only the hotspot inspector when both floating-window sources are active", () => {

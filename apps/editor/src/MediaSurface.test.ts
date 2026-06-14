@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { resolveHotspotClipPath, type Hotspot } from "@mage2/schema";
 import {
   isOpaqueHotspotVisualHit,
@@ -11,7 +11,8 @@ import {
   MediaSurface,
   resolveHotspotRotationHandleGeometry,
   resolveHotspotSelectionAfterDrag,
-  shouldStartMediaSurfaceVideoPlayback
+  shouldStartMediaSurfaceVideoPlayback,
+  stopMediaSurfaceForegroundEvent
 } from "./MediaSurface";
 
 function renderHotspotMarkup(hotspot: Hotspot): string {
@@ -63,6 +64,32 @@ function renderEditableSelectedLabeledHotspotMarkup(hotspot: Hotspot): string {
 }
 
 describe("MediaSurface hotspot chrome geometry", () => {
+  it("renders foreground scene UI inside the media surface", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        MediaSurface,
+        {
+          showHotspotTooltips: false,
+          showSurfaceTooltips: false
+        },
+        React.createElement("div", { className: "test-dialogue-overlay" }, "Dialogue overlay")
+      )
+    );
+
+    expect(markup).toContain('class="media-surface__scene-overlay"');
+    expect(markup).toContain(
+      '<div class="media-surface__scene-overlay"><div class="test-dialogue-overlay">Dialogue overlay</div></div>'
+    );
+  });
+
+  it("stops foreground scene UI clicks before they reach the map", () => {
+    const event = { stopPropagation: vi.fn() };
+
+    stopMediaSurfaceForegroundEvent(event);
+
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+
   it("applies the polygon clip path to the editor chrome for plain hotspots", () => {
     const hotspot: Hotspot = {
       id: "hotspot_map",

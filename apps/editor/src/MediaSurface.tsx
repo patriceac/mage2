@@ -57,6 +57,11 @@ interface MediaSurfaceProps {
   onHotspotChange?: (hotspotId: string, geometry: HotspotGeometry) => void;
   selectedHotspotId?: string;
   className?: string;
+  children?: React.ReactNode;
+}
+
+export function stopMediaSurfaceForegroundEvent(event: { stopPropagation: () => void }) {
+  event.stopPropagation();
 }
 
 export function MediaSurface({
@@ -83,7 +88,8 @@ export function MediaSurface({
   onHotspotDragStart,
   onHotspotChange,
   selectedHotspotId,
-  className
+  className,
+  children
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
@@ -767,6 +773,18 @@ export function MediaSurface({
           />
         ))}
       </div>
+      {children ? (
+        <div
+          className="media-surface__scene-overlay"
+          onClick={stopMediaSurfaceForegroundEvent}
+          onMouseDown={stopMediaSurfaceForegroundEvent}
+          onMouseUp={stopMediaSurfaceForegroundEvent}
+          onPointerDown={stopMediaSurfaceForegroundEvent}
+          onPointerUp={stopMediaSurfaceForegroundEvent}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

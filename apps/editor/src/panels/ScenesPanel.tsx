@@ -3835,8 +3835,8 @@ export function filterInventoryPlacementOptions(options: LinkedInventoryOption[]
   return options.filter((option) => option.searchText.includes(normalizedSearch));
 }
 
-function applyInventoryLinkToHotspot(hotspot: Hotspot, item: InventoryItem, strings: Record<string, string>) {
-  hotspot.inventoryItemId = item.id;
+export function applyInventoryLinkToHotspot(hotspot: Hotspot, item: InventoryItem, strings: Record<string, string>) {
+  applyHotspotInventoryAction(hotspot, "pickupItem", item.id);
   hotspot.name = strings[item.textId] ?? item.name ?? hotspot.name;
 }
 
@@ -3853,6 +3853,8 @@ function HotspotInventoryActionControls({
 }) {
   const actionItemId = inventoryAction.itemId ?? selectedHotspot.placedInventoryItemId ?? selectedHotspot.inventoryItemId ?? "";
   const hasInventoryItems = inventoryItemOptions.length > 0;
+  const firstEligibleItemId = inventoryItemOptions.find((option) => option.eligible)?.itemId ?? "";
+  const actionType = inventoryAction.type;
   const selectedActionLabel = inventoryItemOptions.find((option) => option.itemId === actionItemId)?.label ?? actionItemId;
 
   return (
@@ -3863,17 +3865,40 @@ function HotspotInventoryActionControls({
           {resolveHotspotInventoryActionSummary(inventoryAction.type, selectedActionLabel)}
         </p>
       </div>
-      <label title="Inventory item this hotspot accepts for placement. Placement requires it, removes it, then shows a separate placed-item frame.">
-        <span className="field-label--inset">Placed Item</span>
+      <label title="Choose whether this hotspot picks up an item, accepts a placed item, or stays as a normal hotspot.">
+        <span className="field-label--inset">Behavior</span>
+        <DropdownSelect
+          value={actionType}
+          onChange={(event) => {
+            const nextActionType = event.target.value as HotspotInventoryActionType;
+            const nextItemId = actionItemId || firstEligibleItemId;
+            mutateSelectedHotspot((hotspot) => {
+              applyHotspotInventoryAction(hotspot, nextActionType, nextItemId);
+            });
+          }}
+        >
+          <option value="none">No inventory action</option>
+          <option value="pickupItem" disabled={!hasInventoryItems}>
+            Pick up item
+          </option>
+          <option value="placeItem" disabled={!hasInventoryItems}>
+            Place item here
+          </option>
+        </DropdownSelect>
+      </label>
+      <label title="Inventory item used by the selected hotspot behavior. Choosing an item on a normal hotspot makes it pick-upable.">
+        <span className="field-label--inset">Item</span>
         <DropdownSelect
           value={actionItemId}
           onChange={(event) =>
             mutateSelectedHotspot((hotspot) => {
-              applyHotspotInventoryAction(hotspot, event.target.value ? "placeItem" : "none", event.target.value);
+              const nextItemId = event.target.value;
+              const nextActionType = actionType === "placeItem" ? "placeItem" : nextItemId ? "pickupItem" : "none";
+              applyHotspotInventoryAction(hotspot, nextActionType, nextItemId);
             })
           }
         >
-          <option value="">{hasInventoryItems ? "No placed item" : "No inventory items"}</option>
+          <option value="">{hasInventoryItems ? "No item" : "No inventory items"}</option>
           {inventoryItemOptions.map((option) => (
             <option key={option.itemId} value={option.itemId}>
               {option.label}
@@ -3883,11 +3908,11 @@ function HotspotInventoryActionControls({
       </label>
       <div
         className="scenes-hotspot-action-card__derived"
-        title="This behavior is derived from the placed item selection above."
+        title="This behavior is derived from the selected inventory action."
       >
         <span className="field-label--inset">When activated</span>
         <p className="muted scenes-hotspot-action-card__summary">
-          {actionItemId ? "Place selected inventory item" : "No inventory placement"}
+          {resolveHotspotInventoryActivationSummary(actionType, Boolean(actionItemId))}
         </p>
       </div>
     </section>
@@ -3896,9 +3921,11 @@ function HotspotInventoryActionControls({
 
 type HotspotInventoryActionType = "none" | "pickupItem" | "placeItem";
 
-function resolveHotspotInventoryActionSummary(actionType: HotspotInventoryActionType, itemLabel: string): string {
+export function resolveHotspotInventoryActionSummary(actionType: HotspotInventoryActionType, itemLabel: string): string {
   if (actionType === "pickupItem") {
-    return "Legacy inventory action. Choose a supported hotspot action to replace it.";
+    return itemLabel
+      ? `Adds ${itemLabel} to inventory and hides this hotspot after pickup.`
+      : "Choose the inventory item this hotspot adds to inventory.";
   }
 
   if (actionType === "placeItem") {
@@ -3907,10 +3934,22 @@ function resolveHotspotInventoryActionSummary(actionType: HotspotInventoryAction
       : "Choose the inventory item that can be placed here.";
   }
 
-  return "Use advanced fields below, or choose a simple inventory action.";
+  return "Choose whether this hotspot changes inventory, starts dialogue, or only uses advanced fields.";
 }
 
-function applyHotspotInventoryAction(hotspot: Hotspot, actionType: HotspotInventoryActionType, itemId: string) {
+function resolveHotspotInventoryActivationSummary(actionType: HotspotInventoryActionType, hasItem: boolean): string {
+  if (actionType === "pickupItem") {
+    return hasItem ? "Add item to inventory" : "Choose item to pick up";
+  }
+
+  if (actionType === "placeItem") {
+    return hasItem ? "Require selected inventory item" : "Choose item to place";
+  }
+
+  return "No inventory change";
+}
+
+export function applyHotspotInventoryAction(hotspot: Hotspot, actionType: HotspotInventoryActionType, itemId: string) {
   const previousAction = resolveHotspotInventoryAction(hotspot);
   removeHotspotInventoryActionConvention(hotspot, previousAction);
 
