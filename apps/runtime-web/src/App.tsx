@@ -54,17 +54,24 @@ export function resolveRuntimeInventoryItems(
   assets: Asset[],
   locale: string,
   strings: Record<string, string>
-): Array<{ id: string; label: string; imageSrc?: string }> {
+): Array<{ id: string; label: string; description?: string; imageSrc?: string }> {
   return items.map((item) => {
     const asset = item.imageAssetId ? assets.find((entry) => entry.id === item.imageAssetId) : undefined;
     const variant = asset ? resolveAssetVariant(asset, locale) : undefined;
+    const description = item.descriptionTextId ? strings[item.descriptionTextId]?.trim() : undefined;
 
     return {
       id: item.id,
       label: strings[item.textId] ?? item.name ?? item.textId,
+      ...(description ? { description } : {}),
       imageSrc: asset?.kind === "image" ? variant?.sourcePath : undefined
     };
   });
+}
+
+export function resolveRuntimeInventoryItemTooltip(label: string, description?: string): string {
+  const normalizedDescription = description?.trim().replace(/\s+/g, " ");
+  return normalizedDescription && normalizedDescription !== label ? `${label} - ${normalizedDescription}` : label;
 }
 
 export function resolveRuntimeHotspotVisuals(
@@ -1103,11 +1110,11 @@ export function App() {
                         : "runtime-inventory__item"
                     }
                     aria-pressed={item.id === selectedInventoryItemId}
-                    title={`Use ${item.label} on a compatible hotspot.`}
+                    title={resolveRuntimeInventoryItemTooltip(item.label, item.description)}
                     onClick={() => {
                       const nextSelectedItemId = item.id === selectedInventoryItemId ? undefined : item.id;
                       setSelectedInventoryItemId(nextSelectedItemId);
-                      setRuntimeNotice(nextSelectedItemId ? `Use ${item.label} on a highlighted hotspot.` : undefined);
+                      setRuntimeNotice(undefined);
                     }}
                   >
                     {item.imageSrc ? (
@@ -1122,11 +1129,11 @@ export function App() {
             ) : (
               <p className="runtime-sidebar__empty">Inventory empty.</p>
             )}
-            <p className="runtime-inventory__hint">
-              {selectedRuntimeInventoryItem
-                ? `Selected: ${selectedRuntimeInventoryItem.label}`
-                : runtimeNotice ?? "Select an item here, then click a compatible hotspot."}
-            </p>
+            {runtimeNotice || selectedRuntimeInventoryItem ? (
+              <p className="runtime-inventory__hint">
+                {runtimeNotice ?? `Selected: ${selectedRuntimeInventoryItem?.label ?? ""}`}
+              </p>
+            ) : null}
           </section>
 
           <section className="runtime-sidebar__section">

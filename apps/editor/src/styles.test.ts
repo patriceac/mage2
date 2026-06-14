@@ -74,9 +74,13 @@ describe("hotspot idle visibility styles", () => {
 
   it("keeps flyover labels above hotspot art, chrome, and handles", () => {
     expect(styles).toContain("bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));");
-    expect(styles).toMatch(/\.hotspot--with-visual\s*\{\s*z-index: 10;\s*\}/);
-    expect(styles).toMatch(/\.hotspot--selected\s*\{[\s\S]*?z-index: 20;[\s\S]*?\}/);
     expect(styles).toMatch(/\.hotspot:hover,\s*\.hotspot:focus-within\s*\{\s*z-index: 30;\s*\}/);
+    expect(styles).toMatch(
+      /\.hotspot--with-visual,[\s\S]*?\.hotspot--inventory-item,[\s\S]*?\.hotspot--with-visual:hover,[\s\S]*?\.hotspot--with-visual:focus-within,[\s\S]*?\.hotspot--inventory-item:hover,[\s\S]*?\.hotspot--inventory-item:focus-within\s*\{[\s\S]*?z-index: 40;[\s\S]*?\}/
+    );
+    expect(styles).toMatch(
+      /\.hotspot--selected,[\s\S]*?\.hotspot--selected:hover,[\s\S]*?\.hotspot--selected:focus-within\s*\{[\s\S]*?z-index: 50;[\s\S]*?\}/
+    );
     expect(styles).toMatch(/\.hotspot__label-shell\s*\{[\s\S]*?z-index: 50;[\s\S]*?\}/);
     expect(styles).toMatch(/\.hotspot__handles\s*\{[\s\S]*?z-index: 4;[\s\S]*?\}/);
   });

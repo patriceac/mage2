@@ -4,6 +4,7 @@ import {
   resolveInventoryCursorPreviewFrameStyle,
   resolveRuntimeHeaderContent,
   resolveRuntimeHotspotVisuals,
+  resolveRuntimeInventoryItemTooltip,
   resolveRuntimeInventoryItems
 } from "./App";
 
@@ -34,9 +35,11 @@ describe("resolveRuntimeHeaderContent", () => {
       id: "item_lantern",
       name: "Lantern",
       textId: "text.item_lantern.name",
+      descriptionTextId: "text.item_lantern.description",
       imageAssetId: "asset_item"
     });
     project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
+    project.strings.byLocale.en["text.item_lantern.description"] = "Throws a warm circle of light.";
 
     const items = resolveRuntimeInventoryItems(
       project.inventory.items,
@@ -49,9 +52,17 @@ describe("resolveRuntimeHeaderContent", () => {
       {
         id: "item_lantern",
         label: "Brass Lantern",
+        description: "Throws a warm circle of light.",
         imageSrc: "media/asset_item.en.png"
       }
     ]);
+  });
+
+  it("uses item name and description for runtime inventory item tooltips", () => {
+    expect(resolveRuntimeInventoryItemTooltip("Brass Lantern", " Throws a warm circle of light. ")).toBe(
+      "Brass Lantern - Throws a warm circle of light."
+    );
+    expect(resolveRuntimeInventoryItemTooltip("Brass Lantern")).toBe("Brass Lantern");
   });
 
   it("maps inventory-backed hotspot art without depending on hotspot debug visibility", () => {

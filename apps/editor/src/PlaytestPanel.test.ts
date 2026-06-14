@@ -11,6 +11,7 @@ import {
   resolvePlaytestDialogueChoiceMarker,
   resolvePlaytestInventoryItemInitial,
   resolvePlaytestInventorySummary,
+  resolvePlaytestInventoryItemTooltip,
   resolvePlaytestVisualDurationMs,
   resolveStoredPlaytestLocale,
   shouldHandlePlaytestHotspotClick
@@ -83,6 +84,11 @@ describe("PlaytestInventoryTray", () => {
     expect(resolvePlaytestInventoryItemInitial("")).toBe("?");
   });
 
+  it("uses item name and description for inventory item tooltips", () => {
+    expect(resolvePlaytestInventoryItemTooltip("Red Potion", " Restores health. ")).toBe("Red Potion - Restores health.");
+    expect(resolvePlaytestInventoryItemTooltip("Red Potion")).toBe("Red Potion");
+  });
+
   it("renders an intentional empty state inside the inventory band", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
@@ -95,28 +101,44 @@ describe("PlaytestInventoryTray", () => {
     expect(markup).toContain("playtest-inventory-tray__empty");
     expect(markup).toContain("playtest-inventory-tray__ghost-slots");
     expect(markup).toContain("No items yet");
+    expect(markup).not.toContain("Ready an item from your pack.");
   });
 
-  it("renders selectable item slots and selected item guidance", () => {
+  it("renders selectable item slots without instruction copy or an item count", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
         items: [
           {
             id: "red-potion",
             label: "Red Potion",
+            tooltip: "Red Potion - Restores health.",
             selected: true
           }
         ],
-        selectedItemLabel: "Red Potion",
         onSelectItem: () => undefined
       })
     );
 
     expect(markup).toContain("playtest-inventory-slot--selected");
     expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('title="Red Potion - Restores health."');
     expect(markup).toContain("Red Potion");
     expect(markup).toContain("Selected");
-    expect(markup).toContain("Use <strong>Red Potion</strong> on a matching hotspot.");
+    expect(markup).not.toContain("Use Red Potion on a compatible hotspot.");
+    expect(markup).not.toContain("matching hotspot");
+    expect(markup).not.toContain("inventory items");
+  });
+
+  it("renders transient inventory feedback when provided", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PlaytestInventoryTray, {
+        items: [],
+        hint: "Red Potion does not work here.",
+        onSelectItem: () => undefined
+      })
+    );
+
+    expect(markup).toContain("Red Potion does not work here.");
   });
 });
 
