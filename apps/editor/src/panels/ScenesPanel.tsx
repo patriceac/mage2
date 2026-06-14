@@ -1757,474 +1757,489 @@ export function ScenesPanel({
   return (
     <div ref={scenesPanelRef} className="panel-grid panel-grid--single scenes-panel-shell">
       <section className="panel scenes-panel">
-        <div className="panel__toolbar scenes-panel__toolbar">
-          <div className="stack-inline scenes-panel__selectors">
-            <label title="Choose which world location owns the currently selected scene.">
-              <span className="field-label--inset">Location</span>
-              <div className="scene-switcher" ref={locationMenuRef}>
-                <button
-                  ref={locationMenuTriggerRef}
-                  type="button"
-                  className={
-                    isLocationMenuOpen
-                      ? "scene-switcher__control scene-switcher__control--button scene-switcher__control--open"
-                      : "scene-switcher__control scene-switcher__control--button"
-                  }
-                  aria-haspopup="menu"
-                  aria-expanded={isLocationMenuOpen}
-                  aria-controls={locationMenuId}
-                  aria-label="Switch location"
-                  onClick={handleLocationMenuTriggerClick}
-                  onKeyDown={handleLocationMenuTriggerKeyDown}
-                  onFocus={() => {
-                    setSelectedHotspotId(undefined);
-                    setIsSceneMenuOpen(false);
-                  }}
-                  title="Move this scene to a different location."
-                >
-                  <span className="scene-switcher__value">
-                    {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
-                  </span>
-                  <span
+        <div className="scenes-panel__stage-layout">
+          <aside className="scenes-panel__side-controls" aria-label="Scene controls">
+            <div className="scenes-panel__selectors">
+              <label title="Choose which world location owns the currently selected scene.">
+                <span className="field-label--inset">Location</span>
+                <div className="scene-switcher" ref={locationMenuRef}>
+                  <button
+                    ref={locationMenuTriggerRef}
+                    type="button"
                     className={
                       isLocationMenuOpen
-                        ? "scene-switcher__trigger scene-switcher__trigger--open"
-                        : "scene-switcher__trigger"
+                        ? "scene-switcher__control scene-switcher__control--button scene-switcher__control--open"
+                        : "scene-switcher__control scene-switcher__control--button"
                     }
-                    aria-hidden="true"
-                  >
-                    <ChevronDownIcon />
-                  </span>
-                </button>
-
-                {isLocationMenuOpen ? (
-                  <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
-                    {locationSwitcherOptions.map((option, index) => (
-                      <button
-                        key={option.locationId}
-                        ref={(element) => {
-                          locationMenuItemRefs.current[index] = element;
-                        }}
-                        type="button"
-                        className={
-                          option.isCurrent
-                            ? "scene-switcher__option scene-switcher__option--current"
-                            : "scene-switcher__option"
-                        }
-                        role="menuitemradio"
-                        aria-checked={option.isCurrent}
-                        onClick={() => handleLocationMenuSelect(option.locationId)}
-                        onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
-                        title={`Move this scene to ${option.locationName}.`}
-                      >
-                        <strong>{option.locationName}</strong>
-                        <span>{option.sceneCountLabel}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </label>
-            <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
-              <span className="field-label--inset">Scene</span>
-              <div className="scene-switcher" ref={sceneMenuRef}>
-                <div className="scene-switcher__control">
-                  <input
-                    ref={sceneNameInputRef}
-                    className="scene-switcher__input"
-                    value={currentScene.name}
-                    aria-label="Scene name"
-                    onFocus={() => setIsSceneMenuOpen(false)}
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                        if (scene) {
-                          scene.name = event.target.value;
-                        }
-                      })
-                    }
-                  />
-                  <button
-                    ref={sceneMenuTriggerRef}
-                    type="button"
-                    className={isSceneMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
                     aria-haspopup="menu"
-                    aria-expanded={isSceneMenuOpen}
-                    aria-controls={sceneMenuId}
-                    aria-label="Switch scenes"
-                    onClick={() => setIsSceneMenuOpen((value) => !value)}
-                    onKeyDown={handleSceneMenuTriggerKeyDown}
-                    title="Open the scene switcher."
+                    aria-expanded={isLocationMenuOpen}
+                    aria-controls={locationMenuId}
+                    aria-label="Switch location"
+                    onClick={handleLocationMenuTriggerClick}
+                    onKeyDown={handleLocationMenuTriggerKeyDown}
+                    onFocus={() => {
+                      setSelectedHotspotId(undefined);
+                      setIsSceneMenuOpen(false);
+                    }}
+                    title="Move this scene to a different location."
                   >
-                    <ChevronDownIcon />
+                    <span className="scene-switcher__value">
+                      {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
+                    </span>
+                    <span
+                      className={
+                        isLocationMenuOpen
+                          ? "scene-switcher__trigger scene-switcher__trigger--open"
+                          : "scene-switcher__trigger"
+                      }
+                      aria-hidden="true"
+                    >
+                      <ChevronDownIcon />
+                    </span>
                   </button>
+
+                  {isLocationMenuOpen ? (
+                    <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
+                      {locationSwitcherOptions.map((option, index) => (
+                        <button
+                          key={option.locationId}
+                          ref={(element) => {
+                            locationMenuItemRefs.current[index] = element;
+                          }}
+                          type="button"
+                          className={
+                            option.isCurrent
+                              ? "scene-switcher__option scene-switcher__option--current"
+                              : "scene-switcher__option"
+                          }
+                          role="menuitemradio"
+                          aria-checked={option.isCurrent}
+                          onClick={() => handleLocationMenuSelect(option.locationId)}
+                          onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
+                          title={`Move this scene to ${option.locationName}.`}
+                        >
+                          <strong>{option.locationName}</strong>
+                          <span>{option.sceneCountLabel}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-
-                {isSceneMenuOpen ? (
-                  <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
-                    {sceneSwitcherOptions.map((option, index) => (
-                      <button
-                        key={option.sceneId}
-                        ref={(element) => {
-                          sceneMenuItemRefs.current[index] = element;
-                        }}
-                        type="button"
-                        className={
-                          option.isCurrent
-                            ? "scene-switcher__option scene-switcher__option--current"
-                            : "scene-switcher__option"
-                        }
-                        role="menuitemradio"
-                        aria-checked={option.isCurrent}
-                        onClick={() => handleSceneMenuSelect(option.sceneId)}
-                        onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
-                        title={`Switch to ${option.sceneName} in ${option.locationName}.`}
-                      >
-                        <strong>{option.sceneName}</strong>
-                        <span>{option.locationName}</span>
-                      </button>
-                    ))}
+              </label>
+              <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
+                <span className="field-label--inset">Scene</span>
+                <div className="scene-switcher" ref={sceneMenuRef}>
+                  <div className="scene-switcher__control">
+                    <input
+                      ref={sceneNameInputRef}
+                      className="scene-switcher__input"
+                      value={currentScene.name}
+                      aria-label="Scene name"
+                      onFocus={() => setIsSceneMenuOpen(false)}
+                      onChange={(event) =>
+                        mutateProject((draft) => {
+                          const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                          if (scene) {
+                            scene.name = event.target.value;
+                          }
+                        })
+                      }
+                    />
+                    <button
+                      ref={sceneMenuTriggerRef}
+                      type="button"
+                      className={isSceneMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
+                      aria-haspopup="menu"
+                      aria-expanded={isSceneMenuOpen}
+                      aria-controls={sceneMenuId}
+                      aria-label="Switch scenes"
+                      onClick={() => setIsSceneMenuOpen((value) => !value)}
+                      onKeyDown={handleSceneMenuTriggerKeyDown}
+                      title="Open the scene switcher."
+                    >
+                      <ChevronDownIcon />
+                    </button>
                   </div>
-                ) : null}
-              </div>
-            </label>
-          </div>
 
-          <div className="stack-inline scenes-panel__actions">
+                  {isSceneMenuOpen ? (
+                    <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
+                      {sceneSwitcherOptions.map((option, index) => (
+                        <button
+                          key={option.sceneId}
+                          ref={(element) => {
+                            sceneMenuItemRefs.current[index] = element;
+                          }}
+                          type="button"
+                          className={
+                            option.isCurrent
+                              ? "scene-switcher__option scene-switcher__option--current"
+                              : "scene-switcher__option"
+                          }
+                          role="menuitemradio"
+                          aria-checked={option.isCurrent}
+                          onClick={() => handleSceneMenuSelect(option.sceneId)}
+                          onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
+                          title={`Switch to ${option.sceneName} in ${option.locationName}.`}
+                        >
+                          <strong>{option.sceneName}</strong>
+                          <span>{option.locationName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </label>
+            </div>
             <button
               type="button"
-              className="button-danger-quiet"
+              className="button-danger-quiet scenes-panel__delete-scene-button"
               title="Delete this scene and choose whether to clean or rewire references to it."
               onClick={() => void handleDeleteScene()}
             >
               Delete Scene
             </button>
-          </div>
-        </div>
+          </aside>
 
-        <div
-          className={[
-            "scenes-panel__background-dropzone",
-            isBackgroundDropActive ? "scenes-panel__background-dropzone--active" : "",
-            isInventoryPlacementDropActive ? "scenes-panel__background-dropzone--inventory-active" : ""
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          onDragEnter={handleBackgroundDragEnter}
-          onDragOver={handleBackgroundDragOver}
-          onDragLeave={handleBackgroundDragLeave}
-          onDrop={(event) => void handleBackgroundDrop(event)}
-        >
-          <div className="scenes-panel__background-dropzone-frame">
-            <MediaSurface
-              asset={currentAsset}
-              className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
-              locale={activeLocale}
-              loopVideo={currentScene.backgroundVideoLoop}
-              hotspots={sceneSurfaceHotspots}
-              hotspotVisuals={hotspotVisuals}
-              onSurfaceDragEnter={handleInventoryPlacementDragEnter}
-              onSurfaceDragOver={handleInventoryPlacementDragOver}
-              onSurfaceDragLeave={handleInventoryPlacementDragLeave}
-              onSurfaceDrop={handleInventoryPlacementDrop}
-              strings={localeStrings}
-              showSurfaceTooltips={false}
-              showHotspotTooltips={false}
-              playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
-              onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
-              selectedHotspotId={selectedHotspotId}
-              onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
-                if (!createRequested) {
-                  selectHotspot(undefined);
-                  return;
-                }
-
-                setIsInventoryPickerOpen(false);
-                mutateProject((draft) => {
-                  const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
-                  selectHotspot(hotspot?.id);
-                });
-              }}
-              onHotspotClick={(hotspotId, interaction) => {
-                setIsInventoryPickerOpen(false);
-                selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
-              }}
-              onHotspotDragStart={captureHotspotDragCheckpoint}
-              onHotspotChange={updateHotspotGeometry}
-            />
-            {isBackgroundDropActive ? (
-              <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
-                <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
-                <span>Use an image or video file.</span>
-              </div>
-            ) : isInventoryPlacementDropActive ? (
-              <div className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory" aria-hidden="true">
-                <strong>Drop to place item</strong>
-                <span>Release to create a linked inventory hotspot at this position.</span>
-              </div>
-            ) : null}
-          </div>
-          <p className="muted scenes-panel__background-dropzone-hint">
-            {currentAsset
-              ? "Drag an image or video onto the preview to replace this scene's background."
-              : "Drag an image or video onto the preview to assign a background to this scene."}
-          </p>
-        </div>
-
-        <div className="stack-inline scenes-panel__hotspot-actions">
-          <button
-            type="button"
-            title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
-            onClick={createHotspotAtBestAvailablePosition}
+          <div
+            className={[
+              "scenes-panel__background-dropzone",
+              isBackgroundDropActive ? "scenes-panel__background-dropzone--active" : "",
+              isInventoryPlacementDropActive ? "scenes-panel__background-dropzone--inventory-active" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onDragEnter={handleBackgroundDragEnter}
+            onDragOver={handleBackgroundDragOver}
+            onDragLeave={handleBackgroundDragLeave}
+            onDrop={(event) => void handleBackgroundDrop(event)}
           >
-            Create Hotspot
-          </button>
-          <button
-            ref={inventoryPickerAnchorRef}
-            type="button"
-            className="button-secondary"
-            title="Search inventory items and place them into this scene."
-            aria-expanded={floatingWindowVisibility.isInventoryPickerVisible}
-            onClick={handleInventoryPickerToggle}
-          >
-            Add Inventory Item
-          </button>
-          <button
-            type="button"
-            className="button-danger-quiet"
-            disabled={!selectedHotspotId}
-            title="Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete."
-            onClick={() => deleteHotspot(selectedHotspotId)}
-          >
-            Delete
-          </button>
-        </div>
-
-        <label title="Background media shown for this scene in the editor and runtime.">
-          <span className="field-label--inset">Background Asset</span>
-          <div className="asset-assignment-row">
-            <DropdownSelect
-              value={currentScene.backgroundAssetId ?? ""}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (scene) {
-                    scene.backgroundAssetId = event.target.value || undefined;
-                  }
-                })
-              }
-            >
-              <option value="">No background assigned</option>
-              {currentScene.backgroundAssetId &&
-              !availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
-                <option value={currentScene.backgroundAssetId}>
-                  {currentScene.backgroundAssetId === "asset_placeholder"
-                    ? "Starter placeholder"
-                    : "Invalid background selection"}
-                </option>
-              ) : null}
-              {availableBackgroundAssets.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                </option>
-              ))}
-            </DropdownSelect>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => void handleImportBackground()}
-              title="Create a new background asset from an image or video file and assign it to this scene."
-            >
-              {currentAsset ? "Replace Background" : "Upload Background"}
-            </button>
-          </div>
-        </label>
-
-        <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
-          <span className="field-label--inset">Scene Audio</span>
-          <div className="asset-assignment-row">
-            <DropdownSelect
-              value={currentScene.sceneAudioAssetId ?? ""}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (!scene) {
+            <div className="scenes-panel__background-dropzone-frame">
+              <MediaSurface
+                asset={currentAsset}
+                className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
+                locale={activeLocale}
+                loopVideo={currentScene.backgroundVideoLoop}
+                hotspots={sceneSurfaceHotspots}
+                hotspotVisuals={hotspotVisuals}
+                onSurfaceDragEnter={handleInventoryPlacementDragEnter}
+                onSurfaceDragOver={handleInventoryPlacementDragOver}
+                onSurfaceDragLeave={handleInventoryPlacementDragLeave}
+                onSurfaceDrop={handleInventoryPlacementDrop}
+                strings={localeStrings}
+                showSurfaceTooltips={false}
+                showHotspotTooltips={false}
+                playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
+                onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
+                selectedHotspotId={selectedHotspotId}
+                onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
+                  if (!createRequested) {
+                    selectHotspot(undefined);
                     return;
                   }
 
-                  scene.sceneAudioAssetId = event.target.value || undefined;
-                })
-              }
-            >
-              <option value="">No scene audio assigned</option>
-              {currentScene.sceneAudioAssetId &&
-              !availableSceneAudioAssets.some((asset) => asset.id === currentScene.sceneAudioAssetId) ? (
-                <option value={currentScene.sceneAudioAssetId}>Invalid scene audio selection</option>
-              ) : null}
-              {availableSceneAudioAssets.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                </option>
-              ))}
-            </DropdownSelect>
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={!sceneSupportsAudio}
-              onClick={() => void handleImportSceneAudio()}
-              title={
-                sceneSupportsAudio
-                  ? "Create a new scene audio asset from an audio file and assign it to this scene."
-                  : "Scene audio imports are disabled while this scene uses a video background."
-              }
-            >
-              {currentSceneAudioAsset ? "Replace Scene Audio" : "Upload Scene Audio"}
-            </button>
-          </div>
-        </label>
-
-        <div
-          className={
-            isSceneAudioDropActive
-              ? "asset-dropzone asset-dropzone--active scenes-panel__scene-audio-dropzone"
-              : "asset-dropzone scenes-panel__scene-audio-dropzone"
-          }
-          onDragEnter={handleSceneAudioDragEnter}
-          onDragOver={handleSceneAudioDragOver}
-          onDragLeave={handleSceneAudioDragLeave}
-          onDrop={(event) => void handleSceneAudioDrop(event)}
-        >
-          <strong>{currentSceneAudioAsset ? "Drop to replace scene audio" : "Drop scene audio here"}</strong>
-          <span>
-            {sceneSupportsAudio
-              ? "Use an audio file to attach optional ambience or music to this image scene."
-              : "Scene audio can stay assigned for reference, but imports and playback are disabled while the background is video."}
-          </span>
-          <div className="scenes-panel__scene-audio-frame">
-            <div className="scenes-panel__scene-audio-preview">
-              {sceneAudioUrl ? (
-                <div
-                  className="asset-preview asset-preview--audio"
-                  title={`Preview ${currentSceneAudioAsset?.name ?? "scene audio"}.`}
-                >
-                  <audio ref={sceneAudioRef} src={sceneAudioUrl} controls preload="metadata" className="asset-preview__audio" />
+                  setIsInventoryPickerOpen(false);
+                  mutateProject((draft) => {
+                    const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
+                    selectHotspot(hotspot?.id);
+                  });
+                }}
+                onHotspotClick={(hotspotId, interaction) => {
+                  setIsInventoryPickerOpen(false);
+                  selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
+                }}
+                onHotspotDragStart={captureHotspotDragCheckpoint}
+                onHotspotChange={updateHotspotGeometry}
+              />
+              {isBackgroundDropActive ? (
+                <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
+                  <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
+                  <span>Use an image or video file.</span>
                 </div>
-              ) : (
-                <AssetPreview
-                  asset={currentSceneAudioAsset}
-                  locale={activeLocale}
-                  allowSourceFallback
-                  emptyTitle="No scene audio"
-                  emptyBody="Assign or drop an audio file here to attach optional scene audio."
-                />
-              )}
-            </div>
-            <div className="scenes-panel__scene-audio-controls">
-              <div className="list-card__actions scenes-panel__scene-audio-actions">
-                <button
-                  type="button"
-                  className="button-danger-quiet scenes-panel__scene-audio-clear-button"
-                  disabled={!currentScene.sceneAudioAssetId}
-                  onClick={clearSceneAudio}
-                  title={
-                    currentScene.sceneAudioAssetId
-                      ? "Remove the current scene audio assignment from this scene."
-                      : "No scene audio is currently assigned."
-                  }
-                >
-                  Clear audio
-                </button>
-              </div>
-              <div className="scenes-panel__scene-audio-settings">
-                <label
-                  className="scenes-panel__scene-audio-delay"
-                  title="Delay before scene audio starts, and before it restarts again when looping."
-                >
-                  <span className="scenes-panel__scene-audio-delay-label">Delay (ms)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={currentScene.sceneAudioDelayMs}
-                    disabled={!currentScene.sceneAudioAssetId || !sceneSupportsAudio}
-                    onChange={(event) =>
-                      mutateProject((draft) => {
-                        const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                        if (scene) {
-                          scene.sceneAudioDelayMs = Math.max(0, Number(event.target.value) || 0);
-                        }
-                      })
-                    }
-                  />
-                </label>
-                {currentScene.sceneAudioAssetId ? (
-                  <label
-                    className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
-                    title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
-                  >
-                    <input
-                      type="checkbox"
-                      checked={currentScene.sceneAudioLoop}
-                      disabled={!sceneSupportsAudio}
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                          if (scene) {
-                            scene.sceneAudioLoop = event.target.checked;
-                          }
-                        })
-                      }
-                    />
-                    <span>Loop</span>
-                  </label>
-                ) : null}
-              </div>
+              ) : isInventoryPlacementDropActive ? (
+                <div className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory" aria-hidden="true">
+                  <strong>Drop to place item</strong>
+                  <span>Release to create a linked inventory hotspot at this position.</span>
+                </div>
+              ) : null}
             </div>
           </div>
+
+          <aside className="scenes-panel__action-rail" aria-label="Scene object actions">
+            <div className="scenes-panel__hotspot-actions">
+              <button
+                type="button"
+                title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
+                onClick={createHotspotAtBestAvailablePosition}
+              >
+                Create Hotspot
+              </button>
+              <button
+                ref={inventoryPickerAnchorRef}
+                type="button"
+                className="button-secondary"
+                title="Search inventory items and place them into this scene."
+                aria-expanded={floatingWindowVisibility.isInventoryPickerVisible}
+                onClick={handleInventoryPickerToggle}
+              >
+                Add Inventory Item
+              </button>
+              <button
+                type="button"
+                className="button-danger-quiet scenes-panel__hotspot-delete-button"
+                disabled={!selectedHotspotId}
+                title="Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete."
+                onClick={() => deleteHotspot(selectedHotspotId)}
+              >
+                Delete
+              </button>
+            </div>
+            <p className="muted scenes-panel__background-dropzone-hint">
+              {currentAsset
+                ? "Drop image or video on the preview to replace this scene's background."
+                : "Drop image or video on the preview to assign a background to this scene."}
+            </p>
+          </aside>
         </div>
 
-        {!sceneSupportsAudio ? (
-          <p className="muted">
-            Scene audio only plays when the background is an image. Clear the scene audio or switch back to an image background to resolve validation errors.
-          </p>
-        ) : null}
-
-        {currentAsset?.kind === "video" ? (
-          <label
-            className="scene-video-loop-toggle"
-            title="When enabled, this scene's background video restarts automatically after it reaches the end."
-          >
-            <input
-              type="checkbox"
-              checked={currentScene.backgroundVideoLoop}
-              onChange={(event) =>
-                mutateProject((draft) => {
-                  const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                  if (scene) {
-                    scene.backgroundVideoLoop = event.target.checked;
+        <div className="scenes-panel__details-row">
+        <details className="scenes-panel__details">
+          <summary className="scenes-panel__details-summary">
+            <span>Scene media</span>
+            <span>Background, audio, and playback</span>
+          </summary>
+          <div className="scenes-panel__details-body">
+            <label title="Background media shown for this scene in the editor and runtime.">
+              <span className="field-label--inset">Background Asset</span>
+              <div className="asset-assignment-row">
+                <DropdownSelect
+                  value={currentScene.backgroundAssetId ?? ""}
+                  onChange={(event) =>
+                    mutateProject((draft) => {
+                      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                      if (scene) {
+                        scene.backgroundAssetId = event.target.value || undefined;
+                      }
+                    })
                   }
-                })
+                >
+                  <option value="">No background assigned</option>
+                  {currentScene.backgroundAssetId &&
+                  !availableBackgroundAssets.some((asset) => asset.id === currentScene.backgroundAssetId) ? (
+                    <option value={currentScene.backgroundAssetId}>
+                      {currentScene.backgroundAssetId === "asset_placeholder"
+                        ? "Starter placeholder"
+                        : "Invalid background selection"}
+                    </option>
+                  ) : null}
+                  {availableBackgroundAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
+                </DropdownSelect>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => void handleImportBackground()}
+                  title="Create a new background asset from an image or video file and assign it to this scene."
+                >
+                  {currentAsset ? "Replace Background" : "Upload Background"}
+                </button>
+              </div>
+            </label>
+
+            <label title="Optional ambient or music track that plays for this scene when it uses an image background.">
+              <span className="field-label--inset">Scene Audio</span>
+              <div className="asset-assignment-row">
+                <DropdownSelect
+                  value={currentScene.sceneAudioAssetId ?? ""}
+                  onChange={(event) =>
+                    mutateProject((draft) => {
+                      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                      if (!scene) {
+                        return;
+                      }
+
+                      scene.sceneAudioAssetId = event.target.value || undefined;
+                    })
+                  }
+                >
+                  <option value="">No scene audio assigned</option>
+                  {currentScene.sceneAudioAssetId &&
+                  !availableSceneAudioAssets.some((asset) => asset.id === currentScene.sceneAudioAssetId) ? (
+                    <option value={currentScene.sceneAudioAssetId}>Invalid scene audio selection</option>
+                  ) : null}
+                  {availableSceneAudioAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
+                </DropdownSelect>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={!sceneSupportsAudio}
+                  onClick={() => void handleImportSceneAudio()}
+                  title={
+                    sceneSupportsAudio
+                      ? "Create a new scene audio asset from an audio file and assign it to this scene."
+                      : "Scene audio imports are disabled while this scene uses a video background."
+                  }
+                >
+                  {currentSceneAudioAsset ? "Replace Scene Audio" : "Upload Scene Audio"}
+                </button>
+              </div>
+            </label>
+
+            <div
+              className={
+                isSceneAudioDropActive
+                  ? "asset-dropzone asset-dropzone--active scenes-panel__scene-audio-dropzone"
+                  : "asset-dropzone scenes-panel__scene-audio-dropzone"
               }
-            />
-            <span>Loop background video indefinitely</span>
-          </label>
-        ) : null}
+              onDragEnter={handleSceneAudioDragEnter}
+              onDragOver={handleSceneAudioDragOver}
+              onDragLeave={handleSceneAudioDragLeave}
+              onDrop={(event) => void handleSceneAudioDrop(event)}
+            >
+              <strong>{currentSceneAudioAsset ? "Drop to replace scene audio" : "Drop scene audio here"}</strong>
+              <span>
+                {sceneSupportsAudio
+                  ? "Use an audio file to attach optional ambience or music to this image scene."
+                  : "Scene audio can stay assigned for reference, but imports and playback are disabled while the background is video."}
+              </span>
+              <div className="scenes-panel__scene-audio-frame">
+                <div className="scenes-panel__scene-audio-preview">
+                  {sceneAudioUrl ? (
+                    <div
+                      className="asset-preview asset-preview--audio"
+                      title={`Preview ${currentSceneAudioAsset?.name ?? "scene audio"}.`}
+                    >
+                      <audio ref={sceneAudioRef} src={sceneAudioUrl} controls preload="metadata" className="asset-preview__audio" />
+                    </div>
+                  ) : (
+                    <AssetPreview
+                      asset={currentSceneAudioAsset}
+                      locale={activeLocale}
+                      allowSourceFallback
+                      emptyTitle="No scene audio"
+                      emptyBody="Assign or drop an audio file here to attach optional scene audio."
+                    />
+                  )}
+                </div>
+                <div className="scenes-panel__scene-audio-controls">
+                  <div className="list-card__actions scenes-panel__scene-audio-actions">
+                    <button
+                      type="button"
+                      className="button-danger-quiet scenes-panel__scene-audio-clear-button"
+                      disabled={!currentScene.sceneAudioAssetId}
+                      onClick={clearSceneAudio}
+                      title={
+                        currentScene.sceneAudioAssetId
+                          ? "Remove the current scene audio assignment from this scene."
+                          : "No scene audio is currently assigned."
+                      }
+                    >
+                      Clear audio
+                    </button>
+                  </div>
+                  <div className="scenes-panel__scene-audio-settings">
+                    <label
+                      className="scenes-panel__scene-audio-delay"
+                      title="Delay before scene audio starts, and before it restarts again when looping."
+                    >
+                      <span className="scenes-panel__scene-audio-delay-label">Delay (ms)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100}
+                        value={currentScene.sceneAudioDelayMs}
+                        disabled={!currentScene.sceneAudioAssetId || !sceneSupportsAudio}
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                            if (scene) {
+                              scene.sceneAudioDelayMs = Math.max(0, Number(event.target.value) || 0);
+                            }
+                          })
+                        }
+                      />
+                    </label>
+                    {currentScene.sceneAudioAssetId ? (
+                      <label
+                        className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
+                        title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={currentScene.sceneAudioLoop}
+                          disabled={!sceneSupportsAudio}
+                          onChange={(event) =>
+                            mutateProject((draft) => {
+                              const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                              if (scene) {
+                                scene.sceneAudioLoop = event.target.checked;
+                              }
+                            })
+                          }
+                        />
+                        <span>Loop</span>
+                      </label>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <label>
-          Playhead {Math.round(playheadMs)}ms
-          <input
-            type="range"
-            min={0}
-            max={sceneTimelineDurationMs}
-            value={Math.min(playheadMs, sceneTimelineDurationMs)}
-            title="Scrub through the current scene asset to line up hotspot timing and subtitle cues."
-            onChange={(event) => setPlayheadMs(Number(event.target.value))}
-          />
-        </label>
+            {!sceneSupportsAudio ? (
+              <p className="muted">
+                Scene audio only plays when the background is an image. Clear the scene audio or switch back to an image background to resolve validation errors.
+              </p>
+            ) : null}
 
-        <div className="split-columns">
-          <section>
-            <h4>Scene Wiring</h4>
+            {currentAsset?.kind === "video" ? (
+              <label
+                className="scene-video-loop-toggle"
+                title="When enabled, this scene's background video restarts automatically after it reaches the end."
+              >
+                <input
+                  type="checkbox"
+                  checked={currentScene.backgroundVideoLoop}
+                  onChange={(event) =>
+                    mutateProject((draft) => {
+                      const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                      if (scene) {
+                        scene.backgroundVideoLoop = event.target.checked;
+                      }
+                    })
+                  }
+                />
+                <span>Loop background video indefinitely</span>
+              </label>
+            ) : null}
+
+            <label>
+              Playhead {Math.round(playheadMs)}ms
+              <input
+                type="range"
+                min={0}
+                max={sceneTimelineDurationMs}
+                value={Math.min(playheadMs, sceneTimelineDurationMs)}
+                title="Scrub through the current scene asset to line up hotspot timing and subtitle cues."
+                onChange={(event) => setPlayheadMs(Number(event.target.value))}
+              />
+            </label>
+          </div>
+        </details>
+
+        <details className="scenes-panel__details">
+          <summary className="scenes-panel__details-summary">
+            <span>Scene wiring</span>
+            <span>Enter and exit effects</span>
+          </summary>
+          <div className="scenes-panel__details-body">
+            <div className="split-columns">
+              <section>
             <JsonField
               label="On Enter Effects JSON"
               value={JSON.stringify(currentScene.onEnterEffects, null, 2)}
@@ -2253,10 +2268,17 @@ export function ScenesPanel({
                 })
               }
             />
-          </section>
-        </div>
+              </section>
+            </div>
+          </div>
+        </details>
 
-        <section>
+        <details className="scenes-panel__details">
+          <summary className="scenes-panel__details-summary">
+            <span>Subtitle tracks</span>
+            <span>Timing and localized cue text</span>
+          </summary>
+          <section className="scenes-panel__details-body">
           <div className="panel__toolbar">
             <h4>Subtitle Tracks</h4>
             <div className="stack-inline">
@@ -2380,7 +2402,9 @@ export function ScenesPanel({
                 )}
               </div>
             ))}
-        </section>
+          </section>
+        </details>
+        </div>
       </section>
 
       {floatingWindowVisibility.isInventoryPickerVisible ? (

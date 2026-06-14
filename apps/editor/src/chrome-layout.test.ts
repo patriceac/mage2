@@ -30,4 +30,24 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".tab-strip--chrome {");
     expect(styles).toContain("z-index: 10;");
   });
+
+  it("keeps playtest scene and inventory surfaces viewport-safe", () => {
+    expect(styles).toContain(".panel-grid--playtest > aside.panel {");
+    expect(styles).toContain("max-height: calc(100vh - 13.5rem);");
+    expect(styles).toContain("overflow: auto;");
+    expect(styles).toContain("--playtest-inventory-slot-size: clamp(3.3rem, 4.1vw, 4.15rem);");
+    expect(styles).toContain("grid-template-columns: auto minmax(0, 1fr);");
+  });
+
+  it("keeps scene selection controls in a side rail beside the preview", () => {
+    expect(styles).toContain(".scenes-panel__stage-layout {");
+    expect(styles).toContain(
+      "grid-template-columns: minmax(13.25rem, 15.5rem) minmax(0, 1fr) minmax(10rem, 11.75rem);"
+    );
+    expect(styles).toContain(".scenes-panel__side-controls {");
+    expect(styles).toContain(".scenes-panel__action-rail {");
+    expect(styles).toContain(".scenes-panel__hotspot-actions {");
+    expect(styles).toContain(".scenes-panel__delete-scene-button {");
+    expect(styles).toContain(".scenes-panel__background-dropzone-hint {");
+  });
 });
