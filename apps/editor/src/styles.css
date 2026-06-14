@@ -1765,21 +1765,22 @@ label > .checkbox-list {
 }
 
 .playtest-inventory-tray {
+  --playtest-inventory-slot-size: clamp(5.75rem, 8.5vw, 8.25rem);
+
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.35rem 0.65rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 1rem;
   overflow: hidden;
   border: 1px solid rgba(246, 193, 119, 0.22);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(17, 24, 31, 0.7), rgba(8, 12, 16, 0.58)),
-    rgba(255, 255, 255, 0.025);
+    linear-gradient(180deg, rgba(17, 24, 31, 0.86), rgba(8, 12, 16, 0.76)),
+    rgba(255, 255, 255, 0.03);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 14px 34px rgba(0, 0, 0, 0.18);
 }
 
 .playtest-inventory-tray::before {
@@ -1795,7 +1796,7 @@ label > .checkbox-list {
 .playtest-inventory-tray__header {
   display: flex;
   align-items: center;
-  min-width: 5.4rem;
+  min-width: 0;
 }
 
 .playtest-inventory-tray__title-group {
@@ -1806,35 +1807,42 @@ label > .checkbox-list {
 .playtest-inventory-tray h3 {
   margin: 0;
   color: #fff2d8;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   line-height: 1.1;
+  text-transform: uppercase;
 }
 
 .playtest-inventory-tray__slots {
   display: flex;
-  gap: 0.4rem;
+  gap: 1rem;
   min-width: 0;
   overflow-x: auto;
-  padding: 0.05rem 0.05rem 0.15rem;
+  padding: 0.1rem 0.15rem 0.35rem;
   scrollbar-width: thin;
 }
 
 .playtest-inventory-slot {
+  position: relative;
   display: grid;
-  flex: 0 0 3.55rem;
+  flex: 0 0 var(--playtest-inventory-slot-size);
   align-content: start;
   justify-items: center;
-  gap: 0.28rem;
+  gap: 0.45rem;
   min-width: 0;
-  min-height: 3.35rem;
-  padding: 0.32rem 0.28rem;
-  border: 1px solid rgba(246, 193, 119, 0.16);
+  min-height: calc(var(--playtest-inventory-slot-size) + 2rem);
+  padding: 0.42rem;
+  border: 1px solid rgba(246, 193, 119, 0.2);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
-    rgba(8, 12, 16, 0.68);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(6, 10, 14, 0.78);
   color: #f7fafc;
   text-align: center;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
   transition:
     border-color 120ms ease,
     background 120ms ease,
@@ -1861,14 +1869,29 @@ label > .checkbox-list {
     rgba(8, 13, 18, 0.78);
   box-shadow:
     inset 0 0 0 1px rgba(246, 193, 119, 0.14),
-    0 0 0 3px rgba(246, 193, 119, 0.12);
+    0 0 0 3px rgba(246, 193, 119, 0.12),
+    0 0 24px rgba(246, 193, 119, 0.2);
+}
+
+.playtest-inventory-slot--ghost {
+  pointer-events: none;
+  opacity: 0.62;
+}
+
+.playtest-inventory-slot--ghost .playtest-inventory-slot__well::before {
+  content: "";
+  width: 28%;
+  height: 28%;
+  border: 1px solid rgba(246, 193, 119, 0.18);
+  opacity: 0.8;
+  transform: rotate(45deg);
 }
 
 .playtest-inventory-slot__well {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   border: 1px solid rgba(246, 193, 119, 0.28);
   border-radius: 8px;
@@ -1879,15 +1902,16 @@ label > .checkbox-list {
 }
 
 .playtest-inventory-slot__well img {
-  width: 78%;
-  height: 78%;
+  width: 76%;
+  height: 76%;
   object-fit: contain;
-  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.46));
   user-select: none;
 }
 
 .playtest-inventory-slot__well span {
   color: #f6c177;
+  font-size: 2rem;
   font-weight: 800;
 }
 
@@ -1903,7 +1927,7 @@ label > .checkbox-list {
   width: 100%;
   overflow: hidden;
   color: #f7fafc;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -1924,9 +1948,9 @@ label > .checkbox-list {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.45rem 0.7rem;
-  min-height: 3.8rem;
-  padding: 0.45rem 0.6rem;
+  gap: 0.55rem 0.85rem;
+  min-height: calc(var(--playtest-inventory-slot-size) + 1.7rem);
+  padding: 0.75rem;
   border: 1px dashed rgba(246, 193, 119, 0.22);
   border-radius: 8px;
   background:
@@ -1953,13 +1977,13 @@ label > .checkbox-list {
 .playtest-inventory-tray__ghost-slots {
   display: flex;
   grid-row: 1 / span 2;
-  gap: 0.32rem;
+  gap: 0.45rem;
 }
 
 .playtest-inventory-tray__ghost-slots span {
   display: block;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: clamp(2.6rem, 4vw, 3.6rem);
+  height: clamp(2.6rem, 4vw, 3.6rem);
   border: 1px solid rgba(246, 193, 119, 0.22);
   border-radius: 7px;
   background: rgba(246, 193, 119, 0.055);
@@ -3861,10 +3885,10 @@ label > .checkbox-list {
   }
 
   .playtest-inventory-tray {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-    gap: 0.5rem;
-    padding: 0.55rem;
+    --playtest-inventory-slot-size: 5.1rem;
+
+    gap: 0.6rem;
+    padding: 0.65rem;
   }
 
   .playtest-inventory-tray__header {
@@ -3876,14 +3900,14 @@ label > .checkbox-list {
   }
 
   .playtest-inventory-slot {
-    flex-basis: 4rem;
-    min-height: 5rem;
-    padding: 0.35rem 0.3rem;
+    flex-basis: var(--playtest-inventory-slot-size);
+    min-height: calc(var(--playtest-inventory-slot-size) + 1.65rem);
+    padding: 0.35rem;
   }
 
   .playtest-inventory-slot__well {
-    width: 2.7rem;
-    height: 2.7rem;
+    width: 100%;
+    height: auto;
   }
 
   .dialogue-box--playtest-scene {

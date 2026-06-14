@@ -63,6 +63,7 @@ export function resolvePlaytestVisualDurationMs(
 }
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
+const PLAYTEST_INVENTORY_VISIBLE_SLOT_COUNT = 8;
 
 interface PlaytestDialogueBoxProps {
   activeDialogue: ActiveDialogueState;
@@ -165,11 +166,18 @@ export function resolvePlaytestInventoryItemTooltip(label: string, description?:
   return normalizedDescription && normalizedDescription !== label ? `${label} - ${normalizedDescription}` : label;
 }
 
+export function resolvePlaytestInventorySlotCount(itemCount: number): number {
+  return Math.max(PLAYTEST_INVENTORY_VISIBLE_SLOT_COUNT, itemCount);
+}
+
 export function PlaytestInventoryTray({
   items,
   hint,
   onSelectItem
 }: PlaytestInventoryTrayProps) {
+  const slotCount = resolvePlaytestInventorySlotCount(items.length);
+  const emptySlotCount = Math.max(slotCount - items.length, 0);
+
   return (
     <section className="playtest-inventory-tray" aria-label="Inventory">
       <div className="playtest-inventory-tray__header">
@@ -205,6 +213,11 @@ export function PlaytestInventoryTray({
                 {item.selected ? <span className="playtest-inventory-slot__status">Selected</span> : null}
               </span>
             </button>
+          ))}
+          {Array.from({ length: emptySlotCount }, (_, index) => (
+            <span key={`empty-slot-${index}`} className="playtest-inventory-slot playtest-inventory-slot--ghost" aria-hidden="true">
+              <span className="playtest-inventory-slot__well" />
+            </span>
           ))}
         </div>
       ) : (

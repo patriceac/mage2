@@ -10,6 +10,7 @@ import {
   resolveInventoryCursorPreviewFrameStyle,
   resolvePlaytestDialogueChoiceMarker,
   resolvePlaytestInventoryItemInitial,
+  resolvePlaytestInventorySlotCount,
   resolvePlaytestInventorySummary,
   resolvePlaytestInventoryItemTooltip,
   resolvePlaytestVisualDurationMs,
@@ -79,6 +80,13 @@ describe("resolveInventoryCursorPreviewFrameStyle", () => {
 });
 
 describe("PlaytestInventoryTray", () => {
+  it("keeps the tray at eight visible slots until inventory grows beyond that", () => {
+    expect(resolvePlaytestInventorySlotCount(0)).toBe(8);
+    expect(resolvePlaytestInventorySlotCount(1)).toBe(8);
+    expect(resolvePlaytestInventorySlotCount(8)).toBe(8);
+    expect(resolvePlaytestInventorySlotCount(9)).toBe(9);
+  });
+
   it("uses compact fallback initials for inventory items without art", () => {
     expect(resolvePlaytestInventoryItemInitial(" red potion ")).toBe("R");
     expect(resolvePlaytestInventoryItemInitial("")).toBe("?");
@@ -104,7 +112,7 @@ describe("PlaytestInventoryTray", () => {
     expect(markup).not.toContain("Ready an item from your pack.");
   });
 
-  it("renders selectable item slots without instruction copy or an item count", () => {
+  it("renders selectable item slots with empty visual slots and no tray counter", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
         items: [
@@ -120,13 +128,14 @@ describe("PlaytestInventoryTray", () => {
     );
 
     expect(markup).toContain("playtest-inventory-slot--selected");
+    expect(markup).toContain("playtest-inventory-slot--ghost");
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain('title="Red Potion - Restores health."');
     expect(markup).toContain("Red Potion");
     expect(markup).toContain("Selected");
+    expect(markup).not.toContain("1 / 8");
     expect(markup).not.toContain("Use Red Potion on a compatible hotspot.");
     expect(markup).not.toContain("matching hotspot");
-    expect(markup).not.toContain("inventory items");
   });
 
   it("renders transient inventory feedback when provided", () => {
