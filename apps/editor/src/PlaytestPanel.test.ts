@@ -6,8 +6,10 @@ import { addDialogueTree, addInventoryItem } from "./project-helpers";
 import {
   PlaytestPanel,
   PlaytestDialogueBox,
+  PlaytestInventoryTray,
   resolveInventoryCursorPreviewFrameStyle,
   resolvePlaytestDialogueChoiceMarker,
+  resolvePlaytestInventoryItemInitial,
   resolvePlaytestInventorySummary,
   resolvePlaytestVisualDurationMs,
   resolveStoredPlaytestLocale,
@@ -75,6 +77,49 @@ describe("resolveInventoryCursorPreviewFrameStyle", () => {
   });
 });
 
+describe("PlaytestInventoryTray", () => {
+  it("uses compact fallback initials for inventory items without art", () => {
+    expect(resolvePlaytestInventoryItemInitial(" red potion ")).toBe("R");
+    expect(resolvePlaytestInventoryItemInitial("")).toBe("?");
+  });
+
+  it("renders an intentional empty state inside the inventory band", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PlaytestInventoryTray, {
+        items: [],
+        onSelectItem: () => undefined
+      })
+    );
+
+    expect(markup).toContain("playtest-inventory-tray");
+    expect(markup).toContain("playtest-inventory-tray__empty");
+    expect(markup).toContain("playtest-inventory-tray__ghost-slots");
+    expect(markup).toContain("No items yet");
+  });
+
+  it("renders selectable item slots and selected item guidance", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PlaytestInventoryTray, {
+        items: [
+          {
+            id: "red-potion",
+            label: "Red Potion",
+            selected: true
+          }
+        ],
+        selectedItemLabel: "Red Potion",
+        onSelectItem: () => undefined
+      })
+    );
+
+    expect(markup).toContain("playtest-inventory-slot--selected");
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("Red Potion");
+    expect(markup).toContain("Selected");
+    expect(markup).toContain("Use <strong>Red Potion</strong> on a matching hotspot.");
+  });
+});
+
 describe("PlaytestPanel toolbar", () => {
   it("renders shared field wrappers so playtest controls can align on one row", () => {
     const project = createDefaultProjectBundle("Playtest toolbar");
@@ -94,6 +139,23 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
     expect(markup).toContain("Reset Run");
     expect(markup).toContain("Back to Editor");
+  });
+
+  it("renders inventory as a dedicated playtest section while keeping runtime state in the side panel", () => {
+    const project = createDefaultProjectBundle("Playtest scene inventory");
+    useEditorStore.setState({
+      activeTab: "playtest",
+      playtestLocale: project.manifest.defaultLanguage
+    });
+
+    const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project, onExit: () => undefined }));
+
+    expect(markup).toContain("playtest-stage");
+    expect(markup).toContain("playtest-inventory-section");
+    expect(markup).toContain("playtest-inventory-tray");
+    expect(markup).toContain("Runtime State");
+    expect(markup).not.toContain("playtest-stage__inventory");
+    expect(markup).not.toContain("playtest-inventory-panel");
   });
 });
 
@@ -159,5 +221,12 @@ describe("PlaytestDialogueBox", () => {
   it("blocks map hotspot clicks while dialogue is active", () => {
     expect(shouldHandlePlaytestHotspotClick(true)).toBe(false);
     expect(shouldHandlePlaytestHotspotClick(false)).toBe(true);
+  });
+
+  it("blocks non-matching hotspot clicks while an inventory item is selected", () => {
+    expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "none" })).toBe(false);
+    expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "pickupItem", itemId: "item_key" })).toBe(false);
+    expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "placeItem", itemId: "item_key" })).toBe(false);
+    expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "placeItem", itemId: "item_potion" })).toBe(true);
   });
 });

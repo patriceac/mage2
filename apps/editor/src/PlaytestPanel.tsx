@@ -71,6 +71,20 @@ interface PlaytestDialogueBoxProps {
   onContinue: () => void;
 }
 
+interface PlaytestInventoryItemView {
+  id: string;
+  label: string;
+  imageSrc?: string;
+  selected: boolean;
+}
+
+interface PlaytestInventoryTrayProps {
+  items: PlaytestInventoryItemView[];
+  hint?: string;
+  selectedItemLabel?: string;
+  onSelectItem: (itemId?: string) => void;
+}
+
 export function PlaytestDialogueBox({
   activeDialogue,
   strings,
@@ -125,8 +139,96 @@ export function resolvePlaytestDialogueChoiceMarker(index: number): string {
   return index >= 0 && index < 26 ? String.fromCharCode("A".charCodeAt(0) + index) : String(index + 1);
 }
 
-export function shouldHandlePlaytestHotspotClick(hasActiveDialogue: boolean): boolean {
-  return !hasActiveDialogue;
+export function shouldHandlePlaytestHotspotClick(
+  hasActiveDialogue: boolean,
+  selectedInventoryItemId?: string,
+  inventoryAction: Pick<ReturnType<typeof resolveHotspotInventoryAction>, "type" | "itemId"> = { type: "none" }
+): boolean {
+  if (hasActiveDialogue) {
+    return false;
+  }
+
+  if (!selectedInventoryItemId) {
+    return true;
+  }
+
+  return inventoryAction.type === "placeItem" && inventoryAction.itemId === selectedInventoryItemId;
+}
+
+export function resolvePlaytestInventoryItemInitial(label: string): string {
+  const firstGlyph = label.trim().charAt(0);
+  return firstGlyph ? firstGlyph.toLocaleUpperCase() : "?";
+}
+
+export function PlaytestInventoryTray({
+  items,
+  hint,
+  selectedItemLabel,
+  onSelectItem
+}: PlaytestInventoryTrayProps) {
+  return (
+    <section className="playtest-inventory-tray" aria-label="Inventory">
+      <div className="playtest-inventory-tray__header">
+        <div className="playtest-inventory-tray__title-group">
+          <h3>Inventory</h3>
+        </div>
+        <span className="playtest-inventory-tray__count" aria-label={`${items.length} inventory items`}>
+          {items.length}
+        </span>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="playtest-inventory-tray__slots">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={
+                item.selected
+                  ? "playtest-inventory-slot playtest-inventory-slot--selected"
+                  : "playtest-inventory-slot"
+              }
+              aria-pressed={item.selected}
+              title={`Use ${item.label} on a compatible hotspot.`}
+              onClick={() => onSelectItem(item.selected ? undefined : item.id)}
+            >
+              <span className="playtest-inventory-slot__well" aria-hidden="true">
+                {item.imageSrc ? (
+                  <img src={item.imageSrc} alt="" draggable={false} />
+                ) : (
+                  <span>{resolvePlaytestInventoryItemInitial(item.label)}</span>
+                )}
+              </span>
+              <span className="playtest-inventory-slot__copy">
+                <span className="playtest-inventory-slot__name">{item.label}</span>
+                {item.selected ? <span className="playtest-inventory-slot__status">Selected</span> : null}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="playtest-inventory-tray__empty">
+          <div className="playtest-inventory-tray__ghost-slots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <strong>No items yet</strong>
+          <p>Picked-up items will appear here.</p>
+        </div>
+      )}
+
+      <div className="playtest-inventory-tray__hint" aria-live="polite">
+        {selectedItemLabel ? (
+          <span>
+            Use <strong>{selectedItemLabel}</strong> on a matching hotspot.
+          </span>
+        ) : (
+          <span>{hint ?? "Ready an item from your pack."}</span>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export function resolveInventoryCursorPreviewFrameStyle(
@@ -165,6 +267,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [inventoryHint, setInventoryHint] = useState<string>();
   const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
   const [inventoryCursorPreviewUrl, setInventoryCursorPreviewUrl] = useState<string>();
+  const [inventoryItemImageUrls, setInventoryItemImageUrls] = useState<Record<string, string>>({});
   const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
@@ -272,6 +375,13 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     }
 
     const inventoryAction = hotspot ? resolveHotspotInventoryAction(hotspot) : { type: "none" as const };
+    if (hotspot && selectedInventoryItemId && !shouldHandlePlaytestHotspotClick(false, selectedInventoryItemId, inventoryAction)) {
+      setInventoryHint(
+        `${resolveInventoryItemLabel(selectedInventoryItemId, project.inventory.items, localeStrings)} does not work here.`
+      );
+      return { snapshot, selectedInventoryItemId, activated: false };
+    }
+
     if (hotspot && inventoryAction.type === "placeItem" && inventoryAction.itemId !== selectedInventoryItemId) {
       setInventoryHint(
         inventoryAction.itemId
@@ -326,6 +436,30 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const selectedInventoryCursorLabel = selectedInventoryItem
     ? localeStrings[selectedInventoryItem.textId] ?? selectedInventoryItem.name ?? selectedInventoryItem.id
     : undefined;
+  const inventoryItemImageSources = useMemo(() => {
+    return Object.fromEntries(
+      snapshot.inventoryItems.map((item) => {
+        const itemAsset = item.imageAssetId
+          ? project.assets.assets.find((asset) => asset.id === item.imageAssetId)
+          : undefined;
+        const itemVariant = getLocalizedAssetVariant(itemAsset, activeLocale);
+        return [item.id, itemVariant?.proxyPath ?? itemVariant?.sourcePath] as const;
+      })
+    );
+  }, [activeLocale, project.assets.assets, snapshot.inventoryItems]);
+  const inventoryItemImageSourceSignature = Object.entries(inventoryItemImageSources)
+    .map(([itemId, sourcePath]) => `${itemId}:${sourcePath ?? ""}`)
+    .sort()
+    .join("|");
+  const playtestInventoryItems = snapshot.inventoryItems.map((item): PlaytestInventoryItemView => {
+    const label = localeStrings[item.textId] ?? item.name ?? item.id;
+    return {
+      id: item.id,
+      label,
+      imageSrc: inventoryItemImageUrls[item.id],
+      selected: item.id === selectedInventoryItemId
+    };
+  });
   const placedInventoryInstances = snapshot.scene.hotspots
     .map((hotspot) =>
       resolvePlacedInventoryItemId(hotspot, snapshot.flags)
@@ -391,6 +525,43 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       cancelled = true;
     };
   }, [selectedInventoryCursorSourcePath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInventoryItemImageUrls() {
+      const sourceEntries = Object.entries(inventoryItemImageSources);
+      if (sourceEntries.length === 0) {
+        setInventoryItemImageUrls({});
+        return;
+      }
+
+      const resolvedEntries = await Promise.all(
+        sourceEntries.map(async ([itemId, sourcePath]) => {
+          if (!sourcePath) {
+            return undefined;
+          }
+
+          try {
+            return [itemId, await resolveFileUrl(sourcePath)] as const;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setInventoryItemImageUrls(
+          Object.fromEntries(resolvedEntries.filter((entry): entry is readonly [string, string] => Boolean(entry)))
+        );
+      }
+    }
+
+    void loadInventoryItemImageUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [inventoryItemImageSourceSignature]);
 
   function resolvePlaytestAutomationState(): EditorAutomationPlaytestState {
     const placedVisuals: Record<string, string> = {};
@@ -869,52 +1040,67 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           </div>
         </div>
 
-        <MediaSurface
-          asset={sceneAsset}
-          locale={activeLocale}
-          loopVideo={snapshot.scene.backgroundVideoLoop}
-          hotspots={surfaceHotspots}
-          hotspotVisuals={hotspotVisuals}
-          hotspotAppearance={showHotspots ? "playtest" : "hidden"}
-          showHotspotLabels={false}
-          strings={localeStrings}
-          playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
-          playbackResetKey={playbackResetKey}
-          onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
-          onPlayableDurationMsChange={
-            sceneAsset?.kind === "video"
-              ? (durationMs) => {
-                  setObservedVideoDuration({
-                    assetId: sceneAsset.id,
-                    sourcePath: sceneAssetSourcePath,
-                    durationMs
-                  });
-                }
-              : undefined
-          }
-          onHotspotClick={(hotspotId) => {
-            if (!shouldHandlePlaytestHotspotClick(Boolean(snapshot.activeDialogue))) {
-              return;
+        <div className="playtest-stage">
+          <MediaSurface
+            asset={sceneAsset}
+            locale={activeLocale}
+            loopVideo={snapshot.scene.backgroundVideoLoop}
+            hotspots={surfaceHotspots}
+            hotspotVisuals={hotspotVisuals}
+            hotspotAppearance={showHotspots ? "playtest" : "hidden"}
+            showHotspotLabels={false}
+            strings={localeStrings}
+            playheadMs={sceneAsset?.kind === "video" ? playheadMs : undefined}
+            playbackResetKey={playbackResetKey}
+            onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
+            onPlayableDurationMsChange={
+              sceneAsset?.kind === "video"
+                ? (durationMs) => {
+                    setObservedVideoDuration({
+                      assetId: sceneAsset.id,
+                      sourcePath: sceneAssetSourcePath,
+                      durationMs
+                    });
+                  }
+                : undefined
             }
+            onHotspotClick={(hotspotId) => {
+              if (!shouldHandlePlaytestHotspotClick(Boolean(snapshot.activeDialogue))) {
+                return;
+              }
 
-            activatePlaytestHotspot(hotspotId);
-          }}
-        >
-          {snapshot.activeDialogue ? (
-            <PlaytestDialogueBox
-              activeDialogue={snapshot.activeDialogue}
-              strings={localeStrings}
-              onChoice={(choiceId) => {
-                controller.chooseDialogueChoice(choiceId);
-                setSnapshot(controller.getSnapshot());
-              }}
-              onContinue={() => {
-                controller.continueDialogue();
-                setSnapshot(controller.getSnapshot());
-              }}
-            />
-          ) : null}
-        </MediaSurface>
+              activatePlaytestHotspot(hotspotId);
+            }}
+          >
+            {snapshot.activeDialogue ? (
+              <PlaytestDialogueBox
+                activeDialogue={snapshot.activeDialogue}
+                strings={localeStrings}
+                onChoice={(choiceId) => {
+                  controller.chooseDialogueChoice(choiceId);
+                  setSnapshot(controller.getSnapshot());
+                }}
+                onContinue={() => {
+                  controller.continueDialogue();
+                  setSnapshot(controller.getSnapshot());
+                }}
+              />
+            ) : null}
+          </MediaSurface>
+        </div>
+        <div className="playtest-inventory-section">
+          <PlaytestInventoryTray
+            items={playtestInventoryItems}
+            selectedItemLabel={selectedInventoryCursorLabel}
+            hint={inventoryHint}
+            onSelectItem={(itemId) => {
+              const item = itemId ? snapshot.inventoryItems.find((entry) => entry.id === itemId) : undefined;
+              const label = item ? localeStrings[item.textId] ?? item.name ?? item.id : undefined;
+              setSelectedInventoryItemId(itemId);
+              setInventoryHint(label ? `Use ${label} on a compatible hotspot.` : undefined);
+            }}
+          />
+        </div>
         <InventoryCursorPreview
           imageSrc={inventoryCursorPreviewUrl}
           label={selectedInventoryCursorLabel}
@@ -942,43 +1128,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </section>
 
       <aside className="panel">
-        <section className="playtest-inventory-panel">
-          <h3>Inventory</h3>
-          {snapshot.inventoryItems.length > 0 ? (
-            <div className="playtest-inventory-list">
-              {snapshot.inventoryItems.map((item) => {
-                const label = localeStrings[item.textId] ?? item.name ?? item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={
-                      item.id === selectedInventoryItemId
-                        ? "playtest-inventory-item playtest-inventory-item--selected"
-                        : "playtest-inventory-item"
-                    }
-                    aria-pressed={item.id === selectedInventoryItemId}
-                    title={`Use ${label} on a compatible hotspot.`}
-                    onClick={() => {
-                      const nextSelectedItemId = item.id === selectedInventoryItemId ? undefined : item.id;
-                      setSelectedInventoryItemId(nextSelectedItemId);
-                      setInventoryHint(nextSelectedItemId ? `Use ${label} on a compatible hotspot.` : undefined);
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="muted">Inventory empty.</p>
-          )}
-          <p className="muted playtest-inventory-panel__hint">
-            {selectedInventoryItem
-              ? `Selected: ${localeStrings[selectedInventoryItem.textId] ?? selectedInventoryItem.name ?? selectedInventoryItem.id}`
-              : inventoryHint ?? "Pick up an item, then select it here to use it."}
-          </p>
-        </section>
         <h3>Runtime State</h3>
         <dl className="inspector-grid">
           <dt>Location</dt>
