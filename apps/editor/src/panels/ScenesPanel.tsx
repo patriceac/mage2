@@ -1988,7 +1988,8 @@ export function ScenesPanel({
               title="Delete this scene and choose whether to clean or rewire references to it."
               onClick={() => void handleDeleteScene()}
             >
-              Delete Scene
+              <SceneActionIcon kind="delete" />
+              <span>Delete Scene</span>
             </button>
           </aside>
 
