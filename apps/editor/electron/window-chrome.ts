@@ -1,6 +1,6 @@
 import type { BrowserWindowConstructorOptions } from "electron";
 
-export const EDITOR_TITLE_BAR_OVERLAY_HEIGHT = 56;
+export const EDITOR_TITLE_BAR_OVERLAY_HEIGHT = 40;
 
 const TITLE_BAR_OVERLAY_COLOR = "#0c1218";
 const TITLE_BAR_OVERLAY_SYMBOL_COLOR = "#f7fafc";

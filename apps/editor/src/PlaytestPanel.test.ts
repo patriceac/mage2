@@ -168,6 +168,10 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-panel__toolbar-field--action");
     expect(markup).toContain("playtest-panel__toolbar-field--session");
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
+    expect(markup).toContain('aria-label="Show hotspots in playtest"');
+    expect(markup).toContain("playtest-hotspot-visibility-toggle__track");
+    expect(markup).toContain("playtest-hotspot-visibility-toggle__thumb");
+    expect(markup).toContain("Show hotspots");
     expect(markup).toContain("Reset Run");
     expect(markup).toContain("Back to Editor");
   });

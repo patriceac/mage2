@@ -16,6 +16,8 @@ describe("editor chrome styles", () => {
   it("uses a single scroll region with dedicated chrome rows", () => {
     expect(styles).toContain(".app-shell--project {");
     expect(styles).toContain("grid-template-rows: auto auto minmax(0, 1fr) auto;");
+    expect(styles).toContain(".app-shell--editor-workbench,");
+    expect(styles).toContain("grid-template-rows: auto minmax(0, 1fr) auto;");
     expect(styles).toContain(".editor-scroll-region {");
     expect(styles).toContain("overflow: auto;");
   });
@@ -25,7 +27,7 @@ describe("editor chrome styles", () => {
     expect(styles).toContain("max-width: calc(100% - var(--titlebar-controls-reserved-width));");
   });
 
-  it("keeps the title-bar chrome stacked above the tab strip", () => {
+  it("keeps the title-bar chrome stacked above legacy tab-strip styling", () => {
     expect(styles).toContain(".titlebar-shell {");
     expect(styles).toContain("z-index: 20;");
     expect(styles).toContain(".tab-strip--chrome {");
@@ -44,6 +46,7 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".scenes-panel__stage-layout {");
     expect(styles).toContain(".app-shell--scene-editor {");
     expect(styles).toContain("grid-template-rows: auto minmax(0, 1fr) auto;");
+    expect(styles).toContain(".app-shell--editor-workbench {");
     expect(styles).toContain(".scene-screen-tabs {");
     expect(styles).toContain(".app-shell--scene-editor .scenes-panel__stage-layout {");
     expect(styles).toContain(
@@ -63,9 +66,15 @@ describe("editor chrome styles", () => {
     expect(styles).toContain("color: inherit;");
   });
 
-  it("keeps scene editor titlebar actions and screen switching visible", () => {
+  it("keeps compact workbench titlebar actions and screen switching visible", () => {
+    expect(appSource).toContain("app-shell--editor-workbench");
     expect(appSource).toContain('className="titlebar-shell__actions app-region-no-drag"');
-    expect(appSource).toContain('<nav className="scene-screen-tabs app-region-no-drag" aria-label="Editor screens">');
-    expect(appSource).not.toContain('{isSceneEditorSurface ? null : (\n          <div className="titlebar-shell__actions app-region-no-drag">');
+    expect(appSource).toContain('<nav className="scene-screen-tabs" aria-label="Editor screens">');
+    expect(appSource).toContain("scene-screen-tabs__tab scene-screen-tabs__tab--active app-region-no-drag");
+    expect(appSource).toContain("scene-screen-tabs__tab app-region-no-drag");
+    expect(appSource).not.toContain("Open editor sections");
+    expect(styles).not.toContain(".scene-titlebar-menu");
+    expect(appSource).not.toContain('<nav className="scene-screen-tabs app-region-no-drag"');
+    expect(appSource).not.toContain('<nav className="tab-strip tab-strip--chrome app-region-no-drag"');
   });
 });

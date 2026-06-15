@@ -102,6 +102,13 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("-webkit-app-region: no-drag;");
   });
 
+  it("keeps shared workbench button chrome away from hotspot hit targets", () => {
+    expect(styles).toContain(".app-shell--editor-workbench button:not(.hotspot__body) {");
+    expect(styles).toContain(".app-shell--editor-workbench button:not(.hotspot__body):hover {");
+    expect(styles).not.toContain(".app-shell--editor-workbench button {");
+    expect(styles).toContain(".hotspot__body--hidden,");
+  });
+
   it("keeps the title-bar save button aligned with the slimmer file trigger sizing", () => {
     expect(styles).toContain(".titlebar-shell__save-button,");
     expect(styles).toContain("min-height: 1.95rem;");
@@ -117,15 +124,19 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("height: 0.95rem;");
   });
 
-  it("matches scene-editor title-bar file actions to the compact scene chrome", () => {
-    expect(styles).toContain(".app-shell--scene-editor .titlebar-shell__save-button,");
-    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__trigger {");
-    expect(styles).toContain("padding: 0.34rem 0.58rem;");
+  it("matches workbench title-bar file actions to the compact scene chrome", () => {
+    expect(styles).toContain("--titlebar-overlay-height: 2.5rem;");
+    expect(styles).toContain("min-height: max(2.5rem, env(titlebar-area-height, 0px));");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-shell__save-button,");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__trigger {");
+    expect(styles).toContain("min-height: 1.7rem;");
+    expect(styles).toContain("padding: 0.25rem 0.52rem;");
     expect(styles).toContain("border-radius: 6px;");
-    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__panel {");
+    expect(styles).toContain("min-height: 1.42rem;");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__panel {");
     expect(styles).toContain("border-radius: 8px;");
     expect(styles).toContain("background: rgba(10, 16, 22, 0.98);");
-    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__item:hover {");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__item:hover {");
     expect(styles).toContain("background: rgba(23, 119, 168, 0.28);");
   });
 

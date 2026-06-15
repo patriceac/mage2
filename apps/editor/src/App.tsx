@@ -102,12 +102,10 @@ export function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
-  const [isSceneNavOpen, setIsSceneNavOpen] = useState(false);
   const [hotspotInspectorOpenRequest, setHotspotInspectorOpenRequest] = useState(0);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
   const [initialLaunchOptions] = useState(() => getInitialLaunchOptions());
   const fileMenuId = useId();
-  const sceneNavMenuId = useId();
   const fileMenuRef = useRef<HTMLDivElement | null>(null);
   const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
@@ -567,7 +565,6 @@ export function App() {
 
   function handleTabSelect(tabId: EditorTab) {
     setActiveTab(tabId);
-    setIsSceneNavOpen(false);
   }
 
   async function handleAutomationCommand(rawCommand: unknown): Promise<unknown> {
@@ -896,6 +893,7 @@ export function App() {
   const shouldShowIssuesSidebar = showValidationDetails || validationReport.issues.length > 0;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isSceneEditorSurface = activeTab === "scenes";
+  const activeTabLabel = resolveTabLabel(activeTab);
   const activeScene = project.scenes.items.find((scene) => scene.id === selectedSceneId) ?? project.scenes.items[0];
   const activeSceneAsset = project.assets.assets.find((asset) => asset.id === activeScene?.backgroundAssetId);
   const activeSceneAssetVariant = activeSceneAsset ? resolveAssetVariant(activeSceneAsset, project.manifest.defaultLanguage) : undefined;
@@ -908,74 +906,35 @@ export function App() {
       ? formatAspectRatio(activeSceneAssetVariant.width, activeSceneAssetVariant.height)
       : "--";
   const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Autosave: Unsaved changes" : "Autosave: Saved";
+  const shellClassName = isSceneEditorSurface
+    ? "app-shell app-shell--project app-shell--editor-workbench app-shell--scene-editor"
+    : "app-shell app-shell--project app-shell--editor-workbench";
 
   return (
-    <div className={isSceneEditorSurface ? "app-shell app-shell--project app-shell--scene-editor" : "app-shell app-shell--project"}>
+    <div className={shellClassName}>
       <header className="titlebar-shell">
         <div className="titlebar-shell__inner">
-          <div
-            className={isSceneEditorSurface ? "titlebar-shell__identity titlebar-shell__identity--scene" : "titlebar-shell__identity"}
-            title={projectDir}
-          >
-            {isSceneEditorSurface ? (
-              <div className="scene-titlebar-menu app-region-no-drag">
-                <button
-                  type="button"
-                  className={isSceneNavOpen ? "scene-titlebar-menu__trigger scene-titlebar-menu__trigger--open" : "scene-titlebar-menu__trigger"}
-                  aria-label="Open editor sections"
-                  aria-haspopup="menu"
-                  aria-expanded={isSceneNavOpen}
-                  aria-controls={sceneNavMenuId}
-                  onClick={() => setIsSceneNavOpen((value) => !value)}
-                  title="Open editor sections."
-                >
-                  <MenuIcon />
-                </button>
-                {isSceneNavOpen ? (
-                  <div id={sceneNavMenuId} className="scene-titlebar-menu__panel" role="menu" aria-label="Editor sections">
-                    {TABS.map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        className={tab.id === activeTab ? "scene-titlebar-menu__item scene-titlebar-menu__item--active" : "scene-titlebar-menu__item"}
-                        role="menuitemradio"
-                        aria-checked={tab.id === activeTab}
-                        onClick={() => handleTabSelect(tab.id)}
-                        title={TAB_TOOLTIPS[tab.id]}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <h1 className="titlebar-shell__title">{isSceneEditorSurface ? "MAGE2 Scene Editor" : project.manifest.projectName}</h1>
-            {isSceneEditorSurface ? null : (
-              <>
-                <span className="titlebar-shell__separator" aria-hidden="true">
-                  /
-                </span>
-                <p className="titlebar-shell__path">{projectDir}</p>
-              </>
-            )}
+          <div className="titlebar-shell__identity titlebar-shell__identity--scene" title={projectDir}>
+            <h1 className="titlebar-shell__title">MAGE2 Editor</h1>
           </div>
 
-          {isSceneEditorSurface ? (
-            <nav className="scene-screen-tabs app-region-no-drag" aria-label="Editor screens">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={tab.id === activeTab ? "scene-screen-tabs__tab scene-screen-tabs__tab--active" : "scene-screen-tabs__tab"}
-                  onClick={() => handleTabSelect(tab.id)}
-                  title={TAB_TOOLTIPS[tab.id]}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          ) : null}
+          <nav className="scene-screen-tabs" aria-label="Editor screens">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={
+                  tab.id === activeTab
+                    ? "scene-screen-tabs__tab scene-screen-tabs__tab--active app-region-no-drag"
+                    : "scene-screen-tabs__tab app-region-no-drag"
+                }
+                onClick={() => handleTabSelect(tab.id)}
+                title={TAB_TOOLTIPS[tab.id]}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
           <div className="titlebar-shell__actions app-region-no-drag">
             <button
@@ -1043,22 +1002,6 @@ export function App() {
           </div>
         </div>
       </header>
-
-      {isSceneEditorSurface ? null : (
-        <nav className="tab-strip tab-strip--chrome app-region-no-drag" aria-label="Editor screens">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
-              onClick={() => handleTabSelect(tab.id)}
-              title={TAB_TOOLTIPS[tab.id]}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      )}
 
       <div className="editor-scroll-region">
         <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
@@ -1188,26 +1131,30 @@ export function App() {
         </div>
       </div>
 
-      <footer className={isSceneEditorSurface ? "status-bar status-bar--chrome status-bar--scene-editor" : "status-bar status-bar--chrome"}>
-        {isSceneEditorSurface ? (
-          <>
-            <div className="status-bar__scene-group">
-              <span className="status-bar__project-dot" aria-hidden="true" />
-              <span>Project: {project.manifest.projectName}</span>
-              <span className="status-bar__divider" aria-hidden="true" />
-              <span>{sceneSaveStatusLabel}</span>
-            </div>
-            <div className="status-bar__scene-group status-bar__scene-group--right">
+      <footer className="status-bar status-bar--chrome status-bar--workbench">
+        <div className="status-bar__scene-group">
+          <span className="status-bar__project-dot" aria-hidden="true" />
+          <span>Project: {project.manifest.projectName}</span>
+          <span className="status-bar__divider" aria-hidden="true" />
+          <span>{sceneSaveStatusLabel}</span>
+        </div>
+        <div className="status-bar__scene-group status-bar__scene-group--right">
+          {isSceneEditorSurface ? (
+            <>
               <span>Scene: {activeScene?.name ?? "No scene"}</span>
               <span className="status-bar__divider" aria-hidden="true" />
               <span>{sceneResolutionLabel}</span>
               <span className="status-bar__divider" aria-hidden="true" />
               <span>{sceneAspectLabel}</span>
-            </div>
-          </>
-        ) : (
-          <span className="status-bar__message">{busyLabel ? `${busyLabel}...` : statusMessage}</span>
-        )}
+            </>
+          ) : (
+            <>
+              <span>Screen: {activeTabLabel}</span>
+              <span className="status-bar__divider" aria-hidden="true" />
+              <span>{busyLabel ? `${busyLabel}...` : statusMessage}</span>
+            </>
+          )}
+        </div>
         <button
           type="button"
           className={validationReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--warn"}
@@ -1601,14 +1548,6 @@ function ChevronDownIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m7 10 5 5 5-5H7Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function MenuIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6.5h16v1.7H4V6.5Zm0 4.65h16v1.7H4v-1.7Zm0 4.65h16v1.7H4v-1.7Z" fill="currentColor" />
     </svg>
   );
 }

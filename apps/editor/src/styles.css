@@ -6,7 +6,7 @@
   --space-md: 1rem;
   --space-lg: 1.25rem;
   --editor-shell-padding: 1rem;
-  --titlebar-overlay-height: 3.5rem;
+  --titlebar-overlay-height: 2.5rem;
   --titlebar-controls-reserved-width: 10rem;
   background:
     radial-gradient(circle at top left, rgba(125, 211, 252, 0.12), transparent 32%),
@@ -159,6 +159,7 @@ label > .checkbox-list {
   overflow: hidden;
 }
 
+.app-shell--editor-workbench,
 .app-shell--scene-editor {
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: #080d12;
@@ -297,32 +298,32 @@ label > .checkbox-list {
   color: #7e90a0;
 }
 
-.app-shell--scene-editor .titlebar-shell {
-  min-height: max(2.35rem, env(titlebar-area-height, 0px));
-  padding-block: 0.24rem;
+.app-shell--editor-workbench .titlebar-shell {
+  min-height: max(2.5rem, env(titlebar-area-height, 0px));
+  padding-block: 0.14rem;
   background: rgba(7, 12, 17, 0.96);
 }
 
-.app-shell--scene-editor .titlebar-shell__inner {
+.app-shell--editor-workbench .titlebar-shell__inner {
   grid-template-columns: auto minmax(12rem, 1fr) auto;
-  gap: 0.85rem;
+  gap: 0.72rem;
 }
 
-.app-shell--scene-editor .titlebar-shell__title {
+.app-shell--editor-workbench .titlebar-shell__title {
   max-width: none;
   color: #f4f8fb;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   letter-spacing: 0;
 }
 
-.app-shell--scene-editor .titlebar-shell__actions {
+.app-shell--editor-workbench .titlebar-shell__actions {
   gap: 0.35rem;
 }
 
-.app-shell--scene-editor .titlebar-shell__save-button,
-.app-shell--scene-editor .titlebar-menu__trigger {
-  min-height: 1.95rem;
-  padding: 0.34rem 0.58rem;
+.app-shell--editor-workbench .titlebar-shell__save-button,
+.app-shell--editor-workbench .titlebar-menu__trigger {
+  min-height: 1.7rem;
+  padding: 0.25rem 0.52rem;
   border-radius: 6px;
   background: transparent;
   color: #9fb0be;
@@ -330,36 +331,36 @@ label > .checkbox-list {
   font-weight: 600;
 }
 
-.app-shell--scene-editor .titlebar-shell__save-button:hover,
-.app-shell--scene-editor .titlebar-menu__trigger:hover,
-.app-shell--scene-editor .titlebar-menu__trigger--open {
+.app-shell--editor-workbench .titlebar-shell__save-button:hover,
+.app-shell--editor-workbench .titlebar-menu__trigger:hover,
+.app-shell--editor-workbench .titlebar-menu__trigger--open {
   background: rgba(255, 255, 255, 0.08);
   color: #e6edf3;
 }
 
-.app-shell--scene-editor .titlebar-shell__save-button--active {
+.app-shell--editor-workbench .titlebar-shell__save-button--active {
   background: rgba(246, 193, 119, 0.16);
   color: #ffd088;
   box-shadow: inset 0 0 0 1px rgba(246, 193, 119, 0.28);
 }
 
-.app-shell--scene-editor .titlebar-shell__save-button--active:hover {
+.app-shell--editor-workbench .titlebar-shell__save-button--active:hover {
   background: rgba(246, 193, 119, 0.22);
   color: #ffe0aa;
 }
 
-.app-shell--scene-editor .titlebar-shell__save-button:disabled,
-.app-shell--scene-editor .titlebar-shell__save-button:disabled:hover {
+.app-shell--editor-workbench .titlebar-shell__save-button:disabled,
+.app-shell--editor-workbench .titlebar-shell__save-button:disabled:hover {
   background: transparent;
   color: #667685;
   box-shadow: none;
 }
 
-.app-shell--scene-editor .titlebar-menu {
+.app-shell--editor-workbench .titlebar-menu {
   z-index: 5;
 }
 
-.app-shell--scene-editor .titlebar-menu__panel {
+.app-shell--editor-workbench .titlebar-menu__panel {
   top: calc(100% + 0.45rem);
   min-width: 11rem;
   gap: 0.25rem;
@@ -370,14 +371,14 @@ label > .checkbox-list {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
 }
 
-.app-shell--scene-editor .titlebar-menu__item {
+.app-shell--editor-workbench .titlebar-menu__item {
   padding: 0.5rem 0.62rem;
   border-radius: 6px;
   color: #d8e3ec;
   font-size: 0.82rem;
 }
 
-.app-shell--scene-editor .titlebar-menu__item:hover {
+.app-shell--editor-workbench .titlebar-menu__item:hover {
   background: rgba(23, 119, 168, 0.28);
   color: #f4f8fb;
 }
@@ -397,8 +398,8 @@ label > .checkbox-list {
 
 .scene-screen-tabs__tab {
   flex: 0 0 auto;
-  min-height: 1.55rem;
-  padding: 0.22rem 0.52rem;
+  min-height: 1.42rem;
+  padding: 0.16rem 0.48rem;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
@@ -419,72 +420,6 @@ label > .checkbox-list {
   background: rgba(23, 119, 168, 0.32);
   color: #f4fbff;
   box-shadow: inset 0 0 0 1px rgba(23, 183, 216, 0.24);
-}
-
-.scene-titlebar-menu {
-  position: relative;
-  z-index: 5;
-}
-
-.scene-titlebar-menu__trigger {
-  display: inline-grid;
-  width: 1.95rem;
-  height: 1.95rem;
-  place-items: center;
-  padding: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #9fb0be;
-}
-
-.scene-titlebar-menu__trigger:hover,
-.scene-titlebar-menu__trigger--open {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e6edf3;
-}
-
-.scene-titlebar-menu__trigger svg {
-  width: 1.1rem;
-  height: 1.1rem;
-}
-
-.scene-titlebar-menu__panel {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
-  position: absolute;
-  top: calc(100% + 0.45rem);
-  left: 0;
-  z-index: 100;
-  display: grid;
-  gap: 0.25rem;
-  width: 13rem;
-  padding: 0.4rem;
-  border: 1px solid rgba(94, 111, 125, 0.42);
-  border-radius: 8px;
-  background: rgba(10, 16, 22, 0.98);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
-}
-
-.scene-titlebar-menu__item {
-  justify-content: flex-start;
-  width: 100%;
-  padding: 0.5rem 0.62rem;
-  border-radius: 6px;
-  background: transparent;
-  color: #d8e3ec;
-  text-align: left;
-}
-
-.scene-titlebar-menu__item:hover,
-.scene-titlebar-menu__item--active {
-  background: rgba(23, 119, 168, 0.28);
-  color: #f4f8fb;
-}
-
-.scene-titlebar-menu__separator {
-  height: 1px;
-  margin: 0.2rem 0;
-  background: rgba(108, 128, 145, 0.3);
 }
 
 .titlebar-menu {
@@ -557,9 +492,9 @@ label > .checkbox-list {
   white-space: nowrap;
 }
 
-.status-bar--scene-editor {
+.status-bar--workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
   min-height: 2.25rem;
   padding-block: 0.35rem;
   background: rgba(7, 12, 17, 0.98);
@@ -602,8 +537,13 @@ label > .checkbox-list {
   background: rgba(255, 255, 255, 0.13);
 }
 
-.status-bar--scene-editor .status-pill {
-  display: none;
+.status-bar--workbench .status-pill {
+  justify-self: end;
+  padding: 0.2rem 0.52rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .tab-strip--chrome {
@@ -620,6 +560,11 @@ label > .checkbox-list {
   min-height: 0;
   overflow: auto;
   padding: var(--editor-shell-padding);
+}
+
+.app-shell--editor-workbench .editor-scroll-region {
+  background: #0b1218;
+  padding: 0.72rem;
 }
 
 .app-shell--scene-editor .editor-scroll-region {
@@ -1020,8 +965,8 @@ label > .checkbox-list {
 
 .playtest-panel__toolbar-field--toggle {
   position: relative;
-  top: -0.2rem;
-  padding-top: 1.1rem;
+  top: 0;
+  padding-top: 1.35rem;
 }
 
 .playtest-panel__toolbar-range {
@@ -1617,8 +1562,7 @@ label > .checkbox-list {
   align-items: end;
 }
 
-.scene-video-loop-toggle,
-.playtest-hotspot-visibility-toggle {
+.scene-video-loop-toggle {
   display: inline-grid;
   grid-template-columns: 1.4rem auto;
   align-items: center;
@@ -1631,8 +1575,7 @@ label > .checkbox-list {
   color: #d6e1ea;
 }
 
-.scene-video-loop-toggle input,
-.playtest-hotspot-visibility-toggle input {
+.scene-video-loop-toggle input {
   -webkit-appearance: none;
   appearance: none;
   display: grid;
@@ -1649,8 +1592,7 @@ label > .checkbox-list {
   cursor: pointer;
 }
 
-.scene-video-loop-toggle input::before,
-.playtest-hotspot-visibility-toggle input::before {
+.scene-video-loop-toggle input::before {
   content: "";
   width: 0.38rem;
   height: 0.72rem;
@@ -1663,27 +1605,137 @@ label > .checkbox-list {
     transform 120ms ease;
 }
 
-.scene-video-loop-toggle input:checked,
-.playtest-hotspot-visibility-toggle input:checked {
+.scene-video-loop-toggle input:checked {
   border-color: #f6c177;
   background: #f6c177;
 }
 
-.scene-video-loop-toggle input:checked::before,
-.playtest-hotspot-visibility-toggle input:checked::before {
+.scene-video-loop-toggle input:checked::before {
   opacity: 1;
   transform: translateY(-0.04rem) rotate(45deg) scale(1);
 }
 
-.scene-video-loop-toggle input:focus-visible,
-.playtest-hotspot-visibility-toggle input:focus-visible {
+.scene-video-loop-toggle input:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.9);
   outline-offset: 2px;
 }
 
-.scene-video-loop-toggle span,
-.playtest-hotspot-visibility-toggle span {
+.scene-video-loop-toggle span {
   line-height: 1.25;
+}
+
+.playtest-hotspot-visibility-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  gap: 0.58rem;
+  width: fit-content;
+  min-height: 3rem;
+  padding: 0.18rem 0.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #dce7ef;
+  box-shadow: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.playtest-hotspot-visibility-toggle:hover {
+  color: #f5fbff;
+  transform: translateY(-1px);
+}
+
+.playtest-hotspot-visibility-toggle input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.playtest-hotspot-visibility-toggle__track {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 1.12rem;
+  padding: 0.13rem;
+  border: 1px solid rgba(148, 163, 184, 0.44);
+  border-radius: 999px;
+  background: rgba(3, 7, 12, 0.62);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.playtest-hotspot-visibility-toggle__thumb {
+  display: block;
+  width: 0.74rem;
+  height: 0.74rem;
+  border-radius: 999px;
+  background: #d6e1ea;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition:
+    background 140ms ease,
+    transform 160ms ease,
+    box-shadow 140ms ease;
+}
+
+.playtest-hotspot-visibility-toggle__label {
+  position: relative;
+  z-index: 1;
+  color: currentColor;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.playtest-hotspot-visibility-toggle input:checked + .playtest-hotspot-visibility-toggle__track {
+  border-color: rgba(246, 193, 119, 0.86);
+  background:
+    linear-gradient(90deg, rgba(246, 193, 119, 0.32), rgba(125, 211, 252, 0.18)),
+    rgba(49, 33, 10, 0.74);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.26),
+    0 0 0 3px rgba(246, 193, 119, 0.1);
+}
+
+.playtest-hotspot-visibility-toggle input:checked + .playtest-hotspot-visibility-toggle__track .playtest-hotspot-visibility-toggle__thumb {
+  background: #f6c177;
+  box-shadow:
+    0 2px 8px rgba(246, 193, 119, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateX(1.03rem);
+}
+
+.playtest-hotspot-visibility-toggle:has(input:checked) {
+  color: #fff4df;
+}
+
+.playtest-hotspot-visibility-toggle input:focus-visible + .playtest-hotspot-visibility-toggle__track {
+  outline: 2px solid rgba(125, 211, 252, 0.9);
+  outline-offset: 3px;
 }
 
 .dialogue-workspace {
@@ -6149,6 +6201,429 @@ label > .checkbox-list {
   font-size: 0.82rem;
 }
 
+.app-shell--editor-workbench {
+  --workbench-bg: #0b1218;
+  --workbench-rail: #101820;
+  --workbench-panel: #111a22;
+  --workbench-panel-soft: rgba(255, 255, 255, 0.03);
+  --workbench-control: #0f171f;
+  --workbench-border: rgba(108, 128, 145, 0.28);
+  --workbench-border-strong: rgba(70, 92, 109, 0.55);
+  --workbench-text: #e6edf3;
+  --workbench-muted: #9aa8b4;
+  --workbench-accent: #17b7d8;
+  --workbench-hotspot: #f6a313;
+  --workbench-danger: #ff7070;
+}
+
+.app-shell--editor-workbench :where(.panel, .validation-panel) {
+  border-color: var(--workbench-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 10rem),
+    var(--workbench-rail);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.app-shell--editor-workbench .panel {
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.app-shell--editor-workbench .panel__toolbar,
+.app-shell--editor-workbench .dialogue-builder__header,
+.app-shell--editor-workbench .dialogue-library__header,
+.app-shell--editor-workbench .localization-shell__header-bar,
+.app-shell--editor-workbench .localization-section__header {
+  gap: 0.72rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.24);
+}
+
+.app-shell--editor-workbench :where(.panel h3, .panel h4, .panel h5) {
+  color: var(--workbench-text);
+  letter-spacing: 0;
+}
+
+.app-shell--editor-workbench .panel h3 {
+  font-size: 0.94rem;
+  font-weight: 650;
+}
+
+.app-shell--editor-workbench .panel h4 {
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.app-shell--editor-workbench .panel h5 {
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.app-shell--editor-workbench :where(.muted, .eyebrow, .header-meta) {
+  color: var(--workbench-muted);
+}
+
+.app-shell--editor-workbench .eyebrow {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.app-shell--editor-workbench label {
+  color: #d3dde6;
+  font-size: 0.8rem;
+}
+
+.app-shell--editor-workbench .field-label--inset {
+  padding-left: 0;
+  color: #b9c5cf;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.app-shell--editor-workbench :where(input, textarea, select),
+.app-shell--editor-workbench .dropdown-select__native {
+  min-height: 2rem;
+  border-color: var(--workbench-border);
+  border-radius: 4px;
+  background: var(--workbench-control);
+  color: var(--workbench-text);
+  padding: 0.45rem 0.58rem;
+  font-size: 0.82rem;
+}
+
+.app-shell--editor-workbench textarea {
+  min-height: 4.25rem;
+}
+
+.app-shell--editor-workbench .dropdown-select__native {
+  padding-right: 2.75rem;
+}
+
+.app-shell--editor-workbench .dropdown-select__trigger {
+  width: 2.2rem;
+  border-radius: 0 3px 3px 0;
+  color: #9fb0be;
+}
+
+.app-shell--editor-workbench :where(input, textarea, select):focus,
+.app-shell--editor-workbench .dropdown-select:focus-within .dropdown-select__native {
+  border-color: rgba(23, 183, 216, 0.74);
+  box-shadow: 0 0 0 1px rgba(23, 183, 216, 0.24);
+}
+
+.app-shell--editor-workbench button:not(.hotspot__body) {
+  min-height: 2rem;
+  border: 1px solid rgba(108, 128, 145, 0.28);
+  border-radius: 4px;
+  background: #111a22;
+  color: #dce6ee;
+  padding: 0.45rem 0.64rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.app-shell--editor-workbench button:not(.hotspot__body):hover {
+  border-color: rgba(23, 183, 216, 0.44);
+  background: rgba(23, 119, 168, 0.22);
+  color: #f4fbff;
+}
+
+.app-shell--editor-workbench button:not(.hotspot__body):disabled,
+.app-shell--editor-workbench button:not(.hotspot__body):disabled:hover {
+  border-color: rgba(108, 128, 145, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #708190;
+}
+
+.app-shell--editor-workbench .button-accent {
+  border-color: rgba(246, 163, 19, 0.42);
+  background: rgba(246, 163, 19, 0.18);
+  color: #ffd088;
+}
+
+.app-shell--editor-workbench .button-accent:hover {
+  border-color: rgba(246, 193, 119, 0.66);
+  background: rgba(246, 163, 19, 0.24);
+  color: #ffe0aa;
+}
+
+.app-shell--editor-workbench .button-secondary {
+  border-color: rgba(108, 128, 145, 0.3);
+  background: rgba(255, 255, 255, 0.045);
+  color: #dce7ef;
+}
+
+.app-shell--editor-workbench .button-danger,
+.app-shell--editor-workbench .button-danger-quiet {
+  border-color: rgba(255, 112, 112, 0.24);
+  background: rgba(255, 95, 95, 0.1);
+  color: #ffb1b1;
+}
+
+.app-shell--editor-workbench .button-danger:hover,
+.app-shell--editor-workbench .button-danger-quiet:hover {
+  border-color: rgba(255, 112, 112, 0.42);
+  background: rgba(255, 95, 95, 0.16);
+  color: #ffd7d7;
+}
+
+.app-shell--editor-workbench .button-danger-quiet:disabled,
+.app-shell--editor-workbench .button-danger-quiet:disabled:hover {
+  border-color: rgba(108, 128, 145, 0.14);
+  background: transparent;
+  color: rgba(231, 166, 176, 0.38);
+}
+
+.app-shell--editor-workbench :where(.panel-grid--assets, .panel-grid--world, .panel-grid--inventory) {
+  grid-template-columns: minmax(0, 1.55fr) minmax(18rem, 0.8fr);
+}
+
+.app-shell--editor-workbench .panel-grid--dialogue {
+  grid-template-columns: minmax(13.5rem, 16.5rem) minmax(26rem, 1fr) minmax(18rem, 20rem);
+}
+
+.app-shell--editor-workbench .panel-grid--localization {
+  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.85fr);
+}
+
+.app-shell--editor-workbench .panel-grid--playtest {
+  grid-template-columns: minmax(0, 1.35fr) minmax(21rem, 0.78fr);
+}
+
+.app-shell--editor-workbench .panel--flow {
+  min-height: calc(100vh - 6.7rem);
+  padding: 0;
+  overflow: hidden;
+}
+
+.app-shell--editor-workbench .panel--flow .panel__toolbar {
+  padding: 0.62rem 0.75rem;
+  border-bottom-color: var(--workbench-border-strong);
+  background:
+    linear-gradient(90deg, rgba(25, 40, 50, 0.92), rgba(13, 21, 28, 0.94)),
+    var(--workbench-rail);
+}
+
+.app-shell--editor-workbench .panel--flow > .react-flow {
+  background: #0a1016;
+}
+
+.app-shell--editor-workbench .panel--flow .react-flow__node-default {
+  border-color: rgba(108, 128, 145, 0.34);
+  border-radius: 4px;
+  background: #111a22;
+  color: var(--workbench-text);
+  box-shadow: none;
+}
+
+.app-shell--editor-workbench .panel--flow .react-flow__controls-button {
+  width: 1.9rem;
+  height: 1.9rem;
+  min-height: 1.9rem;
+  border-radius: 3px;
+  background: #111a22;
+  color: #dce6ee;
+}
+
+.app-shell--editor-workbench :where(.list-card, .asset-library-note, .localization-overview__notice, .localization-panel__list-actions, .dialog-callout) {
+  border-color: rgba(108, 128, 145, 0.24);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+}
+
+.app-shell--editor-workbench .list-card {
+  gap: 0.62rem;
+  padding: 0.72rem;
+}
+
+.app-shell--editor-workbench .list-card--selected,
+.app-shell--editor-workbench .localization-entry--selected {
+  border-color: rgba(23, 183, 216, 0.68);
+  background: linear-gradient(90deg, rgba(23, 119, 168, 0.3), rgba(23, 119, 168, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(23, 183, 216, 0.2);
+}
+
+.app-shell--editor-workbench .list-stack {
+  gap: 0.48rem;
+}
+
+.app-shell--editor-workbench .asset-preview,
+.app-shell--editor-workbench .media-surface {
+  border-color: var(--workbench-border);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #111a22, #0a1016);
+}
+
+.app-shell--editor-workbench .list-card--asset {
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+}
+
+.app-shell--editor-workbench .asset-library-note {
+  padding: 0.62rem 0.72rem;
+}
+
+.app-shell--editor-workbench .inventory-item-art {
+  grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+}
+
+.app-shell--editor-workbench .inventory-item-art__dropzone-overlay {
+  border-radius: 4px;
+}
+
+.app-shell--editor-workbench .inventory-item-card {
+  grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr);
+  align-items: start;
+  gap: 0.9rem;
+}
+
+.app-shell--editor-workbench .inventory-item-card__art,
+.app-shell--editor-workbench .inventory-item-card__details,
+.app-shell--editor-workbench .inventory-item-card__text-fields,
+.app-shell--editor-workbench .inventory-item-card__image-controls {
+  display: grid;
+  align-content: start;
+  gap: 0.62rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .inventory-item-card__art .asset-preview {
+  aspect-ratio: 1 / 1;
+}
+
+.app-shell--editor-workbench .inventory-item-card__art .asset-preview__media--contain {
+  padding: 0.58rem;
+}
+
+.app-shell--editor-workbench .inventory-item-card__text-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-shell--editor-workbench .inventory-item-card__text-fields label:last-child {
+  grid-column: 1 / -1;
+}
+
+.app-shell--editor-workbench .inventory-item-card__text-fields textarea {
+  min-height: 3.85rem;
+}
+
+.app-shell--editor-workbench .inventory-item-card__image-controls {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  padding-top: 0.62rem;
+  border-top: 1px solid rgba(108, 128, 145, 0.2);
+}
+
+.app-shell--editor-workbench .inventory-item-card__image-controls .list-card__actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.app-shell--editor-workbench .inventory-item-art__dropzone-hint {
+  padding: 0.44rem 0.5rem;
+  border: 1px solid rgba(108, 128, 145, 0.18);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.018);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.app-shell--editor-workbench .dialogue-library,
+.app-shell--editor-workbench .dialogue-launch-panel,
+.app-shell--editor-workbench .localization-context,
+.app-shell--editor-workbench .world-panel__details {
+  align-self: start;
+  max-height: calc(100vh - 6.9rem);
+  overflow: auto;
+}
+
+.app-shell--editor-workbench .dialogue-builder,
+.app-shell--editor-workbench .localization-panel {
+  min-height: calc(100vh - 6.9rem);
+  max-height: calc(100vh - 6.9rem);
+  overflow: auto;
+}
+
+.app-shell--editor-workbench :where(.dialogue-library-item, .dialogue-usage-item, .dialogue-line-card, .dialogue-reply-card, .dialogue-preview-card, .dialogue-start-panel, .dialogue-start-callout, .localization-subtab-strip, .localization-subtitle-entry) {
+  border-color: rgba(108, 128, 145, 0.24);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+}
+
+.app-shell--editor-workbench .dialogue-library-item {
+  min-height: 3.2rem;
+  padding: 0.5rem 0.58rem;
+}
+
+.app-shell--editor-workbench .dialogue-library-item--selected,
+.app-shell--editor-workbench .dialogue-line-card--selected {
+  border-color: rgba(23, 183, 216, 0.68);
+  background: linear-gradient(90deg, rgba(23, 119, 168, 0.32), rgba(23, 119, 168, 0.14));
+}
+
+.app-shell--editor-workbench .dialogue-line-card__select {
+  border: 0;
+  background: transparent;
+}
+
+.app-shell--editor-workbench .dialogue-line-card__number,
+.app-shell--editor-workbench .dialogue-reply-card__marker,
+.app-shell--editor-workbench .dialogue-preview-choice span {
+  border-radius: 4px;
+  border-color: rgba(246, 163, 19, 0.36);
+  background: rgba(246, 163, 19, 0.1);
+  color: #f6c177;
+}
+
+.app-shell--editor-workbench .dialogue-preview-card__bubble {
+  border-color: rgba(23, 183, 216, 0.18);
+  border-radius: 4px;
+  background: rgba(4, 8, 12, 0.4);
+}
+
+.app-shell--editor-workbench .localization-subtab-strip {
+  padding: 0.25rem;
+}
+
+.app-shell--editor-workbench .localization-subtab {
+  min-height: 1.85rem;
+  border-radius: 3px;
+  padding: 0.36rem 0.58rem;
+  color: var(--workbench-muted);
+}
+
+.app-shell--editor-workbench .localization-subtab--active,
+.app-shell--editor-workbench .localization-subtab[aria-selected="true"] {
+  border-color: rgba(23, 183, 216, 0.68);
+  background: rgba(23, 119, 168, 0.32);
+  color: #f4fbff;
+}
+
+.app-shell--editor-workbench :where(.localization-status, .localization-area, .validation-tag, .status-pill) {
+  border-radius: 4px;
+}
+
+.app-shell--editor-workbench .localization-list,
+.app-shell--editor-workbench .localization-context__body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108, 128, 145, 0.55) transparent;
+}
+
+.app-shell--editor-workbench .panel-grid--playtest > aside.panel {
+  max-height: calc(100vh - 6.9rem);
+}
+
+.app-shell--editor-workbench .panel-grid--playtest .playtest-stage .media-surface {
+  border-radius: 0;
+  border-color: var(--workbench-border-strong);
+  background: #05080c;
+}
+
 @media (max-width: 1100px) {
   .editor-layout--with-issues,
   .panel-grid--assets,
@@ -6193,6 +6668,17 @@ label > .checkbox-list {
 
   .list-card--asset {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell--editor-workbench .inventory-item-card,
+  .app-shell--editor-workbench .inventory-item-card__text-fields,
+  .app-shell--editor-workbench .inventory-item-card__image-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell--editor-workbench .inventory-item-card__image-controls .list-card__actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .inventory-item-art,

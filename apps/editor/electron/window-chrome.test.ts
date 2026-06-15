@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { EDITOR_TITLE_BAR_OVERLAY_HEIGHT, resolveEditorWindowChromeOptions } from "./window-chrome";
 
 describe("resolveEditorWindowChromeOptions", () => {
+  it("keeps the Windows title-bar overlay compact", () => {
+    expect(EDITOR_TITLE_BAR_OVERLAY_HEIGHT).toBe(40);
+  });
+
   it("enables a title-bar overlay on Windows", () => {
     expect(resolveEditorWindowChromeOptions("win32")).toEqual({
       titleBarStyle: "hidden",

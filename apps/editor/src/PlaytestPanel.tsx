@@ -1051,10 +1051,14 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             >
               <input
                 type="checkbox"
+                aria-label="Show hotspots in playtest"
                 checked={showHotspots}
                 onChange={(event) => setShowHotspots(event.target.checked)}
               />
-              <span>Show hotspots</span>
+              <span className="playtest-hotspot-visibility-toggle__track" aria-hidden="true">
+                <span className="playtest-hotspot-visibility-toggle__thumb" />
+              </span>
+              <span className="playtest-hotspot-visibility-toggle__label">Show hotspots</span>
             </label>
           </div>
         </div>

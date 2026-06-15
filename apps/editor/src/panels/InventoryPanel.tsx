@@ -167,7 +167,7 @@ export function InventoryPanel({
 
   return (
     <div className="panel-grid panel-grid--single">
-      <section className="panel">
+      <section className="panel inventory-panel">
         <div className="panel__toolbar">
           <div>
             <h3>Inventory Items</h3>
@@ -195,54 +195,9 @@ export function InventoryPanel({
           return (
             <article
               key={item.id}
-              className={item.id === selectedInventoryItemId ? "list-card list-card--selected" : "list-card"}
+              className={item.id === selectedInventoryItemId ? "list-card list-card--selected inventory-item-card" : "list-card inventory-item-card"}
             >
-              <label>
-                <span className="field-label--inset">Name</span>
-                <input
-                  value={item.name}
-                  title="Internal name used to identify this inventory item in the editor."
-                  onFocus={() => setSelectedInventoryItemId(item.id)}
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      const target = draft.inventory.items.find((entry) => entry.id === item.id);
-                      if (target) {
-                        target.name = event.target.value;
-                      }
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span className="field-label--inset">Display Text</span>
-                <input
-                  value={localeStrings[item.textId] ?? ""}
-                  title="Player-facing item label stored in project text."
-                  onFocus={() => setSelectedInventoryItemId(item.id)}
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      setEditorLocalizedText(draft, activeLocale, item.textId, event.target.value);
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span className="field-label--inset">Description</span>
-                <textarea
-                  value={localeStrings[item.descriptionTextId ?? ""] ?? ""}
-                  title="Longer inspection text shown when the player looks at this item."
-                  onFocus={() => setSelectedInventoryItemId(item.id)}
-                  onChange={(event) =>
-                    mutateProject((draft) => {
-                      if (item.descriptionTextId) {
-                        setEditorLocalizedText(draft, activeLocale, item.descriptionTextId, event.target.value);
-                      }
-                    })
-                  }
-                />
-              </label>
-
-              <div className="inventory-item-art">
+              <div className="inventory-item-card__art">
                 <div
                   className={
                     activeDropItemId === item.id
@@ -275,7 +230,57 @@ export function InventoryPanel({
                     Drag an image onto the preview to assign this item&apos;s art.
                   </p>
                 </div>
-                <div className="inventory-item-art__controls">
+              </div>
+
+              <div className="inventory-item-card__details">
+                <div className="inventory-item-card__text-fields">
+                  <label>
+                    <span className="field-label--inset">Name</span>
+                    <input
+                      value={item.name}
+                      title="Internal name used to identify this inventory item in the editor."
+                      onFocus={() => setSelectedInventoryItemId(item.id)}
+                      onChange={(event) =>
+                        mutateProject((draft) => {
+                          const target = draft.inventory.items.find((entry) => entry.id === item.id);
+                          if (target) {
+                            target.name = event.target.value;
+                          }
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="field-label--inset">Display Text</span>
+                    <input
+                      value={localeStrings[item.textId] ?? ""}
+                      title="Player-facing item label stored in project text."
+                      onFocus={() => setSelectedInventoryItemId(item.id)}
+                      onChange={(event) =>
+                        mutateProject((draft) => {
+                          setEditorLocalizedText(draft, activeLocale, item.textId, event.target.value);
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="field-label--inset">Description</span>
+                    <textarea
+                      value={localeStrings[item.descriptionTextId ?? ""] ?? ""}
+                      title="Longer inspection text shown when the player looks at this item."
+                      onFocus={() => setSelectedInventoryItemId(item.id)}
+                      onChange={(event) =>
+                        mutateProject((draft) => {
+                          if (item.descriptionTextId) {
+                            setEditorLocalizedText(draft, activeLocale, item.descriptionTextId, event.target.value);
+                          }
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="inventory-item-card__image-controls">
                   <label>
                     <span className="field-label--inset">Inventory Image</span>
                     <DropdownSelect
