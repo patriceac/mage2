@@ -117,6 +117,13 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).not.toContain("grid-template-columns: 1.4rem auto;");
   });
 
+  it("keeps the playtest hotspot toggle label steady on hover", () => {
+    expect(styles).toContain(".playtest-hotspot-visibility-toggle:hover .playtest-hotspot-visibility-toggle__track");
+    expect(styles).not.toMatch(/\.playtest-hotspot-visibility-toggle:hover\s*\{[\s\S]*?font-weight:/);
+    expect(styles).not.toMatch(/\.playtest-hotspot-visibility-toggle:hover\s*\{[\s\S]*?color:/);
+    expect(styles).not.toMatch(/\.playtest-hotspot-visibility-toggle:hover\s*\{[\s\S]*?transform:/);
+  });
+
   it("keeps flyover labels above hotspot art, chrome, and handles", () => {
     expect(styles).toMatch(
       /\.media-surface__scene-overlay\s*\{[\s\S]*?z-index: 4;[\s\S]*?pointer-events: auto;[\s\S]*?\}/

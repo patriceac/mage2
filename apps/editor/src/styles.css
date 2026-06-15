@@ -1687,11 +1687,6 @@ label > .checkbox-list {
     transform 140ms ease;
 }
 
-.playtest-hotspot-visibility-toggle:hover {
-  color: #f5fbff;
-  transform: translateY(-1px);
-}
-
 .playtest-hotspot-visibility-toggle input {
   -webkit-appearance: none;
   appearance: none;
@@ -1751,6 +1746,11 @@ label > .checkbox-list {
   line-height: 1;
   pointer-events: none;
   white-space: nowrap;
+}
+
+.playtest-hotspot-visibility-toggle:hover .playtest-hotspot-visibility-toggle__track {
+  border-color: rgba(191, 219, 254, 0.62);
+  background: rgba(11, 18, 27, 0.72);
 }
 
 .playtest-hotspot-visibility-toggle input:checked + .playtest-hotspot-visibility-toggle__track {
