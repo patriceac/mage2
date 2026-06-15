@@ -2765,6 +2765,10 @@ label > .checkbox-list {
   color: #ff5f5f;
 }
 
+.app-shell--scene-editor .scenes-panel__tool-button--danger:disabled svg {
+  color: inherit;
+}
+
 .app-shell--scene-editor .scenes-panel__background-dropzone-hint {
   margin-top: auto;
   padding: 0.65rem;
