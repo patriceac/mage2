@@ -827,7 +827,7 @@ export function MediaSurface({
       const previousCursor = body.style.cursor;
       const previousUserSelect = body.style.userSelect;
       body.style.cursor =
-        handle === "move" || handle === "rotate" || !hotspot.inventoryItemId ? "grabbing" : resolveResizeCursor(handle);
+        handle === "move" ? "move" : handle === "rotate" || !hotspot.inventoryItemId ? "grabbing" : resolveResizeCursor(handle);
       body.style.userSelect = "none";
 
       const surfaceSize = {

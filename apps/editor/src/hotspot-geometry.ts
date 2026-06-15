@@ -369,7 +369,8 @@ function moveHotspotCorner(
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
-  const polygon = resolveHotspotPolygon(geometry);
+  const sourcePolygon = resolveHotspotPolygon(geometry);
+  const polygon = resolveHotspotPolygonWithMidpoints(sourcePolygon);
   const nextPolygon = polygon.map((point) => ({ ...point }));
 
   if (polygon.length === 8) {
@@ -379,42 +380,56 @@ function moveHotspotCorner(
       return geometry;
     }
 
-    nextPolygon[pointIndex] = {
-      x: clamp(point.x + deltaX, 0, 1),
-      y: clamp(point.y + deltaY, 0, 1)
-    };
+    nextPolygon[pointIndex] =
+      sourcePolygon.length === 4
+        ? resolveClampedFourPointHotspotCorner(sourcePolygon, handle, deltaX, deltaY)
+        : {
+            x: clamp(point.x + deltaX, 0, 1),
+            y: clamp(point.y + deltaY, 0, 1)
+          };
 
     return withPolygon(nextPolygon, geometry);
   }
 
+  const nextFallbackPolygon = sourcePolygon.map((point) => ({ ...point }));
+  nextFallbackPolygon[HOTSPOT_FOUR_POINT_CORNER_INDEX_BY_HANDLE[handle]] = resolveClampedFourPointHotspotCorner(
+    sourcePolygon,
+    handle,
+    deltaX,
+    deltaY
+  );
+
+  return withPolygon(nextFallbackPolygon, geometry);
+}
+
+function resolveClampedFourPointHotspotCorner(
+  polygon: HotspotPoint[],
+  handle: HotspotCornerHandle,
+  deltaX: number,
+  deltaY: number
+): HotspotPoint {
   switch (handle) {
     case "nw":
-      nextPolygon[0] = {
+      return {
         x: clamp(polygon[0].x + deltaX, 0, Math.min(polygon[1].x, polygon[2].x) - MIN_HOTSPOT_SIZE),
         y: clamp(polygon[0].y + deltaY, 0, Math.min(polygon[2].y, polygon[3].y) - MIN_HOTSPOT_SIZE)
       };
-      break;
     case "ne":
-      nextPolygon[1] = {
+      return {
         x: clamp(polygon[1].x + deltaX, Math.max(polygon[0].x, polygon[3].x) + MIN_HOTSPOT_SIZE, 1),
         y: clamp(polygon[1].y + deltaY, 0, Math.min(polygon[2].y, polygon[3].y) - MIN_HOTSPOT_SIZE)
       };
-      break;
     case "se":
-      nextPolygon[2] = {
+      return {
         x: clamp(polygon[2].x + deltaX, Math.max(polygon[0].x, polygon[3].x) + MIN_HOTSPOT_SIZE, 1),
         y: clamp(polygon[2].y + deltaY, Math.max(polygon[0].y, polygon[1].y) + MIN_HOTSPOT_SIZE, 1)
       };
-      break;
     case "sw":
-      nextPolygon[3] = {
+      return {
         x: clamp(polygon[3].x + deltaX, 0, Math.min(polygon[1].x, polygon[2].x) - MIN_HOTSPOT_SIZE),
         y: clamp(polygon[3].y + deltaY, Math.max(polygon[0].y, polygon[1].y) + MIN_HOTSPOT_SIZE, 1)
       };
-      break;
   }
-
-  return withPolygon(nextPolygon, geometry);
 }
 
 function isHotspotEdgeHandle(handle: Exclude<HotspotDragHandle, "rotate">): handle is HotspotEdgeHandle {
@@ -458,6 +473,13 @@ const HOTSPOT_CORNER_INDEX_BY_HANDLE: Record<HotspotCornerHandle, number> = {
   ne: 2,
   se: 4,
   sw: 6
+};
+
+const HOTSPOT_FOUR_POINT_CORNER_INDEX_BY_HANDLE: Record<HotspotCornerHandle, number> = {
+  nw: 0,
+  ne: 1,
+  se: 2,
+  sw: 3
 };
 
 function resolveNextKeyboardTransformPolygon(

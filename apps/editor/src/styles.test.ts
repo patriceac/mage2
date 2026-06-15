@@ -59,10 +59,15 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".hotspot--selected .hotspot__handle--rotate");
   });
 
-  it("limits grab cursors to editable hotspots so playtest clicks stay pointer-based", () => {
-    expect(styles).toContain(".hotspot--editable .hotspot__body {");
-    expect(styles).toContain(".hotspot--editable .hotspot__body:active {");
+  it("uses a move cursor for editable hotspot bodies while playtest clicks stay pointer-based", () => {
+    const bodyCursorRule = resolveCssRuleBlock(".hotspot--editable .hotspot__body");
+    const activeBodyCursorRule = resolveCssRuleBlock(".hotspot--editable .hotspot__body:active");
+
+    expect(bodyCursorRule).toContain("cursor: move;");
+    expect(activeBodyCursorRule).toContain("cursor: move;");
     expect(styles).not.toMatch(/^\s*\.hotspot__body:active\s*\{/m);
+    expect(bodyCursorRule).not.toContain("cursor: grab");
+    expect(activeBodyCursorRule).not.toContain("cursor: grabbing");
   });
 
   it("gives the playtest hotspot overlay a higher-contrast debug treatment", () => {
@@ -232,4 +237,12 @@ function resolveSelectorSpecificityScore(selector: string) {
   const classLikeCount = selector.match(/\.[\w-]+/g)?.length ?? 0;
   const typeCount = selector.match(/(^|[\s>+~])button(?=[\s.#:[{]|$)/g)?.length ?? 0;
   return classLikeCount * 100 + typeCount;
+}
+
+function resolveCssRuleBlock(selector: string) {
+  const start = styles.indexOf(`${selector} {`);
+  expect(start).toBeGreaterThan(-1);
+  const end = styles.indexOf("}", start);
+  expect(end).toBeGreaterThan(start);
+  return styles.slice(start, end + 1);
 }

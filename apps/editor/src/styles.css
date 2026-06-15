@@ -4819,11 +4819,11 @@ label > .checkbox-list {
 }
 
 .hotspot--editable .hotspot__body {
-  cursor: grab;
+  cursor: move;
 }
 
 .hotspot--editable .hotspot__body:active {
-  cursor: grabbing;
+  cursor: move;
 }
 
 .hotspot__body:focus-visible {
