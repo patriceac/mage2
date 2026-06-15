@@ -108,6 +108,8 @@ export function ScenesPanel({
   const sceneMenuRef = useRef<HTMLDivElement>(null);
   const sceneMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const sceneMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const sceneActionMenuRef = useRef<HTMLDivElement>(null);
+  const sceneActionMenuTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const inventoryPickerAnchorRef = useRef<HTMLButtonElement>(null);
   const hotspotKeyboardTransformBatchRef = useRef<{ hotspotId?: string; signature?: string }>({});
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
@@ -136,6 +138,7 @@ export function ScenesPanel({
   const currentSceneId = currentScene?.id;
   const locationMenuId = useId();
   const sceneMenuId = useId();
+  const sceneActionMenuBaseId = useId();
   const currentAsset = project.assets.assets.find((entry) => entry.id === currentScene?.backgroundAssetId);
   const currentAssetVariant = getLocalizedAssetVariant(currentAsset, activeLocale);
   const currentSceneAudioAsset = project.assets.assets.find((entry) => entry.id === currentScene?.sceneAudioAssetId);
@@ -152,6 +155,7 @@ export function ScenesPanel({
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
   const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
+  const [openSceneActionMenuId, setOpenSceneActionMenuId] = useState<string>();
   const [isInventoryPickerOpen, setIsInventoryPickerOpen] = useState(false);
   const [isInventoryPickerDragging, setIsInventoryPickerDragging] = useState(false);
   const [isInventoryPlacementDropActive, setIsInventoryPlacementDropActive] = useState(false);
@@ -283,6 +287,10 @@ export function ScenesPanel({
   }, [currentSceneId]);
 
   useEffect(() => {
+    setOpenSceneActionMenuId(undefined);
+  }, [currentSceneId]);
+
+  useEffect(() => {
     if (!isSceneMenuOpen) {
       return;
     }
@@ -330,6 +338,66 @@ export function ScenesPanel({
       window.removeEventListener("blur", handleBlur);
     };
   }, [currentSceneSwitcherIndex, isSceneMenuOpen, sceneSwitcherOptions.length]);
+
+  useEffect(() => {
+    if (!openSceneActionMenuId) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      sceneActionMenuRef.current?.querySelector<HTMLButtonElement>("[data-scene-action-menu-item]")?.focus();
+    });
+
+    const isInsideActionMenu = (target: EventTarget | null) => {
+      if (!(target instanceof Node)) {
+        return false;
+      }
+
+      return Boolean(
+        sceneActionMenuRef.current?.contains(target) ||
+          sceneActionMenuTriggerRefs.current[openSceneActionMenuId]?.contains(target)
+      );
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!isInsideActionMenu(event.target)) {
+        setOpenSceneActionMenuId(undefined);
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!isInsideActionMenu(event.target)) {
+        setOpenSceneActionMenuId(undefined);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      setOpenSceneActionMenuId(undefined);
+      sceneActionMenuTriggerRefs.current[openSceneActionMenuId]?.focus();
+    };
+
+    const handleBlur = () => {
+      setOpenSceneActionMenuId(undefined);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [openSceneActionMenuId]);
 
   useEffect(() => {
     if (selectedHotspot) {
@@ -680,19 +748,55 @@ export function ScenesPanel({
     syncSceneAudioToPlayhead(playheadMs);
   }, [playheadMs, sceneAudioUrl, currentAsset?.kind, currentScene.sceneAudioAssetId]);
 
-  function handleSceneMenuSelect(sceneId: string) {
+  function selectScene(sceneId: string, { focusName = true }: { focusName?: boolean } = {}) {
     setIsLocationMenuOpen(false);
     setIsSceneMenuOpen(false);
+    setOpenSceneActionMenuId(undefined);
 
     if (sceneId !== currentSceneId) {
       setSelectedSceneId(sceneId);
       setSelectedHotspotId(undefined);
     }
 
-    window.requestAnimationFrame(() => {
-      sceneNameInputRef.current?.focus();
-      sceneNameInputRef.current?.select();
-    });
+    if (focusName) {
+      window.requestAnimationFrame(() => {
+        sceneNameInputRef.current?.focus();
+        sceneNameInputRef.current?.select();
+      });
+    }
+  }
+
+  function handleSceneMenuSelect(sceneId: string) {
+    selectScene(sceneId);
+  }
+
+  function handleSceneActionMenuTriggerKeyDown(sceneId: string, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setIsLocationMenuOpen(false);
+      setIsSceneMenuOpen(false);
+      setOpenSceneActionMenuId(sceneId);
+      return;
+    }
+
+    if (event.key === "Escape" && openSceneActionMenuId === sceneId) {
+      event.preventDefault();
+      setOpenSceneActionMenuId(undefined);
+    }
+  }
+
+  function handleSceneActionMenuItemKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const menuItems = Array.from(
+      sceneActionMenuRef.current?.querySelectorAll<HTMLButtonElement>("[data-scene-action-menu-item]") ?? []
+    );
+    const currentIndex = menuItems.indexOf(event.currentTarget);
+    const navigation = resolveSceneSwitcherMenuNavigation(event.key, currentIndex, menuItems.length);
+    if (!navigation.handled) {
+      return;
+    }
+
+    event.preventDefault();
+    menuItems[navigation.nextIndex]?.focus();
   }
 
   function handleSceneMenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -1733,11 +1837,17 @@ export function ScenesPanel({
     return <div className="panel"><p>Create a scene to begin.</p></div>;
   }
 
-  async function handleDeleteScene() {
+  async function handleDeleteScene(sceneId = currentScene.id) {
+    const targetScene = project.scenes.items.find((scene) => scene.id === sceneId);
+    if (!targetScene) {
+      setStatusMessage("Could not delete scene because it is no longer present in the project.");
+      return;
+    }
+
     const dialogResult = await dialogs.deleteScene({
       project,
-      sceneId: currentScene.id,
-      referenceSummary: collectSceneReferenceSummary(project, currentScene.id)
+      sceneId: targetScene.id,
+      referenceSummary: collectSceneReferenceSummary(project, targetScene.id)
     });
     if (dialogResult.action === "cancel") {
       return;
@@ -1746,19 +1856,23 @@ export function ScenesPanel({
     const nextProject = cloneProject(project);
     const deletion = removeSceneFromProject(
       nextProject,
-      currentScene.id,
+      targetScene.id,
       dialogResult.action === "rewire"
         ? { mode: "rewire", replacementSceneId: dialogResult.replacementSceneId }
         : { mode: "cleanup" }
     );
 
     if (!deletion.deleted) {
-      setStatusMessage(resolveDeleteSceneBlockedMessage(currentScene.name, deletion.blockedReason));
+      setStatusMessage(resolveDeleteSceneBlockedMessage(targetScene.name, deletion.blockedReason));
       return;
     }
 
-    const nextSelectedSceneId =
-      dialogResult.action === "rewire" ? dialogResult.replacementSceneId : nextProject.scenes.items[0]?.id;
+    const deletedCurrentScene = targetScene.id === currentSceneId;
+    const nextSelectedSceneId = deletedCurrentScene
+      ? dialogResult.action === "rewire"
+        ? dialogResult.replacementSceneId
+        : nextProject.scenes.items[0]?.id
+      : currentSceneId;
     const replacementSceneName =
       dialogResult.action === "rewire"
         ? nextProject.scenes.items.find((scene) => scene.id === dialogResult.replacementSceneId)?.name
@@ -1770,7 +1884,7 @@ export function ScenesPanel({
     updateProject(nextProject);
     setStatusMessage(
       resolveDeleteSceneStatusMessage(
-        currentScene.name,
+        targetScene.name,
         deletion,
         replacementSceneName,
         validationReport.valid,
@@ -1780,6 +1894,7 @@ export function ScenesPanel({
   }
 
   function handleCreateScene() {
+    setOpenSceneActionMenuId(undefined);
     const nextProject = cloneProject(project);
     const scene = addScene(nextProject, currentScene.locationId);
 
@@ -1954,43 +2069,104 @@ export function ScenesPanel({
               </label>
             </div>
             <div className="scenes-panel__scene-list" aria-label="Scenes in this project">
-              {sceneListItems.map(({ scene, locationName, asset }) => (
-                <button
-                  key={scene.id}
-                  type="button"
-                  className={
-                    scene.id === currentScene.id
-                      ? "scenes-panel__scene-list-item scenes-panel__scene-list-item--active"
-                      : "scenes-panel__scene-list-item"
-                  }
-                  aria-current={scene.id === currentScene.id ? "true" : undefined}
-                  onClick={() => handleSceneMenuSelect(scene.id)}
-                  title={`Open ${scene.name} in ${locationName}.`}
-                >
-                  <span className="scenes-panel__scene-thumb" aria-hidden="true">
-                    <AssetPreview asset={asset} locale={activeLocale} interactive={false} allowSourceFallback preferPosterForImages />
-                  </span>
-                  <span className="scenes-panel__scene-list-label">
-                    <strong>{scene.name}</strong>
-                    <span>{locationName}</span>
-                  </span>
-                  <span className="scenes-panel__scene-list-kebab" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                </button>
-              ))}
+              {sceneListItems.map(({ scene, locationName, asset }) => {
+                const isCurrentScene = scene.id === currentScene.id;
+                const isActionMenuOpen = openSceneActionMenuId === scene.id;
+                const actionMenuId = `${sceneActionMenuBaseId}-${scene.id}`;
+
+                return (
+                  <div
+                    key={scene.id}
+                    className={
+                      isCurrentScene
+                        ? "scenes-panel__scene-list-item scenes-panel__scene-list-item--active"
+                        : "scenes-panel__scene-list-item"
+                    }
+                    aria-current={isCurrentScene ? "true" : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="scenes-panel__scene-list-main"
+                      onClick={() => selectScene(scene.id, { focusName: false })}
+                      title={`Open ${scene.name} in ${locationName}.`}
+                    >
+                      <span className="scenes-panel__scene-thumb" aria-hidden="true">
+                        <AssetPreview asset={asset} locale={activeLocale} interactive={false} allowSourceFallback preferPosterForImages />
+                      </span>
+                      <span className="scenes-panel__scene-list-label">
+                        <strong>{scene.name}</strong>
+                        <span>{locationName}</span>
+                      </span>
+                    </button>
+                    <div className="scenes-panel__scene-list-actions">
+                      <button
+                        ref={(element) => {
+                          sceneActionMenuTriggerRefs.current[scene.id] = element;
+                        }}
+                        type="button"
+                        className={
+                          isActionMenuOpen
+                            ? "scenes-panel__scene-list-action scenes-panel__scene-list-action--open"
+                            : "scenes-panel__scene-list-action"
+                        }
+                        aria-label={`Open actions for ${scene.name}`}
+                        aria-haspopup="menu"
+                        aria-expanded={isActionMenuOpen}
+                        aria-controls={isActionMenuOpen ? actionMenuId : undefined}
+                        onClick={() => {
+                          setIsLocationMenuOpen(false);
+                          setIsSceneMenuOpen(false);
+                          setOpenSceneActionMenuId(isActionMenuOpen ? undefined : scene.id);
+                        }}
+                        onKeyDown={(event) => handleSceneActionMenuTriggerKeyDown(scene.id, event)}
+                        title={`Open actions for ${scene.name}.`}
+                      >
+                        <span className="scenes-panel__scene-list-kebab" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </span>
+                      </button>
+                      {isActionMenuOpen ? (
+                        <div
+                          ref={sceneActionMenuRef}
+                          id={actionMenuId}
+                          className="scenes-panel__scene-actions-menu"
+                          role="menu"
+                          aria-label={`Actions for ${scene.name}`}
+                        >
+                          {resolveSceneActionMenuItems().map((item) => (
+                            <button
+                              key={item}
+                              type="button"
+                              className={
+                                item === "delete"
+                                  ? "scenes-panel__scene-actions-menu-item scenes-panel__scene-actions-menu-item--danger"
+                                  : "scenes-panel__scene-actions-menu-item"
+                              }
+                              role="menuitem"
+                              data-scene-action-menu-item
+                              onClick={() => {
+                                if (item === "delete") {
+                                  setOpenSceneActionMenuId(undefined);
+                                  void handleDeleteScene(scene.id);
+                                  return;
+                                }
+
+                                selectScene(scene.id, { focusName: true });
+                              }}
+                              onKeyDown={handleSceneActionMenuItemKeyDown}
+                            >
+                              {resolveSceneActionMenuItemLabel(item)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <button
-              type="button"
-              className="button-danger-quiet scenes-panel__delete-scene-button"
-              title="Delete this scene and choose whether to clean or rewire references to it."
-              onClick={() => void handleDeleteScene()}
-            >
-              <SceneActionIcon kind="delete" />
-              <span>Delete Scene</span>
-            </button>
           </aside>
 
           <div className="scenes-panel__stage-stack">
@@ -2678,6 +2854,20 @@ interface SceneSwitcherOption {
   sceneName: string;
   locationName: string;
   isCurrent: boolean;
+}
+
+type SceneActionMenuItem = "rename" | "delete";
+
+export function resolveSceneActionMenuItems(): SceneActionMenuItem[] {
+  return ["rename", "delete"];
+}
+
+function resolveSceneActionMenuItemLabel(item: SceneActionMenuItem) {
+  if (item === "rename") {
+    return "Rename";
+  }
+
+  return "Delete";
 }
 
 export function resolveSceneSwitcherOptions(

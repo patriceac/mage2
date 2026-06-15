@@ -57,7 +57,7 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".scenes-panel__side-controls {");
     expect(styles).toContain(".scenes-panel__action-rail {");
     expect(styles).toContain(".scenes-panel__hotspot-actions {");
-    expect(styles).toContain(".scenes-panel__delete-scene-button {");
+    expect(styles).toContain(".scenes-panel__scene-actions-menu {");
     expect(styles).toContain(".scenes-panel__background-dropzone-hint {");
     expect(styles).toContain(".app-shell--scene-editor .scenes-panel__tool-button--danger:disabled svg {");
     expect(styles).toContain("color: inherit;");

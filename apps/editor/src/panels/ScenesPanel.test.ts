@@ -14,6 +14,7 @@ import {
   resolveLocationSwitcherOptions,
   resolveNextHotspotInspectorOpenState,
   resolveInventoryPickerToggleResult,
+  resolveSceneActionMenuItems,
   resolveSceneSwitcherMenuNavigation,
   resolveSceneSwitcherOptions,
   resolveScenesFloatingWindowVisibility,
@@ -160,6 +161,16 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain('aria-label="Scene name"');
     expect(markup).toContain("scene-switcher__trigger");
     expect(markup).not.toContain(">Scene Name</span>");
+  });
+
+  it("uses the scene list overflow menu for per-scene actions", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain("scenes-panel__scene-list-action");
+    expect(markup).toContain("Open actions for");
+    expect(markup).not.toContain("scenes-panel__delete-scene-button");
+    expect(markup).not.toContain("Delete Scene");
+    expect(resolveSceneActionMenuItems()).toEqual(["rename", "delete"]);
   });
 
   it("renders the location picker with the same switcher chrome in non-editable mode", () => {

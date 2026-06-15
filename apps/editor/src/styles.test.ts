@@ -117,6 +117,18 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("height: 0.95rem;");
   });
 
+  it("matches scene-editor title-bar file actions to the compact scene chrome", () => {
+    expect(styles).toContain(".app-shell--scene-editor .titlebar-shell__save-button,");
+    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__trigger {");
+    expect(styles).toContain("padding: 0.34rem 0.58rem;");
+    expect(styles).toContain("border-radius: 6px;");
+    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__panel {");
+    expect(styles).toContain("border-radius: 8px;");
+    expect(styles).toContain("background: rgba(10, 16, 22, 0.98);");
+    expect(styles).toContain(".app-shell--scene-editor .titlebar-menu__item:hover {");
+    expect(styles).toContain("background: rgba(23, 119, 168, 0.28);");
+  });
+
   it("lets the title-bar project path consume the remaining identity width", () => {
     expect(styles).toContain(".titlebar-shell__path {");
     expect(styles).toContain("flex: 1 1 auto;");

@@ -464,7 +464,6 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     id: sceneId,
     locationId: locationId ?? project.locations.items[0]?.id ?? "location_intro",
     name: `Scene ${project.scenes.items.length + 1}`,
-    backgroundAssetId: resolveDefaultNewSceneBackgroundAssetId(project.assets.assets),
     sceneAudioLoop: true,
     sceneAudioDelayMs: 0,
     backgroundVideoLoop: false,
@@ -608,10 +607,6 @@ export function resolveFirstBackgroundAssetId(assets: Asset[]): string | undefin
     assets.find((asset) => asset.id !== STARTER_PLACEHOLDER_ASSET_ID && isBackgroundAsset(asset))?.id ??
     assets.find((asset) => isBackgroundAsset(asset))?.id
   );
-}
-
-function resolveDefaultNewSceneBackgroundAssetId(assets: Asset[]): string | undefined {
-  return assets.find((asset) => asset.id !== STARTER_PLACEHOLDER_ASSET_ID && isBackgroundAsset(asset))?.id;
 }
 
 function resolveBackgroundFallbackAssetId(assets: Asset[], deletedAsset: Asset): string | undefined {

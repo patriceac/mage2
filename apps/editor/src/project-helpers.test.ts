@@ -60,7 +60,7 @@ describe("addLocation and addScene", () => {
     expect(scene.backgroundAssetId).toBeUndefined();
   });
 
-  it("reuses the first real background asset for added scenes when one exists", () => {
+  it("does not reuse existing background assets for added scenes", () => {
     const project = createDefaultProjectBundle("New scenes");
     project.assets.assets.push(
       createAsset(STARTER_PLACEHOLDER_ASSET_ID, "starter-scene.png", "D:\\project\\assets\\starter-scene.png"),
@@ -69,7 +69,7 @@ describe("addLocation and addScene", () => {
 
     const scene = addScene(project, project.locations.items[0]!.id);
 
-    expect(scene.backgroundAssetId).toBe("asset_background");
+    expect(scene.backgroundAssetId).toBeUndefined();
   });
 });
 
