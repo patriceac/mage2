@@ -61,7 +61,7 @@ export function resolveHotspotBounds(hotspot: HotspotShape): HotspotBounds {
 }
 
 function shouldUseStoredPolygon(hotspot: HotspotShape): hotspot is HotspotShape & { polygon: HotspotPoint[] } {
-  return hotspot.polygon?.length === 4;
+  return hotspot.polygon?.length === 4 || hotspot.polygon?.length === 8;
 }
 
 export function getHotspotBoundsFromPolygon(polygon: HotspotPoint[]): HotspotBounds {
@@ -98,12 +98,29 @@ export function resolveHotspotRotationDegrees(hotspot: HotspotShape): number {
     return 0;
   }
 
-  const [startPoint, endPoint] = hotspot.polygon;
+  const { startPoint, endPoint } = resolveHotspotTopEdgePoints(hotspot.polygon);
   if (!startPoint || !endPoint) {
     return 0;
   }
 
   return roundToPrecision((Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) * 180) / Math.PI);
+}
+
+function resolveHotspotTopEdgePoints(polygon: HotspotPoint[]): {
+  startPoint: HotspotPoint | undefined;
+  endPoint: HotspotPoint | undefined;
+} {
+  if (polygon.length === 8) {
+    return {
+      startPoint: polygon[0],
+      endPoint: polygon[2]
+    };
+  }
+
+  return {
+    startPoint: polygon[0],
+    endPoint: polygon[1]
+  };
 }
 
 export function resolveRelativeHotspotFrame(hotspot: HotspotShape, surfaceSize: HotspotSurfaceSize): RelativeHotspotFrame {
@@ -293,6 +310,13 @@ function resolveOrientedSurfaceRectAtAngle(
 ): OrientedSurfaceRect {
   if (preferredAngleRad !== undefined) {
     return resolveProjectedSurfaceRect(polygon, preferredAngleRad);
+  }
+
+  if (polygon.length !== 4) {
+    const [startPoint, endPoint] = polygon;
+    const angleRad =
+      startPoint && endPoint ? Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) : 0;
+    return resolveProjectedSurfaceRect(polygon, angleRad);
   }
 
   const [nw, ne, se, sw] = polygon;

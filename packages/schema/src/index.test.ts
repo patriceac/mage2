@@ -534,6 +534,32 @@ describe("hotspot content placement", () => {
     expect(resolveHotspotRotationDegrees(hotspot)).toBeCloseTo(14.04, 2);
   });
 
+  it("accepts saved side-center hotspot points", () => {
+    const project = createDefaultProjectBundle();
+    project.scenes.items[0]!.hotspots[0]!.polygon = [
+      { x: 0.1, y: 0.1 },
+      { x: 0.5, y: 0.04 },
+      { x: 0.9, y: 0.1 },
+      { x: 0.96, y: 0.5 },
+      { x: 0.9, y: 0.9 },
+      { x: 0.5, y: 0.96 },
+      { x: 0.1, y: 0.9 },
+      { x: 0.04, y: 0.5 }
+    ];
+
+    const parsed = parseProjectBundle(project);
+    const hotspot = parsed.scenes.items[0]!.hotspots[0]!;
+
+    expect(hotspot.polygon).toHaveLength(8);
+    const bounds = resolveHotspotBounds(hotspot);
+    expect(bounds.x).toBeCloseTo(0.04, 6);
+    expect(bounds.y).toBeCloseTo(0.04, 6);
+    expect(bounds.width).toBeCloseTo(0.92, 6);
+    expect(bounds.height).toBeCloseTo(0.92, 6);
+    expect(resolveHotspotRotationDegrees(hotspot)).toBe(0);
+    expect(resolveHotspotClipPath(hotspot)).toContain("50% 0%");
+  });
+
   it("anchors content near the polygon centroid instead of the bounding box top", () => {
     const placement = resolveRelativeHotspotContentBox({
       x: 0,

@@ -78,6 +78,10 @@ export interface MediaSurfaceViewportSize {
 
 export const MEDIA_SURFACE_ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3, 4] as const;
 
+const MEDIA_SURFACE_WHEEL_ZOOM_SENSITIVITY = 0.0014;
+const MEDIA_SURFACE_WHEEL_ZOOM_MAX_DELTA = 240;
+const MEDIA_SURFACE_VIEWPORT_ANIMATION_MS = 110;
+
 const DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM: MediaSurfaceViewportTransform = {
   scale: 1,
   offsetX: 0,
@@ -154,10 +158,13 @@ export function MediaSurface({
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
   const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
   const normalizedViewportTransform = normalizeMediaSurfaceViewportTransform(viewportTransform);
-  const isViewportTransformed =
-    normalizedViewportTransform.scale !== 1 ||
-    normalizedViewportTransform.offsetX !== 0 ||
-    normalizedViewportTransform.offsetY !== 0;
+  const [renderedViewportTransform, setRenderedViewportTransform] = useState(normalizedViewportTransform);
+  const renderedViewportTransformRef = useRef(normalizedViewportTransform);
+  const viewportAnimationFrameRef = useRef<number | undefined>(undefined);
+  const isRenderedViewportTransformed =
+    renderedViewportTransform.scale !== 1 ||
+    renderedViewportTransform.offsetX !== 0 ||
+    renderedViewportTransform.offsetY !== 0;
   const surfaceAspectRatioStyle = resolveMediaSurfaceAspectRatioStyle(assetVariant?.width, assetVariant?.height);
   const [isViewportPanning, setIsViewportPanning] = useState(false);
   const handleHotspotLabelActiveChange = useCallback((hotspotId: string, active: boolean) => {
@@ -186,6 +193,58 @@ export function MediaSurface({
     latestControlledPlayheadMsRef.current = playheadMs;
     latestOnPlayheadMsChangeRef.current = onPlayheadMsChange;
   }, [onPlayheadMsChange, playheadMs]);
+
+  useEffect(() => {
+    renderedViewportTransformRef.current = renderedViewportTransform;
+  }, [renderedViewportTransform]);
+
+  useEffect(() => {
+    if (viewportAnimationFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(viewportAnimationFrameRef.current);
+      viewportAnimationFrameRef.current = undefined;
+    }
+
+    const targetTransform = normalizedViewportTransform;
+    const startTransform = renderedViewportTransformRef.current;
+    if (
+      isViewportPanning ||
+      areMediaSurfaceViewportTransformsClose(startTransform, targetTransform) ||
+      !shouldAnimateMediaSurfaceViewportTransform(startTransform, targetTransform)
+    ) {
+      renderedViewportTransformRef.current = targetTransform;
+      setRenderedViewportTransform(targetTransform);
+      return;
+    }
+
+    const startedAt = window.performance.now();
+    const animateViewportTransform = (timestamp: number) => {
+      const progress = clampNumber((timestamp - startedAt) / MEDIA_SURFACE_VIEWPORT_ANIMATION_MS, 0, 1);
+      const easedProgress = easeOutCubic(progress);
+      const nextTransform = interpolateMediaSurfaceViewportTransform(startTransform, targetTransform, easedProgress);
+
+      renderedViewportTransformRef.current = nextTransform;
+      setRenderedViewportTransform(nextTransform);
+
+      if (progress < 1) {
+        viewportAnimationFrameRef.current = window.requestAnimationFrame(animateViewportTransform);
+      } else {
+        viewportAnimationFrameRef.current = undefined;
+      }
+    };
+
+    viewportAnimationFrameRef.current = window.requestAnimationFrame(animateViewportTransform);
+    return () => {
+      if (viewportAnimationFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(viewportAnimationFrameRef.current);
+        viewportAnimationFrameRef.current = undefined;
+      }
+    };
+  }, [
+    isViewportPanning,
+    normalizedViewportTransform.scale,
+    normalizedViewportTransform.offsetX,
+    normalizedViewportTransform.offsetY
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -586,6 +645,11 @@ export function MediaSurface({
   }
 
   function zoomViewportAtPoint(clientX: number, clientY: number, direction: "in" | "out") {
+    const nextScale = resolveNextMediaSurfaceZoomScale(normalizedViewportTransform.scale, direction);
+    zoomViewportToScaleAtPoint(clientX, clientY, nextScale);
+  }
+
+  function zoomViewportToScaleAtPoint(clientX: number, clientY: number, nextScale: number) {
     if (!onViewportTransformChange) {
       return;
     }
@@ -600,7 +664,6 @@ export function MediaSurface({
       return;
     }
 
-    const nextScale = resolveNextMediaSurfaceZoomScale(normalizedViewportTransform.scale, direction);
     onViewportTransformChange(
       resolveZoomedMediaSurfaceViewportTransform({
         currentTransform: normalizedViewportTransform,
@@ -613,18 +676,18 @@ export function MediaSurface({
   }
 
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (event) => {
-    const direction = resolveMediaSurfaceWheelZoomDirection({
-      ctrlKey: event.ctrlKey,
+    const nextScale = resolveMediaSurfaceWheelZoomScale({
+      currentScale: normalizedViewportTransform.scale,
       deltaY: event.deltaY
     });
-    if (!direction) {
+    if (nextScale === undefined) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
     focusSurface();
-    zoomViewportAtPoint(event.clientX, event.clientY, direction);
+    zoomViewportToScaleAtPoint(event.clientX, event.clientY, nextScale);
   };
 
   const startViewportPan: React.MouseEventHandler<HTMLDivElement> = (event) => {
@@ -632,8 +695,7 @@ export function MediaSurface({
     if (
       !shouldStartMediaSurfaceViewportPan({
         viewportTool,
-        button: event.button,
-        ctrlKey: event.ctrlKey
+        button: event.button
       }) ||
       !applyViewportTransform
     ) {
@@ -764,7 +826,8 @@ export function MediaSurface({
       const body = document.body;
       const previousCursor = body.style.cursor;
       const previousUserSelect = body.style.userSelect;
-      body.style.cursor = handle === "move" || handle === "rotate" ? "grabbing" : resolveResizeCursor(handle);
+      body.style.cursor =
+        handle === "move" || handle === "rotate" || !hotspot.inventoryItemId ? "grabbing" : resolveResizeCursor(handle);
       body.style.userSelect = "none";
 
       const surfaceSize = {
@@ -917,13 +980,13 @@ export function MediaSurface({
       title={
         showSurfaceTooltips
           ? viewportTool === "pan"
-            ? "Scene preview. Drag to pan the zoomed view, or Ctrl+mouse wheel to zoom."
+            ? "Scene preview. Drag to pan the zoomed view, or use the mouse wheel to zoom."
             : viewportTool === "zoom"
-              ? "Scene preview. Click to zoom in, Shift-click to zoom out, or Ctrl+mouse wheel to zoom."
+              ? "Scene preview. Click to zoom in, Shift-click to zoom out, or use the mouse wheel to zoom."
               : onSurfaceClick
             ? editableHotspots
-              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, Ctrl+drag to pan, Ctrl+mouse wheel to zoom, drag a hotspot to move it, or drag the orange handles to reshape it."
-              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position. Ctrl+drag pans and Ctrl+mouse wheel zooms."
+              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag empty space to pan, use the mouse wheel to zoom, drag a hotspot to move it, or drag the orange handles to reshape it."
+              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position. Drag empty space to pan and use the mouse wheel to zoom."
             : undefined
           : undefined
       }
@@ -932,9 +995,9 @@ export function MediaSurface({
         ref={viewportRef}
         className="media-surface__viewport"
         style={
-          isViewportTransformed
+          isRenderedViewportTransformed
             ? {
-                transform: `translate3d(${normalizedViewportTransform.offsetX}px, ${normalizedViewportTransform.offsetY}px, 0) scale(${normalizedViewportTransform.scale})`
+                transform: `translate3d(${renderedViewportTransform.offsetX}px, ${renderedViewportTransform.offsetY}px, 0) scale(${renderedViewportTransform.scale})`
               }
             : undefined
         }
@@ -1070,7 +1133,7 @@ export function MediaSurface({
           surfaceSize={overlaySurfaceSize}
           selectedHotspotId={selectedHotspotId}
           activeHotspotId={activeLabelHotspotId}
-          viewportTransform={normalizedViewportTransform}
+          viewportTransform={renderedViewportTransform}
           onTooltipTextChange={handleHotspotTooltipTextChange}
         />
       ) : null}
@@ -1149,30 +1212,30 @@ export function resolveNextMediaSurfaceZoomScale(currentScale: number, direction
     MEDIA_SURFACE_ZOOM_LEVELS[MEDIA_SURFACE_ZOOM_LEVELS.length - 1];
 }
 
-export function resolveMediaSurfaceWheelZoomDirection({
-  ctrlKey,
+export function resolveMediaSurfaceWheelZoomScale({
+  currentScale,
   deltaY
 }: {
-  ctrlKey: boolean;
+  currentScale: number;
   deltaY: number;
-}): "in" | "out" | undefined {
-  if (!ctrlKey || !Number.isFinite(deltaY) || deltaY === 0) {
+}): number | undefined {
+  if (!Number.isFinite(deltaY) || deltaY === 0) {
     return undefined;
   }
 
-  return deltaY < 0 ? "in" : "out";
+  const scale = normalizeMediaSurfaceViewportScale(currentScale);
+  const delta = clampNumber(deltaY, -MEDIA_SURFACE_WHEEL_ZOOM_MAX_DELTA, MEDIA_SURFACE_WHEEL_ZOOM_MAX_DELTA);
+  return normalizeMediaSurfaceViewportScale(scale * Math.exp(-delta * MEDIA_SURFACE_WHEEL_ZOOM_SENSITIVITY));
 }
 
 export function shouldStartMediaSurfaceViewportPan({
   viewportTool,
-  button,
-  ctrlKey
+  button
 }: {
   viewportTool: MediaSurfaceViewportTool;
   button: number;
-  ctrlKey: boolean;
 }) {
-  return button === 0 && (viewportTool === "pan" || ctrlKey);
+  return button === 0 && (viewportTool === "pan" || viewportTool === "select");
 }
 
 export function resolveZoomedMediaSurfaceViewportTransform({
@@ -1212,6 +1275,48 @@ function clampNormalizedCoordinate(value: number) {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function shouldAnimateMediaSurfaceViewportTransform(
+  startTransform: MediaSurfaceViewportTransform,
+  targetTransform: MediaSurfaceViewportTransform
+) {
+  return (
+    Math.abs(startTransform.scale - targetTransform.scale) > 0.001 ||
+    Math.abs(startTransform.offsetX - targetTransform.offsetX) > 0.5 ||
+    Math.abs(startTransform.offsetY - targetTransform.offsetY) > 0.5
+  );
+}
+
+function areMediaSurfaceViewportTransformsClose(
+  startTransform: MediaSurfaceViewportTransform,
+  targetTransform: MediaSurfaceViewportTransform
+) {
+  return (
+    Math.abs(startTransform.scale - targetTransform.scale) <= 0.0001 &&
+    Math.abs(startTransform.offsetX - targetTransform.offsetX) <= 0.01 &&
+    Math.abs(startTransform.offsetY - targetTransform.offsetY) <= 0.01
+  );
+}
+
+function interpolateMediaSurfaceViewportTransform(
+  startTransform: MediaSurfaceViewportTransform,
+  targetTransform: MediaSurfaceViewportTransform,
+  progress: number
+): MediaSurfaceViewportTransform {
+  return {
+    scale: interpolateNumber(startTransform.scale, targetTransform.scale, progress),
+    offsetX: interpolateNumber(startTransform.offsetX, targetTransform.offsetX, progress),
+    offsetY: interpolateNumber(startTransform.offsetY, targetTransform.offsetY, progress)
+  };
+}
+
+function interpolateNumber(startValue: number, targetValue: number, progress: number) {
+  return startValue + (targetValue - startValue) * progress;
+}
+
+function easeOutCubic(progress: number) {
+  return 1 - (1 - progress) ** 3;
 }
 
 interface HotspotButtonProps {
@@ -1981,6 +2086,21 @@ export function resolveHotspotHandlePositions(polygon: Array<{ x: number; y: num
   x: number;
   y: number;
 }> {
+  if (polygon.length === 8) {
+    const [nw, n, ne, e, se, s, sw, w] = polygon;
+
+    return [
+      { handle: "nw", x: nw.x, y: nw.y },
+      { handle: "n", x: n.x, y: n.y },
+      { handle: "ne", x: ne.x, y: ne.y },
+      { handle: "e", x: e.x, y: e.y },
+      { handle: "se", x: se.x, y: se.y },
+      { handle: "s", x: s.x, y: s.y },
+      { handle: "sw", x: sw.x, y: sw.y },
+      { handle: "w", x: w.x, y: w.y }
+    ];
+  }
+
   const [nw, ne, se, sw] = polygon;
 
   return [
@@ -2009,10 +2129,11 @@ export function resolveHotspotRotationHandleGeometry(
   labelX: number;
   labelY: number;
 } | undefined {
-  const [nw, ne, se, sw] = polygon;
-  if (!nw || !ne || !se || !sw) {
+  const topEdge = resolveHotspotTopControlGeometryPoints(polygon);
+  if (!topEdge) {
     return undefined;
   }
+  const { startPoint, midpoint, endPoint } = topEdge;
   const effectiveFrameSize =
     frameSize && frameSize.width > 0 && frameSize.height > 0
       ? frameSize
@@ -2022,13 +2143,9 @@ export function resolveHotspotRotationHandleGeometry(
         };
   const usesPixelOffsets = effectiveFrameSize.width > 1 || effectiveFrameSize.height > 1;
 
-  const topMidpoint = {
-    x: (nw.x + ne.x) / 2,
-    y: (nw.y + ne.y) / 2
-  };
   const topVector = {
-    x: (ne.x - nw.x) * effectiveFrameSize.width,
-    y: (ne.y - nw.y) * effectiveFrameSize.height
+    x: (endPoint.x - startPoint.x) * effectiveFrameSize.width,
+    y: (endPoint.y - startPoint.y) * effectiveFrameSize.height
   };
   const topLength = Math.hypot(topVector.x, topVector.y) || 1;
   const outwardNormal = {
@@ -2041,16 +2158,45 @@ export function resolveHotspotRotationHandleGeometry(
   };
   const handleOffset = usesPixelOffsets ? 18 : 0.18;
   const labelOffset = usesPixelOffsets ? 14 : 0.12;
-  const handleX = topMidpoint.x + outwardNormalLocal.x * handleOffset;
-  const handleY = topMidpoint.y + outwardNormalLocal.y * handleOffset;
+  const handleX = midpoint.x + outwardNormalLocal.x * handleOffset;
+  const handleY = midpoint.y + outwardNormalLocal.y * handleOffset;
 
   return {
     handleX: roundRotationControlCoordinate(handleX),
     handleY: roundRotationControlCoordinate(handleY),
-    stemStartX: roundRotationControlCoordinate(topMidpoint.x),
-    stemStartY: roundRotationControlCoordinate(topMidpoint.y),
+    stemStartX: roundRotationControlCoordinate(midpoint.x),
+    stemStartY: roundRotationControlCoordinate(midpoint.y),
     labelX: roundRotationControlCoordinate(handleX + outwardNormal.x * labelOffset),
     labelY: roundRotationControlCoordinate(handleY + outwardNormal.y * labelOffset)
+  };
+}
+
+function resolveHotspotTopControlGeometryPoints(
+  polygon: Array<{ x: number; y: number }>
+):
+  | {
+      startPoint: { x: number; y: number };
+      midpoint: { x: number; y: number };
+      endPoint: { x: number; y: number };
+    }
+  | undefined {
+  if (polygon.length === 8) {
+    const [startPoint, midpoint, endPoint] = polygon;
+    return startPoint && midpoint && endPoint ? { startPoint, midpoint, endPoint } : undefined;
+  }
+
+  const [startPoint, endPoint] = polygon;
+  if (!startPoint || !endPoint) {
+    return undefined;
+  }
+
+  return {
+    startPoint,
+    midpoint: {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2
+    },
+    endPoint
   };
 }
 

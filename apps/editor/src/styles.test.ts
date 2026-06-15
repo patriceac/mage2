@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const workbenchSharedButtonSelector =
   ".app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
+const pendingSaveButtonSelector =
+  ".app-shell--editor-workbench\n  button.titlebar-shell__save-button.titlebar-shell__save-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
 
 describe("hotspot idle visibility styles", () => {
   it("keeps the selected hotspot out of the preview idle-hide selectors", () => {
@@ -165,17 +167,18 @@ describe("hotspot idle visibility styles", () => {
 
   it("keeps the pending save action highlighted after shared workbench button chrome", () => {
     const sharedButtonRule = styles.indexOf(`${workbenchSharedButtonSelector} {`);
-    const pendingSaveRule = styles.indexOf(
-      ".app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body) {"
-    );
+    const pendingSaveRule = styles.indexOf(`${pendingSaveButtonSelector} {`);
 
     expect(sharedButtonRule).toBeGreaterThan(-1);
     expect(pendingSaveRule).toBeGreaterThan(sharedButtonRule);
-    expect(styles).toMatch(
-      /\.app-shell--editor-workbench button\.titlebar-shell__save-button--active:not\(\.hotspot__body\)\s*\{[\s\S]*?border-color: rgba\(246, 193, 119, 0\.78\);[\s\S]*?background: #f6c177;[\s\S]*?color: #172026;[\s\S]*?\}/
+    expect(resolveSelectorSpecificityScore(pendingSaveButtonSelector)).toBeGreaterThan(
+      resolveSelectorSpecificityScore(workbenchSharedButtonSelector)
     );
     expect(styles).toMatch(
-      /\.app-shell--editor-workbench button\.titlebar-shell__save-button--active:not\(\.hotspot__body\):hover\s*\{[\s\S]*?background: #ffd088;[\s\S]*?color: #172026;[\s\S]*?\}/
+      /\.app-shell--editor-workbench\s+button\.titlebar-shell__save-button\.titlebar-shell__save-button--active:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?border-color: rgba\(246, 193, 119, 0\.78\);[\s\S]*?background: #f6c177;[\s\S]*?color: #172026;[\s\S]*?\}/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.titlebar-shell__save-button\.titlebar-shell__save-button--active:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\):hover\s*\{[\s\S]*?background: #ffd088;[\s\S]*?color: #172026;[\s\S]*?\}/
     );
   });
 
@@ -224,3 +227,9 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".dropdown-select__trigger {");
   });
 });
+
+function resolveSelectorSpecificityScore(selector: string) {
+  const classLikeCount = selector.match(/\.[\w-]+/g)?.length ?? 0;
+  const typeCount = selector.match(/(^|[\s>+~])button(?=[\s.#:[{]|$)/g)?.length ?? 0;
+  return classLikeCount * 100 + typeCount;
+}

@@ -51,6 +51,10 @@ export const HotspotPointSchema = z.object({
   y: z.number().min(0).max(1)
 });
 
+const EditableHotspotPolygonSchema = z
+  .array(HotspotPointSchema)
+  .refine((points) => points.length === 4 || points.length === 8, "Expected 4 or 8 polygon points");
+
 export const HotspotTimingModeSchema = z.enum(["fixed", "sceneDuration"]);
 
 export const PlacedInventoryGeometrySchema = z.object({
@@ -71,7 +75,7 @@ export const HotspotSchema = z.object({
   y: z.number().min(0).max(1),
   width: z.number().min(0.01).max(1),
   height: z.number().min(0.01).max(1),
-  polygon: z.array(HotspotPointSchema).length(4).optional(),
+  polygon: EditableHotspotPolygonSchema.optional(),
   startMs: z.number().nonnegative(),
   endMs: z.number().positive(),
   timingMode: HotspotTimingModeSchema.default("fixed"),

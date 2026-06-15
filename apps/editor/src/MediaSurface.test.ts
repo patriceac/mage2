@@ -10,8 +10,9 @@ import {
 import {
   clampMediaSurfaceViewportTransform,
   MediaSurface,
+  resolveHotspotHandlePositions,
   resolveHotspotLabelAnchorStyle,
-  resolveMediaSurfaceWheelZoomDirection,
+  resolveMediaSurfaceWheelZoomScale,
   resolveNextMediaSurfaceZoomScale,
   resolveHotspotRotationHandleGeometry,
   resolveHotspotSelectionAfterDrag,
@@ -409,6 +410,53 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(rotationHandle?.labelY).toBeCloseTo(-0.1, 6);
   });
 
+  it("uses saved side-center points as editable handle positions", () => {
+    expect(
+      resolveHotspotHandlePositions([
+        { x: 0.1, y: 0.1 },
+        { x: 0.5, y: 0.04 },
+        { x: 0.9, y: 0.1 },
+        { x: 0.96, y: 0.5 },
+        { x: 0.9, y: 0.9 },
+        { x: 0.5, y: 0.96 },
+        { x: 0.1, y: 0.9 },
+        { x: 0.04, y: 0.5 }
+      ])
+    ).toEqual([
+      { handle: "nw", x: 0.1, y: 0.1 },
+      { handle: "n", x: 0.5, y: 0.04 },
+      { handle: "ne", x: 0.9, y: 0.1 },
+      { handle: "e", x: 0.96, y: 0.5 },
+      { handle: "se", x: 0.9, y: 0.9 },
+      { handle: "s", x: 0.5, y: 0.96 },
+      { handle: "sw", x: 0.1, y: 0.9 },
+      { handle: "w", x: 0.04, y: 0.5 }
+    ]);
+  });
+
+  it("anchors the rotation control to a moved top-center point", () => {
+    const rotationHandle = resolveHotspotRotationHandleGeometry(
+      [
+        { x: 0.1, y: 0.2 },
+        { x: 0.55, y: 0.1 },
+        { x: 0.9, y: 0.2 },
+        { x: 0.9, y: 0.5 },
+        { x: 0.9, y: 0.8 },
+        { x: 0.5, y: 0.8 },
+        { x: 0.1, y: 0.8 },
+        { x: 0.1, y: 0.5 }
+      ],
+      {
+        width: 800,
+        height: 600
+      }
+    );
+
+    expect(rotationHandle?.stemStartX).toBeCloseTo(0.55, 4);
+    expect(rotationHandle?.stemStartY).toBeCloseTo(0.1, 4);
+    expect(rotationHandle?.handleY).toBeLessThan(0.1);
+  });
+
   it("aligns the rotation handle to the rendered hotspot axis for non-square frames", () => {
     const polygon = [
       { x: 0.2204, y: 0.0813 },
@@ -499,18 +547,27 @@ describe("MediaSurface viewport controls", () => {
     expect(resolveNextMediaSurfaceZoomScale(2, "out")).toBe(1.5);
   });
 
-  it("maps Ctrl+wheel to viewport zoom directions", () => {
-    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: -20 })).toBe("in");
-    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: 20 })).toBe("out");
-    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: false, deltaY: -20 })).toBeUndefined();
-    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: 0 })).toBeUndefined();
+  it("maps wheel movement to gradual viewport zoom scales without a modifier", () => {
+    const smallZoomIn = resolveMediaSurfaceWheelZoomScale({ currentScale: 1, deltaY: -20 });
+    const largeZoomIn = resolveMediaSurfaceWheelZoomScale({ currentScale: 1, deltaY: -120 });
+    const zoomOut = resolveMediaSurfaceWheelZoomScale({ currentScale: 2, deltaY: 120 });
+
+    expect(smallZoomIn).toBeGreaterThan(1);
+    expect(smallZoomIn).toBeLessThan(1.25);
+    expect(largeZoomIn).toBeGreaterThan(smallZoomIn ?? 0);
+    expect(largeZoomIn).toBeLessThan(1.25);
+    expect(zoomOut).toBeGreaterThan(1.5);
+    expect(zoomOut).toBeLessThan(2);
+    expect(resolveMediaSurfaceWheelZoomScale({ currentScale: 1, deltaY: 120 })).toBe(1);
+    expect(resolveMediaSurfaceWheelZoomScale({ currentScale: 4, deltaY: -120 })).toBe(4);
+    expect(resolveMediaSurfaceWheelZoomScale({ currentScale: 1, deltaY: 0 })).toBeUndefined();
   });
 
-  it("starts viewport pan from either the pan tool or a Ctrl+left drag", () => {
-    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "select", button: 0, ctrlKey: true })).toBe(true);
-    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 0, ctrlKey: false })).toBe(true);
-    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "select", button: 0, ctrlKey: false })).toBe(false);
-    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 2, ctrlKey: false })).toBe(false);
+  it("starts viewport pan from either the pan tool or a select-mode left drag", () => {
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "select", button: 0 })).toBe(true);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 0 })).toBe(true);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "zoom", button: 0 })).toBe(false);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 2 })).toBe(false);
   });
 
   it("keeps the pointed scene position stable while zooming", () => {

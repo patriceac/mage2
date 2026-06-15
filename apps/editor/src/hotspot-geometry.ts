@@ -10,6 +10,8 @@ import {
 export type HotspotGeometry = Pick<Hotspot, "x" | "y" | "width" | "height" | "polygon" | "inventoryItemId">;
 export type HotspotDragHandle = "move" | "rotate" | "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
 export type HotspotResizeHandle = Exclude<HotspotDragHandle, "move" | "rotate">;
+type HotspotEdgeHandle = Extract<HotspotResizeHandle, "n" | "s" | "e" | "w">;
+type HotspotCornerHandle = Extract<HotspotResizeHandle, "nw" | "ne" | "sw" | "se">;
 export interface HotspotSurfaceSize {
   width: number;
   height: number;
@@ -81,8 +83,8 @@ export function applyHotspotDrag(
     return roundGeometry(resizeInventoryHotspot(geometry, handle, deltaX, deltaY, surfaceSize));
   }
 
-  if (handle === "n" || handle === "s" || handle === "e" || handle === "w") {
-    return roundGeometry(moveHotspotEdge(geometry, handle, deltaX, deltaY));
+  if (isHotspotEdgeHandle(handle)) {
+    return roundGeometry(moveHotspotMidpoint(geometry, handle, deltaX, deltaY));
   }
 
   return roundGeometry(moveHotspotCorner(geometry, handle, deltaX, deltaY));
@@ -338,77 +340,52 @@ function resizeInventoryPolygonByPixels(
   return nextPolygon && low > HOTSPOT_GEOMETRY_EPSILON ? nextPolygon : polygon;
 }
 
-function moveHotspotEdge(
+function moveHotspotMidpoint(
   geometry: HotspotGeometry,
-  handle: Extract<HotspotResizeHandle, "n" | "s" | "e" | "w">,
+  handle: HotspotEdgeHandle,
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
-  const polygon = resolveHotspotPolygon(geometry);
+  const polygon = resolveHotspotPolygonWithMidpoints(resolveHotspotPolygon(geometry));
   const nextPolygon = polygon.map((point) => ({ ...point }));
+  const pointIndex = HOTSPOT_MIDPOINT_INDEX_BY_HANDLE[handle];
+  const point = polygon[pointIndex];
 
-  switch (handle) {
-    case "n": {
-      const topYs = [polygon[0].y, polygon[1].y];
-      const bottomYs = [polygon[2].y, polygon[3].y];
-      const shiftY = clamp(
-        deltaY,
-        -Math.min(...topYs),
-        Math.min(...bottomYs) - MIN_HOTSPOT_SIZE - Math.max(...topYs)
-      );
-      nextPolygon[0].y = polygon[0].y + shiftY;
-      nextPolygon[1].y = polygon[1].y + shiftY;
-      break;
-    }
-    case "s": {
-      const topYs = [polygon[0].y, polygon[1].y];
-      const bottomYs = [polygon[2].y, polygon[3].y];
-      const shiftY = clamp(
-        deltaY,
-        Math.max(...topYs) + MIN_HOTSPOT_SIZE - Math.min(...bottomYs),
-        1 - Math.max(...bottomYs)
-      );
-      nextPolygon[2].y = polygon[2].y + shiftY;
-      nextPolygon[3].y = polygon[3].y + shiftY;
-      break;
-    }
-    case "e": {
-      const leftXs = [polygon[0].x, polygon[3].x];
-      const rightXs = [polygon[1].x, polygon[2].x];
-      const shiftX = clamp(
-        deltaX,
-        Math.max(...leftXs) + MIN_HOTSPOT_SIZE - Math.min(...rightXs),
-        1 - Math.max(...rightXs)
-      );
-      nextPolygon[1].x = polygon[1].x + shiftX;
-      nextPolygon[2].x = polygon[2].x + shiftX;
-      break;
-    }
-    case "w": {
-      const leftXs = [polygon[0].x, polygon[3].x];
-      const rightXs = [polygon[1].x, polygon[2].x];
-      const shiftX = clamp(
-        deltaX,
-        -Math.min(...leftXs),
-        Math.min(...rightXs) - MIN_HOTSPOT_SIZE - Math.max(...leftXs)
-      );
-      nextPolygon[0].x = polygon[0].x + shiftX;
-      nextPolygon[3].x = polygon[3].x + shiftX;
-      break;
-    }
+  if (!point) {
+    return geometry;
   }
+
+  nextPolygon[pointIndex] = {
+    x: clamp(point.x + deltaX, 0, 1),
+    y: clamp(point.y + deltaY, 0, 1)
+  };
 
   return withPolygon(nextPolygon, geometry);
 }
 
 function moveHotspotCorner(
   geometry: HotspotGeometry,
-  handle: Extract<HotspotResizeHandle, "nw" | "ne" | "sw" | "se">,
+  handle: HotspotCornerHandle,
   deltaX: number,
   deltaY: number
 ): HotspotGeometry {
   const polygon = resolveHotspotPolygon(geometry);
   const nextPolygon = polygon.map((point) => ({ ...point }));
+
+  if (polygon.length === 8) {
+    const pointIndex = HOTSPOT_CORNER_INDEX_BY_HANDLE[handle];
+    const point = polygon[pointIndex];
+    if (!point) {
+      return geometry;
+    }
+
+    nextPolygon[pointIndex] = {
+      x: clamp(point.x + deltaX, 0, 1),
+      y: clamp(point.y + deltaY, 0, 1)
+    };
+
+    return withPolygon(nextPolygon, geometry);
+  }
 
   switch (handle) {
     case "nw":
@@ -439,6 +416,49 @@ function moveHotspotCorner(
 
   return withPolygon(nextPolygon, geometry);
 }
+
+function isHotspotEdgeHandle(handle: Exclude<HotspotDragHandle, "rotate">): handle is HotspotEdgeHandle {
+  return handle === "n" || handle === "s" || handle === "e" || handle === "w";
+}
+
+function resolveHotspotPolygonWithMidpoints(polygon: HotspotPoint[]): HotspotPoint[] {
+  if (polygon.length !== 4) {
+    return polygon.map((point) => ({ ...point }));
+  }
+
+  const [nw, ne, se, sw] = polygon;
+  return [
+    { ...nw },
+    resolveHotspotPointMidpoint(nw, ne),
+    { ...ne },
+    resolveHotspotPointMidpoint(ne, se),
+    { ...se },
+    resolveHotspotPointMidpoint(se, sw),
+    { ...sw },
+    resolveHotspotPointMidpoint(sw, nw)
+  ];
+}
+
+function resolveHotspotPointMidpoint(startPoint: HotspotPoint, endPoint: HotspotPoint): HotspotPoint {
+  return {
+    x: (startPoint.x + endPoint.x) / 2,
+    y: (startPoint.y + endPoint.y) / 2
+  };
+}
+
+const HOTSPOT_MIDPOINT_INDEX_BY_HANDLE: Record<HotspotEdgeHandle, number> = {
+  n: 1,
+  e: 3,
+  s: 5,
+  w: 7
+};
+
+const HOTSPOT_CORNER_INDEX_BY_HANDLE: Record<HotspotCornerHandle, number> = {
+  nw: 0,
+  ne: 2,
+  se: 4,
+  sw: 6
+};
 
 function resolveNextKeyboardTransformPolygon(
   polygon: HotspotPixelPoint[],
@@ -586,6 +606,13 @@ function polygonFitsSurface(polygon: HotspotPixelPoint[], surfaceSize: HotspotSu
 function resolveOrientedHotspotRect(polygon: HotspotPixelPoint[], preferredAngleRad?: number): OrientedHotspotRect {
   if (preferredAngleRad !== undefined) {
     return resolveProjectedOrientedHotspotRect(polygon, preferredAngleRad);
+  }
+
+  if (polygon.length !== 4) {
+    const [startPoint, endPoint] = polygon;
+    const angleRad =
+      startPoint && endPoint ? Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) : 0;
+    return resolveProjectedOrientedHotspotRect(polygon, angleRad);
   }
 
   const [nw, ne, se, sw] = polygon;

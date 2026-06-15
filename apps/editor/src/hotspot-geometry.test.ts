@@ -94,7 +94,7 @@ describe("applyHotspotDrag", () => {
     });
   });
 
-  it("moves an edge without flattening an already skewed shape", () => {
+  it("moves only the side-center dot for regular hotspots", () => {
     expect(
       applyHotspotDrag(
         {
@@ -111,18 +111,22 @@ describe("applyHotspotDrag", () => {
         },
         "e",
         0.08,
-        0
+        0.03
       )
     ).toEqual({
       x: 0.2,
       y: 0.15,
-      width: 0.26,
+      width: 0.25,
       height: 0.17,
       polygon: [
         { x: 0.22, y: 0.15 },
-        { x: 0.46, y: 0.19 },
-        { x: 0.44, y: 0.32 },
-        { x: 0.2, y: 0.29 }
+        { x: 0.3, y: 0.17 },
+        { x: 0.38, y: 0.19 },
+        { x: 0.45, y: 0.285 },
+        { x: 0.36, y: 0.32 },
+        { x: 0.28, y: 0.305 },
+        { x: 0.2, y: 0.29 },
+        { x: 0.21, y: 0.22 }
       ]
     });
   });

@@ -5294,6 +5294,14 @@ label > .checkbox-list {
   cursor: nwse-resize;
 }
 
+.hotspot:not(.hotspot--inventory-item) .hotspot__handle:not(.hotspot__handle--rotate) {
+  cursor: grab;
+}
+
+.hotspot:not(.hotspot--inventory-item) .hotspot__handle:not(.hotspot__handle--rotate):active {
+  cursor: grabbing;
+}
+
 .scene-audio-strip,
 .dialogue-box {
   display: grid;
@@ -6432,7 +6440,8 @@ label > .checkbox-list {
   color: #708190;
 }
 
-.app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body) {
+.app-shell--editor-workbench
+  button.titlebar-shell__save-button.titlebar-shell__save-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
   border-color: rgba(246, 193, 119, 0.78);
   background: #f6c177;
   color: #172026;
@@ -6441,7 +6450,8 @@ label > .checkbox-list {
     0 0 18px rgba(246, 193, 119, 0.24);
 }
 
-.app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body):hover {
+.app-shell--editor-workbench
+  button.titlebar-shell__save-button.titlebar-shell__save-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
   border-color: rgba(255, 224, 170, 0.88);
   background: #ffd088;
   color: #172026;

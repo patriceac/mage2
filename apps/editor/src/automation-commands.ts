@@ -232,8 +232,8 @@ function requireSizeNumber(value: unknown, field: string): number {
 }
 
 function requireHotspotPolygon(value: unknown, field: string): Array<{ x: number; y: number }> {
-  if (!Array.isArray(value) || value.length !== 4) {
-    throw new Error(`Automation command field '${field}' must be an array of 4 points.`);
+  if (!Array.isArray(value) || (value.length !== 4 && value.length !== 8)) {
+    throw new Error(`Automation command field '${field}' must be an array of 4 or 8 points.`);
   }
 
   return value.map((point, index) => {
