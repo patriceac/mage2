@@ -154,6 +154,22 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(".hotspot__body--hidden,");
   });
 
+  it("keeps the pending save action highlighted after shared workbench button chrome", () => {
+    const sharedButtonRule = styles.indexOf(".app-shell--editor-workbench button:not(.hotspot__body) {");
+    const pendingSaveRule = styles.indexOf(
+      ".app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body) {"
+    );
+
+    expect(sharedButtonRule).toBeGreaterThan(-1);
+    expect(pendingSaveRule).toBeGreaterThan(sharedButtonRule);
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench button\.titlebar-shell__save-button--active:not\(\.hotspot__body\)\s*\{[\s\S]*?border-color: rgba\(246, 193, 119, 0\.78\);[\s\S]*?background: #f6c177;[\s\S]*?color: #172026;[\s\S]*?\}/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench button\.titlebar-shell__save-button--active:not\(\.hotspot__body\):hover\s*\{[\s\S]*?background: #ffd088;[\s\S]*?color: #172026;[\s\S]*?\}/
+    );
+  });
+
   it("keeps the title-bar save button aligned with the slimmer file trigger sizing", () => {
     expect(styles).toContain(".titlebar-shell__save-button,");
     expect(styles).toContain("min-height: 1.95rem;");

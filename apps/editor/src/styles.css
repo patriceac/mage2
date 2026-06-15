@@ -146,6 +146,14 @@ label > .checkbox-list {
   min-height: 100vh;
 }
 
+.app-shell--landing {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+  background: #080d12;
+}
+
 .titlebar-shell,
 .status-bar,
 .tab-strip,
@@ -309,9 +317,17 @@ label > .checkbox-list {
   background: rgba(7, 12, 17, 0.96);
 }
 
+.titlebar-shell--landing {
+  background: rgba(7, 12, 17, 0.96);
+}
+
 .app-shell--editor-workbench .titlebar-shell__inner {
   grid-template-columns: auto minmax(12rem, 1fr) auto;
   gap: 0.72rem;
+}
+
+.titlebar-shell__inner--landing {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .app-shell--editor-workbench .titlebar-shell__title {
@@ -5678,6 +5694,19 @@ label > .checkbox-list {
   padding: 2rem;
 }
 
+.app-shell--landing .landing {
+  min-height: 0;
+  overflow: auto;
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+
+.app-shell--landing .landing__card,
+.app-shell--landing .landing__card * {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
 .landing__card {
   display: grid;
   gap: var(--space-md);
@@ -6416,6 +6445,21 @@ label > .checkbox-list {
   border-color: rgba(108, 128, 145, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: #708190;
+}
+
+.app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body) {
+  border-color: rgba(246, 193, 119, 0.78);
+  background: #f6c177;
+  color: #172026;
+  box-shadow:
+    0 0 0 1px rgba(246, 193, 119, 0.18),
+    0 0 18px rgba(246, 193, 119, 0.24);
+}
+
+.app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body):hover {
+  border-color: rgba(255, 224, 170, 0.88);
+  background: #ffd088;
+  color: #172026;
 }
 
 .app-shell--editor-workbench .button-accent {

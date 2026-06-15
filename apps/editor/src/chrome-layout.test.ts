@@ -13,6 +13,19 @@ describe("editor chrome styles", () => {
     expect(styles).toContain("app-region: no-drag;");
   });
 
+  it("keeps the welcome screen inside draggable window chrome", () => {
+    expect(appSource).toContain("app-shell app-shell--landing");
+    expect(appSource).toContain("titlebar-shell titlebar-shell--landing");
+    expect(appSource).toContain("titlebar-shell__inner titlebar-shell__inner--landing");
+    expect(styles).toContain(".app-shell--landing {");
+    expect(styles).toContain("grid-template-rows: auto minmax(0, 1fr);");
+    expect(styles).toContain(".app-shell--landing .landing {");
+    expect(styles).toContain("overflow: auto;");
+    expect(styles).toContain(".app-shell--landing .landing__card,");
+    expect(styles).toMatch(/\.app-shell--landing \.landing\s*\{[\s\S]*?-webkit-app-region: drag;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.app-shell--landing \.landing__card,[\s\S]*?-webkit-app-region: no-drag;[\s\S]*?\}/);
+  });
+
   it("uses a single scroll region with dedicated chrome rows", () => {
     expect(styles).toContain(".app-shell--project {");
     expect(styles).toContain("grid-template-rows: auto auto minmax(0, 1fr) auto;");

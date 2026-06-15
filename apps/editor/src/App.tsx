@@ -827,65 +827,75 @@ export function App() {
 
   if (!project || !projectDir) {
     return (
-      <main className="landing">
-        <div className="landing__card">
-          <p className="eyebrow">MAGE2</p>
-          <h1>Full-motion adventure editor</h1>
-          <p>
-            Build locations, timed hotspots, dialogue graphs, inventory conditions, subtitles, and static runtime
-            exports from one project folder.
-          </p>
-          <label>
-            <span className="field-label--inset">Project Name</span>
-            <input
-              value={newProjectName}
-              onChange={(event) => setNewProjectName(event.target.value)}
-              placeholder="My Project"
-              title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
-            />
-          </label>
-          <p className="muted">If left blank, the selected folder name will be used.</p>
-          <div className="landing__actions">
-            <button
-              type="button"
-              onClick={handleCreateProject}
-              title="Create a new project structure inside a folder you choose."
-            >
-              New Project
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={handleOpenProject}
-              title="Open an existing project folder from disk."
-            >
-              Open Project
-            </button>
+      <div className="app-shell app-shell--landing">
+        <header className="titlebar-shell titlebar-shell--landing">
+          <div className="titlebar-shell__inner titlebar-shell__inner--landing">
+            <div className="titlebar-shell__identity" title="MAGE2 Editor">
+              <h1 className="titlebar-shell__title">MAGE2 Editor</h1>
+            </div>
           </div>
-          {recentProjects.length > 0 ? (
-            <section className="recent-projects">
-              <div className="recent-projects__header">
-                <h2>Recent Projects</h2>
-                <p className="muted">The last five projects are remembered here, even after rebuilding the app.</p>
-              </div>
-              <div className="recent-projects__list">
-                {recentProjects.map((recentProject) => (
-                  <button
-                    key={recentProject.projectDir}
-                    type="button"
-                    className="recent-project"
-                    onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
-                    title={recentProject.projectDir}
-                  >
-                    <span className="recent-project__name">{recentProject.projectName}</span>
-                    <span className="recent-project__path">{recentProject.projectDir}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      </main>
+        </header>
+
+        <main className="landing">
+          <div className="landing__card">
+            <p className="eyebrow">MAGE2</p>
+            <h1>Full-motion adventure editor</h1>
+            <p>
+              Build locations, timed hotspots, dialogue graphs, inventory conditions, subtitles, and static runtime
+              exports from one project folder.
+            </p>
+            <label>
+              <span className="field-label--inset">Project Name</span>
+              <input
+                value={newProjectName}
+                onChange={(event) => setNewProjectName(event.target.value)}
+                placeholder="My Project"
+                title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
+              />
+            </label>
+            <p className="muted">If left blank, the selected folder name will be used.</p>
+            <div className="landing__actions">
+              <button
+                type="button"
+                onClick={handleCreateProject}
+                title="Create a new project structure inside a folder you choose."
+              >
+                New Project
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={handleOpenProject}
+                title="Open an existing project folder from disk."
+              >
+                Open Project
+              </button>
+            </div>
+            {recentProjects.length > 0 ? (
+              <section className="recent-projects">
+                <div className="recent-projects__header">
+                  <h2>Recent Projects</h2>
+                  <p className="muted">The last five projects are remembered here, even after rebuilding the app.</p>
+                </div>
+                <div className="recent-projects__list">
+                  {recentProjects.map((recentProject) => (
+                    <button
+                      key={recentProject.projectDir}
+                      type="button"
+                      className="recent-project"
+                      onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
+                      title={recentProject.projectDir}
+                    >
+                      <span className="recent-project__name">{recentProject.projectName}</span>
+                      <span className="recent-project__path">{recentProject.projectDir}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </main>
+      </div>
     );
   }
 
