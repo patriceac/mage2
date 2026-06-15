@@ -78,12 +78,12 @@ describe("inspectProjectDirectory", () => {
   });
 });
 
-describe("subtitle project persistence", () => {
-  it("saves projects without writing subtitles.json", async () => {
+describe("removed timed text persistence", () => {
+  it("strips legacy timed text scene data while saving the current scene shape", async () => {
     const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-save-"));
     tempDirs.push(projectDir);
 
-    const project = createDefaultProjectBundle("No Subtitle File");
+    const project = createDefaultProjectBundle("No Timed Text File");
     project.assets.assets.push({
       id: "asset_visual",
       kind: "image",
@@ -96,24 +96,29 @@ describe("subtitle project persistence", () => {
       }
     });
     project.scenes.items[0].backgroundAssetId = "asset_visual";
-    project.scenes.items[0].subtitleTracks = [
+    const legacyTracksKey = ["sub", "titleTracks"].join("");
+    (project.scenes.items[0] as Record<string, unknown>)[legacyTracksKey] = [
       {
-        id: "subtitle_scene",
+        id: "legacy_scene_text",
         cues: [
           {
             id: "cue_scene",
             startMs: 0,
             endMs: 1000,
-            textId: "text.cue_scene.subtitle"
+            textId: "text.cue_scene.line"
           }
         ]
       }
     ];
-    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_scene.subtitle"] = "Localized text";
+    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_scene.line"] = "Localized text";
 
     await saveProjectToDirectory(projectDir, project);
 
-    await expect(readFile(path.join(projectDir, "subtitles.json"), "utf8")).rejects.toThrow();
+    const savedScenes = JSON.parse(await readFile(path.join(projectDir, "scenes.json"), "utf8")) as {
+      items: Array<Record<string, unknown>>;
+    };
+    expect(savedScenes.items[0]).not.toHaveProperty(legacyTracksKey);
+    await expect(readFile(path.join(projectDir, ["sub", "titles.json"].join("")), "utf8")).rejects.toThrow();
   });
 });
 

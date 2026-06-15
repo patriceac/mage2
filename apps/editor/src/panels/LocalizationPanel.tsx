@@ -30,7 +30,6 @@ import {
 import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
-type SubtitleEntryStatus = "missing" | "translated" | "empty";
 type MediaAssetFilter = "background" | "inventory" | "sceneAudio";
 
 interface LocalizationPanelProps {
@@ -41,36 +40,12 @@ interface LocalizationPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
-interface SubtitleLocalizationEntry {
-  sceneId: string;
-  sceneName: string;
-  locationId: string;
-  trackId: string;
-  trackIndex: number;
-  cueId: string;
-  cueIndex: number;
-  textId: string;
-  startMs: number;
-  endMs: number;
-  defaultValue: string;
-  localizedValue: string;
-  status: SubtitleEntryStatus;
-  navigation: EditorNavigationTarget;
-}
-
-interface SubtitleSceneGroup {
-  sceneId: string;
-  sceneName: string;
-  entries: SubtitleLocalizationEntry[];
-}
-
 const LOCALIZATION_SUBTABS: ReadonlyArray<{
   id: LocalizationSection;
   label: string;
 }> = [
   { id: "overview", label: "Overview" },
   { id: "strings", label: "Strings" },
-  { id: "subtitles", label: "Subtitles" },
   { id: "media", label: "Media" }
 ];
 
@@ -130,17 +105,6 @@ export function LocalizationPanel({
   const visibleOrphanedEntries = visibleStringEntries.filter((entry) => entry.status === "orphaned");
   const hasActiveSearchOrFilter = search.trim().length > 0 || statusFilter !== "all" || areaFilter !== "all";
 
-  const subtitleEntries = useMemo(
-    () => collectSubtitleLocalizationEntries(project, activeLocale),
-    [activeLocale, project]
-  );
-  const subtitleSceneGroups = useMemo(
-    () => groupSubtitleEntriesByScene(subtitleEntries),
-    [subtitleEntries]
-  );
-  const subtitleMissingCount = subtitleEntries.filter((entry) => entry.status === "missing").length;
-  const subtitleEmptyCount = subtitleEntries.filter((entry) => entry.status === "empty").length;
-  const subtitleTranslatedCount = subtitleEntries.filter((entry) => entry.status === "translated").length;
   const mediaCoverage = useMemo(
     () => getProjectLocaleAssetCoverage(project, activeLocale),
     [activeLocale, project]
@@ -402,7 +366,7 @@ export function LocalizationPanel({
           <div>
             <h3>Localization</h3>
             <p className="muted">
-              Localize strings, subtitles, and media here. The rest of the editor always authors the default locale.
+              Localize strings and media here. The rest of the editor always authors the default locale.
             </p>
           </div>
           <div className="localization-overview__locale-controls">
@@ -447,7 +411,7 @@ export function LocalizationPanel({
           <span>
             {isDefaultLocale
               ? "World, Scenes, Dialogue, Inventory, and Assets author this locale directly."
-              : "Edit this locale here for strings, subtitles, and media variants."}
+              : "Edit this locale here for strings and media variants."}
           </span>
         </div>
       </section>
@@ -499,16 +463,6 @@ export function LocalizationPanel({
               </button>
             </article>
             <article className="list-card list-card--compact localization-summary-card">
-              <strong>Subtitles</strong>
-              <p className="muted">
-                {subtitleEntries.length} cue{subtitleEntries.length === 1 ? "" : "s"}. {subtitleTranslatedCount} translated,{" "}
-                {subtitleMissingCount} missing, {subtitleEmptyCount} empty.
-              </p>
-              <button type="button" className="button-secondary" onClick={() => setLocalizationSection("subtitles")}>
-                Review Subtitles
-              </button>
-            </article>
-            <article className="list-card list-card--compact localization-summary-card">
               <strong>Media</strong>
               <p className="muted">
                 {mediaCoverage.present} of {mediaCoverage.total} asset{mediaCoverage.total === 1 ? "" : "s"} ready for{" "}
@@ -533,7 +487,7 @@ export function LocalizationPanel({
           <div>
             <h3>Strings</h3>
             <p className="muted">
-              Review non-subtitle text keys used by hotspots, dialogue, and inventory for the selected locale.
+              Review text keys used by hotspots, dialogue, and inventory for the selected locale.
             </p>
           </div>
         </div>
@@ -778,91 +732,6 @@ export function LocalizationPanel({
       </section>
       ) : null}
 
-      {localizationSection === "subtitles" ? (
-      <section
-        id="localization-panel-subtitles"
-        role="tabpanel"
-        aria-labelledby="localization-tab-subtitles"
-        className="panel localization-section localization-section--active"
-      >
-        <div className="panel__toolbar localization-section__header">
-          <div>
-            <h3>Subtitles</h3>
-            <p className="muted">Translate subtitle cues here while keeping track timing in Scenes.</p>
-          </div>
-        </div>
-
-        {subtitleSceneGroups.length > 0 ? (
-          <div className="localization-subtitle-groups">
-            {subtitleSceneGroups.map((sceneGroup) => (
-              <article key={sceneGroup.sceneId} className="list-card localization-subtitle-group">
-                <div className="localization-subtitle-group__header">
-                  <div>
-                    <h4>{sceneGroup.sceneName}</h4>
-                    <p className="muted">
-                      {sceneGroup.entries.length} cue{sceneGroup.entries.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() => handleNavigate(sceneGroup.entries[0].navigation)}
-                  >
-                    Open Scene
-                  </button>
-                </div>
-
-                <div className="localization-subtitle-group__rows">
-                  {sceneGroup.entries.map((entry) => (
-                    <article
-                      key={entry.cueId}
-                      className={selectedTextId === entry.textId ? "list-card list-card--compact list-card--selected localization-subtitle-entry" : "list-card list-card--compact localization-subtitle-entry"}
-                    >
-                      <div className="localization-subtitle-entry__header">
-                        <div>
-                          <strong>{`Track ${entry.trackIndex + 1} / Cue ${entry.cueIndex + 1}`}</strong>
-                          <p className="muted">{formatCueTiming(entry.startMs, entry.endMs)}</p>
-                        </div>
-                        <div className="localization-entry__badges">
-                          <code>{entry.textId}</code>
-                          <span className={`localization-status localization-status--${mapSubtitleStatusToClassName(entry.status)}`}>
-                            {getSubtitleStatusLabel(entry.status)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {!isDefaultLocale ? (
-                        <label>
-                          <span className="field-label--inset">{`Default (${project.manifest.defaultLanguage})`}</span>
-                          <textarea value={entry.defaultValue} readOnly />
-                        </label>
-                      ) : null}
-
-                      <label>
-                        <span className="field-label--inset">{`Value for ${activeLocale}`}</span>
-                        <textarea
-                          rows={3}
-                          value={entry.localizedValue}
-                          onFocus={() => setSelectedTextId(entry.textId)}
-                          onChange={(event) =>
-                            mutateProject((draft) => {
-                              setEditorLocalizedText(draft, activeLocale, entry.textId, event.target.value);
-                            })
-                          }
-                        />
-                      </label>
-                    </article>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.</p>
-        )}
-      </section>
-      ) : null}
-
       {localizationSection === "media" ? (
       <section
         id="localization-panel-media"
@@ -968,70 +837,7 @@ export function LocalizationPanel({
 }
 
 function collectStringLocalizationEntries(project: ProjectBundle, locale: string): ProjectTextEntry[] {
-  return collectProjectTextEntries(project, locale).filter(
-    (entry) => !entry.usages.some((usage) => usage.kind === "subtitleCue")
-  );
-}
-
-function collectSubtitleLocalizationEntries(project: ProjectBundle, locale: string): SubtitleLocalizationEntry[] {
-  const localizedStrings = getLocaleStringValues(project, locale);
-  const defaultStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
-
-  return project.scenes.items.flatMap((scene) =>
-    scene.subtitleTracks.flatMap((track, trackIndex) =>
-      track.cues.map((cue, cueIndex) => {
-        const hasLocalizedValue = Object.prototype.hasOwnProperty.call(localizedStrings, cue.textId);
-        const localizedValue = localizedStrings[cue.textId] ?? "";
-        const status: SubtitleEntryStatus = !hasLocalizedValue
-          ? "missing"
-          : localizedValue.trim().length === 0
-            ? "empty"
-            : "translated";
-
-        return {
-          sceneId: scene.id,
-          sceneName: scene.name,
-          locationId: scene.locationId,
-          trackId: track.id,
-          trackIndex,
-          cueId: cue.id,
-          cueIndex,
-          textId: cue.textId,
-          startMs: cue.startMs,
-          endMs: cue.endMs,
-          defaultValue: defaultStrings[cue.textId] ?? "",
-          localizedValue,
-          status,
-          navigation: {
-            label: `${scene.name} subtitles`,
-            tab: "scenes",
-            locationId: scene.locationId,
-            sceneId: scene.id
-          }
-        };
-      })
-    )
-  );
-}
-
-function groupSubtitleEntriesByScene(entries: SubtitleLocalizationEntry[]): SubtitleSceneGroup[] {
-  const groups = new Map<string, SubtitleSceneGroup>();
-
-  for (const entry of entries) {
-    const group = groups.get(entry.sceneId);
-    if (group) {
-      group.entries.push(entry);
-      continue;
-    }
-
-    groups.set(entry.sceneId, {
-      sceneId: entry.sceneId,
-      sceneName: entry.sceneName,
-      entries: [entry]
-    });
-  }
-
-  return [...groups.values()];
+  return collectProjectTextEntries(project, locale);
 }
 
 function getProjectLocaleAssetCoverage(project: ProjectBundle, locale: string) {
@@ -1061,32 +867,6 @@ function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): 
   }
 
   return undefined;
-}
-
-function getSubtitleStatusLabel(status: SubtitleEntryStatus): string {
-  switch (status) {
-    case "missing":
-      return "Missing";
-    case "translated":
-      return "Translated";
-    case "empty":
-      return "Empty";
-  }
-}
-
-function mapSubtitleStatusToClassName(status: SubtitleEntryStatus): "missing" | "referenced" | "empty" {
-  switch (status) {
-    case "missing":
-      return "missing";
-    case "translated":
-      return "referenced";
-    case "empty":
-      return "empty";
-  }
-}
-
-function formatCueTiming(startMs: number, endMs: number): string {
-  return `${startMs}ms - ${endMs}ms`;
 }
 
 function formatMediaCategoryLabel(category: MediaAssetFilter): string {

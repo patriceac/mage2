@@ -98,7 +98,6 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain(">Localization</h3>");
     expect(markup).toContain(">Overview</h3>");
     expect(markup).toContain("Review Strings");
-    expect(markup).toContain("Review Subtitles");
     expect(markup).toContain("Review Media");
     expect(markup).toContain("Add Locale");
     expect(markup).toContain("Set Default");
@@ -106,10 +105,9 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain('aria-selected="true"');
     expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
     expect(markup).not.toContain(">Usage</h3>");
-    expect(markup).not.toContain("No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.");
   });
 
-  it("keeps scenes in strings and moves subtitles into their own workspace", () => {
+  it("keeps project text surfaces in strings", () => {
     const markup = renderLocalizationPanel("strings");
 
     expect(markup).toContain('id="localization-tab-strings"');
@@ -126,21 +124,6 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain(">Dialogue</option>");
     expect(markup).toContain('value="inventory"');
     expect(markup).toContain(">Inventory</option>");
-    expect(markup).not.toContain('value="subtitles"');
-    expect(markup).not.toContain("Review Strings");
-    expect(markup).not.toContain("No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.");
-  });
-
-  it("renders only subtitle content when subtitles is active", () => {
-    const markup = renderLocalizationPanel("subtitles");
-
-    expect(markup).toContain('id="localization-tab-subtitles"');
-    expect(markup).toContain('aria-controls="localization-panel-subtitles"');
-    expect(markup).toContain('id="localization-panel-subtitles"');
-    expect(markup).toContain(">Subtitles</h3>");
-    expect(markup).toContain("No subtitle cues yet. Add subtitle tracks in Scenes to localize them here.");
-    expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
-    expect(markup).not.toContain(">Usage</h3>");
     expect(markup).not.toContain("Review Strings");
   });
 

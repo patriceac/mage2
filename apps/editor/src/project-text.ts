@@ -6,8 +6,6 @@ import type {
   Location,
   ProjectBundle,
   Scene,
-  SubtitleCue,
-  SubtitleTrack,
   ValidationIssue
 } from "@mage2/schema";
 import { getLocaleStringValues } from "@mage2/schema";
@@ -15,14 +13,13 @@ import type { EditorNavigationTarget } from "./navigation-target";
 
 export type ProjectTextUsageKind =
   | "hotspotComment"
-  | "subtitleCue"
   | "dialogueLine"
   | "dialogueChoice"
   | "inventoryName"
   | "inventoryDescription";
 
 export type ProjectTextEntryStatus = "missing" | "referenced" | "orphaned";
-export type ProjectTextArea = "scenes" | "dialogue" | "inventory" | "subtitles";
+export type ProjectTextArea = "scenes" | "dialogue" | "inventory";
 export type ProjectTextStatusFilter = "all" | ProjectTextEntryStatus;
 export type ProjectTextAreaFilter = "all" | ProjectTextArea;
 export type ProjectTextSortOption = "status" | "textId" | "mostUses";
@@ -51,8 +48,6 @@ export interface ProjectTextViewOptions {
 
 const ISSUE_KIND_MAP: Partial<Record<ValidationIssue["code"], ProjectTextUsageKind>> = {
   HOTSPOT_COMMENT_TEXT_MISSING: "hotspotComment",
-  SUBTITLE_TEXT_MISSING: "subtitleCue",
-  SUBTITLE_TEXT_EMPTY: "subtitleCue",
   DIALOGUE_TEXT_MISSING: "dialogueLine",
   DIALOGUE_CHOICE_TEXT_MISSING: "dialogueChoice",
   INVENTORY_NAME_TEXT_MISSING: "inventoryName",
@@ -69,23 +64,6 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
   const usages: ProjectTextUsage[] = [];
 
   for (const scene of project.scenes.items) {
-    for (const [trackIndex, track] of scene.subtitleTracks.entries()) {
-      for (const [cueIndex, cue] of track.cues.entries()) {
-        usages.push({
-          textId: cue.textId,
-          kind: "subtitleCue",
-          ownerId: cue.id,
-          ownerLabel: `${scene.name} / Track ${trackIndex + 1} / Cue ${cueIndex + 1}`,
-          navigation: {
-            label: `${scene.name} subtitles`,
-            tab: "scenes",
-            locationId: scene.locationId,
-            sceneId: scene.id
-          }
-        });
-      }
-    }
-
     for (const hotspot of scene.hotspots) {
       if (hotspot.commentTextId) {
         usages.push({
@@ -245,8 +223,6 @@ export function resolveProjectTextArea(kind: ProjectTextUsageKind): ProjectTextA
   switch (kind) {
     case "hotspotComment":
       return "scenes";
-    case "subtitleCue":
-      return "subtitles";
     case "dialogueLine":
     case "dialogueChoice":
       return "dialogue";
@@ -264,8 +240,6 @@ export function getProjectTextAreaLabel(area: ProjectTextArea): string {
       return "Dialogue";
     case "inventory":
       return "Inventory";
-    case "subtitles":
-      return "Subtitles";
   }
 }
 
@@ -273,8 +247,6 @@ export function formatProjectTextUsageKind(kind: ProjectTextUsageKind): string {
   switch (kind) {
     case "hotspotComment":
       return "Hotspot Comment";
-    case "subtitleCue":
-      return "Subtitle Cue";
     case "dialogueLine":
       return "Dialogue Line";
     case "dialogueChoice":
@@ -393,16 +365,12 @@ export function collectOwnedGeneratedProjectTextIdsForLocation(
 }
 
 export function collectOwnedGeneratedProjectTextIdsForScene(
-  scene: Pick<Scene, "id" | "hotspots" | "subtitleTracks">
+  scene: Pick<Scene, "id" | "hotspots">
 ): string[] {
   const ownedTextIds: string[] = [getGeneratedSceneOverlayTextId(scene.id)];
 
   for (const hotspot of scene.hotspots) {
     ownedTextIds.push(...collectOwnedGeneratedProjectTextIdsForHotspot(hotspot));
-  }
-
-  for (const track of scene.subtitleTracks) {
-    ownedTextIds.push(...collectOwnedGeneratedProjectTextIdsForSubtitleTrack(track));
   }
 
   return ownedTextIds;
@@ -418,18 +386,6 @@ export function collectOwnedGeneratedProjectTextIdsForHotspot(
   }
 
   return ownedTextIds;
-}
-
-export function collectOwnedGeneratedProjectTextIdsForSubtitleTrack(
-  track: Pick<SubtitleTrack, "cues">
-): string[] {
-  return track.cues.flatMap((cue) => collectOwnedGeneratedProjectTextIdsForSubtitleCue(cue));
-}
-
-export function collectOwnedGeneratedProjectTextIdsForSubtitleCue(
-  cue: Pick<SubtitleCue, "id" | "textId">
-): string[] {
-  return cue.textId === getGeneratedSubtitleCueTextId(cue.id) ? [cue.textId] : [];
 }
 
 export function collectOwnedGeneratedProjectTextIdsForDialogueNode(
@@ -474,10 +430,6 @@ export function getGeneratedHotspotLabelTextId(hotspotId: string): string {
 
 export function getGeneratedHotspotCommentTextId(hotspotId: string): string {
   return `text.${hotspotId}.comment`;
-}
-
-export function getGeneratedSubtitleCueTextId(cueId: string): string {
-  return `text.${cueId}.subtitle`;
 }
 
 export function getGeneratedDialogueNodeTextId(nodeId: string): string {
@@ -533,12 +485,6 @@ function collectAllProjectTextReferenceCounts(project: ProjectBundle): Map<strin
   for (const scene of project.scenes.items) {
     for (const hotspot of scene.hotspots) {
       register(hotspot.commentTextId);
-    }
-
-    for (const track of scene.subtitleTracks) {
-      for (const cue of track.cues) {
-        register(cue.textId);
-      }
     }
   }
 

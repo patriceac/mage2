@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
@@ -45,18 +45,6 @@ export const EffectSchema = z.discriminatedUnion("type", [
     dialogueTreeId: z.string().min(1)
   })
 ]);
-
-export const SubtitleCueSchema = z.object({
-  id: z.string().min(1),
-  startMs: z.number().nonnegative(),
-  endMs: z.number().positive(),
-  textId: z.string().min(1)
-});
-
-export const SubtitleTrackSchema = z.object({
-  id: z.string().min(1),
-  cues: z.array(SubtitleCueSchema).default([])
-});
 
 export const HotspotPointSchema = z.object({
   x: z.number().min(0).max(1),
@@ -105,7 +93,6 @@ export const SceneSchema = z.object({
   sceneAudioDelayMs: z.number().nonnegative().default(0),
   backgroundVideoLoop: z.boolean().default(false),
   hotspots: z.array(HotspotSchema).default([]),
-  subtitleTracks: z.array(SubtitleTrackSchema).default([]),
   dialogueTreeIds: z.array(z.string()).default([]),
   onEnterEffects: z.array(EffectSchema).default([]),
   onExitEffects: z.array(EffectSchema).default([])
@@ -258,8 +245,6 @@ export type AssetKind = z.infer<typeof AssetKindSchema>;
 export type AssetCategory = z.infer<typeof AssetCategorySchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
-export type SubtitleCue = z.infer<typeof SubtitleCueSchema>;
-export type SubtitleTrack = z.infer<typeof SubtitleTrackSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
 export type HotspotTimingMode = z.infer<typeof HotspotTimingModeSchema>;
 export type Hotspot = z.infer<typeof HotspotSchema>;

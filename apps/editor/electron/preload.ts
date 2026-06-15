@@ -36,12 +36,6 @@ const editorApi = {
     ipcRenderer.invoke("mage2:import-assets", projectDir, locale, existingAssets, filePaths, category),
   importAssetVariant: (projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset> =>
     ipcRenderer.invoke("mage2:import-asset-variant", projectDir, asset, locale, filePath),
-  parseSubtitleFiles: (
-    filePaths: string[]
-  ): Promise<{
-    parsedFiles: Array<{ filePath: string; fileName: string; cues: Array<{ startMs: number; endMs: number; text: string }> }>;
-    failedFiles: Array<{ filePath: string; reason: string }>;
-  }> => ipcRenderer.invoke("mage2:parse-subtitles", filePaths),
   generateProxy: (projectDir: string, asset: Asset, locale: string): Promise<Asset> =>
     ipcRenderer.invoke("mage2:generate-proxy", projectDir, asset, locale),
   deleteManagedAssetFiles: (

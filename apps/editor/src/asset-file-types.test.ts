@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   MEDIA_DIALOG_FILTER_EXTENSIONS,
   SCENE_AUDIO_IMPORT_EXTENSIONS,
-  SUBTITLE_DIALOG_FILTER_EXTENSIONS,
   classifyImportAssetPaths,
   isBackgroundImportPath,
   isInventoryImageImportPath,
@@ -19,7 +18,7 @@ describe("classifyImportAssetPaths", () => {
       "C:\\media\\INTRO.mp4",
       "C:\\media\\intro.mp4",
       "   ",
-      "C:\\media\\captions.vtt"
+      "C:\\media\\timing.vtt"
     ]);
 
     expect(result).toEqual({
@@ -30,7 +29,7 @@ describe("classifyImportAssetPaths", () => {
         "C:\\media\\INTRO.mp4",
         "C:\\media\\intro.mp4"
       ],
-      rejectedFilePaths: ["C:\\media\\readme.txt", "C:\\media\\captions.vtt"],
+      rejectedFilePaths: ["C:\\media\\readme.txt", "C:\\media\\timing.vtt"],
       duplicateFilePaths: []
     });
   });
@@ -49,12 +48,6 @@ describe("SCENE_AUDIO_IMPORT_EXTENSIONS", () => {
   it("tracks the supported dedicated audio-import file types", () => {
     expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".mp3");
     expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".wav");
-  });
-});
-
-describe("SUBTITLE_DIALOG_FILTER_EXTENSIONS", () => {
-  it("keeps subtitle imports separate from generic asset imports", () => {
-    expect(SUBTITLE_DIALOG_FILTER_EXTENSIONS).toEqual(["srt", "vtt"]);
   });
 });
 

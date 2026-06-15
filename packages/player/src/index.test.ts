@@ -196,56 +196,6 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).not.toContain("hotspot_burn_candle");
   });
 
-  it("returns active subtitle cue text from string-backed scene tracks, including overlaps and line breaks", () => {
-    const project = createDefaultProjectBundle();
-    project.assets.assets.push({
-      id: "asset_placeholder",
-      kind: "image",
-      name: "Placeholder",
-      variants: {
-        en: {
-          sourcePath: "placeholder.png",
-          importedAt: new Date().toISOString()
-        }
-      }
-    });
-    project.scenes.items[0].subtitleTracks = [
-      {
-        id: "subtitle_one",
-        cues: [
-          {
-            id: "cue_one",
-            startMs: 0,
-            endMs: 2000,
-            textId: "text.cue_one.subtitle"
-          }
-        ]
-      },
-      {
-        id: "subtitle_two",
-        cues: [
-          {
-            id: "cue_two",
-            startMs: 1000,
-            endMs: 3000,
-            textId: "text.cue_two.subtitle"
-          }
-        ]
-      }
-    ];
-    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_one.subtitle"] = "First line\nSecond line";
-    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_two.subtitle"] = "Overlapping cue";
-
-    const controller = createPlayerController(project);
-
-    expect(controller.getSubtitleLines(500, project.manifest.defaultLanguage)).toEqual(["First line\nSecond line"]);
-    expect(controller.getSubtitleLines(1500, project.manifest.defaultLanguage)).toEqual([
-      "First line\nSecond line",
-      "Overlapping cue"
-    ]);
-    expect(controller.getSubtitleLines(3500, project.manifest.defaultLanguage)).toEqual([]);
-  });
-
   it("resolves scene playback duration from active media range", () => {
     expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(13000);
     expect(resolveSceneTimelineDurationMs(18000, 12000, 22000)).toBe(34000);

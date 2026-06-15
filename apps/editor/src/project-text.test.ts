@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
-import { addDialogueTree, addInventoryItem, createSubtitleCue } from "./project-helpers";
+import { addDialogueTree, addInventoryItem } from "./project-helpers";
 import {
   collectProjectTextEntries,
   deleteOrphanedProjectTextEntries,
@@ -75,25 +75,6 @@ describe("collectProjectTextEntries", () => {
     expect(entryIds).not.toContain(`text.${project.scenes.items[0]!.hotspots[0]!.id}.label`);
     expect(entryIds).toContain("text.manual.scene.overlay");
     expect(entryIds).toContain("text.hotspot.inspect.comment");
-  });
-
-  it("includes subtitle cue strings in localization coverage", () => {
-    const project = createDefaultProjectBundle("Subtitle text");
-    const cue = createSubtitleCue(project, 0, 1200, "Opening subtitle");
-    project.scenes.items[0].subtitleTracks = [{ id: "subtitle_intro", cues: [cue] }];
-
-    const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);
-    const subtitleEntry = entries.find((entry) => entry.textId === cue.textId);
-
-    expect(subtitleEntry).toMatchObject({
-      textId: cue.textId,
-      status: "referenced",
-      value: "Opening subtitle"
-    });
-    expect(subtitleEntry?.usages[0]).toMatchObject({
-      kind: "subtitleCue",
-      ownerId: cue.id
-    });
   });
 
   it("groups multiple project surfaces under the same text id", () => {
@@ -175,8 +156,6 @@ describe("filterProjectTextEntries", () => {
     const project = createDefaultProjectBundle("Filter text");
     const dialogue = addDialogueTree(project);
     const item = addInventoryItem(project);
-    const cue = createSubtitleCue(project, 0, 1200, "Localized subtitle");
-    project.scenes.items[0].subtitleTracks = [{ id: "subtitle_intro", cues: [cue] }];
     getDefaultStrings(project)["text.orphaned"] = "Unused copy";
     delete getDefaultStrings(project)[dialogue.nodes[0].textId];
 
@@ -200,14 +179,6 @@ describe("filterProjectTextEntries", () => {
       }).map((entry) => entry.textId)
     ).toEqual([item.descriptionTextId!, item.textId].sort());
 
-    expect(
-      filterProjectTextEntries(entries, {
-        search: "",
-        status: "all",
-        area: "subtitles",
-        sort: "status"
-      }).map((entry) => entry.textId)
-    ).toEqual([cue.textId]);
   });
 
   it("sorts by most uses before falling back to status and id", () => {

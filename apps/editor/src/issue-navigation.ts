@@ -34,7 +34,7 @@ export function resolveIssueNavigation(
       tab: "localization",
       textId: projectTextUsage.textId,
       locale: issue.locale ?? project.manifest.defaultLanguage,
-      localizationSection: projectTextUsage.kind === "subtitleCue" ? "subtitles" : "strings"
+      localizationSection: "strings"
     };
   }
 
@@ -65,24 +65,6 @@ export function resolveIssueNavigation(
           locationId: candidateScene.locationId,
           sceneId: candidateScene.id,
           hotspotId: hotspot.id
-        };
-      }
-
-      if (candidateScene.subtitleTracks.some((track) => track.id === entityId)) {
-        return {
-          label: `${candidateScene.name} subtitles`,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id
-        };
-      }
-
-      if (candidateScene.subtitleTracks.some((track) => track.cues.some((cue) => cue.id === entityId))) {
-        return {
-          label: `${candidateScene.name} subtitles`,
-          tab: "scenes",
-          locationId: candidateScene.locationId,
-          sceneId: candidateScene.id
         };
       }
     }
@@ -232,9 +214,6 @@ export function getIssueHint(issue: ValidationIssue): string {
   switch (issue.code) {
     case "HOTSPOT_COMMENT_TEXT_MISSING":
       return "Add the missing text in Localization > Strings, or restore the default-locale value from Scenes.";
-    case "SUBTITLE_TEXT_MISSING":
-    case "SUBTITLE_TEXT_EMPTY":
-      return "Add the missing subtitle in Localization > Subtitles, or restore the default-locale value from Scenes.";
     case "DIALOGUE_TEXT_MISSING":
     case "DIALOGUE_CHOICE_TEXT_MISSING":
       return "Add the missing text in Localization > Strings, or restore the default-locale value from Dialogue.";

@@ -7,8 +7,7 @@ import type {
   InventoryItem,
   Location,
   ProjectBundle,
-  Scene,
-  SubtitleCue
+  Scene
 } from "@mage2/schema";
 import {
   createRectangleHotspotPolygon,
@@ -25,7 +24,6 @@ import {
   getGeneratedDialogueNodeTextId,
   getGeneratedInventoryDescriptionTextId,
   getGeneratedInventoryNameTextId,
-  getGeneratedSubtitleCueTextId,
   pruneOwnedGeneratedProjectTextEntries
 } from "./project-text";
 
@@ -49,7 +47,6 @@ export interface RemoveAssetFromProjectResult {
   blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
-  removedSubtitleTrackIds: string[];
 }
 
 export interface AssetDeletionEligibility {
@@ -65,7 +62,6 @@ export interface SceneReferenceSummary {
   hotspotTargetReferenceCount: number;
   sceneVisitedConditionCount: number;
   goToSceneEffectCount: number;
-  removedSubtitleTrackIds: string[];
 }
 
 export type RemoveSceneStrategy =
@@ -82,7 +78,6 @@ export interface RemoveSceneFromProjectResult {
   blockedReason?: "scene-not-found" | "replacement-scene-not-found";
   strategy: RemoveSceneStrategy;
   referenceSummary: SceneReferenceSummary;
-  removedSubtitleTrackIds: string[];
   removedTextIds: string[];
 }
 
@@ -236,8 +231,7 @@ export function removeAssetFromProject(
       deleted: false,
       blockedReason: deletionEligibility.blockedReason,
       fallbackAssetId: deletionEligibility.fallbackAssetId,
-      referenceSummary: deletionEligibility.referenceSummary,
-      removedSubtitleTrackIds: []
+      referenceSummary: deletionEligibility.referenceSummary
     };
   }
   const { fallbackAssetId, referenceSummary } = deletionEligibility;
@@ -259,8 +253,7 @@ export function removeAssetFromProject(
   return {
     deleted: true,
     fallbackAssetId,
-    referenceSummary,
-    removedSubtitleTrackIds: []
+    referenceSummary
   };
 }
 
@@ -271,8 +264,7 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
     locationReferenceCount: 0,
     hotspotTargetReferenceCount: 0,
     sceneVisitedConditionCount: 0,
-    goToSceneEffectCount: 0,
-    removedSubtitleTrackIds: scene ? scene.subtitleTracks.map((track) => track.id) : []
+    goToSceneEffectCount: 0
   };
 
   if (!scene) {
@@ -332,7 +324,6 @@ export function removeSceneFromProject(
 ): RemoveSceneFromProjectResult {
   const referenceSummary = collectSceneReferenceSummary(project, sceneId);
   const scene = project.scenes.items.find((entry) => entry.id === sceneId);
-  const removedSubtitleTrackIds = scene ? scene.subtitleTracks.map((track) => track.id) : [];
   const ownedGeneratedTextIds = scene ? collectOwnedGeneratedProjectTextIdsForScene(scene) : [];
 
   if (!scene) {
@@ -341,7 +332,6 @@ export function removeSceneFromProject(
       blockedReason: "scene-not-found",
       strategy,
       referenceSummary,
-      removedSubtitleTrackIds: [],
       removedTextIds: []
     };
   }
@@ -357,7 +347,6 @@ export function removeSceneFromProject(
       blockedReason: "replacement-scene-not-found",
       strategy,
       referenceSummary,
-      removedSubtitleTrackIds: [],
       removedTextIds: []
     };
   }
@@ -404,7 +393,6 @@ export function removeSceneFromProject(
     deleted: true,
     strategy,
     referenceSummary,
-    removedSubtitleTrackIds,
     removedTextIds
   };
 }
@@ -468,7 +456,6 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     sceneAudioDelayMs: 0,
     backgroundVideoLoop: false,
     hotspots: [],
-    subtitleTracks: [],
     dialogueTreeIds: [],
     onEnterEffects: [],
     onExitEffects: []
@@ -534,24 +521,6 @@ export function addInventoryItem(project: ProjectBundle): InventoryItem {
   ensureString(project, descriptionTextId, `${item.name} description`);
   project.inventory.items.push(item);
   return item;
-}
-
-export function createSubtitleCue(
-  project: ProjectBundle,
-  startMs: number,
-  endMs: number,
-  text: string
-): SubtitleCue {
-  const cueId = createId("cue");
-  const textId = getGeneratedSubtitleCueTextId(cueId);
-
-  ensureString(project, textId, text);
-  return {
-    id: cueId,
-    startMs,
-    endMs,
-    textId
-  };
 }
 
 export function addHotspot(project: ProjectBundle, sceneId: string, x: number, y: number): Hotspot | undefined {

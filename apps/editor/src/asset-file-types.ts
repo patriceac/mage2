@@ -1,7 +1,6 @@
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".avi", ".webm"] as const;
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".svg"] as const;
 const AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".aac"] as const;
-export const SUBTITLE_IMPORT_EXTENSIONS = [".srt", ".vtt"] as const;
 export const BACKGROUND_IMPORT_EXTENSIONS = [...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
 export const SCENE_AUDIO_IMPORT_EXTENSIONS = [...AUDIO_EXTENSIONS] as const;
 export const INVENTORY_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS] as const;
@@ -9,7 +8,6 @@ export const INVENTORY_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS] as const;
 export const SUPPORTED_ASSET_EXTENSIONS = [...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS, ...AUDIO_EXTENSIONS] as const;
 
 export const MEDIA_DIALOG_FILTER_EXTENSIONS = SUPPORTED_ASSET_EXTENSIONS.map((extension) => extension.slice(1));
-export const SUBTITLE_DIALOG_FILTER_EXTENSIONS = SUBTITLE_IMPORT_EXTENSIONS.map((extension) => extension.slice(1));
 
 const SUPPORTED_ASSET_EXTENSION_SET = new Set<string>(SUPPORTED_ASSET_EXTENSIONS);
 const BACKGROUND_IMPORT_EXTENSION_SET = new Set<string>(BACKGROUND_IMPORT_EXTENSIONS);

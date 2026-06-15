@@ -280,6 +280,7 @@ export function App() {
       ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)
       : undefined;
   const currentAssetVariant = currentAsset ? resolveAssetVariant(currentAsset, locale) : undefined;
+  const runtimeMediaStyle = resolveRuntimeMediaAspectRatioStyle(currentAssetVariant?.width, currentAssetVariant?.height);
   const sceneAudioAsset =
     content && snapshot?.scene.sceneAudioAssetId
       ? (content.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId) as Asset | undefined)
@@ -291,7 +292,6 @@ export function App() {
     currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs) : [];
-  const subtitleLines = controller ? controller.getSubtitleLines(playheadMs, locale) : [];
   const runtimeInventoryItems =
     content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
   const selectedRuntimeInventoryItem = runtimeInventoryItems.find((item) => item.id === selectedInventoryItemId);
@@ -933,7 +933,7 @@ export function App() {
           </div>
         </header>
 
-        <div className="runtime-media">
+        <div className="runtime-media" style={runtimeMediaStyle}>
           {currentAsset?.kind === "video" && currentAssetVariant ? (
             <video
               ref={runtimeVideoRef}
@@ -1049,18 +1049,6 @@ export function App() {
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
         </label>
-
-        <div className="runtime-subtitles">
-          {subtitleLines.length > 0 ? (
-            subtitleLines.map((line, index) => (
-              <p key={`${index}:${line}`} className="runtime-subtitles__line">
-                {line}
-              </p>
-            ))
-          ) : (
-            "Subtitles will appear here."
-          )}
-        </div>
 
         {snapshot.activeDialogue ? (
           <div className="runtime-dialogue">
@@ -1269,6 +1257,23 @@ function resolveRuntimeHotspotVisualContentStyle(
   }
 
   return style;
+}
+
+function resolveRuntimeMediaAspectRatioStyle(
+  width: number | undefined,
+  height: number | undefined
+): CSSProperties | undefined {
+  if (!isPositiveFiniteNumber(width) || !isPositiveFiniteNumber(height)) {
+    return undefined;
+  }
+
+  return {
+    aspectRatio: `${width} / ${height}`
+  };
+}
+
+function isPositiveFiniteNumber(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function resolveRelativeHotspotClipPath(polygon?: Array<{ x: number; y: number }>): string | undefined {

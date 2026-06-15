@@ -57,11 +57,11 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
   assets: "Review background, scene-audio, and inventory assets after creating them from their owning editor tabs.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
-  scenes: "Edit scene media, upload background and scene-audio assets, hotspots, subtitles, and scene-level wiring.",
+  scenes: "Edit scene media, upload background and scene-audio assets, hotspots, and scene-level wiring.",
   dialogue: "Write dialogue lines and player replies, then start them from scene hotspots.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
-  localization: "Manage locale coverage and edit localized strings, subtitles, and media variants in one place.",
-  playtest: "Run the current project in the editor to test hotspots, dialogue, subtitles, and state."
+  localization: "Manage locale coverage and edit localized strings and media variants in one place.",
+  playtest: "Run the current project in the editor to test hotspots, dialogue, and state."
 };
 
 interface InitialLaunchOptions {
@@ -841,7 +841,7 @@ export function App() {
             <p className="eyebrow">MAGE2</p>
             <h1>Full-motion adventure editor</h1>
             <p>
-              Build locations, timed hotspots, dialogue graphs, inventory conditions, subtitles, and static runtime
+              Build locations, timed hotspots, dialogue graphs, inventory conditions, and static runtime
               exports from one project folder.
             </p>
             <label>

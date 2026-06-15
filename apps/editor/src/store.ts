@@ -9,7 +9,7 @@ import {
 import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
-export type LocalizationSection = "overview" | "strings" | "subtitles" | "media";
+export type LocalizationSection = "overview" | "strings" | "media";
 export interface ProjectUpdateOptions {
   skipHistory?: boolean;
 }

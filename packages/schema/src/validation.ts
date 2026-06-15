@@ -338,51 +338,6 @@ function validateScene(
   validateConditionEffectRefs([], scene.onEnterEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
   validateConditionEffectRefs([], scene.onExitEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
 
-  for (const track of scene.subtitleTracks) {
-    for (const cue of track.cues) {
-      if (cue.endMs <= cue.startMs) {
-        issues.push({
-          level: "error",
-          code: "SUBTITLE_RANGE_INVALID",
-          message: `Subtitle cue '${cue.id}' has an invalid time range.`,
-          entityId: cue.id
-        });
-      }
-
-      validateLocalizedTextCoverage(
-        project,
-        supportedLocales,
-        cue.textId,
-        "error",
-        "SUBTITLE_TEXT_MISSING",
-        `Subtitle cue '${cue.id}' references missing text`,
-        cue.id,
-        issues
-      );
-
-      for (const locale of supportedLocales) {
-        const subtitleText = getLocalizedText(project, locale, cue.textId);
-        if (subtitleText?.trim().length === 0) {
-          issues.push({
-            level: "warning",
-            code: "SUBTITLE_TEXT_EMPTY",
-            message: `Subtitle cue '${cue.id}' has no visible text for locale '${locale}'.`,
-            entityId: cue.id,
-            locale
-          });
-        }
-      }
-    }
-
-    if (track.cues.length === 0) {
-      issues.push({
-        level: "warning",
-        code: "SUBTITLE_TRACK_EMPTY",
-        message: `Subtitle track '${track.id}' has no cues.`,
-        entityId: track.id
-      });
-    }
-  }
 }
 
 function validateInventoryItem(

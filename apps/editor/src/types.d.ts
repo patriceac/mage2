@@ -65,14 +65,6 @@ declare global {
         duplicateFilePaths: string[];
       }>;
       importAssetVariant(projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset>;
-      parseSubtitleFiles(filePaths: string[]): Promise<{
-        parsedFiles: Array<{
-          filePath: string;
-          fileName: string;
-          cues: Array<{ startMs: number; endMs: number; text: string }>;
-        }>;
-        failedFiles: Array<{ filePath: string; reason: string }>;
-      }>;
       generateProxy(projectDir: string, asset: Asset, locale: string): Promise<Asset>;
       deleteManagedAssetFiles(
         projectDir: string,

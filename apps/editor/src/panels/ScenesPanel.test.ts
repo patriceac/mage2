@@ -246,7 +246,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(formatCanvasZoomLabel(1.25)).toBe("125%");
   });
 
-  it("builds scene switcher options with location subtitles", () => {
+  it("builds scene switcher options with location metadata", () => {
     const project = createDefaultProjectBundle("Scenes switcher");
     project.locations.items.push({
       id: "location_attic",
@@ -264,7 +264,6 @@ describe("ScenesPanel scene audio UI", () => {
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
       hotspots: [],
-      subtitleTracks: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
       onExitEffects: []
@@ -286,7 +285,7 @@ describe("ScenesPanel scene audio UI", () => {
     ]);
   });
 
-  it("builds location switcher options with scene-count subtitles", () => {
+  it("builds location switcher options with scene-count metadata", () => {
     const project = createDefaultProjectBundle("Location switcher");
     project.locations.items.push({
       id: "location_attic",
@@ -304,7 +303,6 @@ describe("ScenesPanel scene audio UI", () => {
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
       hotspots: [],
-      subtitleTracks: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
       onExitEffects: []

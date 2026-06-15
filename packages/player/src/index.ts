@@ -4,7 +4,6 @@ import {
   type DialogueNode,
   type DialogueTree,
   type Effect,
-  getLocaleStringValues,
   resolveAssetVariant,
   type Hotspot,
   type InventoryItem,
@@ -13,7 +12,6 @@ import {
   type ProjectBundle,
   type SaveState,
   type Scene,
-  type SubtitleTrack,
   createInitialSaveState
 } from "@mage2/schema";
 export * from "./media-playhead";
@@ -41,7 +39,6 @@ export interface HotspotResolution {
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
   getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
-  getSubtitleLines(timeMs: number, locale: string): string[];
   enterScene(sceneId: string): void;
   selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution;
   startDialogue(dialogueTreeId: string): void;
@@ -258,13 +255,6 @@ export function createPlayerController(
     return resolution;
   }
 
-  function getSubtitleLines(timeMs: number, locale: string): string[] {
-    const scene = getScene();
-    return scene.subtitleTracks.flatMap((track) =>
-      resolveSubtitleTrackLines(track, timeMs, getLocaleStringValues(project, locale))
-    );
-  }
-
   function getSnapshot(): PlayerSnapshot {
     const scene = getScene();
     return {
@@ -282,7 +272,6 @@ export function createPlayerController(
   return {
     getSnapshot,
     getVisibleHotspots,
-    getSubtitleLines,
     enterScene,
     selectHotspot,
     startDialogue,
@@ -302,17 +291,6 @@ function removeSingleInventoryItem(inventory: string[], itemIdToRemove: string):
     ...inventory.slice(0, indexToRemove),
     ...inventory.slice(indexToRemove + 1)
   ];
-}
-
-export function resolveSubtitleTrackLines(
-  track: SubtitleTrack,
-  timeMs: number,
-  strings: Record<string, string>
-): string[] {
-  return track.cues
-    .filter((cue) => timeMs >= cue.startMs && timeMs <= cue.endMs)
-    .map((cue) => strings[cue.textId] ?? "")
-    .filter((line) => line.trim().length > 0);
 }
 
 export function resolveSceneTimelineDurationMs(

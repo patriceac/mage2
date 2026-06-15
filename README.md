@@ -7,7 +7,7 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 ## What is in this repo
 
 - `apps/editor`: Electron + React authoring tool for project creation, world layout, scene editing, dialogue graphs, inventory, validation, and playtesting.
-- `apps/runtime-web`: Static React runtime that loads an exported build and plays scenes, hotspots, subtitles, dialogue, and save data.
+- `apps/runtime-web`: Static React runtime that loads an exported build and plays scenes, hotspots, dialogue, and save data.
 - `packages/schema`: Zod-backed project schemas, migrations, starter data, export helpers, and validation rules.
 - `packages/player`: Runtime state machine for scene traversal, hotspots, dialogue, inventory, and saves.
 - `packages/media`: Media import and export helpers used by the editor build pipeline.
@@ -15,7 +15,7 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 ## Features
 
 - Create or reopen project folders directly from the Electron editor.
-- Author locations, scenes, hotspots, dialogue trees, subtitles, and inventory data in one workspace.
+- Author locations, scenes, hotspots, dialogue trees, and inventory data in one workspace.
 - Validate projects and jump from issues directly to the affected editor surface.
 - Export a static runtime build that copies the web player and project content into a distributable folder.
 - Reuse shared schema and player logic across the editor and runtime.

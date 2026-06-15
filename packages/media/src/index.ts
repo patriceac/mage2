@@ -8,7 +8,6 @@ import ffprobe from "@ffprobe-installer/ffprobe";
 import { Resvg } from "@resvg/resvg-js";
 import type { Asset, AssetCategory, AssetKind, AssetVariant } from "@mage2/schema";
 import { collectAssetVariantPaths, resolveAssetCategory, resolveAssetVariant } from "@mage2/schema";
-export * from "./subtitles";
 
 export interface ProbeResult {
   durationMs?: number;

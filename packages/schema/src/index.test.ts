@@ -85,7 +85,6 @@ describe("project defaults", () => {
             backgroundAssetId: "asset_image",
             backgroundVideoLoop: false,
             hotspots: [],
-            subtitleTracks: [],
             dialogueTreeIds: [],
             onEnterEffects: [],
             onExitEffects: []
@@ -150,7 +149,6 @@ describe("project defaults", () => {
                 effects: []
               }
             ],
-            subtitleTracks: [],
             dialogueTreeIds: [],
             onEnterEffects: [],
             onExitEffects: []
@@ -162,7 +160,7 @@ describe("project defaults", () => {
       strings: { schemaVersion: 5, byLocale: { en: {} } }
     });
 
-    expect(parsed.manifest.schemaVersion).toBe(7);
+    expect(parsed.manifest.schemaVersion).toBe(8);
     expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
     expect(parsed.scenes.items[0]?.hotspots[0]?.timingMode).toBe("fixed");
   });
@@ -214,7 +212,6 @@ describe("project validation", () => {
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
       hotspots: [],
-      subtitleTracks: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
       onExitEffects: []
@@ -323,56 +320,6 @@ describe("project validation", () => {
     expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
       true
     );
-  });
-
-  it("allows overlapping subtitle cues when they resolve through string-backed text ids", () => {
-    const project = createDefaultProjectBundle();
-    project.assets.assets.push({
-      id: "asset_placeholder",
-      kind: "image",
-      name: "Placeholder",
-      variants: {
-        en: {
-          sourcePath: "placeholder.png",
-          importedAt: new Date().toISOString()
-        }
-      }
-    });
-    project.scenes.items[0].subtitleTracks = [
-      {
-        id: "subtitle_scene",
-        cues: [
-          { id: "cue_one", startMs: 0, endMs: 2000, textId: "text.cue_one.subtitle" },
-          { id: "cue_two", startMs: 1000, endMs: 3000, textId: "text.cue_two.subtitle" }
-        ]
-      }
-    ];
-    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_one.subtitle"] = "First line";
-    project.strings.byLocale[project.manifest.defaultLanguage]["text.cue_two.subtitle"] = "Second line";
-
-    const report = validateProject(project);
-
-    expect(report.issues.some((issue) => issue.code === "SUBTITLE_RANGE_INVALID")).toBe(false);
-    expect(report.issues.some((issue) => issue.code === "SUBTITLE_OVERLAP")).toBe(false);
-  });
-
-  it("reports missing subtitle text ids as errors", () => {
-    const project = createDefaultProjectBundle();
-    project.scenes.items[0].subtitleTracks = [
-      {
-        id: "subtitle_scene",
-        cues: [{ id: "cue_missing", startMs: 0, endMs: 2000, textId: "text.cue_missing.subtitle" }]
-      }
-    ];
-
-    const report = validateProject(project);
-    const issue = report.issues.find((entry) => entry.code === "SUBTITLE_TEXT_MISSING");
-
-    expect(issue).toMatchObject({
-      level: "error",
-      entityId: "cue_missing",
-      locale: project.manifest.defaultLanguage
-    });
   });
 
   it("reports missing inventory text warnings while ignoring legacy location and scene text fields", () => {
@@ -497,7 +444,6 @@ describe("project validation", () => {
         sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
         hotspots: [],
-        subtitleTracks: [],
         dialogueTreeIds: [],
         onEnterEffects: [],
         onExitEffects: []
@@ -511,7 +457,6 @@ describe("project validation", () => {
         sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
         hotspots: [],
-        subtitleTracks: [],
         dialogueTreeIds: [],
         onEnterEffects: [],
         onExitEffects: []
@@ -551,7 +496,6 @@ describe("project validation", () => {
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
       hotspots: [],
-      subtitleTracks: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
       onExitEffects: []

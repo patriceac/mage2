@@ -23,47 +23,6 @@ describe("resolveIssueNavigation", () => {
     });
   });
 
-  it("routes missing subtitle cue text to the Localization tab", () => {
-    const project = createDefaultProjectBundle("Subtitle navigation");
-    project.scenes.items[0].subtitleTracks = [
-      {
-        id: "subtitle_intro",
-        cues: [{ id: "cue_intro", startMs: 0, endMs: 1000, textId: "text.cue_intro.subtitle" }]
-      }
-    ];
-
-    const issue = validateProject(project).issues.find((entry) => entry.code === "SUBTITLE_TEXT_MISSING");
-    const target = issue ? resolveIssueNavigation(project, issue) : undefined;
-
-    expect(target).toMatchObject({
-      tab: "localization",
-      textId: "text.cue_intro.subtitle",
-      label: "text.cue_intro.subtitle",
-      localizationSection: "subtitles"
-    });
-  });
-
-  it("routes empty subtitle cue text to the Localization tab", () => {
-    const project = createDefaultProjectBundle("Empty subtitle navigation");
-    project.scenes.items[0].subtitleTracks = [
-      {
-        id: "subtitle_intro",
-        cues: [{ id: "cue_intro", startMs: 0, endMs: 1000, textId: "text.cue_intro.subtitle" }]
-      }
-    ];
-    getDefaultStrings(project)["text.cue_intro.subtitle"] = "";
-
-    const issue = validateProject(project).issues.find((entry) => entry.code === "SUBTITLE_TEXT_EMPTY");
-    const target = issue ? resolveIssueNavigation(project, issue) : undefined;
-
-    expect(target).toMatchObject({
-      tab: "localization",
-      textId: "text.cue_intro.subtitle",
-      label: "text.cue_intro.subtitle",
-      localizationSection: "subtitles"
-    });
-  });
-
   it("routes missing dialogue line text to the Localization tab", () => {
     const project = createDefaultProjectBundle("Dialogue line navigation");
     const dialogue = addDialogueTree(project);

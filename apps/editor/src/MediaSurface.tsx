@@ -158,6 +158,7 @@ export function MediaSurface({
     normalizedViewportTransform.scale !== 1 ||
     normalizedViewportTransform.offsetX !== 0 ||
     normalizedViewportTransform.offsetY !== 0;
+  const surfaceAspectRatioStyle = resolveMediaSurfaceAspectRatioStyle(assetVariant?.width, assetVariant?.height);
   const [isViewportPanning, setIsViewportPanning] = useState(false);
   const handleHotspotLabelActiveChange = useCallback((hotspotId: string, active: boolean) => {
     setActiveLabelHotspotId((currentHotspotId) => {
@@ -912,6 +913,7 @@ export function MediaSurface({
       onDragOver={onSurfaceDragOver}
       onDrop={handleDrop}
       tabIndex={editableHotspots ? 0 : undefined}
+      style={surfaceAspectRatioStyle}
       title={
         showSurfaceTooltips
           ? viewportTool === "pan"
@@ -1767,6 +1769,23 @@ function buildHotspotTooltip(
   }
 
   return [titleText, commentText].filter(Boolean).join("\n");
+}
+
+function resolveMediaSurfaceAspectRatioStyle(
+  width: number | undefined,
+  height: number | undefined
+): React.CSSProperties | undefined {
+  if (!isPositiveFiniteNumber(width) || !isPositiveFiniteNumber(height)) {
+    return undefined;
+  }
+
+  return {
+    aspectRatio: `${width} / ${height}`
+  };
+}
+
+function isPositiveFiniteNumber(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function resolveHotspotLabelStyle(

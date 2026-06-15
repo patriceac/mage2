@@ -466,8 +466,7 @@ function DeleteSceneDialog({
         <div className="dialog-callout dialog-callout--danger">
           <strong>Permanent scene deletion</strong>
           <p>
-            Subtitle tracks attached to this scene will be removed with it. Dialogue trees remain in the project, but
-            any references to this scene inside them will be cleaned or rewired.
+            Dialogue trees remain in the project, but any references to this scene inside them will be cleaned or rewired.
           </p>
         </div>
 
@@ -1165,14 +1164,6 @@ function resolveDeleteSceneOutcomeRows(
   replacementLocationName?: string
 ): string[] {
   const rows = ["The selected scene and its hotspots will be deleted."];
-
-  if (summary.removedSubtitleTrackIds.length > 0) {
-    rows.push(
-      `Deleted ${summary.removedSubtitleTrackIds.length} subtitle track${
-        summary.removedSubtitleTrackIds.length === 1 ? "" : "s"
-      } on this scene.`
-    );
-  }
 
   if (countSceneReferences(summary) === 0) {
     rows.push("No other scene references need to be updated.");

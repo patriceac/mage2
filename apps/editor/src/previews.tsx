@@ -197,8 +197,7 @@ export function ScenePreviewCard({
       <div className="scene-preview-card__meta">
         <p>{locationName ?? "Unknown location"}</p>
         <p>
-          {scene.hotspots.length} hotspot{scene.hotspots.length === 1 ? "" : "s"} / {scene.subtitleTracks.length} subtitle
-          track{scene.subtitleTracks.length === 1 ? "" : "s"}
+          {scene.hotspots.length} hotspot{scene.hotspots.length === 1 ? "" : "s"}
         </p>
       </div>
     </article>

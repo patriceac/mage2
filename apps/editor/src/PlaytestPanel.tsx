@@ -537,7 +537,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs);
-  const subtitleLines = controller.getSubtitleLines(playheadMs, activeLocale);
   const selectedInventoryItem = snapshot.inventoryItems.find((item) => item.id === selectedInventoryItemId);
   const selectedInventoryItemAsset = selectedInventoryItem?.imageAssetId
     ? project.assets.assets.find((asset) => asset.id === selectedInventoryItem.imageAssetId)
@@ -1067,7 +1066,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               min={0}
               max={sceneTimelineDurationMs}
               value={Math.min(playheadMs, sceneTimelineDurationMs)}
-              title="Scrub through the current scene preview to inspect timing, subtitles, and hotspot visibility."
+              title="Scrub through the current scene preview to inspect timing and hotspot visibility."
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
           </label>
@@ -1221,22 +1220,10 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
         />
 
         {sceneAudioUrl ? (
-          <div className="subtitle-strip">
+          <div className="scene-audio-strip">
             <audio ref={sceneAudioRef} src={sceneAudioUrl} controls preload="metadata" className="asset-preview__audio" />
           </div>
         ) : null}
-
-        <div className="subtitle-strip">
-          {subtitleLines.length > 0 ? (
-            subtitleLines.map((line, index) => (
-              <p key={`${index}:${line}`} className="subtitle-strip__line">
-                {line}
-              </p>
-            ))
-          ) : (
-            "Subtitles will appear here."
-          )}
-        </div>
 
       </section>
 

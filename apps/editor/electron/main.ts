@@ -7,8 +7,7 @@ import {
   deleteManagedAssetVariantFiles,
   generateProxy,
   importAssetsToProject,
-  importAssetVariantToProject,
-  parseSubtitleFiles
+  importAssetVariantToProject
 } from "@mage2/media";
 import { parseProjectBundle, validateProject, type Asset, type AssetCategory, type ProjectBundle } from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
@@ -251,10 +250,6 @@ function registerIpcHandlers(): void {
       return importAssetVariantToProject(filePath, projectDir, asset, locale);
     }
   );
-
-  ipcMain.handle("mage2:parse-subtitles", async (_event, filePaths: string[]) => {
-    return parseSubtitleFiles(filePaths);
-  });
 
   ipcMain.handle("mage2:generate-proxy", async (_event, projectDir: string, asset: Asset, locale: string) => {
     return generateProxy(asset, locale, projectDir);

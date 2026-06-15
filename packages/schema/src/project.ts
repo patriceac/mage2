@@ -105,7 +105,6 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           sceneAudioDelayMs: 0,
           backgroundVideoLoop: false,
           hotspots: [createStarterHotspot()],
-          subtitleTracks: [],
           dialogueTreeIds: [],
           onEnterEffects: [],
           onExitEffects: []
