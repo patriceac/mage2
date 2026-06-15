@@ -8,9 +8,17 @@ import {
   resolveHotspotVisualHitPoint
 } from "./hotspot-alpha-hit-test";
 import {
+  clampMediaSurfaceViewportTransform,
   MediaSurface,
+  resolveHotspotLabelAnchorStyle,
+  resolveMediaSurfaceWheelZoomDirection,
+  resolveNextMediaSurfaceZoomScale,
   resolveHotspotRotationHandleGeometry,
   resolveHotspotSelectionAfterDrag,
+  resolveScreenSpaceHotspotLabelBounds,
+  resolveVisibleScreenSpaceHotspotLabelAnchorBounds,
+  resolveZoomedMediaSurfaceViewportTransform,
+  shouldStartMediaSurfaceViewportPan,
   shouldStartMediaSurfaceVideoPlayback,
   stopMediaSurfaceForegroundEvent
 } from "./MediaSurface";
@@ -77,6 +85,7 @@ describe("MediaSurface hotspot chrome geometry", () => {
     );
 
     expect(markup).toContain('class="media-surface__scene-overlay"');
+    expect(markup).toContain('class="media-surface__viewport"');
     expect(markup).toContain(
       '<div class="media-surface__scene-overlay"><div class="test-dialogue-overlay">Dialogue overlay</div></div>'
     );
@@ -122,6 +131,9 @@ describe("MediaSurface hotspot chrome geometry", () => {
 
     expect(markup).toContain('class="media-surface__label-layer"');
     expect(markup).toContain("hotspot__label-shell hotspot__label-shell--active");
+    expect(markup.indexOf('class="media-surface__viewport"')).toBeLessThan(
+      markup.indexOf('class="media-surface__label-layer"')
+    );
     expect(markup.indexOf('class="media-surface__overlay"')).toBeLessThan(
       markup.indexOf('class="media-surface__scene-overlay"')
     );
@@ -310,6 +322,77 @@ describe("MediaSurface hotspot chrome geometry", () => {
     expect(markup).toContain("--hotspot-top-control-clearance:28px");
   });
 
+  it("keeps hotspot labels in screen space while the scene viewport is zoomed", () => {
+    expect(
+      resolveScreenSpaceHotspotLabelBounds(
+        {
+          x: 0.2,
+          y: 0.3,
+          width: 0.25,
+          height: 0.1
+        },
+        {
+          scale: 2,
+          offsetX: -40,
+          offsetY: 30
+        },
+        {
+          width: 400,
+          height: 300
+        }
+      )
+    ).toEqual({
+      x: 0.3,
+      y: 0.7,
+      width: 0.5,
+      height: 0.2
+    });
+
+    const visibleBounds = resolveVisibleScreenSpaceHotspotLabelAnchorBounds({
+      x: -0.1,
+      y: 0.7,
+      width: 0.5,
+      height: 0.2
+    });
+
+    expect(visibleBounds).toEqual({
+      x: 0,
+      y: 0.7,
+      width: 0.4,
+      height: 0.2
+    });
+
+    expect(resolveHotspotLabelAnchorStyle(visibleBounds!, { width: 400, height: 300 })).toEqual({
+      left: "0px",
+      top: "210px",
+      width: "160px",
+      height: "60px"
+    });
+
+    expect(
+      resolveVisibleScreenSpaceHotspotLabelAnchorBounds({
+        x: 0.2,
+        y: -0.25,
+        width: 0.4,
+        height: 0.6
+      })
+    ).toEqual({
+      x: 0.2,
+      y: 0,
+      width: 0.4,
+      height: 0
+    });
+
+    expect(
+      resolveVisibleScreenSpaceHotspotLabelAnchorBounds({
+        x: 1.1,
+        y: 0.2,
+        width: 0.2,
+        height: 0.2
+      })
+    ).toBeUndefined();
+  });
+
   it("places the rotation handle above the hotspot top edge", () => {
     const rotationHandle = resolveHotspotRotationHandleGeometry([
       { x: 0.2, y: 0.2 },
@@ -373,6 +456,84 @@ describe("MediaSurface video playback", () => {
 
   it("does not restart a paused video unless the asset, loop state, or reset request requires it", () => {
     expect(shouldStartMediaSurfaceVideoPlayback(false, false, false, false)).toBe(false);
+  });
+});
+
+describe("MediaSurface viewport controls", () => {
+  it("clamps pan offsets to the zoomed viewport bounds", () => {
+    expect(
+      clampMediaSurfaceViewportTransform(
+        {
+          scale: 2,
+          offsetX: -700,
+          offsetY: 80
+        },
+        {
+          width: 400,
+          height: 300
+        }
+      )
+    ).toEqual({
+      scale: 2,
+      offsetX: -400,
+      offsetY: 0
+    });
+  });
+
+  it("resets offsets when zoom returns to 100 percent", () => {
+    expect(
+      clampMediaSurfaceViewportTransform({
+        scale: 1,
+        offsetX: -80,
+        offsetY: -40
+      })
+    ).toEqual({
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0
+    });
+  });
+
+  it("steps zoom levels in both directions", () => {
+    expect(resolveNextMediaSurfaceZoomScale(1, "in")).toBe(1.25);
+    expect(resolveNextMediaSurfaceZoomScale(2, "out")).toBe(1.5);
+  });
+
+  it("maps Ctrl+wheel to viewport zoom directions", () => {
+    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: -20 })).toBe("in");
+    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: 20 })).toBe("out");
+    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: false, deltaY: -20 })).toBeUndefined();
+    expect(resolveMediaSurfaceWheelZoomDirection({ ctrlKey: true, deltaY: 0 })).toBeUndefined();
+  });
+
+  it("starts viewport pan from either the pan tool or a Ctrl+left drag", () => {
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "select", button: 0, ctrlKey: true })).toBe(true);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 0, ctrlKey: false })).toBe(true);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "select", button: 0, ctrlKey: false })).toBe(false);
+    expect(shouldStartMediaSurfaceViewportPan({ viewportTool: "pan", button: 2, ctrlKey: false })).toBe(false);
+  });
+
+  it("keeps the pointed scene position stable while zooming", () => {
+    expect(
+      resolveZoomedMediaSurfaceViewportTransform({
+        currentTransform: {
+          scale: 1,
+          offsetX: 0,
+          offsetY: 0
+        },
+        nextScale: 2,
+        localX: 200,
+        localY: 100,
+        viewportSize: {
+          width: 400,
+          height: 300
+        }
+      })
+    ).toEqual({
+      scale: 2,
+      offsetX: -200,
+      offsetY: -100
+    });
   });
 });
 

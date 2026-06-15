@@ -8,6 +8,7 @@ import {
   applyHotspotInventoryAction,
   applyInventoryLinkToHotspot,
   filterInventoryPlacementOptions,
+  formatCanvasZoomLabel,
   resolveInventoryPickerKeyboardAction,
   resolveHotspotTransformKeyboardAction,
   resolveHotspotInventoryActionSummary,
@@ -228,6 +229,21 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain("Clear Hotspot");
     expect(markup).not.toContain("Delete Hotspot");
     expect(markup).toContain("button-danger-quiet");
+  });
+
+  it("renders wired canvas view controls with active tool state and zoom label", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain('aria-label="Select tool"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('aria-label="Pan tool"');
+    expect(markup).toContain('aria-label="Zoom tool"');
+    expect(markup).toContain('aria-label="Fit scene preview"');
+    expect(markup).toContain("Cycle the scene preview zoom level.");
+    expect(markup).toContain(">100%</span>");
+    expect(markup).not.toContain(">Fit</span>");
+    expect(markup).not.toContain("Canvas fit mode.");
+    expect(formatCanvasZoomLabel(1.25)).toBe("125%");
   });
 
   it("builds scene switcher options with location subtitles", () => {

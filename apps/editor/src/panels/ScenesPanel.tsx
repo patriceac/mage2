@@ -1,5 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { MediaSurface, type MediaSurfaceDropEvent } from "../MediaSurface";
+import {
+  MEDIA_SURFACE_ZOOM_LEVELS,
+  MediaSurface,
+  resolveNextMediaSurfaceZoomScale,
+  resolveZoomedMediaSurfaceViewportTransform,
+  type MediaSurfaceDropEvent,
+  type MediaSurfaceViewportTool,
+  type MediaSurfaceViewportTransform
+} from "../MediaSurface";
 import {
   getLocaleStringValues,
   buildHotspotPickupFlag,
@@ -166,6 +174,12 @@ export function ScenesPanel({
   const [activeInventoryPickerItemId, setActiveInventoryPickerItemId] = useState<string>();
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
+  const [canvasTool, setCanvasTool] = useState<MediaSurfaceViewportTool>("select");
+  const [canvasViewportTransform, setCanvasViewportTransform] = useState<MediaSurfaceViewportTransform>({
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0
+  });
   const backgroundDropDepthRef = useRef(0);
   const inventoryPlacementDropDepthRef = useRef(0);
   const inventoryDragPreviewSizeRef = useRef<{ itemId: string; widthPx: number; heightPx: number } | undefined>(undefined);
@@ -435,6 +449,10 @@ export function ScenesPanel({
   useEffect(() => {
     setPlayheadMs(0);
   }, [currentScene?.backgroundAssetId, currentScene?.sceneAudioAssetId, currentScene?.sceneAudioDelayMs, currentSceneId, setPlayheadMs]);
+
+  useEffect(() => {
+    setCanvasViewportTransform({ scale: 1, offsetX: 0, offsetY: 0 });
+  }, [currentScene?.backgroundAssetId, currentSceneId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1467,6 +1485,35 @@ export function ScenesPanel({
     };
   }
 
+  function resetCanvasView() {
+    setCanvasViewportTransform({ scale: 1, offsetX: 0, offsetY: 0 });
+  }
+
+  function cycleCanvasZoomLevel() {
+    const surfaceSize = resolveCurrentSceneSurfaceSize();
+    setCanvasViewportTransform((currentTransform) => {
+      const maxScale = MEDIA_SURFACE_ZOOM_LEVELS[MEDIA_SURFACE_ZOOM_LEVELS.length - 1];
+      const nextScale =
+        currentTransform.scale >= maxScale - 0.001
+          ? MEDIA_SURFACE_ZOOM_LEVELS[0]
+          : resolveNextMediaSurfaceZoomScale(currentTransform.scale, "in");
+
+      if (!surfaceSize) {
+        return nextScale <= 1
+          ? { scale: 1, offsetX: 0, offsetY: 0 }
+          : { ...currentTransform, scale: nextScale };
+      }
+
+      return resolveZoomedMediaSurfaceViewportTransform({
+        currentTransform,
+        nextScale,
+        localX: surfaceSize.width / 2,
+        localY: surfaceSize.height / 2,
+        viewportSize: surfaceSize
+      });
+    });
+  }
+
   function updateSelectedHotspotRotationDegrees(rotationDegrees: number) {
     if (!selectedHotspot || !Number.isFinite(rotationDegrees)) {
       return;
@@ -2172,27 +2219,54 @@ export function ScenesPanel({
           <div className="scenes-panel__stage-stack">
             <div className="scenes-panel__canvas-toolbar" aria-label="Scene canvas toolbar">
               <div className="scenes-panel__canvas-toolset" role="toolbar" aria-label="Canvas tools">
-                <button type="button" className="scenes-panel__canvas-tool scenes-panel__canvas-tool--active" aria-pressed="true" title="Select and edit hotspots.">
+                <button
+                  type="button"
+                  className={resolveCanvasToolButtonClassName(canvasTool === "select")}
+                  aria-label="Select tool"
+                  aria-pressed={canvasTool === "select"}
+                  onClick={() => setCanvasTool("select")}
+                  title="Select and edit hotspots."
+                >
                   <SceneToolIcon kind="select" />
                 </button>
-                <button type="button" className="scenes-panel__canvas-tool" title="Pan view.">
+                <button
+                  type="button"
+                  className={resolveCanvasToolButtonClassName(canvasTool === "pan")}
+                  aria-label="Pan tool"
+                  aria-pressed={canvasTool === "pan"}
+                  onClick={() => setCanvasTool("pan")}
+                  title="Pan the scene view."
+                >
                   <SceneToolIcon kind="pan" />
                 </button>
-                <button type="button" className="scenes-panel__canvas-tool" title="Zoom view.">
+                <button
+                  type="button"
+                  className={resolveCanvasToolButtonClassName(canvasTool === "zoom")}
+                  aria-label="Zoom tool"
+                  aria-pressed={canvasTool === "zoom"}
+                  onClick={() => setCanvasTool("zoom")}
+                  title="Zoom the scene view. Click the preview to zoom in; Shift-click to zoom out."
+                >
                   <SceneToolIcon kind="zoom" />
                 </button>
-                <button type="button" className="scenes-panel__canvas-tool" title="Fit the scene preview.">
+                <button
+                  type="button"
+                  className="scenes-panel__canvas-tool"
+                  aria-label="Fit scene preview"
+                  onClick={resetCanvasView}
+                  title="Fit the scene preview."
+                >
                   <SceneToolIcon kind="fit" />
                 </button>
               </div>
               <div className="scenes-panel__canvas-view-controls" aria-label="Scene view controls">
-                <button type="button" className="scenes-panel__view-select" title="Canvas fit mode.">
-                  <span>Fit</span>
-                  <ChevronDownIcon />
-                </button>
-                <button type="button" className="scenes-panel__view-select" title="Canvas zoom level.">
-                  <span>100%</span>
-                  <ChevronDownIcon />
+                <button
+                  type="button"
+                  className="scenes-panel__view-select"
+                  onClick={cycleCanvasZoomLevel}
+                  title="Cycle the scene preview zoom level."
+                >
+                  <span>{formatCanvasZoomLabel(canvasViewportTransform.scale)}</span>
                 </button>
               </div>
             </div>
@@ -2228,6 +2302,9 @@ export function ScenesPanel({
                   playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
                   onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
                   selectedHotspotId={selectedHotspotId}
+                  viewportTool={canvasTool}
+                  viewportTransform={canvasViewportTransform}
+                  onViewportTransformChange={setCanvasViewportTransform}
                   onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
                     if (!createRequested) {
                       selectHotspot(undefined);
@@ -4826,6 +4903,15 @@ function shouldIgnoreDeleteHotspotShortcut(target: EventTarget | null): boolean 
   }
 
   return Boolean(target.closest("input, textarea, select, [contenteditable='true'], [role='textbox']"));
+}
+
+function resolveCanvasToolButtonClassName(active: boolean) {
+  return active ? "scenes-panel__canvas-tool scenes-panel__canvas-tool--active" : "scenes-panel__canvas-tool";
+}
+
+export function formatCanvasZoomLabel(scale: number) {
+  const normalizedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  return `${Math.round(normalizedScale * 100)}%`;
 }
 
 function resolveSubtitleImportStatusMessage(importedTrackCount: number, failedFileCount: number): string {

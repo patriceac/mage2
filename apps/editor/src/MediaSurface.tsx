@@ -58,7 +58,31 @@ interface MediaSurfaceProps {
   selectedHotspotId?: string;
   className?: string;
   children?: React.ReactNode;
+  viewportTool?: MediaSurfaceViewportTool;
+  viewportTransform?: MediaSurfaceViewportTransform;
+  onViewportTransformChange?: (transform: MediaSurfaceViewportTransform) => void;
 }
+
+export type MediaSurfaceViewportTool = "select" | "pan" | "zoom";
+
+export interface MediaSurfaceViewportTransform {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export interface MediaSurfaceViewportSize {
+  width: number;
+  height: number;
+}
+
+export const MEDIA_SURFACE_ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3, 4] as const;
+
+const DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM: MediaSurfaceViewportTransform = {
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0
+};
 
 export function stopMediaSurfaceForegroundEvent(event: { stopPropagation: () => void }) {
   event.stopPropagation();
@@ -89,7 +113,10 @@ export function MediaSurface({
   onHotspotChange,
   selectedHotspotId,
   className,
-  children
+  children,
+  viewportTool = "select",
+  viewportTransform = DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM,
+  onViewportTransformChange
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
@@ -104,8 +131,10 @@ export function MediaSurface({
     .join("|");
   const overlayRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const viewportPanCleanupRef = useRef<(() => void) | undefined>(undefined);
   const suppressHotspotClickRef = useRef(false);
   const suppressHotspotClickTimeoutRef = useRef<number | undefined>(undefined);
   const suppressSurfaceClickRef = useRef(false);
@@ -124,6 +153,12 @@ export function MediaSurface({
   const isControlledVideoPlayhead = asset?.kind === "video" && playheadMs !== undefined && onPlayheadMsChange !== undefined;
   const assetVariant = asset ? getLocalizedAssetVariant(asset, locale ?? Object.keys(asset.variants)[0] ?? "") : undefined;
   const sourcePath = assetVariant?.proxyPath ?? assetVariant?.sourcePath;
+  const normalizedViewportTransform = normalizeMediaSurfaceViewportTransform(viewportTransform);
+  const isViewportTransformed =
+    normalizedViewportTransform.scale !== 1 ||
+    normalizedViewportTransform.offsetX !== 0 ||
+    normalizedViewportTransform.offsetY !== 0;
+  const [isViewportPanning, setIsViewportPanning] = useState(false);
   const handleHotspotLabelActiveChange = useCallback((hotspotId: string, active: boolean) => {
     setActiveLabelHotspotId((currentHotspotId) => {
       if (active) {
@@ -250,6 +285,7 @@ export function MediaSurface({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      viewportPanCleanupRef.current?.();
       if (suppressHotspotClickTimeoutRef.current !== undefined) {
         window.clearTimeout(suppressHotspotClickTimeoutRef.current);
       }
@@ -258,6 +294,12 @@ export function MediaSurface({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (viewportTool !== "pan") {
+      viewportPanCleanupRef.current?.();
+    }
+  }, [viewportTool]);
 
   useLayoutEffect(() => {
     const overlay = overlayRef.current;
@@ -465,21 +507,34 @@ export function MediaSurface({
   }
 
   const handleClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!onSurfaceClick) {
-      return;
-    }
-
     if (suppressSurfaceClickRef.current) {
       suppressSurfaceClickRef.current = false;
       event.stopPropagation();
       return;
     }
 
-    const bounds = event.currentTarget.getBoundingClientRect();
+    if (viewportTool === "zoom") {
+      event.preventDefault();
+      focusSurface();
+      zoomViewportAtPointer(event);
+      return;
+    }
+
+    if (viewportTool !== "select") {
+      event.preventDefault();
+      focusSurface();
+      return;
+    }
+
+    if (!onSurfaceClick) {
+      return;
+    }
+
+    const bounds = getViewportInteractionBounds(event.currentTarget);
     focusSurface();
     onSurfaceClick({
-      normalizedX: (event.clientX - bounds.left) / bounds.width,
-      normalizedY: (event.clientY - bounds.top) / bounds.height,
+      normalizedX: clampNormalizedCoordinate((event.clientX - bounds.left) / bounds.width),
+      normalizedY: clampNormalizedCoordinate((event.clientY - bounds.top) / bounds.height),
       createRequested: event.ctrlKey || event.metaKey
     });
   };
@@ -489,7 +544,7 @@ export function MediaSurface({
       return;
     }
 
-    const bounds = event.currentTarget.getBoundingClientRect();
+    const bounds = getViewportInteractionBounds(event.currentTarget);
     if (bounds.width <= 0 || bounds.height <= 0) {
       return;
     }
@@ -504,15 +559,176 @@ export function MediaSurface({
     });
   };
 
-  const editableHotspots = Boolean(onHotspotChange);
+  const editableHotspots = viewportTool === "select" && Boolean(onHotspotChange);
 
   function focusSurface() {
     surfaceRef.current?.focus({ preventScroll: true });
   }
 
+  function getViewportInteractionBounds(fallbackElement: HTMLElement) {
+    return viewportRef.current?.getBoundingClientRect() ?? fallbackElement.getBoundingClientRect();
+  }
+
+  function getViewportSize(): MediaSurfaceViewportSize | undefined {
+    const bounds = surfaceRef.current?.getBoundingClientRect();
+    return bounds && bounds.width > 0 && bounds.height > 0
+      ? {
+          width: bounds.width,
+          height: bounds.height
+        }
+      : undefined;
+  }
+
+  function zoomViewportAtPointer(event: React.MouseEvent<HTMLElement>) {
+    const direction = event.shiftKey || event.altKey ? "out" : "in";
+    zoomViewportAtPoint(event.clientX, event.clientY, direction);
+  }
+
+  function zoomViewportAtPoint(clientX: number, clientY: number, direction: "in" | "out") {
+    if (!onViewportTransformChange) {
+      return;
+    }
+
+    const viewportSize = getViewportSize();
+    if (!viewportSize) {
+      return;
+    }
+
+    const surfaceBounds = surfaceRef.current?.getBoundingClientRect();
+    if (!surfaceBounds) {
+      return;
+    }
+
+    const nextScale = resolveNextMediaSurfaceZoomScale(normalizedViewportTransform.scale, direction);
+    onViewportTransformChange(
+      resolveZoomedMediaSurfaceViewportTransform({
+        currentTransform: normalizedViewportTransform,
+        nextScale,
+        localX: clientX - surfaceBounds.left,
+        localY: clientY - surfaceBounds.top,
+        viewportSize
+      })
+    );
+  }
+
+  const handleWheel: React.WheelEventHandler<HTMLDivElement> = (event) => {
+    const direction = resolveMediaSurfaceWheelZoomDirection({
+      ctrlKey: event.ctrlKey,
+      deltaY: event.deltaY
+    });
+    if (!direction) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    focusSurface();
+    zoomViewportAtPoint(event.clientX, event.clientY, direction);
+  };
+
+  const startViewportPan: React.MouseEventHandler<HTMLDivElement> = (event) => {
+    const applyViewportTransform = onViewportTransformChange;
+    if (
+      !shouldStartMediaSurfaceViewportPan({
+        viewportTool,
+        button: event.button,
+        ctrlKey: event.ctrlKey
+      }) ||
+      !applyViewportTransform
+    ) {
+      return;
+    }
+    const applyNextViewportTransform: (transform: MediaSurfaceViewportTransform) => void = applyViewportTransform;
+    const shouldSuppressClickWithoutMovement = viewportTool === "pan";
+
+    const viewportSize = getViewportSize();
+    if (!viewportSize) {
+      return;
+    }
+
+    event.preventDefault();
+    focusSurface();
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startTransform = clampMediaSurfaceViewportTransform(normalizedViewportTransform, viewportSize);
+    const body = document.body;
+    const previousCursor = body.style.cursor;
+    const previousUserSelect = body.style.userSelect;
+    let didPan = false;
+
+    body.style.cursor = "grabbing";
+    body.style.userSelect = "none";
+    setIsViewportPanning(true);
+    viewportPanCleanupRef.current?.();
+
+    const finishPan = () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", finishPan);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+      setIsViewportPanning(false);
+      viewportPanCleanupRef.current = undefined;
+
+      if (shouldSuppressClickWithoutMovement || didPan) {
+        suppressSurfaceClickRef.current = true;
+        suppressHotspotClickRef.current = true;
+        if (suppressSurfaceClickTimeoutRef.current !== undefined) {
+          window.clearTimeout(suppressSurfaceClickTimeoutRef.current);
+        }
+        if (suppressHotspotClickTimeoutRef.current !== undefined) {
+          window.clearTimeout(suppressHotspotClickTimeoutRef.current);
+        }
+        suppressSurfaceClickTimeoutRef.current = window.setTimeout(() => {
+          suppressSurfaceClickRef.current = false;
+          suppressSurfaceClickTimeoutRef.current = undefined;
+        }, 0);
+        suppressHotspotClickTimeoutRef.current = window.setTimeout(() => {
+          suppressHotspotClickRef.current = false;
+          suppressHotspotClickTimeoutRef.current = undefined;
+        }, 0);
+      }
+    };
+
+    const cleanupPan = () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", finishPan);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+      setIsViewportPanning(false);
+      viewportPanCleanupRef.current = undefined;
+    };
+
+    function handleMouseMove(moveEvent: MouseEvent) {
+      const nextTransform = clampMediaSurfaceViewportTransform(
+        {
+          scale: startTransform.scale,
+          offsetX: startTransform.offsetX + moveEvent.clientX - startClientX,
+          offsetY: startTransform.offsetY + moveEvent.clientY - startClientY
+        },
+        viewportSize
+      );
+
+      if (
+        nextTransform.offsetX === startTransform.offsetX &&
+        nextTransform.offsetY === startTransform.offsetY &&
+        didPan
+      ) {
+        return;
+      }
+
+      didPan = true;
+      applyNextViewportTransform(nextTransform);
+    }
+
+    viewportPanCleanupRef.current = cleanupPan;
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", finishPan);
+  };
+
   const startHotspotDrag =
     (hotspot: Hotspot, handle: HotspotDragHandle) => (event: React.MouseEvent<HTMLElement>) => {
-      if (!onHotspotChange || event.button !== 0) {
+      if (!onHotspotChange || event.button !== 0 || event.ctrlKey) {
         return;
       }
 
@@ -679,8 +895,18 @@ export function MediaSurface({
   return (
     <div
       ref={surfaceRef}
-      className={className ? `media-surface ${className}` : "media-surface"}
+      className={[
+        "media-surface",
+        className,
+        viewportTool === "pan" ? "media-surface--viewport-pan" : undefined,
+        viewportTool === "zoom" ? "media-surface--viewport-zoom" : undefined,
+        isViewportPanning ? "media-surface--viewport-panning" : undefined
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onClick={handleClick}
+      onMouseDown={startViewportPan}
+      onWheel={handleWheel}
       onDragEnter={onSurfaceDragEnter}
       onDragLeave={onSurfaceDragLeave}
       onDragOver={onSurfaceDragOver}
@@ -688,126 +914,153 @@ export function MediaSurface({
       tabIndex={editableHotspots ? 0 : undefined}
       title={
         showSurfaceTooltips
-          ? onSurfaceClick
+          ? viewportTool === "pan"
+            ? "Scene preview. Drag to pan the zoomed view, or Ctrl+mouse wheel to zoom."
+            : viewportTool === "zoom"
+              ? "Scene preview. Click to zoom in, Shift-click to zoom out, or Ctrl+mouse wheel to zoom."
+              : onSurfaceClick
             ? editableHotspots
-              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag a hotspot to move it, or drag the orange handles to reshape it."
-              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position."
+              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, Ctrl+drag to pan, Ctrl+mouse wheel to zoom, drag a hotspot to move it, or drag the orange handles to reshape it."
+              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position. Ctrl+drag pans and Ctrl+mouse wheel zooms."
             : undefined
           : undefined
       }
     >
-      {asset && assetUrl ? (
-        asset.kind === "video" ? (
-          <video
-            ref={videoRef}
-            src={assetUrl}
-            autoPlay
-            loop={loopVideo}
-            muted
-            playsInline
-            className="media-surface__media"
-            title={showSurfaceTooltips ? "Preview the selected video asset directly inside the editor." : undefined}
-            onLoadedMetadata={(event) => {
-              const playableDurationMs = resolvePlayableDurationMs(event.currentTarget.duration, assetVariant?.durationMs);
-              if (playableDurationMs !== undefined) {
-                onPlayableDurationMsChange?.(playableDurationMs);
+      <div
+        ref={viewportRef}
+        className="media-surface__viewport"
+        style={
+          isViewportTransformed
+            ? {
+                transform: `translate3d(${normalizedViewportTransform.offsetX}px, ${normalizedViewportTransform.offsetY}px, 0) scale(${normalizedViewportTransform.scale})`
               }
+            : undefined
+        }
+      >
+        {asset && assetUrl ? (
+          asset.kind === "video" ? (
+            <video
+              ref={videoRef}
+              src={assetUrl}
+              autoPlay
+              loop={loopVideo}
+              muted
+              playsInline
+              className="media-surface__media"
+              title={showSurfaceTooltips ? "Preview the selected video asset directly inside the editor." : undefined}
+              onLoadedMetadata={(event) => {
+                const playableDurationMs = resolvePlayableDurationMs(event.currentTarget.duration, assetVariant?.durationMs);
+                if (playableDurationMs !== undefined) {
+                  onPlayableDurationMsChange?.(playableDurationMs);
+                }
 
-              syncVideoFromPlayhead(event.currentTarget);
-              syncPlayheadFromVideo(event.currentTarget);
-            }}
-            onSeeked={(event) => syncPlayheadFromVideo(event.currentTarget)}
-            onTimeUpdate={(event) => syncPlayheadFromVideo(event.currentTarget)}
-          />
-        ) : asset.kind === "image" ? (
-          <img
-            src={assetUrl}
-            alt={asset.name}
-            className="media-surface__media"
-            title={showSurfaceTooltips ? "Preview the selected image asset directly inside the editor." : undefined}
-          />
+                syncVideoFromPlayhead(event.currentTarget);
+                syncPlayheadFromVideo(event.currentTarget);
+              }}
+              onSeeked={(event) => syncPlayheadFromVideo(event.currentTarget)}
+              onTimeUpdate={(event) => syncPlayheadFromVideo(event.currentTarget)}
+            />
+          ) : asset.kind === "image" ? (
+            <img
+              src={assetUrl}
+              alt={asset.name}
+              className="media-surface__media"
+              title={showSurfaceTooltips ? "Preview the selected image asset directly inside the editor." : undefined}
+            />
+          ) : (
+            <div
+              className="media-surface__placeholder"
+              title={
+                showSurfaceTooltips
+                  ? "The selected asset is not a visual media file, so the editor cannot draw a frame preview."
+                  : undefined
+              }
+            >
+              Non-visual asset selected
+            </div>
+          )
         ) : (
           <div
             className="media-surface__placeholder"
             title={
               showSurfaceTooltips
-                ? "The selected asset is not a visual media file, so the editor cannot draw a frame preview."
+                ? "Upload or assign background media in the Scenes tab to preview it here."
                 : undefined
             }
           >
-            Non-visual asset selected
+            Upload or assign background media for this scene.
           </div>
-        )
-      ) : (
-        <div
-          className="media-surface__placeholder"
-          title={
-            showSurfaceTooltips
-              ? "Upload or assign background media in the Scenes tab to preview it here."
-              : undefined
-          }
-        >
-          Upload or assign background media for this scene.
-        </div>
-      )}
+        )}
 
-      <div
-        ref={overlayRef}
-        className={editableHotspots ? "media-surface__overlay media-surface__overlay--editable" : "media-surface__overlay"}
-      >
-        {hotspots.map((hotspot) => (
-          <HotspotButton
-            key={hotspot.id}
-            hotspot={hotspot}
-            visual={
-              hotspotVisuals?.[hotspot.id]
-                ? {
-                    alt: hotspotVisuals[hotspot.id]!.alt,
-                    url: hotspotVisualUrls[hotspot.id]
-                  }
-                : undefined
-            }
-            surfaceSize={overlaySurfaceSize}
-            appearance={hotspotAppearance}
-            alphaMask={hotspotVisualAlphaMasks[hotspot.id]}
-            editable={editableHotspots}
-            selected={hotspot.id === selectedHotspotId}
-            showTooltips={showHotspotTooltips}
-            tooltipText={hotspotTooltipTexts[hotspot.id]}
-            onLabelActiveChange={handleHotspotLabelActiveChange}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (suppressHotspotClickRef.current) {
-                event.preventDefault();
-                return;
-              }
-              focusSurface();
-              onHotspotClick?.(hotspot.id, "click");
-            }}
-            onMoveStart={startHotspotDrag(hotspot, "move")}
-            onRotateStart={startHotspotDrag(hotspot, "rotate")}
-            onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
-            rotationFeedback={
-              hotspotRotationFeedback?.hotspotId === hotspot.id ? hotspotRotationFeedback : undefined
-            }
-            ariaLabel={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
-              onSurfaceClick ? "select and edit" : "activate"
-            } this hotspot.`}
-          />
-        ))}
-      </div>
-      {children ? (
         <div
-          className="media-surface__scene-overlay"
-          onClick={stopMediaSurfaceForegroundEvent}
-          onMouseDown={stopMediaSurfaceForegroundEvent}
-          onMouseUp={stopMediaSurfaceForegroundEvent}
-          onPointerDown={stopMediaSurfaceForegroundEvent}
-          onPointerUp={stopMediaSurfaceForegroundEvent}
+          ref={overlayRef}
+          className={editableHotspots ? "media-surface__overlay media-surface__overlay--editable" : "media-surface__overlay"}
         >
-          {children}
+          {hotspots.map((hotspot) => (
+            <HotspotButton
+              key={hotspot.id}
+              hotspot={hotspot}
+              visual={
+                hotspotVisuals?.[hotspot.id]
+                  ? {
+                      alt: hotspotVisuals[hotspot.id]!.alt,
+                      url: hotspotVisualUrls[hotspot.id]
+                    }
+                  : undefined
+              }
+              surfaceSize={overlaySurfaceSize}
+              appearance={hotspotAppearance}
+              alphaMask={hotspotVisualAlphaMasks[hotspot.id]}
+              editable={editableHotspots}
+              selected={hotspot.id === selectedHotspotId}
+              showTooltips={showHotspotTooltips}
+              tooltipText={hotspotTooltipTexts[hotspot.id]}
+              onLabelActiveChange={handleHotspotLabelActiveChange}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (suppressHotspotClickRef.current) {
+                  event.preventDefault();
+                  return;
+                }
+                if (viewportTool === "zoom") {
+                  event.preventDefault();
+                  focusSurface();
+                  zoomViewportAtPointer(event);
+                  return;
+                }
+                if (viewportTool !== "select") {
+                  event.preventDefault();
+                  focusSurface();
+                  return;
+                }
+                focusSurface();
+                onHotspotClick?.(hotspot.id, "click");
+              }}
+              onMoveStart={startHotspotDrag(hotspot, "move")}
+              onRotateStart={startHotspotDrag(hotspot, "rotate")}
+              onResizeStart={(handle) => startHotspotDrag(hotspot, handle)}
+              rotationFeedback={
+                hotspotRotationFeedback?.hotspotId === hotspot.id ? hotspotRotationFeedback : undefined
+              }
+              ariaLabel={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
+                onSurfaceClick ? "select and edit" : "activate"
+              } this hotspot.`}
+            />
+          ))}
         </div>
-      ) : null}
+        {children ? (
+          <div
+            className="media-surface__scene-overlay"
+            onClick={stopMediaSurfaceForegroundEvent}
+            onMouseDown={stopMediaSurfaceForegroundEvent}
+            onMouseUp={stopMediaSurfaceForegroundEvent}
+            onPointerDown={stopMediaSurfaceForegroundEvent}
+            onPointerUp={stopMediaSurfaceForegroundEvent}
+          >
+            {children}
+          </div>
+        ) : null}
+      </div>
       {showHotspotLabels ? (
         <HotspotLabelLayer
           hotspots={hotspots}
@@ -815,6 +1068,7 @@ export function MediaSurface({
           surfaceSize={overlaySurfaceSize}
           selectedHotspotId={selectedHotspotId}
           activeHotspotId={activeLabelHotspotId}
+          viewportTransform={normalizedViewportTransform}
           onTooltipTextChange={handleHotspotTooltipTextChange}
         />
       ) : null}
@@ -835,6 +1089,127 @@ export interface MediaSurfaceDropEvent {
   surfaceWidth: number;
   dataTransfer: DataTransfer;
   originalEvent: React.DragEvent<HTMLDivElement>;
+}
+
+function normalizeMediaSurfaceViewportTransform(
+  transform: MediaSurfaceViewportTransform | undefined
+): MediaSurfaceViewportTransform {
+  const scale = normalizeMediaSurfaceViewportScale(transform?.scale);
+  if (scale <= 1) {
+    return DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM;
+  }
+
+  return {
+    scale,
+    offsetX: Number.isFinite(transform?.offsetX) ? transform!.offsetX : 0,
+    offsetY: Number.isFinite(transform?.offsetY) ? transform!.offsetY : 0
+  };
+}
+
+function normalizeMediaSurfaceViewportScale(scale: number | undefined) {
+  if (!Number.isFinite(scale)) {
+    return 1;
+  }
+
+  const minScale = MEDIA_SURFACE_ZOOM_LEVELS[0];
+  const maxScale = MEDIA_SURFACE_ZOOM_LEVELS[MEDIA_SURFACE_ZOOM_LEVELS.length - 1];
+  return Math.min(Math.max(scale ?? 1, minScale), maxScale);
+}
+
+export function clampMediaSurfaceViewportTransform(
+  transform: MediaSurfaceViewportTransform,
+  viewportSize?: MediaSurfaceViewportSize
+): MediaSurfaceViewportTransform {
+  const normalizedTransform = normalizeMediaSurfaceViewportTransform(transform);
+  if (normalizedTransform.scale <= 1) {
+    return DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM;
+  }
+
+  if (!viewportSize || viewportSize.width <= 0 || viewportSize.height <= 0) {
+    return normalizedTransform;
+  }
+
+  return {
+    scale: normalizedTransform.scale,
+    offsetX: clampNumber(normalizedTransform.offsetX, viewportSize.width * (1 - normalizedTransform.scale), 0),
+    offsetY: clampNumber(normalizedTransform.offsetY, viewportSize.height * (1 - normalizedTransform.scale), 0)
+  };
+}
+
+export function resolveNextMediaSurfaceZoomScale(currentScale: number, direction: "in" | "out") {
+  const scale = normalizeMediaSurfaceViewportScale(currentScale);
+
+  if (direction === "out") {
+    return [...MEDIA_SURFACE_ZOOM_LEVELS].reverse().find((level) => level < scale - 0.001) ?? MEDIA_SURFACE_ZOOM_LEVELS[0];
+  }
+
+  return MEDIA_SURFACE_ZOOM_LEVELS.find((level) => level > scale + 0.001) ??
+    MEDIA_SURFACE_ZOOM_LEVELS[MEDIA_SURFACE_ZOOM_LEVELS.length - 1];
+}
+
+export function resolveMediaSurfaceWheelZoomDirection({
+  ctrlKey,
+  deltaY
+}: {
+  ctrlKey: boolean;
+  deltaY: number;
+}): "in" | "out" | undefined {
+  if (!ctrlKey || !Number.isFinite(deltaY) || deltaY === 0) {
+    return undefined;
+  }
+
+  return deltaY < 0 ? "in" : "out";
+}
+
+export function shouldStartMediaSurfaceViewportPan({
+  viewportTool,
+  button,
+  ctrlKey
+}: {
+  viewportTool: MediaSurfaceViewportTool;
+  button: number;
+  ctrlKey: boolean;
+}) {
+  return button === 0 && (viewportTool === "pan" || ctrlKey);
+}
+
+export function resolveZoomedMediaSurfaceViewportTransform({
+  currentTransform,
+  nextScale,
+  localX,
+  localY,
+  viewportSize
+}: {
+  currentTransform: MediaSurfaceViewportTransform;
+  nextScale: number;
+  localX: number;
+  localY: number;
+  viewportSize?: MediaSurfaceViewportSize;
+}): MediaSurfaceViewportTransform {
+  const current = clampMediaSurfaceViewportTransform(currentTransform, viewportSize);
+  const scale = normalizeMediaSurfaceViewportScale(nextScale);
+  if (scale <= 1) {
+    return DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM;
+  }
+
+  const unscaledX = (localX - current.offsetX) / current.scale;
+  const unscaledY = (localY - current.offsetY) / current.scale;
+  return clampMediaSurfaceViewportTransform(
+    {
+      scale,
+      offsetX: localX - unscaledX * scale,
+      offsetY: localY - unscaledY * scale
+    },
+    viewportSize
+  );
+}
+
+function clampNormalizedCoordinate(value: number) {
+  return clampNumber(Number.isFinite(value) ? value : 0, 0, 1);
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 interface HotspotButtonProps {
@@ -1094,6 +1469,7 @@ function HotspotLabelLayer({
   surfaceSize,
   selectedHotspotId,
   activeHotspotId,
+  viewportTransform,
   onTooltipTextChange
 }: {
   hotspots: Hotspot[];
@@ -1101,6 +1477,7 @@ function HotspotLabelLayer({
   surfaceSize?: HotspotSurfaceSize;
   selectedHotspotId?: string;
   activeHotspotId?: string;
+  viewportTransform: MediaSurfaceViewportTransform;
   onTooltipTextChange: (hotspotId: string, tooltipText: string | undefined) => void;
 }) {
   return (
@@ -1113,10 +1490,17 @@ function HotspotLabelLayer({
         }
 
         const bounds = resolveHotspotBounds(hotspot);
+        const screenBounds = resolveScreenSpaceHotspotLabelBounds(bounds, viewportTransform, surfaceSize);
+        const visibleScreenBounds = resolveVisibleScreenSpaceHotspotLabelAnchorBounds(screenBounds);
+
+        if (!visibleScreenBounds) {
+          return null;
+        }
+
         const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
         const relativePolygon =
           hotspot.inventoryItemId && relativeFrame ? relativeFrame.polygon : resolveRelativeHotspotPolygon(hotspot);
-        const labelPlacement = resolveHotspotLabelPlacement(bounds);
+        const labelPlacement = resolveHotspotLabelPlacement(visibleScreenBounds);
         const rotationHandle = resolveHotspotRotationHandleGeometry(
           relativePolygon,
           surfaceSize
@@ -1132,12 +1516,7 @@ function HotspotLabelLayer({
           <div
             key={hotspot.id}
             className="media-surface__label-anchor"
-            style={{
-              left: `${bounds.x * 100}%`,
-              top: `${bounds.y * 100}%`,
-              width: `${bounds.width * 100}%`,
-              height: `${bounds.height * 100}%`
-            }}
+            style={resolveHotspotLabelAnchorStyle(visibleScreenBounds, surfaceSize)}
           >
             <HotspotLabelContent
               titleText={hotspot.name}
@@ -1145,7 +1524,7 @@ function HotspotLabelLayer({
               placement={labelPlacement}
               active={isActive}
               style={resolveHotspotLabelStyle(
-                bounds,
+                visibleScreenBounds,
                 labelPlacement,
                 hotspot.id === selectedHotspotId && Boolean(rotationHandle) && labelPlacement.verticalPlacement === "above"
               )}
@@ -1393,16 +1772,97 @@ function buildHotspotTooltip(
 function resolveHotspotLabelStyle(
   bounds: { x: number; width: number },
   placement: HotspotLabelPlacement,
-  reserveTopControlClearance = false
+  reserveTopControlClearance = false,
+  topControlClearancePx = 28
 ): React.CSSProperties {
   const width = Math.max(bounds.width, 0.0001);
 
   return {
     left: `${((placement.anchorX - bounds.x) / width) * 100}%`,
     ...(reserveTopControlClearance
-      ? ({ "--hotspot-top-control-clearance": "28px" } as React.CSSProperties)
+      ? ({ "--hotspot-top-control-clearance": `${topControlClearancePx}px` } as React.CSSProperties)
       : undefined)
   };
+}
+
+export function resolveScreenSpaceHotspotLabelBounds(
+  bounds: { x: number; y: number; width: number; height: number },
+  viewportTransform: MediaSurfaceViewportTransform,
+  surfaceSize?: HotspotSurfaceSize
+) {
+  const transform = normalizeMediaSurfaceViewportTransform(viewportTransform);
+
+  return {
+    x: roundViewportCoordinate(bounds.x * transform.scale + (surfaceSize?.width ? transform.offsetX / surfaceSize.width : 0)),
+    y: roundViewportCoordinate(bounds.y * transform.scale + (surfaceSize?.height ? transform.offsetY / surfaceSize.height : 0)),
+    width: roundViewportCoordinate(bounds.width * transform.scale),
+    height: roundViewportCoordinate(bounds.height * transform.scale)
+  };
+}
+
+export function resolveVisibleScreenSpaceHotspotLabelAnchorBounds(bounds: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) {
+  const left = clampNormalizedViewportCoordinate(bounds.x);
+  const top = clampNormalizedViewportCoordinate(bounds.y);
+  const right = clampNormalizedViewportCoordinate(bounds.x + bounds.width);
+  const bottom = clampNormalizedViewportCoordinate(bounds.y + bounds.height);
+
+  if (right <= left || bottom <= top) {
+    return undefined;
+  }
+
+  const isClippedAtTop = bounds.y < 0;
+  const isClippedAtBottom = bounds.y + bounds.height > 1;
+  const anchorY = isClippedAtTop ? 0 : isClippedAtBottom ? 1 : top;
+  const anchorHeight = isClippedAtTop || isClippedAtBottom ? 0 : bottom - top;
+
+  return {
+    x: roundViewportCoordinate(left),
+    y: roundViewportCoordinate(anchorY),
+    width: roundViewportCoordinate(right - left),
+    height: roundViewportCoordinate(anchorHeight)
+  };
+}
+
+export function resolveHotspotLabelAnchorStyle(
+  bounds: { x: number; y: number; width: number; height: number },
+  surfaceSize?: HotspotSurfaceSize
+): React.CSSProperties {
+  if (surfaceSize?.width && surfaceSize.height) {
+    return {
+      left: formatPixelValue(bounds.x * surfaceSize.width),
+      top: formatPixelValue(bounds.y * surfaceSize.height),
+      width: formatPixelValue(bounds.width * surfaceSize.width),
+      height: formatPixelValue(bounds.height * surfaceSize.height)
+    };
+  }
+
+  return {
+    left: formatHotspotPercent(bounds.x),
+    top: formatHotspotPercent(bounds.y),
+    width: formatHotspotPercent(bounds.width),
+    height: formatHotspotPercent(bounds.height)
+  };
+}
+
+function formatPixelValue(value: number) {
+  return `${Math.round(value * 100) / 100}px`;
+}
+
+function roundViewportCoordinate(value: number) {
+  return Math.round(value * 10000) / 10000;
+}
+
+function clampNormalizedViewportCoordinate(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value));
 }
 
 function resolveHotspotClassName(

@@ -4185,14 +4185,33 @@ label > .checkbox-list {
 
 .media-surface__media,
 .media-surface__placeholder,
+.media-surface__viewport,
 .media-surface__overlay,
 .media-surface__scene-overlay {
   position: absolute;
   inset: 0;
 }
 
+.media-surface__viewport {
+  transform-origin: 0 0;
+}
+
 .media-surface__overlay {
   z-index: 1;
+}
+
+.media-surface--viewport-pan {
+  cursor: grab;
+}
+
+.media-surface--viewport-panning,
+.media-surface--viewport-panning .hotspot__body {
+  cursor: grabbing;
+}
+
+.media-surface--viewport-zoom,
+.media-surface--viewport-zoom .hotspot__body {
+  cursor: zoom-in;
 }
 
 .media-surface__scene-overlay {
