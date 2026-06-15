@@ -125,7 +125,7 @@ describe("hotspot idle visibility styles", () => {
       /\.media-surface__label-layer\s*\{[\s\S]*?z-index: 6;[\s\S]*?pointer-events: none;[\s\S]*?\}/
     );
     expect(styles).toContain("bottom: calc(100% + 0.55rem + var(--hotspot-top-control-clearance, 0px));");
-    expect(styles).toMatch(/\.hotspot:hover,\s*\.hotspot:focus-within\s*\{\s*z-index: 90;\s*\}/);
+    expect(styles).toMatch(/\.hotspot:hover,\s*\.hotspot:focus-within\s*\{\s*z-index: 30;\s*\}/);
     expect(styles).toMatch(
       /\.hotspot--with-visual,[\s\S]*?\.hotspot--inventory-item\s*\{[\s\S]*?z-index: 40;[\s\S]*?\}/
     );

@@ -4279,7 +4279,7 @@ label > .checkbox-list {
 
 .hotspot:hover,
 .hotspot:focus-within {
-  z-index: 90;
+  z-index: 30;
 }
 
 .hotspot--with-visual,
