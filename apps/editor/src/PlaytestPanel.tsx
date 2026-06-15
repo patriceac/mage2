@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { createPlayerController, resolveSceneTimelineDurationMs, type ActiveDialogueState } from "@mage2/player";
 import {
@@ -81,12 +81,30 @@ interface PlaytestInventoryItemView {
   selected: boolean;
 }
 
+interface InventoryCursorPoint {
+  x: number;
+  y: number;
+}
+
 interface PlaytestInventoryTrayProps {
   items: PlaytestInventoryItemView[];
   hint?: string;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
-  onSelectItem: (itemId?: string) => void;
+  onSelectItem: (itemId?: string, cursorPoint?: InventoryCursorPoint) => void;
+}
+
+export function resolvePlaytestInventorySlotSelection(
+  itemId: string,
+  isSelected: boolean,
+  cursorPoint?: InventoryCursorPoint
+) {
+  const nextSelectedItemId = isSelected ? undefined : itemId;
+  return {
+    nextSelectedItemId,
+    nextIsExpanded: false,
+    cursorPoint: nextSelectedItemId ? cursorPoint : undefined
+  };
 }
 
 export function PlaytestDialogueBox({
@@ -196,18 +214,20 @@ export function PlaytestInventoryTray({
   const hasSelectedItem = items.some((item) => item.selected);
   const isDrawerExpanded = isExpanded;
 
+  const clearAutoCollapseTimeout = () => {
+    if (autoCollapseTimeoutRef.current !== undefined) {
+      window.clearTimeout(autoCollapseTimeoutRef.current);
+      autoCollapseTimeoutRef.current = undefined;
+    }
+  };
+
   useEffect(() => {
     if (items.length === 0) {
       onExpandedChange(false);
-      if (autoCollapseTimeoutRef.current !== undefined) {
-        window.clearTimeout(autoCollapseTimeoutRef.current);
-        autoCollapseTimeoutRef.current = undefined;
-      }
+      clearAutoCollapseTimeout();
     } else if (items.length > previousItemCountRef.current) {
       onExpandedChange(true);
-      if (autoCollapseTimeoutRef.current !== undefined) {
-        window.clearTimeout(autoCollapseTimeoutRef.current);
-      }
+      clearAutoCollapseTimeout();
       autoCollapseTimeoutRef.current = window.setTimeout(() => {
         onExpandedChange(false);
         autoCollapseTimeoutRef.current = undefined;
@@ -226,11 +246,16 @@ export function PlaytestInventoryTray({
   }, []);
 
   const toggleDrawer = () => {
-    if (autoCollapseTimeoutRef.current !== undefined) {
-      window.clearTimeout(autoCollapseTimeoutRef.current);
-      autoCollapseTimeoutRef.current = undefined;
-    }
+    clearAutoCollapseTimeout();
     onExpandedChange(!isExpanded);
+  };
+
+  const selectInventorySlot = (item: PlaytestInventoryItemView, event: MouseEvent<HTMLButtonElement>) => {
+    const clickPoint = event.detail > 0 ? { x: event.clientX, y: event.clientY } : undefined;
+    const selection = resolvePlaytestInventorySlotSelection(item.id, item.selected, clickPoint);
+    clearAutoCollapseTimeout();
+    onSelectItem(selection.nextSelectedItemId, selection.cursorPoint);
+    onExpandedChange(selection.nextIsExpanded);
   };
 
   return (
@@ -277,7 +302,7 @@ export function PlaytestInventoryTray({
                 aria-pressed={item.selected}
                 aria-label={item.label}
                 title={item.tooltip}
-                onClick={() => onSelectItem(item.selected ? undefined : item.id)}
+                onClick={(event) => selectInventorySlot(item, event)}
               >
                 <span className="playtest-inventory-slot__well" aria-hidden="true">
                   {item.imageSrc ? (
@@ -339,7 +364,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const selectedInventoryItemIdRef = useRef<string | undefined>(undefined);
   const [inventoryHint, setInventoryHint] = useState<string>();
   const [isInventoryDrawerExpanded, setIsInventoryDrawerExpanded] = useState(false);
-  const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
+  const [inventoryCursorPoint, setInventoryCursorPoint] = useState<InventoryCursorPoint>();
   const [inventoryCursorPreviewUrl, setInventoryCursorPreviewUrl] = useState<string>();
   const [inventoryItemImageUrls, setInventoryItemImageUrls] = useState<Record<string, string>>({});
   const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
@@ -437,9 +462,10 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     return nextSnapshot;
   }
 
-  function selectPlaytestInventoryItem(itemId: string | undefined) {
+  function selectPlaytestInventoryItem(itemId: string | undefined, cursorPoint?: InventoryCursorPoint) {
     selectedInventoryItemIdRef.current = itemId;
     setSelectedInventoryItemId(itemId);
+    setInventoryCursorPoint(itemId && cursorPoint ? cursorPoint : undefined);
   }
 
   function closePlaytestInventoryDrawer() {
@@ -1179,8 +1205,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                   hint={inventoryHint}
                   isExpanded={isInventoryDrawerExpanded}
                   onExpandedChange={setIsInventoryDrawerExpanded}
-                  onSelectItem={(itemId) => {
-                    selectPlaytestInventoryItem(itemId);
+                  onSelectItem={(itemId, cursorPoint) => {
+                    selectPlaytestInventoryItem(itemId, cursorPoint);
                     setInventoryHint(undefined);
                   }}
                 />

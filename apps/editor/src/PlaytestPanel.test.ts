@@ -10,6 +10,7 @@ import {
   resolveInventoryCursorPreviewFrameStyle,
   resolvePlaytestDialogueChoiceMarker,
   resolvePlaytestInventoryItemInitial,
+  resolvePlaytestInventorySlotSelection,
   resolvePlaytestInventorySummary,
   resolvePlaytestInventoryToggleLabel,
   resolvePlaytestInventoryItemTooltip,
@@ -95,6 +96,19 @@ describe("PlaytestInventoryTray", () => {
     expect(resolvePlaytestInventoryToggleLabel(0, false)).toBe("Open inventory (0 items)");
     expect(resolvePlaytestInventoryToggleLabel(1, false)).toBe("Open inventory (1 item)");
     expect(resolvePlaytestInventoryToggleLabel(2, true)).toBe("Close inventory (2 items)");
+  });
+
+  it("closes the drawer after inventory item selection or cancellation", () => {
+    expect(resolvePlaytestInventorySlotSelection("red-potion", false, { x: 120, y: 80 })).toEqual({
+      nextSelectedItemId: "red-potion",
+      nextIsExpanded: false,
+      cursorPoint: { x: 120, y: 80 }
+    });
+    expect(resolvePlaytestInventorySlotSelection("red-potion", true, { x: 120, y: 80 })).toEqual({
+      nextSelectedItemId: undefined,
+      nextIsExpanded: false,
+      cursorPoint: undefined
+    });
   });
 
   it("marks the playtest HUD as click-catching only while the inventory drawer is open", () => {
