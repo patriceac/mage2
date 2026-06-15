@@ -22,6 +22,7 @@ export type EditorAutomationCommand =
   | { command: "setHotspotInventoryAction"; hotspotId: string; action: EditorAutomationHotspotAction; itemId?: string }
   | { command: "editor.undo" }
   | { command: "editor.redo" }
+  | { command: "editor.openHotspotInspector"; hotspotId?: string }
   | { command: "editor.selectHotspotActionItem"; hotspotId: string; itemId: string }
   | {
       command: "editor.setPlacedObjectGeometry";
@@ -126,6 +127,11 @@ export function parseEditorAutomationCommand(input: unknown): EditorAutomationCo
         hotspotId: requireString(candidate.hotspotId, "hotspotId"),
         action: requireHotspotAction(candidate.action, "action"),
         itemId: candidate.itemId === undefined ? undefined : requireString(candidate.itemId, "itemId")
+      };
+    case "editor.openHotspotInspector":
+      return {
+        command,
+        hotspotId: candidate.hotspotId === undefined ? undefined : requireString(candidate.hotspotId, "hotspotId")
       };
     case "editor.selectHotspotActionItem":
       return {

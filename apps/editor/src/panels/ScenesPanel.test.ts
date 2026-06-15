@@ -21,6 +21,7 @@ import {
   resolveInventoryDragPreviewOffset,
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
+  shouldApplyHotspotInspectorOpenRequest,
   shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleHotspotTransformShortcut,
   shouldDismissScenesFloatingWindowsOnEscape
@@ -198,24 +199,18 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain("Intro Dialogue");
   });
 
-  it("renders hotspot create, inventory placement, and delete actions above the scene-audio section", () => {
+  it("renders hotspot create, inventory placement, and delete actions in the scene action rail", () => {
     const markup = renderScenesPanel(() => {});
     const createHotspotIndex = markup.indexOf("Create Hotspot");
     const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
     const deleteButtonIndex = markup.indexOf(">Delete</button>");
-    const backgroundAssetIndex = markup.indexOf(">Background Asset</span>");
-    const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
+    const actionRailIndex = markup.indexOf('class="scenes-panel__action-rail"');
 
+    expect(actionRailIndex).toBeGreaterThanOrEqual(0);
     expect(createHotspotIndex).toBeGreaterThanOrEqual(0);
     expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
     expect(deleteButtonIndex).toBeGreaterThanOrEqual(0);
-    expect(backgroundAssetIndex).toBeGreaterThanOrEqual(0);
-    expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
-    expect(createHotspotIndex).toBeLessThan(sceneAudioIndex);
-    expect(addInventoryItemIndex).toBeLessThan(sceneAudioIndex);
-    expect(deleteButtonIndex).toBeLessThan(sceneAudioIndex);
-    expect(addInventoryItemIndex).toBeLessThan(backgroundAssetIndex);
-    expect(backgroundAssetIndex).toBeLessThan(sceneAudioIndex);
+    expect(actionRailIndex).toBeLessThan(createHotspotIndex);
     expect(createHotspotIndex).toBeLessThan(addInventoryItemIndex);
     expect(addInventoryItemIndex).toBeLessThan(deleteButtonIndex);
     expect(markup).not.toContain("Clear Hotspot");
@@ -329,14 +324,14 @@ describe("ScenesPanel scene audio UI", () => {
 
   it("renders the background selector directly above the scene-audio selector", () => {
     const markup = renderScenesPanel(() => {});
-    const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
+    const sceneMediaIndex = markup.indexOf(">Scene media</span>");
     const backgroundAssetIndex = markup.indexOf(">Background Asset</span>");
     const sceneAudioIndex = markup.indexOf(">Scene Audio</span>");
 
-    expect(addInventoryItemIndex).toBeGreaterThanOrEqual(0);
+    expect(sceneMediaIndex).toBeGreaterThanOrEqual(0);
     expect(backgroundAssetIndex).toBeGreaterThanOrEqual(0);
     expect(sceneAudioIndex).toBeGreaterThanOrEqual(0);
-    expect(addInventoryItemIndex).toBeLessThan(backgroundAssetIndex);
+    expect(sceneMediaIndex).toBeLessThan(backgroundAssetIndex);
     expect(backgroundAssetIndex).toBeLessThan(sceneAudioIndex);
   });
 
@@ -514,15 +509,22 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Item</span>");
     expect(markup).toContain(">Start Dialogue</span>");
     expect(markup).toContain("Create a dialogue in the Dialogue tab, then choose it here.");
-    expect(markup).toContain(">Editing Help</summary>");
+    expect(markup).toContain('class="scenes-floating-inspector__sections"');
+    expect(markup).toContain(">Identity</summary>");
+    expect(markup).toContain(">Action</summary>");
+    expect(markup).toContain(">Geometry</summary>");
+    expect(markup).toContain(">Timing</summary>");
+    expect(markup).toContain(">Navigation</summary>");
+    expect(markup).toContain(">Advanced</summary>");
+    expect(markup).not.toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
       '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
     );
     expect(markup).toContain(">Angle (");
-    expect(markup).toContain(
+    expect(markup).not.toContain(
       "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
     );
-    expect(markup).not.toContain("open=\"\"");
+    expect(markup).toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
   });
 
@@ -584,7 +586,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("disabled");
   });
 
-  it("shows shared transform guidance for selected inventory hotspots", () => {
+  it("shows shared transform controls for selected inventory hotspots", () => {
     const markup = renderScenesPanel(
       (project) => {
         project.scenes.items[0].hotspots[0]!.inventoryItemId = "item_lantern";
@@ -594,9 +596,7 @@ describe("ScenesPanel scene audio UI", () => {
       }
     );
 
-    expect(markup).toContain(
-      "Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps, and Ctrl fine-tunes."
-    );
+    expect(markup).toContain(">Geometry</summary>");
     expect(markup).toContain(">Angle (");
   });
 
@@ -680,6 +680,13 @@ describe("ScenesPanel scene audio UI", () => {
     expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", undefined, "preserve")).toBe(false);
     expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(true);
     expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "toggle")).toBe(true);
+  });
+
+  it("applies automation hotspot inspector open requests only for a new request with a selected hotspot", () => {
+    expect(shouldApplyHotspotInspectorOpenRequest(1, 0, true)).toBe(true);
+    expect(shouldApplyHotspotInspectorOpenRequest(1, 1, true)).toBe(false);
+    expect(shouldApplyHotspotInspectorOpenRequest(1, 0, false)).toBe(false);
+    expect(shouldApplyHotspotInspectorOpenRequest(undefined, undefined, true)).toBe(false);
   });
 
   it("clears the hotspot selection when opening the inventory picker", () => {

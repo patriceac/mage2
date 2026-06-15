@@ -39,6 +39,7 @@ import { getLocalizedAssetVariant, setEditorLocalizedText } from "../localized-p
 import {
   addHotspot,
   addHotspotAtBestAvailablePosition,
+  addScene,
   addAssetRoots,
   cloneProject,
   collectSceneReferenceSummary,
@@ -80,6 +81,7 @@ import { useEditorStore } from "../store";
 interface ScenesPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  hotspotInspectorOpenRequest?: number;
   setSavedProject: (project: ProjectBundle) => void;
   setStatusMessage: (message: string) => void;
   setBusyLabel: (label?: string) => void;
@@ -92,6 +94,7 @@ const INVENTORY_DRAG_PREVIEW_SCALE = 2 / 3;
 export function ScenesPanel({
   project,
   mutateProject,
+  hotspotInspectorOpenRequest,
   setSavedProject,
   setStatusMessage,
   setBusyLabel
@@ -163,6 +166,7 @@ export function ScenesPanel({
   const inventoryPlacementDropDepthRef = useRef(0);
   const inventoryDragPreviewSizeRef = useRef<{ itemId: string; widthPx: number; heightPx: number } | undefined>(undefined);
   const sceneAudioDropDepthRef = useRef(0);
+  const lastAppliedHotspotInspectorOpenRequestRef = useRef(hotspotInspectorOpenRequest ?? 0);
   const linkedInventoryOptions = resolveLinkedInventoryOptions(
     project.inventory.items,
     project.assets.assets,
@@ -190,6 +194,11 @@ export function ScenesPanel({
     sceneSwitcherOptions.findIndex((option) => option.sceneId === currentSceneId),
     0
   );
+  const sceneListItems = project.scenes.items.map((scene) => ({
+    scene,
+    locationName: project.locations.items.find((location) => location.id === scene.locationId)?.name ?? "Unknown location",
+    asset: project.assets.assets.find((asset) => asset.id === scene.backgroundAssetId)
+  }));
   const placedInventoryInstances = currentScene.hotspots
     .map((hotspot) => resolvePlacedInventoryHotspotInstance(hotspot, currentScene.hotspots))
     .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance));
@@ -330,6 +339,22 @@ export function ScenesPanel({
 
     setIsHotspotInspectorActive(false);
   }, [selectedHotspot]);
+
+  useEffect(() => {
+    if (
+      !shouldApplyHotspotInspectorOpenRequest(
+        hotspotInspectorOpenRequest,
+        lastAppliedHotspotInspectorOpenRequestRef.current,
+        Boolean(selectedHotspot)
+      )
+    ) {
+      return;
+    }
+
+    lastAppliedHotspotInspectorOpenRequestRef.current = hotspotInspectorOpenRequest ?? 0;
+    setIsInventoryPickerOpen(false);
+    setIsHotspotInspectorOpen(true);
+  }, [hotspotInspectorOpenRequest, selectedHotspot]);
 
   useEffect(() => {
     if (visibleInventoryPickerOptions.some((option) => option.itemId === activeInventoryPickerItemId)) {
@@ -1754,141 +1779,208 @@ export function ScenesPanel({
     );
   }
 
+  function handleCreateScene() {
+    const nextProject = cloneProject(project);
+    const scene = addScene(nextProject, currentScene.locationId);
+
+    setSelectedHotspotId(undefined);
+    setSelectedSceneId(scene.id);
+    updateProject(nextProject);
+    setStatusMessage(`Created ${scene.name}.`);
+  }
+
   return (
     <div ref={scenesPanelRef} className="panel-grid panel-grid--single scenes-panel-shell">
       <section className="panel scenes-panel">
         <div className="scenes-panel__stage-layout">
           <aside className="scenes-panel__side-controls" aria-label="Scene controls">
+            <p className="scenes-panel__rail-heading">
+              <span>Scenes</span>
+              <span className="scenes-panel__rail-heading-action" aria-hidden="true">
+                <ChevronDownIcon />
+              </span>
+            </p>
             <div className="scenes-panel__selectors">
               <label title="Choose which world location owns the currently selected scene.">
                 <span className="field-label--inset">Location</span>
-                <div className="scene-switcher" ref={locationMenuRef}>
-                  <button
-                    ref={locationMenuTriggerRef}
-                    type="button"
-                    className={
-                      isLocationMenuOpen
-                        ? "scene-switcher__control scene-switcher__control--button scene-switcher__control--open"
-                        : "scene-switcher__control scene-switcher__control--button"
-                    }
-                    aria-haspopup="menu"
-                    aria-expanded={isLocationMenuOpen}
-                    aria-controls={locationMenuId}
-                    aria-label="Switch location"
-                    onClick={handleLocationMenuTriggerClick}
-                    onKeyDown={handleLocationMenuTriggerKeyDown}
-                    onFocus={() => {
-                      setSelectedHotspotId(undefined);
-                      setIsSceneMenuOpen(false);
-                    }}
-                    title="Move this scene to a different location."
-                  >
-                    <span className="scene-switcher__value">
-                      {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
-                    </span>
-                    <span
+                <div className="scenes-panel__selector-row">
+                  <div className="scene-switcher" ref={locationMenuRef}>
+                    <button
+                      ref={locationMenuTriggerRef}
+                      type="button"
                       className={
                         isLocationMenuOpen
-                          ? "scene-switcher__trigger scene-switcher__trigger--open"
-                          : "scene-switcher__trigger"
+                          ? "scene-switcher__control scene-switcher__control--button scene-switcher__control--open"
+                          : "scene-switcher__control scene-switcher__control--button"
                       }
-                      aria-hidden="true"
+                      aria-haspopup="menu"
+                      aria-expanded={isLocationMenuOpen}
+                      aria-controls={locationMenuId}
+                      aria-label="Switch location"
+                      onClick={handleLocationMenuTriggerClick}
+                      onKeyDown={handleLocationMenuTriggerKeyDown}
+                      onFocus={() => {
+                        setSelectedHotspotId(undefined);
+                        setIsSceneMenuOpen(false);
+                      }}
+                      title="Move this scene to a different location."
                     >
-                      <ChevronDownIcon />
-                    </span>
-                  </button>
+                      <span className="scene-switcher__value">
+                        {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
+                      </span>
+                      <span
+                        className={
+                          isLocationMenuOpen
+                            ? "scene-switcher__trigger scene-switcher__trigger--open"
+                            : "scene-switcher__trigger"
+                        }
+                        aria-hidden="true"
+                      >
+                        <ChevronDownIcon />
+                      </span>
+                    </button>
 
-                  {isLocationMenuOpen ? (
-                    <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
-                      {locationSwitcherOptions.map((option, index) => (
-                        <button
-                          key={option.locationId}
-                          ref={(element) => {
-                            locationMenuItemRefs.current[index] = element;
-                          }}
-                          type="button"
-                          className={
-                            option.isCurrent
-                              ? "scene-switcher__option scene-switcher__option--current"
-                              : "scene-switcher__option"
-                          }
-                          role="menuitemradio"
-                          aria-checked={option.isCurrent}
-                          onClick={() => handleLocationMenuSelect(option.locationId)}
-                          onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
-                          title={`Move this scene to ${option.locationName}.`}
-                        >
-                          <strong>{option.locationName}</strong>
-                          <span>{option.sceneCountLabel}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                    {isLocationMenuOpen ? (
+                      <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
+                        {locationSwitcherOptions.map((option, index) => (
+                          <button
+                            key={option.locationId}
+                            ref={(element) => {
+                              locationMenuItemRefs.current[index] = element;
+                            }}
+                            type="button"
+                            className={
+                              option.isCurrent
+                                ? "scene-switcher__option scene-switcher__option--current"
+                                : "scene-switcher__option"
+                            }
+                            role="menuitemradio"
+                            aria-checked={option.isCurrent}
+                            onClick={() => handleLocationMenuSelect(option.locationId)}
+                            onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
+                            title={`Move this scene to ${option.locationName}.`}
+                          >
+                            <strong>{option.locationName}</strong>
+                            <span>{option.sceneCountLabel}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="scenes-panel__selector-action"
+                    aria-label="Open location picker"
+                    title="Open the location picker."
+                    onClick={() => setIsLocationMenuOpen((value) => !value)}
+                  >
+                    <SceneToolIcon kind="edit" />
+                  </button>
                 </div>
               </label>
               <label title="Switch between scenes to edit their media, hotspots, subtitles, and wiring.">
                 <span className="field-label--inset">Scene</span>
-                <div className="scene-switcher" ref={sceneMenuRef}>
-                  <div className="scene-switcher__control">
-                    <input
-                      ref={sceneNameInputRef}
-                      className="scene-switcher__input"
-                      value={currentScene.name}
-                      aria-label="Scene name"
-                      onFocus={() => setIsSceneMenuOpen(false)}
-                      onChange={(event) =>
-                        mutateProject((draft) => {
-                          const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
-                          if (scene) {
-                            scene.name = event.target.value;
-                          }
-                        })
-                      }
-                    />
-                    <button
-                      ref={sceneMenuTriggerRef}
-                      type="button"
-                      className={isSceneMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
-                      aria-haspopup="menu"
-                      aria-expanded={isSceneMenuOpen}
-                      aria-controls={sceneMenuId}
-                      aria-label="Switch scenes"
-                      onClick={() => setIsSceneMenuOpen((value) => !value)}
-                      onKeyDown={handleSceneMenuTriggerKeyDown}
-                      title="Open the scene switcher."
-                    >
-                      <ChevronDownIcon />
-                    </button>
-                  </div>
-
-                  {isSceneMenuOpen ? (
-                    <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
-                      {sceneSwitcherOptions.map((option, index) => (
-                        <button
-                          key={option.sceneId}
-                          ref={(element) => {
-                            sceneMenuItemRefs.current[index] = element;
-                          }}
-                          type="button"
-                          className={
-                            option.isCurrent
-                              ? "scene-switcher__option scene-switcher__option--current"
-                              : "scene-switcher__option"
-                          }
-                          role="menuitemradio"
-                          aria-checked={option.isCurrent}
-                          onClick={() => handleSceneMenuSelect(option.sceneId)}
-                          onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
-                          title={`Switch to ${option.sceneName} in ${option.locationName}.`}
-                        >
-                          <strong>{option.sceneName}</strong>
-                          <span>{option.locationName}</span>
-                        </button>
-                      ))}
+                <div className="scenes-panel__selector-row">
+                  <div className="scene-switcher" ref={sceneMenuRef}>
+                    <div className="scene-switcher__control">
+                      <input
+                        ref={sceneNameInputRef}
+                        className="scene-switcher__input"
+                        value={currentScene.name}
+                        aria-label="Scene name"
+                        onFocus={() => setIsSceneMenuOpen(false)}
+                        onChange={(event) =>
+                          mutateProject((draft) => {
+                            const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
+                            if (scene) {
+                              scene.name = event.target.value;
+                            }
+                          })
+                        }
+                      />
+                      <button
+                        ref={sceneMenuTriggerRef}
+                        type="button"
+                        className={isSceneMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
+                        aria-haspopup="menu"
+                        aria-expanded={isSceneMenuOpen}
+                        aria-controls={sceneMenuId}
+                        aria-label="Switch scenes"
+                        onClick={() => setIsSceneMenuOpen((value) => !value)}
+                        onKeyDown={handleSceneMenuTriggerKeyDown}
+                        title="Open the scene switcher."
+                      >
+                        <ChevronDownIcon />
+                      </button>
                     </div>
-                  ) : null}
+
+                    {isSceneMenuOpen ? (
+                      <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
+                        {sceneSwitcherOptions.map((option, index) => (
+                          <button
+                            key={option.sceneId}
+                            ref={(element) => {
+                              sceneMenuItemRefs.current[index] = element;
+                            }}
+                            type="button"
+                            className={
+                              option.isCurrent
+                                ? "scene-switcher__option scene-switcher__option--current"
+                                : "scene-switcher__option"
+                            }
+                            role="menuitemradio"
+                            aria-checked={option.isCurrent}
+                            onClick={() => handleSceneMenuSelect(option.sceneId)}
+                            onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
+                            title={`Switch to ${option.sceneName} in ${option.locationName}.`}
+                          >
+                            <strong>{option.sceneName}</strong>
+                            <span>{option.locationName}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="scenes-panel__selector-action"
+                    aria-label="Create scene"
+                    title="Create a new scene in this location."
+                    onClick={handleCreateScene}
+                  >
+                    <SceneToolIcon kind="plus" />
+                  </button>
                 </div>
               </label>
+            </div>
+            <div className="scenes-panel__scene-list" aria-label="Scenes in this project">
+              {sceneListItems.map(({ scene, locationName, asset }) => (
+                <button
+                  key={scene.id}
+                  type="button"
+                  className={
+                    scene.id === currentScene.id
+                      ? "scenes-panel__scene-list-item scenes-panel__scene-list-item--active"
+                      : "scenes-panel__scene-list-item"
+                  }
+                  aria-current={scene.id === currentScene.id ? "true" : undefined}
+                  onClick={() => handleSceneMenuSelect(scene.id)}
+                  title={`Open ${scene.name} in ${locationName}.`}
+                >
+                  <span className="scenes-panel__scene-thumb" aria-hidden="true">
+                    <AssetPreview asset={asset} locale={activeLocale} interactive={false} allowSourceFallback preferPosterForImages />
+                  </span>
+                  <span className="scenes-panel__scene-list-label">
+                    <strong>{scene.name}</strong>
+                    <span>{locationName}</span>
+                  </span>
+                  <span className="scenes-panel__scene-list-kebab" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </button>
+              ))}
             </div>
             <button
               type="button"
@@ -1900,108 +1992,99 @@ export function ScenesPanel({
             </button>
           </aside>
 
-          <div
-            className={[
-              "scenes-panel__background-dropzone",
-              isBackgroundDropActive ? "scenes-panel__background-dropzone--active" : "",
-              isInventoryPlacementDropActive ? "scenes-panel__background-dropzone--inventory-active" : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onDragEnter={handleBackgroundDragEnter}
-            onDragOver={handleBackgroundDragOver}
-            onDragLeave={handleBackgroundDragLeave}
-            onDrop={(event) => void handleBackgroundDrop(event)}
-          >
-            <div className="scenes-panel__background-dropzone-frame">
-              <MediaSurface
-                asset={currentAsset}
-                className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
-                locale={activeLocale}
-                loopVideo={currentScene.backgroundVideoLoop}
-                hotspots={sceneSurfaceHotspots}
-                hotspotVisuals={hotspotVisuals}
-                onSurfaceDragEnter={handleInventoryPlacementDragEnter}
-                onSurfaceDragOver={handleInventoryPlacementDragOver}
-                onSurfaceDragLeave={handleInventoryPlacementDragLeave}
-                onSurfaceDrop={handleInventoryPlacementDrop}
-                strings={localeStrings}
-                showSurfaceTooltips={false}
-                showHotspotTooltips={false}
-                playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
-                onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
-                selectedHotspotId={selectedHotspotId}
-                onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
-                  if (!createRequested) {
-                    selectHotspot(undefined);
-                    return;
-                  }
-
-                  setIsInventoryPickerOpen(false);
-                  mutateProject((draft) => {
-                    const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
-                    selectHotspot(hotspot?.id);
-                  });
-                }}
-                onHotspotClick={(hotspotId, interaction) => {
-                  setIsInventoryPickerOpen(false);
-                  selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
-                }}
-                onHotspotDragStart={captureHotspotDragCheckpoint}
-                onHotspotChange={updateHotspotGeometry}
-              />
-              {isBackgroundDropActive ? (
-                <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
-                  <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
-                  <span>Use an image or video file.</span>
-                </div>
-              ) : isInventoryPlacementDropActive ? (
-                <div className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory" aria-hidden="true">
-                  <strong>Drop to place item</strong>
-                  <span>Release to create a linked inventory hotspot at this position.</span>
-                </div>
-              ) : null}
+          <div className="scenes-panel__stage-stack">
+            <div className="scenes-panel__canvas-toolbar" aria-label="Scene canvas toolbar">
+              <div className="scenes-panel__canvas-toolset" role="toolbar" aria-label="Canvas tools">
+                <button type="button" className="scenes-panel__canvas-tool scenes-panel__canvas-tool--active" aria-pressed="true" title="Select and edit hotspots.">
+                  <SceneToolIcon kind="select" />
+                </button>
+                <button type="button" className="scenes-panel__canvas-tool" title="Pan view.">
+                  <SceneToolIcon kind="pan" />
+                </button>
+                <button type="button" className="scenes-panel__canvas-tool" title="Zoom view.">
+                  <SceneToolIcon kind="zoom" />
+                </button>
+                <button type="button" className="scenes-panel__canvas-tool" title="Fit the scene preview.">
+                  <SceneToolIcon kind="fit" />
+                </button>
+              </div>
+              <div className="scenes-panel__canvas-view-controls" aria-label="Scene view controls">
+                <button type="button" className="scenes-panel__view-select" title="Canvas fit mode.">
+                  <span>Fit</span>
+                  <ChevronDownIcon />
+                </button>
+                <button type="button" className="scenes-panel__view-select" title="Canvas zoom level.">
+                  <span>100%</span>
+                  <ChevronDownIcon />
+                </button>
+              </div>
             </div>
-          </div>
 
-          <aside className="scenes-panel__action-rail" aria-label="Scene object actions">
-            <div className="scenes-panel__hotspot-actions">
-              <button
-                type="button"
-                title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
-                onClick={createHotspotAtBestAvailablePosition}
-              >
-                Create Hotspot
-              </button>
-              <button
-                ref={inventoryPickerAnchorRef}
-                type="button"
-                className="button-secondary"
-                title="Search inventory items and place them into this scene."
-                aria-expanded={floatingWindowVisibility.isInventoryPickerVisible}
-                onClick={handleInventoryPickerToggle}
-              >
-                Add Inventory Item
-              </button>
-              <button
-                type="button"
-                className="button-danger-quiet scenes-panel__hotspot-delete-button"
-                disabled={!selectedHotspotId}
-                title="Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete."
-                onClick={() => deleteHotspot(selectedHotspotId)}
-              >
-                Delete
-              </button>
+            <div
+              className={[
+                "scenes-panel__background-dropzone",
+                isBackgroundDropActive ? "scenes-panel__background-dropzone--active" : "",
+                isInventoryPlacementDropActive ? "scenes-panel__background-dropzone--inventory-active" : ""
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onDragEnter={handleBackgroundDragEnter}
+              onDragOver={handleBackgroundDragOver}
+              onDragLeave={handleBackgroundDragLeave}
+              onDrop={(event) => void handleBackgroundDrop(event)}
+            >
+              <div className="scenes-panel__background-dropzone-frame">
+                <MediaSurface
+                  asset={currentAsset}
+                  className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
+                  locale={activeLocale}
+                  loopVideo={currentScene.backgroundVideoLoop}
+                  hotspots={sceneSurfaceHotspots}
+                  hotspotVisuals={hotspotVisuals}
+                  onSurfaceDragEnter={handleInventoryPlacementDragEnter}
+                  onSurfaceDragOver={handleInventoryPlacementDragOver}
+                  onSurfaceDragLeave={handleInventoryPlacementDragLeave}
+                  onSurfaceDrop={handleInventoryPlacementDrop}
+                  strings={localeStrings}
+                  showSurfaceTooltips={false}
+                  showHotspotTooltips={false}
+                  playheadMs={currentAsset?.kind === "video" ? playheadMs : undefined}
+                  onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
+                  selectedHotspotId={selectedHotspotId}
+                  onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
+                    if (!createRequested) {
+                      selectHotspot(undefined);
+                      return;
+                    }
+
+                    setIsInventoryPickerOpen(false);
+                    mutateProject((draft) => {
+                      const hotspot = addHotspot(draft, currentScene.id, normalizedX, normalizedY);
+                      selectHotspot(hotspot?.id);
+                    });
+                  }}
+                  onHotspotClick={(hotspotId, interaction) => {
+                    setIsInventoryPickerOpen(false);
+                    selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
+                  }}
+                  onHotspotDragStart={captureHotspotDragCheckpoint}
+                  onHotspotChange={updateHotspotGeometry}
+                />
+                {isBackgroundDropActive ? (
+                  <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
+                    <strong>{currentAsset ? "Drop to replace background" : "Drop to assign background"}</strong>
+                    <span>Use an image or video file.</span>
+                  </div>
+                ) : isInventoryPlacementDropActive ? (
+                  <div className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory" aria-hidden="true">
+                    <strong>Drop to place item</strong>
+                    <span>Release to create a linked inventory hotspot at this position.</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <p className="muted scenes-panel__background-dropzone-hint">
-              {currentAsset
-                ? "Drop image or video on the preview to replace this scene's background."
-                : "Drop image or video on the preview to assign a background to this scene."}
-            </p>
-          </aside>
-        </div>
 
-        <div className="scenes-panel__details-row">
+            <div className="scenes-panel__details-row">
         <details className="scenes-panel__details">
           <summary className="scenes-panel__details-summary">
             <span>Scene media</span>
@@ -2404,6 +2487,49 @@ export function ScenesPanel({
             ))}
           </section>
         </details>
+            </div>
+          </div>
+
+          <aside className="scenes-panel__action-rail" aria-label="Scene object actions">
+            <div className="scenes-panel__hotspot-actions">
+              <button
+                type="button"
+                className="scenes-panel__tool-button scenes-panel__tool-button--primary"
+                title="Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview."
+                onClick={createHotspotAtBestAvailablePosition}
+              >
+                <SceneActionIcon kind="hotspot" />
+                Create Hotspot
+              </button>
+              <button
+                ref={inventoryPickerAnchorRef}
+                type="button"
+                className="button-secondary scenes-panel__tool-button scenes-panel__tool-button--secondary"
+                aria-label="Add Inventory Item"
+                title="Search inventory items and place them into this scene."
+                aria-expanded={floatingWindowVisibility.isInventoryPickerVisible}
+                onClick={handleInventoryPickerToggle}
+              >
+                <SceneActionIcon kind="item" />
+                Add Item
+              </button>
+              <button
+                type="button"
+                className="button-danger-quiet scenes-panel__tool-button scenes-panel__tool-button--danger scenes-panel__hotspot-delete-button"
+                disabled={!selectedHotspotId}
+                title="Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete."
+                onClick={() => deleteHotspot(selectedHotspotId)}
+              >
+                <SceneActionIcon kind="delete" />
+                Delete
+              </button>
+            </div>
+            <p className="muted scenes-panel__background-dropzone-hint">
+              {currentAsset
+                ? "Drop image or video on the preview to replace this scene's background."
+                : "Drop image or video on the preview to assign a background to this scene."}
+            </p>
+          </aside>
         </div>
       </section>
 
@@ -2499,6 +2625,16 @@ export function resolveNextHotspotInspectorOpenState(
   }
 
   return inspectorSelectionMode === "open" ? true : currentIsHotspotInspectorOpen;
+}
+
+export function shouldApplyHotspotInspectorOpenRequest(
+  hotspotInspectorOpenRequest: number | undefined,
+  lastAppliedHotspotInspectorOpenRequest: number | undefined,
+  hasSelectedHotspot: boolean
+) {
+  const request = hotspotInspectorOpenRequest ?? 0;
+  const lastAppliedRequest = lastAppliedHotspotInspectorOpenRequest ?? 0;
+  return hasSelectedHotspot && request !== lastAppliedRequest;
 }
 
 export function resolveInventoryPickerToggleResult(isInventoryPickerOpen: boolean) {
@@ -2895,6 +3031,136 @@ function ChevronDownIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m7 10 5 5 5-5H7Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SceneToolIcon({ kind }: { kind: "select" | "pan" | "zoom" | "fit" | "edit" | "plus" }) {
+  if (kind === "edit") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="m5 16.8-.7 3 3-.7L17.8 8.6l-2.3-2.3L5 16.8Zm11.8-11.9 1.1-1.1a1.55 1.55 0 0 1 2.2 2.2L19 7.1"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.7"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "plus") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+      </svg>
+    );
+  }
+
+  if (kind === "select") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M5.8 3.8 18.2 12l-6.15 1.05-2.85 5.85L5.8 3.8Z"
+          fill="currentColor"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="0.8"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "pan") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M8.3 12.1V7.45a1.25 1.25 0 0 1 2.5 0v4.35m0-.45V5.85a1.25 1.25 0 0 1 2.5 0v5.35m0-3.35a1.25 1.25 0 0 1 2.5 0v5.55l.85-.95a1.35 1.35 0 0 1 2 1.8l-2.95 3.75A5.1 5.1 0 0 1 11.7 20h-.9a4.8 4.8 0 0 1-4.8-4.8v-3.1a1.15 1.15 0 0 1 2.3 0Z"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.65"
+        />
+      </svg>
+    );
+  }
+
+  if (kind === "zoom") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M10.6 16.8a6.2 6.2 0 1 1 0-12.4 6.2 6.2 0 0 1 0 12.4Zm4.5-1.7 4.2 4.2M10.6 8v5.2m-2.6-2.6h5.2"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.75"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M5.2 9V5.2H9m9.8 3.8V5.2H15M5.2 15v3.8H9m9.8-3.8v3.8H15"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.85"
+      />
+    </svg>
+  );
+}
+
+function SceneActionIcon({ kind }: { kind: "hotspot" | "item" | "delete" }) {
+  if (kind === "hotspot") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.9v3.25m0 11.7v3.25M2.9 12h3.25m11.7 0h3.25" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.05" />
+        <circle cx="12" cy="12" r="5.25" fill="none" stroke="currentColor" strokeWidth="2" />
+        <circle cx="12" cy="12" r="1.35" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (kind === "item") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M6 9.2 12 5.8l6 3.4v7.2L12 19.8l-6-3.4V9.2Z"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.9"
+        />
+        <path
+          d="m8.25 8.05 6.05 3.45 1.45-.82-6.05-3.45M6.25 9.35 12 12.7l5.75-3.35M12 12.7v6.75"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.45"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M7.35 8.3h9.3l-.72 11.2H8.07L7.35 8.3ZM5.5 6.1h13M9.35 6.1l.75-2h3.8l.75 2M10.1 10.8v6.25m3.8-6.25v6.25"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.95"
+      />
     </svg>
   );
 }
@@ -3338,7 +3604,21 @@ function HotspotInspectorWindow({
       const viewport = getViewportSize();
       const size = getFloatingWindowSize(inspectorRef.current, HOTSPOT_INSPECTOR_FALLBACK_SIZE);
       const anchorRect = anchorRef.current?.getBoundingClientRect();
+      const actionRailRect = anchorRef.current
+        ?.querySelector<HTMLElement>(".scenes-panel__action-rail")
+        ?.getBoundingClientRect();
       const selectedHotspotRect = resolveSelectedHotspotRect();
+      const inspectorAnchor = actionRailRect
+        ? {
+            top: anchorRect?.top ?? actionRailRect.top,
+            right: actionRailRect.left
+          }
+        : anchorRect
+          ? {
+              top: anchorRect.top,
+              right: anchorRect.right
+            }
+          : undefined;
 
       onPositionChange((currentPosition) => {
         return resolveNextFloatingWindowPosition(
@@ -3346,12 +3626,7 @@ function HotspotInspectorWindow({
           size,
           viewport,
           selectedHotspotRect,
-          anchorRect
-            ? {
-                top: anchorRect.top,
-                right: anchorRect.right
-              }
-            : undefined
+          inspectorAnchor
         );
       });
     };
@@ -3468,30 +3743,23 @@ function HotspotInspectorWindow({
         <header className="scenes-floating-inspector__header">
           <div className="scenes-floating-inspector__title-group">
             <p className="eyebrow">Hotspot Inspector</p>
-            <h3 id={inspectorTitleId}>{selectedHotspot.name || selectedHotspot.id}</h3>
+            <h3 id={inspectorTitleId}>Hotspot Inspector</h3>
           </div>
           <button
             type="button"
             className="button-secondary scenes-floating-inspector__close"
+            aria-label="Close hotspot inspector"
             title="Hide the floating hotspot inspector."
             onClick={onDismiss}
           >
-            Close
+            <span aria-hidden="true">x</span>
           </button>
         </header>
 
         <div className="scenes-floating-inspector__body">
-          <details key={selectedHotspot.id} className="scenes-floating-inspector__help">
-            <summary className="scenes-floating-inspector__help-summary">Editing Help</summary>
-            <div className="scenes-floating-inspector__help-copy">
-              <p className="muted">Drag the hotspot or its orange handles in the preview to edit it quickly.</p>
-              <p className="muted">
-                Arrows move, Shift+arrows resize, Alt+Left/Right rotate, drag the top handle to rotate, Shift snaps,
-                and Ctrl fine-tunes.
-              </p>
-            </div>
-          </details>
-          <article className="list-card list-card--selected">
+          <div className="scenes-floating-inspector__sections">
+            <details open className="scenes-floating-inspector__section">
+              <summary className="scenes-floating-inspector__section-title">Identity</summary>
             <label title="Visible hotspot title shown in the editor and runtime.">
               <span className="field-label--inset">Name</span>
               <input
@@ -3516,12 +3784,18 @@ function HotspotInspectorWindow({
                 }
               />
             </label>
+            </details>
+            <details open className="scenes-floating-inspector__section">
+              <summary className="scenes-floating-inspector__section-title">Action</summary>
             <HotspotInventoryActionControls
               inventoryAction={resolveHotspotInventoryAction(selectedHotspot)}
               inventoryItemOptions={inventoryItemOptions}
               selectedHotspot={selectedHotspot}
               mutateSelectedHotspot={mutateSelectedHotspot}
             />
+            </details>
+            <details open className="scenes-floating-inspector__section">
+              <summary className="scenes-floating-inspector__section-title">Geometry</summary>
             <div className="four-grid">
               {(
                 [
@@ -3588,6 +3862,9 @@ function HotspotInspectorWindow({
                   />
               </label>
             </div>
+            </details>
+            <details open className="scenes-floating-inspector__section scenes-floating-inspector__section--timing">
+              <summary className="scenes-floating-inspector__section-title">Timing</summary>
             <div className="stack-inline">
               <label
                 className="scene-video-loop-toggle scenes-hotspot-duration-toggle"
@@ -3614,7 +3891,7 @@ function HotspotInspectorWindow({
                 <span>Use scene duration</span>
               </label>
             </div>
-            <div className="stack-inline">
+            <div className="stack-inline scenes-floating-inspector__timing-fields">
               <label title="Time in milliseconds when this hotspot becomes clickable.">
                 <span className="field-label--inset">Start (ms)</span>
                 <input
@@ -3646,6 +3923,9 @@ function HotspotInspectorWindow({
                 />
               </label>
             </div>
+            </details>
+            <details open className="scenes-floating-inspector__section">
+              <summary className="scenes-floating-inspector__section-title">Navigation</summary>
             <label title="Scene that should open when this hotspot is activated.">
               <span className="field-label--inset">Target Scene</span>
               <DropdownSelect
@@ -3689,6 +3969,9 @@ function HotspotInspectorWindow({
                 <span className="muted">Create a dialogue in the Dialogue tab, then choose it here.</span>
               ) : null}
             </label>
+            </details>
+            <details className="scenes-floating-inspector__section scenes-floating-inspector__section--advanced">
+              <summary className="scenes-floating-inspector__section-title">Advanced</summary>
             <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
               <span className="field-label--inset">Required Item IDs</span>
               <input
@@ -3725,7 +4008,8 @@ function HotspotInspectorWindow({
                 })
               }
             />
-          </article>
+            </details>
+          </div>
         </div>
       </aside>
     </div>

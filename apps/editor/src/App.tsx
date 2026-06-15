@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as 
 import {
   buildHotspotPickupFlag,
   buildHotspotPlacementFlag,
+  resolveAssetVariant,
   resolveHotspotInventoryAction,
   resolvePlacedInventoryHotspotInstance,
   type Condition,
@@ -76,6 +77,7 @@ export function App() {
     canUndo,
     canRedo,
     activeTab,
+    selectedSceneId,
     setProjectContext,
     updateProject,
     undoProject,
@@ -100,9 +102,12 @@ export function App() {
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const [isSceneNavOpen, setIsSceneNavOpen] = useState(false);
+  const [hotspotInspectorOpenRequest, setHotspotInspectorOpenRequest] = useState(0);
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
   const [initialLaunchOptions] = useState(() => getInitialLaunchOptions());
   const fileMenuId = useId();
+  const sceneNavMenuId = useId();
   const fileMenuRef = useRef<HTMLDivElement | null>(null);
   const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
@@ -560,6 +565,11 @@ export function App() {
     setStatusMessage(`Navigated to ${target.label}`);
   }
 
+  function handleTabSelect(tabId: EditorTab) {
+    setActiveTab(tabId);
+    setIsSceneNavOpen(false);
+  }
+
   async function handleAutomationCommand(rawCommand: unknown): Promise<unknown> {
     const command = parseEditorAutomationCommand(rawCommand);
 
@@ -606,6 +616,14 @@ export function App() {
         redoProject();
         await waitForAutomationUpdate();
         return resolveEditorAutomationHotspots(requireCurrentProject(command));
+      case "editor.openHotspotInspector": {
+        const result = openAutomationHotspotInspector(command);
+        await waitForAutomationUpdate();
+        return {
+          ...resolveEditorAutomationState(statusMessage),
+          hotspotInspector: result
+        };
+      }
       case "editor.selectHotspotActionItem":
         applyAutomationHotspotActionItemCommand(command);
         await waitForAutomationUpdate();
@@ -663,6 +681,28 @@ export function App() {
     }
 
     return playtestAutomation;
+  }
+
+  function openAutomationHotspotInspector(command: Extract<EditorAutomationCommand, { command: "editor.openHotspotInspector" }>) {
+    const currentProject = requireCurrentProject(command);
+    const targetHotspotId = command.hotspotId ?? useEditorStore.getState().selectedHotspotId;
+    if (!targetHotspotId) {
+      throw new Error(`Command '${command.command}' requires hotspotId or a selected hotspot.`);
+    }
+
+    const target = resolveAutomationHotspotTarget(currentProject, targetHotspotId);
+    setSelectedLocationId(target.scene.locationId);
+    setSelectedSceneId(target.scene.id);
+    setSelectedHotspotId(target.hotspot.id);
+    setActiveTab("scenes");
+    setHotspotInspectorOpenRequest((request) => request + 1);
+    setStatusMessage(`Automation opened hotspot inspector for ${target.hotspot.id}.`);
+
+    return {
+      opened: true,
+      hotspotId: target.hotspot.id,
+      sceneId: target.scene.id
+    };
   }
 
   function applyAutomationHotspotInventoryCommand(command: Extract<EditorAutomationCommand, { command: "setHotspotInventoryAction" }>) {
@@ -855,18 +895,87 @@ export function App() {
   const validationReport = validateProject(project);
   const shouldShowIssuesSidebar = showValidationDetails || validationReport.issues.length > 0;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
+  const isSceneEditorSurface = activeTab === "scenes";
+  const activeScene = project.scenes.items.find((scene) => scene.id === selectedSceneId) ?? project.scenes.items[0];
+  const activeSceneAsset = project.assets.assets.find((asset) => asset.id === activeScene?.backgroundAssetId);
+  const activeSceneAssetVariant = activeSceneAsset ? resolveAssetVariant(activeSceneAsset, project.manifest.defaultLanguage) : undefined;
+  const sceneResolutionLabel =
+    activeSceneAssetVariant?.width && activeSceneAssetVariant.height
+      ? `${activeSceneAssetVariant.width}x${activeSceneAssetVariant.height}`
+      : "No media";
+  const sceneAspectLabel =
+    activeSceneAssetVariant?.width && activeSceneAssetVariant.height
+      ? formatAspectRatio(activeSceneAssetVariant.width, activeSceneAssetVariant.height)
+      : "--";
+  const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Autosave: Unsaved changes" : "Autosave: Saved";
 
   return (
-    <div className="app-shell app-shell--project">
+    <div className={isSceneEditorSurface ? "app-shell app-shell--project app-shell--scene-editor" : "app-shell app-shell--project"}>
       <header className="titlebar-shell">
         <div className="titlebar-shell__inner">
-          <div className="titlebar-shell__identity" title={projectDir}>
-            <h1 className="titlebar-shell__title">{project.manifest.projectName}</h1>
-            <span className="titlebar-shell__separator" aria-hidden="true">
-              /
-            </span>
-            <p className="titlebar-shell__path">{projectDir}</p>
+          <div
+            className={isSceneEditorSurface ? "titlebar-shell__identity titlebar-shell__identity--scene" : "titlebar-shell__identity"}
+            title={projectDir}
+          >
+            {isSceneEditorSurface ? (
+              <div className="scene-titlebar-menu app-region-no-drag">
+                <button
+                  type="button"
+                  className={isSceneNavOpen ? "scene-titlebar-menu__trigger scene-titlebar-menu__trigger--open" : "scene-titlebar-menu__trigger"}
+                  aria-label="Open editor sections"
+                  aria-haspopup="menu"
+                  aria-expanded={isSceneNavOpen}
+                  aria-controls={sceneNavMenuId}
+                  onClick={() => setIsSceneNavOpen((value) => !value)}
+                  title="Open editor sections."
+                >
+                  <MenuIcon />
+                </button>
+                {isSceneNavOpen ? (
+                  <div id={sceneNavMenuId} className="scene-titlebar-menu__panel" role="menu" aria-label="Editor sections">
+                    {TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={tab.id === activeTab ? "scene-titlebar-menu__item scene-titlebar-menu__item--active" : "scene-titlebar-menu__item"}
+                        role="menuitemradio"
+                        aria-checked={tab.id === activeTab}
+                        onClick={() => handleTabSelect(tab.id)}
+                        title={TAB_TOOLTIPS[tab.id]}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <h1 className="titlebar-shell__title">{isSceneEditorSurface ? "MAGE2 Scene Editor" : project.manifest.projectName}</h1>
+            {isSceneEditorSurface ? null : (
+              <>
+                <span className="titlebar-shell__separator" aria-hidden="true">
+                  /
+                </span>
+                <p className="titlebar-shell__path">{projectDir}</p>
+              </>
+            )}
           </div>
+
+          {isSceneEditorSurface ? (
+            <nav className="scene-screen-tabs app-region-no-drag" aria-label="Editor screens">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={tab.id === activeTab ? "scene-screen-tabs__tab scene-screen-tabs__tab--active" : "scene-screen-tabs__tab"}
+                  onClick={() => handleTabSelect(tab.id)}
+                  title={TAB_TOOLTIPS[tab.id]}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
 
           <div className="titlebar-shell__actions app-region-no-drag">
             <button
@@ -935,19 +1044,21 @@ export function App() {
         </div>
       </header>
 
-      <nav className="tab-strip tab-strip--chrome app-region-no-drag">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
-            onClick={() => setActiveTab(tab.id)}
-            title={TAB_TOOLTIPS[tab.id]}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      {isSceneEditorSurface ? null : (
+        <nav className="tab-strip tab-strip--chrome app-region-no-drag" aria-label="Editor screens">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={tab.id === activeTab ? "tab-strip__tab tab-strip__tab--active" : "tab-strip__tab"}
+              onClick={() => handleTabSelect(tab.id)}
+              title={TAB_TOOLTIPS[tab.id]}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div className="editor-scroll-region">
         <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
@@ -959,6 +1070,7 @@ export function App() {
                 <ScenesPanel
                   project={project}
                   mutateProject={mutateProject}
+                  hotspotInspectorOpenRequest={hotspotInspectorOpenRequest}
                   setSavedProject={replaceSavedProject}
                   setStatusMessage={setStatusMessage}
                   setBusyLabel={setBusyLabel}
@@ -1076,8 +1188,26 @@ export function App() {
         </div>
       </div>
 
-      <footer className="status-bar status-bar--chrome">
-        <span className="status-bar__message">{busyLabel ? `${busyLabel}...` : statusMessage}</span>
+      <footer className={isSceneEditorSurface ? "status-bar status-bar--chrome status-bar--scene-editor" : "status-bar status-bar--chrome"}>
+        {isSceneEditorSurface ? (
+          <>
+            <div className="status-bar__scene-group">
+              <span className="status-bar__project-dot" aria-hidden="true" />
+              <span>Project: {project.manifest.projectName}</span>
+              <span className="status-bar__divider" aria-hidden="true" />
+              <span>{sceneSaveStatusLabel}</span>
+            </div>
+            <div className="status-bar__scene-group status-bar__scene-group--right">
+              <span>Scene: {activeScene?.name ?? "No scene"}</span>
+              <span className="status-bar__divider" aria-hidden="true" />
+              <span>{sceneResolutionLabel}</span>
+              <span className="status-bar__divider" aria-hidden="true" />
+              <span>{sceneAspectLabel}</span>
+            </div>
+          </>
+        ) : (
+          <span className="status-bar__message">{busyLabel ? `${busyLabel}...` : statusMessage}</span>
+        )}
         <button
           type="button"
           className={validationReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--warn"}
@@ -1210,6 +1340,17 @@ function serializeAutomationHotspot(
       polygon: hotspot.polygon
     }
   };
+}
+
+function resolveAutomationHotspotTarget(project: ProjectBundle, hotspotId: string) {
+  for (const scene of project.scenes.items) {
+    const hotspot = scene.hotspots.find((entry) => entry.id === hotspotId);
+    if (hotspot) {
+      return { scene, hotspot };
+    }
+  }
+
+  throw new Error(`Hotspot '${hotspotId}' was not found.`);
 }
 
 function resolveAutomationPlacedObjectTarget(
@@ -1376,6 +1517,24 @@ function resolveTabLabel(tab: EditorTab): string {
   return TABS.find((candidate) => candidate.id === tab)?.label ?? tab;
 }
 
+function formatAspectRatio(width: number, height: number): string {
+  const divisor = greatestCommonDivisor(Math.round(width), Math.round(height));
+  return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
+}
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = Math.max(Math.abs(left), 1);
+  let b = Math.max(Math.abs(right), 1);
+
+  while (b > 0) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+
+  return a;
+}
+
 interface IssueTextLinkProps {
   label: string;
   target?: EditorNavigationTarget;
@@ -1442,6 +1601,14 @@ function ChevronDownIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m7 10 5 5 5-5H7Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6.5h16v1.7H4V6.5Zm0 4.65h16v1.7H4v-1.7Zm0 4.65h16v1.7H4v-1.7Z" fill="currentColor" />
     </svg>
   );
 }
