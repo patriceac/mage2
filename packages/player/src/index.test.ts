@@ -119,6 +119,83 @@ describe("player controller", () => {
     expect(controller.getSnapshot().flags.lanternSeen).toBe(true);
   });
 
+  it("allows multiple copies of one inventory item and removes one copy at a time", () => {
+    const project = createDefaultProjectBundle();
+    const scene = project.scenes.items[0]!;
+    project.inventory.items.push({
+      id: "item_candle",
+      name: "Candle",
+      textId: "text.item_candle.name"
+    });
+    scene.hotspots = [
+      {
+        id: "hotspot_candle_one",
+        name: "Candle one",
+        x: 0,
+        y: 0,
+        width: 0.1,
+        height: 0.1,
+        startMs: 0,
+        endMs: 30000,
+        timingMode: "sceneDuration",
+        requiredItemIds: [],
+        conditions: [{ type: "always" }],
+        effects: [{ type: "addItem", itemId: "item_candle" }]
+      },
+      {
+        id: "hotspot_candle_two",
+        name: "Candle two",
+        x: 0.2,
+        y: 0,
+        width: 0.1,
+        height: 0.1,
+        startMs: 0,
+        endMs: 30000,
+        timingMode: "sceneDuration",
+        requiredItemIds: [],
+        conditions: [{ type: "always" }],
+        effects: [{ type: "addItem", itemId: "item_candle" }]
+      },
+      {
+        id: "hotspot_burn_candle",
+        name: "Burn candle",
+        x: 0.4,
+        y: 0,
+        width: 0.1,
+        height: 0.1,
+        startMs: 0,
+        endMs: 30000,
+        timingMode: "sceneDuration",
+        requiredItemIds: ["item_candle"],
+        conditions: [{ type: "always" }],
+        effects: [{ type: "removeItem", itemId: "item_candle" }]
+      }
+    ];
+
+    const controller = createPlayerController(project);
+    controller.selectHotspot("hotspot_candle_one", 1000);
+    controller.selectHotspot("hotspot_candle_two", 1000);
+
+    expect(controller.save().inventory).toEqual(["item_candle", "item_candle"]);
+    expect(controller.getSnapshot().inventoryItems.map((item) => item.id)).toEqual([
+      "item_candle",
+      "item_candle"
+    ]);
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).toContain("hotspot_burn_candle");
+
+    controller.selectHotspot("hotspot_burn_candle", 1000);
+
+    expect(controller.save().inventory).toEqual(["item_candle"]);
+    expect(controller.getSnapshot().inventoryItems.map((item) => item.id)).toEqual(["item_candle"]);
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).toContain("hotspot_burn_candle");
+
+    controller.selectHotspot("hotspot_burn_candle", 1000);
+
+    expect(controller.save().inventory).toEqual([]);
+    expect(controller.getSnapshot().inventoryItems).toEqual([]);
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).not.toContain("hotspot_burn_candle");
+  });
+
   it("returns active subtitle cue text from string-backed scene tracks, including overlaps and line breaks", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({

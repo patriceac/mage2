@@ -10,9 +10,10 @@ import {
   resolveInventoryCursorPreviewFrameStyle,
   resolvePlaytestDialogueChoiceMarker,
   resolvePlaytestInventoryItemInitial,
-  resolvePlaytestInventorySlotCount,
   resolvePlaytestInventorySummary,
+  resolvePlaytestInventoryToggleLabel,
   resolvePlaytestInventoryItemTooltip,
+  resolvePlaytestStageHudClassName,
   resolvePlaytestVisualDurationMs,
   resolveStoredPlaytestLocale,
   shouldHandlePlaytestHotspotClick
@@ -80,13 +81,6 @@ describe("resolveInventoryCursorPreviewFrameStyle", () => {
 });
 
 describe("PlaytestInventoryTray", () => {
-  it("keeps the tray at eight visible slots until inventory grows beyond that", () => {
-    expect(resolvePlaytestInventorySlotCount(0)).toBe(8);
-    expect(resolvePlaytestInventorySlotCount(1)).toBe(8);
-    expect(resolvePlaytestInventorySlotCount(8)).toBe(8);
-    expect(resolvePlaytestInventorySlotCount(9)).toBe(9);
-  });
-
   it("uses compact fallback initials for inventory items without art", () => {
     expect(resolvePlaytestInventoryItemInitial(" red potion ")).toBe("R");
     expect(resolvePlaytestInventoryItemInitial("")).toBe("?");
@@ -97,22 +91,51 @@ describe("PlaytestInventoryTray", () => {
     expect(resolvePlaytestInventoryItemTooltip("Red Potion")).toBe("Red Potion");
   });
 
+  it("uses the bag toggle copy for collapsed and expanded inventory states", () => {
+    expect(resolvePlaytestInventoryToggleLabel(0, false)).toBe("Open inventory (0 items)");
+    expect(resolvePlaytestInventoryToggleLabel(1, false)).toBe("Open inventory (1 item)");
+    expect(resolvePlaytestInventoryToggleLabel(2, true)).toBe("Close inventory (2 items)");
+  });
+
+  it("marks the playtest HUD as click-catching only while the inventory drawer is open", () => {
+    expect(resolvePlaytestStageHudClassName(false, false)).toBe("playtest-stage__hud");
+    expect(resolvePlaytestStageHudClassName(true, false)).toBe(
+      "playtest-stage__hud playtest-stage__hud--dialogue"
+    );
+    expect(resolvePlaytestStageHudClassName(false, true)).toBe(
+      "playtest-stage__hud playtest-stage__hud--inventory-open"
+    );
+    expect(resolvePlaytestStageHudClassName(true, true)).toBe(
+      "playtest-stage__hud playtest-stage__hud--dialogue playtest-stage__hud--inventory-open"
+    );
+  });
+
   it("renders an intentional empty state inside the inventory band", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
         items: [],
+        isExpanded: false,
+        onExpandedChange: () => undefined,
         onSelectItem: () => undefined
       })
     );
 
     expect(markup).toContain("playtest-inventory-tray");
+    expect(markup).toContain("playtest-inventory-toggle");
+    expect(markup).toContain("playtest-inventory-toggle__icon");
+    expect(markup).toContain("playtest-inventory-toggle__badge");
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain("playtest-inventory-tray__drawer");
     expect(markup).toContain("playtest-inventory-tray__empty");
-    expect(markup).toContain("playtest-inventory-tray__ghost-slots");
-    expect(markup).toContain("No items yet");
+    expect(markup).not.toContain("playtest-inventory-tray__ghost-slots");
+    expect(markup).not.toContain("<h3>Inventory</h3>");
+    expect(markup).toContain("Empty");
+    expect(markup).not.toContain("No items yet");
+    expect(markup).not.toContain("Picked-up items will appear here.");
     expect(markup).not.toContain("Ready an item from your pack.");
   });
 
-  it("renders selectable item slots with empty visual slots and no tray counter", () => {
+  it("renders icon-only selectable item slots with no visible labels or tray counter", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
         items: [
@@ -123,16 +146,26 @@ describe("PlaytestInventoryTray", () => {
             selected: true
           }
         ],
+        isExpanded: false,
+        onExpandedChange: () => undefined,
         onSelectItem: () => undefined
       })
     );
 
     expect(markup).toContain("playtest-inventory-slot--selected");
-    expect(markup).toContain("playtest-inventory-slot--ghost");
+    expect(markup).toContain("playtest-inventory-toggle--selected");
+    expect(markup).not.toContain("playtest-inventory-tray--expanded");
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('aria-label="Open inventory (1 item)"');
+    expect(markup).not.toContain("playtest-inventory-slot--ghost");
+    expect(markup).not.toContain("empty-slot-");
+    expect(markup).not.toContain("<h3>Inventory</h3>");
     expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('aria-label="Red Potion"');
     expect(markup).toContain('title="Red Potion - Restores health."');
-    expect(markup).toContain("Red Potion");
-    expect(markup).toContain("Selected");
+    expect(markup).not.toContain("playtest-inventory-slot__copy");
+    expect(markup).not.toContain("playtest-inventory-slot__name");
+    expect(markup).not.toContain("Selected");
     expect(markup).not.toContain("1 / 8");
     expect(markup).not.toContain("Use Red Potion on a compatible hotspot.");
     expect(markup).not.toContain("matching hotspot");
@@ -142,12 +175,14 @@ describe("PlaytestInventoryTray", () => {
     const markup = renderToStaticMarkup(
       React.createElement(PlaytestInventoryTray, {
         items: [],
-        hint: "Red Potion does not work here.",
+        hint: "Not here.",
+        isExpanded: false,
+        onExpandedChange: () => undefined,
         onSelectItem: () => undefined
       })
     );
 
-    expect(markup).toContain("Red Potion does not work here.");
+    expect(markup).toContain("Not here.");
   });
 });
 
@@ -176,7 +211,7 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).not.toContain("Back to Editor");
   });
 
-  it("renders inventory as a dedicated playtest section while keeping runtime state in the side panel", () => {
+  it("renders inventory inside the playtest canvas while keeping runtime state in the side panel", () => {
     const project = createDefaultProjectBundle("Playtest scene inventory");
     useEditorStore.setState({
       activeTab: "playtest",
@@ -186,10 +221,12 @@ describe("PlaytestPanel toolbar", () => {
     const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project, onExit: () => undefined }));
 
     expect(markup).toContain("playtest-stage");
-    expect(markup).toContain("playtest-inventory-section");
+    expect(markup).toContain("media-surface--playtest");
+    expect(markup).toContain("playtest-stage__hud");
+    expect(markup).toContain("playtest-stage__inventory");
     expect(markup).toContain("playtest-inventory-tray");
     expect(markup).toContain("Runtime State");
-    expect(markup).not.toContain("playtest-stage__inventory");
+    expect(markup).not.toContain("playtest-inventory-section");
     expect(markup).not.toContain("playtest-inventory-panel");
   });
 });

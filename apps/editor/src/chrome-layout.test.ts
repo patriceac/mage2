@@ -51,8 +51,28 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".panel-grid--playtest > aside.panel {");
     expect(styles).toContain("max-height: calc(100vh - 13.5rem);");
     expect(styles).toContain("overflow: auto;");
-    expect(styles).toContain("--playtest-inventory-slot-size: clamp(3.3rem, 4.1vw, 4.15rem);");
-    expect(styles).toContain("grid-template-columns: auto minmax(0, 1fr);");
+    expect(styles).toContain("--playtest-inventory-slot-size: clamp(4.1rem, 4.75vw, 5.05rem);");
+    expect(styles).toContain(".playtest-stage__inventory {");
+    expect(styles).toContain("align-self: flex-start;");
+    expect(styles).toContain("max-width: min(100%, 35rem);");
+    expect(styles).toContain(".playtest-inventory-toggle {");
+    expect(styles).toContain(".playtest-inventory-tray__drawer {");
+    expect(styles).toContain("left: calc(100% + 0.55rem);");
+    expect(styles).toContain(".playtest-inventory-tray--expanded .playtest-inventory-tray__drawer {");
+    expect(styles).not.toContain(".playtest-inventory-tray:hover .playtest-inventory-tray__drawer");
+    expect(styles).not.toContain(".playtest-inventory-tray:focus-within .playtest-inventory-tray__drawer");
+    expect(styles).not.toContain(".playtest-inventory-tray::before");
+    expect(styles).toMatch(/\.playtest-inventory-slot\s*\{[\s\S]*?border: 0;[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;[\s\S]*?\}/);
+    expect(styles).toContain(
+      ".app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {"
+    );
+    expect(styles).toContain(".playtest-inventory-slot__well {");
+    expect(styles).toContain("border: 0;");
+    expect(styles).toContain("background: transparent;");
+    expect(styles).toContain(".media-surface--playtest .media-surface__scene-overlay::before {");
+    expect(styles).toContain("background: none;");
+    expect(styles).toContain(".media-surface--playtest .media-surface__scene-overlay > .playtest-stage__hud {");
+    expect(styles).toContain("grid-template-columns: minmax(0, 1fr);");
   });
 
   it("uses full-height rails and a canvas toolbar for the scene editor surface", () => {

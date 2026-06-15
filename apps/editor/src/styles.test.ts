@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const workbenchSharedButtonSelector =
+  ".app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
 
 describe("hotspot idle visibility styles", () => {
   it("keeps the selected hotspot out of the preview idle-hide selectors", () => {
@@ -155,14 +157,14 @@ describe("hotspot idle visibility styles", () => {
   });
 
   it("keeps shared workbench button chrome away from hotspot hit targets", () => {
-    expect(styles).toContain(".app-shell--editor-workbench button:not(.hotspot__body) {");
-    expect(styles).toContain(".app-shell--editor-workbench button:not(.hotspot__body):hover {");
+    expect(styles).toContain(`${workbenchSharedButtonSelector} {`);
+    expect(styles).toContain(`${workbenchSharedButtonSelector}:hover {`);
     expect(styles).not.toContain(".app-shell--editor-workbench button {");
     expect(styles).toContain(".hotspot__body--hidden,");
   });
 
   it("keeps the pending save action highlighted after shared workbench button chrome", () => {
-    const sharedButtonRule = styles.indexOf(".app-shell--editor-workbench button:not(.hotspot__body) {");
+    const sharedButtonRule = styles.indexOf(`${workbenchSharedButtonSelector} {`);
     const pendingSaveRule = styles.indexOf(
       ".app-shell--editor-workbench button.titlebar-shell__save-button--active:not(.hotspot__body) {"
     );

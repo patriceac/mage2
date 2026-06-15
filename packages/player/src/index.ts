@@ -143,12 +143,10 @@ export function createPlayerController(
           state.flags[effect.flag] = effect.value;
           break;
         case "addItem":
-          if (!state.inventory.includes(effect.itemId)) {
-            state.inventory.push(effect.itemId);
-          }
+          state.inventory.push(effect.itemId);
           break;
         case "removeItem":
-          state.inventory = state.inventory.filter((itemId) => itemId !== effect.itemId);
+          state.inventory = removeSingleInventoryItem(state.inventory, effect.itemId);
           break;
         case "goToScene":
           enterScene(effect.sceneId);
@@ -273,7 +271,9 @@ export function createPlayerController(
       saveState: structuredClone(state),
       scene,
       location: getLocation(scene.locationId),
-      inventoryItems: project.inventory.items.filter((item) => state.inventory.includes(item.id)),
+      inventoryItems: state.inventory
+        .map((itemId) => project.inventory.items.find((item) => item.id === itemId))
+        .filter((item): item is InventoryItem => Boolean(item)),
       flags: structuredClone(state.flags),
       activeDialogue: resolveActiveDialogue()
     };
@@ -290,6 +290,18 @@ export function createPlayerController(
     chooseDialogueChoice,
     save: () => structuredClone(state)
   };
+}
+
+function removeSingleInventoryItem(inventory: string[], itemIdToRemove: string): string[] {
+  const indexToRemove = inventory.findIndex((itemId) => itemId === itemIdToRemove);
+  if (indexToRemove < 0) {
+    return inventory;
+  }
+
+  return [
+    ...inventory.slice(0, indexToRemove),
+    ...inventory.slice(indexToRemove + 1)
+  ];
 }
 
 export function resolveSubtitleTrackLines(

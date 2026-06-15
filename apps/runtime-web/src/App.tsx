@@ -1100,9 +1100,9 @@ export function App() {
             <h3>Inventory</h3>
             {runtimeInventoryItems.length > 0 ? (
               <div className="runtime-inventory">
-                {runtimeInventoryItems.map((item) => (
+                {runtimeInventoryItems.map((item, index) => (
                   <button
-                    key={item.id}
+                    key={`${item.id}:${index}`}
                     type="button"
                     className={
                       item.id === selectedInventoryItemId
