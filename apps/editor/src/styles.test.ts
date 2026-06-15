@@ -187,10 +187,15 @@ describe("hotspot idle visibility styles", () => {
     );
   });
 
-  it("keeps the title-bar save button aligned with the slimmer file trigger sizing", () => {
+  it("keeps title-bar history and save actions aligned with the slimmer file trigger sizing", () => {
+    expect(styles).toContain(".titlebar-shell__history-actions {");
+    expect(styles).toContain(".titlebar-shell__history-button,");
     expect(styles).toContain(".titlebar-shell__save-button,");
     expect(styles).toContain("min-height: 1.95rem;");
     expect(styles).toContain("padding: 0.38rem 0.78rem;");
+    expect(styles).toContain(".titlebar-shell__history-button {");
+    expect(styles).toContain("width: 1.95rem;");
+    expect(styles).toContain(".titlebar-shell__history-button svg,");
     expect(styles).toContain(".titlebar-shell__save-button svg {");
     expect(styles).toContain("width: 1.05rem;");
     expect(styles).toContain("height: 1.05rem;");
@@ -205,17 +210,36 @@ describe("hotspot idle visibility styles", () => {
   it("matches workbench title-bar file actions to the compact scene chrome", () => {
     expect(styles).toContain("--titlebar-overlay-height: 2.5rem;");
     expect(styles).toContain("min-height: max(2.5rem, env(titlebar-area-height, 0px));");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-shell__history-actions {");
+    expect(styles).toContain(".app-shell--editor-workbench .titlebar-shell__history-button,");
     expect(styles).toContain(".app-shell--editor-workbench .titlebar-shell__save-button,");
     expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__trigger {");
     expect(styles).toContain("min-height: 1.7rem;");
     expect(styles).toContain("padding: 0.25rem 0.52rem;");
     expect(styles).toContain("border-radius: 6px;");
+    expect(styles).toContain("width: 1.7rem;");
     expect(styles).toContain("min-height: 1.42rem;");
     expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__panel {");
     expect(styles).toContain("border-radius: 8px;");
     expect(styles).toContain("background: rgba(10, 16, 22, 0.98);");
     expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__item:hover {");
     expect(styles).toContain("background: rgba(23, 119, 168, 0.28);");
+  });
+
+  it("keeps workbench title-bar controls compact after shared button chrome", () => {
+    const sharedButtonRule = styles.indexOf(`${workbenchSharedButtonSelector} {`);
+    const titlebarChromeRule = styles.search(
+      /\.app-shell--editor-workbench\s+button\.titlebar-shell__history-button:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\),[\s\S]*?button\.titlebar-shell__save-button:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\),[\s\S]*?button\.titlebar-menu__trigger:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{/
+    );
+
+    expect(sharedButtonRule).toBeGreaterThan(-1);
+    expect(titlebarChromeRule).toBeGreaterThan(sharedButtonRule);
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.titlebar-shell__history-button:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\),[\s\S]*?button\.titlebar-menu__trigger:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?min-height: 1\.7rem;[\s\S]*?background: transparent;[\s\S]*?padding: 0\.25rem 0\.52rem;[\s\S]*?\}/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.titlebar-shell__history-button:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?width: 1\.7rem;[\s\S]*?padding: 0;[\s\S]*?\}/
+    );
   });
 
   it("lets the title-bar project path consume the remaining identity width", () => {

@@ -102,6 +102,9 @@ describe("editor chrome styles", () => {
   it("keeps compact workbench titlebar actions and screen switching visible", () => {
     expect(appSource).toContain("app-shell--editor-workbench");
     expect(appSource).toContain('className="titlebar-shell__actions app-region-no-drag"');
+    expect(appSource).toContain('className="titlebar-shell__history-button"');
+    expect(appSource).toContain('aria-label="Undo"');
+    expect(appSource).toContain('aria-label="Redo"');
     expect(appSource).toContain('<nav className="scene-screen-tabs" aria-label="Editor screens">');
     expect(appSource).toContain("scene-screen-tabs__tab scene-screen-tabs__tab--active app-region-no-drag");
     expect(appSource).toContain("scene-screen-tabs__tab app-region-no-drag");

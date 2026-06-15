@@ -902,6 +902,8 @@ export function App() {
   const validationReport = validateProject(project);
   const shouldShowIssuesSidebar = showValidationDetails || validationReport.issues.length > 0;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
+  const isUndoDisabled = !canUndo || Boolean(busyLabel);
+  const isRedoDisabled = !canRedo || Boolean(busyLabel);
   const isSceneEditorSurface = activeTab === "scenes";
   const activeTabLabel = resolveTabLabel(activeTab);
   const activeScene = project.scenes.items.find((scene) => scene.id === selectedSceneId) ?? project.scenes.items[0];
@@ -947,6 +949,29 @@ export function App() {
           </nav>
 
           <div className="titlebar-shell__actions app-region-no-drag">
+            <div className="titlebar-shell__history-actions" role="toolbar" aria-label="Edit history">
+              <button
+                type="button"
+                className="titlebar-shell__history-button"
+                onClick={undoProject}
+                disabled={isUndoDisabled}
+                aria-label="Undo"
+                title={canUndo ? "Undo the last project edit. Shortcut: Ctrl+Z or Cmd+Z." : "No edits to undo."}
+              >
+                <UndoIcon />
+              </button>
+              <button
+                type="button"
+                className="titlebar-shell__history-button"
+                onClick={redoProject}
+                disabled={isRedoDisabled}
+                aria-label="Redo"
+                title={canRedo ? "Redo the last undone project edit. Shortcut: Ctrl+Y or Cmd+Shift+Z." : "No edits to redo."}
+              >
+                <RedoIcon />
+              </button>
+            </div>
+
             <button
               type="button"
               className={
@@ -1548,6 +1573,28 @@ function SaveIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M5 4h11l3 3v13H5V4Zm2 2v12h10V8.2L15.2 6H7Zm2 0h5v4H9V6Zm0 7h6v4H9v-4Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M8.8 6.2 4.9 10l3.9 3.8v-2.6h5.3c2 0 3.4 1.3 3.4 3.2 0 1.9-1.4 3.2-3.4 3.2H9.4v2h4.7c3.2 0 5.6-2.2 5.6-5.2s-2.4-5.2-5.6-5.2H8.8v-3Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="m15.2 6.2 3.9 3.8-3.9 3.8v-2.6H9.9c-2 0-3.4 1.3-3.4 3.2 0 1.9 1.4 3.2 3.4 3.2h4.7v2H9.9c-3.2 0-5.6-2.2-5.6-5.2s2.4-5.2 5.6-5.2h5.3v-3Z"
         fill="currentColor"
       />
     </svg>
