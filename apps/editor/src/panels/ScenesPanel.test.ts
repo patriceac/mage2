@@ -143,6 +143,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Delay (ms)</span>");
     expect(markup).toContain("scenes-panel__scene-audio-frame");
     expect(markup).toContain("scenes-panel__scene-audio-settings");
+    expect(markup).not.toContain("Drop image or video on the preview to replace this scene's background.");
     expect(markup).not.toContain("Loop scene audio");
     expect(markup).not.toContain("Start/Restart Delay (ms)");
     expect(markup).not.toContain("Applies before the first start and before each loop restart.");

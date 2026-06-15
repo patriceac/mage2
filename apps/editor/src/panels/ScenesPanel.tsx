@@ -2525,11 +2525,11 @@ export function ScenesPanel({
                 Delete
               </button>
             </div>
-            <p className="muted scenes-panel__background-dropzone-hint">
-              {currentAsset
-                ? "Drop image or video on the preview to replace this scene's background."
-                : "Drop image or video on the preview to assign a background to this scene."}
-            </p>
+            {!currentAsset ? (
+              <p className="muted scenes-panel__background-dropzone-hint">
+                Drop image or video on the preview to assign a background to this scene.
+              </p>
+            ) : null}
           </aside>
         </div>
       </section>
