@@ -173,7 +173,7 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-hotspot-visibility-toggle__thumb");
     expect(markup).toContain("Show hotspots");
     expect(markup).toContain("Reset Run");
-    expect(markup).toContain("Back to Editor");
+    expect(markup).not.toContain("Back to Editor");
   });
 
   it("renders inventory as a dedicated playtest section while keeping runtime state in the side panel", () => {

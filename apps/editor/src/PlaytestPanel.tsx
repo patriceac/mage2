@@ -1033,16 +1033,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             >
               Reset Run
             </button>
-            {onExit ? (
-              <button
-                type="button"
-                className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
-                title="Leave playtest and return to the last authoring tab. Shortcut: Escape."
-                onClick={onExit}
-              >
-                Back to Editor
-              </button>
-            ) : null}
           </div>
           <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--toggle">
             <label
