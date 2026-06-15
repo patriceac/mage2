@@ -8,6 +8,11 @@
   --editor-shell-padding: 1rem;
   --titlebar-overlay-height: 2.5rem;
   --titlebar-controls-reserved-width: 10rem;
+  --switch-track-width: 2.2rem;
+  --switch-track-height: 1.12rem;
+  --switch-thumb-size: 0.74rem;
+  --switch-thumb-offset: 0.13rem;
+  --switch-thumb-travel: 1.03rem;
   background:
     radial-gradient(circle at top left, rgba(125, 211, 252, 0.12), transparent 32%),
     radial-gradient(circle at top right, rgba(246, 193, 119, 0.14), transparent 26%),
@@ -1564,13 +1569,13 @@ label > .checkbox-list {
 
 .scene-video-loop-toggle {
   display: inline-grid;
-  grid-template-columns: 1.4rem auto;
+  grid-template-columns: var(--switch-track-width) auto;
   align-items: center;
   align-self: start;
-  gap: 0.8rem;
+  gap: 0.58rem;
   width: fit-content;
-  min-height: 2.5rem;
-  padding: 0.35rem 0.15rem;
+  min-height: 1.32rem;
+  padding: 0.1rem 0.15rem;
   cursor: pointer;
   color: #d6e1ea;
 }
@@ -1578,41 +1583,62 @@ label > .checkbox-list {
 .scene-video-loop-toggle input {
   -webkit-appearance: none;
   appearance: none;
-  display: grid;
-  place-content: center;
+  position: relative;
+  display: block;
+  box-sizing: border-box;
   flex: 0 0 auto;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: var(--switch-track-width);
+  height: var(--switch-track-height);
+  min-height: var(--switch-track-height);
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 0.28rem;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.44);
+  border-radius: 999px;
+  overflow: visible;
+  background: rgba(3, 7, 12, 0.62);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.05);
   cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .scene-video-loop-toggle input::before {
   content: "";
-  width: 0.38rem;
-  height: 0.72rem;
-  border-right: 0.17rem solid #081018;
-  border-bottom: 0.17rem solid #081018;
-  opacity: 0;
-  transform: translateY(-0.04rem) rotate(45deg) scale(0.85);
+  position: absolute;
+  top: 50%;
+  left: var(--switch-thumb-offset);
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
+  border: 0;
+  border-radius: 999px;
+  background: #d6e1ea;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  opacity: 1;
+  transform: translateY(-50%);
   transition:
-    opacity 120ms ease,
-    transform 120ms ease;
+    background 140ms ease,
+    transform 160ms ease,
+    box-shadow 140ms ease;
 }
 
 .scene-video-loop-toggle input:checked {
   border-color: #f6c177;
   background: #f6c177;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24);
 }
 
 .scene-video-loop-toggle input:checked::before {
-  opacity: 1;
-  transform: translateY(-0.04rem) rotate(45deg) scale(1);
+  background: #101820;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translate(var(--switch-thumb-travel), -50%);
 }
 
 .scene-video-loop-toggle input:focus-visible {
@@ -1669,9 +1695,9 @@ label > .checkbox-list {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  width: 2.2rem;
-  height: 1.12rem;
-  padding: 0.13rem;
+  width: var(--switch-track-width);
+  height: var(--switch-track-height);
+  padding: var(--switch-thumb-offset);
   border: 1px solid rgba(148, 163, 184, 0.44);
   border-radius: 999px;
   background: rgba(3, 7, 12, 0.62);
@@ -1687,8 +1713,8 @@ label > .checkbox-list {
 
 .playtest-hotspot-visibility-toggle__thumb {
   display: block;
-  width: 0.74rem;
-  height: 0.74rem;
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
   border-radius: 999px;
   background: #d6e1ea;
   box-shadow:
@@ -1712,21 +1738,17 @@ label > .checkbox-list {
 }
 
 .playtest-hotspot-visibility-toggle input:checked + .playtest-hotspot-visibility-toggle__track {
-  border-color: rgba(246, 193, 119, 0.86);
-  background:
-    linear-gradient(90deg, rgba(246, 193, 119, 0.32), rgba(125, 211, 252, 0.18)),
-    rgba(49, 33, 10, 0.74);
-  box-shadow:
-    inset 0 1px 4px rgba(0, 0, 0, 0.26),
-    0 0 0 3px rgba(246, 193, 119, 0.1);
+  border-color: #f6c177;
+  background: #f6c177;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24);
 }
 
 .playtest-hotspot-visibility-toggle input:checked + .playtest-hotspot-visibility-toggle__track .playtest-hotspot-visibility-toggle__thumb {
-  background: #f6c177;
+  background: #101820;
   box-shadow:
-    0 2px 8px rgba(246, 193, 119, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  transform: translateX(1.03rem);
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translateX(var(--switch-thumb-travel));
 }
 
 .playtest-hotspot-visibility-toggle:has(input:checked) {
@@ -2340,8 +2362,8 @@ label > .checkbox-list {
 }
 
 .scenes-hotspot-duration-toggle {
-  min-height: 2rem;
-  padding: 0.15rem 0;
+  min-height: 1.32rem;
+  padding: 0.1rem 0;
 }
 
 .scenes-hotspot-duration-toggle input:checked {
@@ -3186,8 +3208,10 @@ label > .checkbox-list {
   display: block;
   position: relative;
   box-sizing: border-box;
-  width: 3.18rem;
-  height: 0.94rem;
+  width: var(--switch-track-width);
+  height: var(--switch-track-height);
+  min-height: var(--switch-track-height);
+  padding: 0;
   border: 1px solid rgba(96, 119, 134, 0.48);
   border-radius: 999px;
   overflow: visible;
@@ -3201,9 +3225,9 @@ label > .checkbox-list {
   content: "";
   position: absolute;
   top: 50%;
-  left: 0.02rem;
-  width: 1.24rem;
-  height: 1.24rem;
+  left: var(--switch-thumb-offset);
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
   border: 0;
   border-radius: 999px;
   background: linear-gradient(180deg, #ffffff, #e8f0eb);
@@ -3218,16 +3242,13 @@ label > .checkbox-list {
 }
 
 .app-shell--scene-editor .scenes-floating-inspector__section > .stack-inline > .scenes-hotspot-duration-toggle input:checked {
-  border-color: rgba(126, 210, 116, 0.5);
-  background: linear-gradient(180deg, #6bc765, #50ae4f);
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.16),
-    inset 0 -1px 2px rgba(24, 91, 40, 0.32),
-    0 0 0 1px rgba(0, 0, 0, 0.24);
+  border-color: #4ade80;
+  background: #4ade80;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24);
 }
 
 .app-shell--scene-editor .scenes-floating-inspector__section > .stack-inline > .scenes-hotspot-duration-toggle input:checked::before {
-  transform: translate(1.92rem, -50%);
+  transform: translate(var(--switch-thumb-travel), -50%);
 }
 
 .app-shell--scene-editor .scenes-floating-inspector__section > .stack-inline > .scenes-hotspot-duration-toggle span {
@@ -6307,6 +6328,45 @@ label > .checkbox-list {
   width: 2.2rem;
   border-radius: 0 3px 3px 0;
   color: #9fb0be;
+}
+
+.app-shell--editor-workbench .scenes-panel__scene-audio-loop-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  min-height: 2rem;
+  gap: 0.52rem;
+  padding: 0;
+}
+
+.app-shell--editor-workbench .scenes-panel__scene-audio-loop-toggle input {
+  flex: 0 0 var(--switch-track-width);
+  width: var(--switch-track-width);
+  height: var(--switch-track-height);
+  min-height: var(--switch-track-height);
+  padding: 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.app-shell--editor-workbench .scenes-panel__scene-audio-loop-toggle input:checked {
+  border-color: #f6c177;
+  background: #f6c177;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.24);
+}
+
+.app-shell--editor-workbench .scenes-panel__scene-audio-loop-toggle input:checked::before {
+  background: #101820;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.app-shell--editor-workbench .scenes-panel__scene-audio-loop-toggle span {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--switch-track-height);
+  line-height: 1;
 }
 
 .app-shell--editor-workbench :where(input, textarea, select):focus,
