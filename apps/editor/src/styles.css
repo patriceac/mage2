@@ -2609,7 +2609,20 @@ label > .checkbox-list {
   color: #d7e1ea;
 }
 
+.scenes-panel__scene-list-item::before {
+  content: "";
+  position: absolute;
+  inset: 0.55rem auto 0.55rem 0.22rem;
+  width: 2px;
+  border-radius: 999px;
+  background: #28c6f2;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .scenes-panel__scene-list-main {
+  -webkit-appearance: none;
+  appearance: none;
   display: grid;
   grid-template-columns: 3.25rem minmax(0, 1fr);
   align-items: center;
@@ -2618,6 +2631,7 @@ label > .checkbox-list {
   min-height: 3.85rem;
   padding: 0.45rem 0.35rem 0.45rem 0.55rem;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   text-align: left;
@@ -2625,14 +2639,27 @@ label > .checkbox-list {
 
 .scenes-panel__scene-list-item:hover,
 .scenes-panel__scene-list-item--active {
-  border-color: rgba(23, 183, 216, 0.42);
-  background: linear-gradient(90deg, rgba(23, 119, 168, 0.38), rgba(23, 119, 168, 0.18));
+  border-color: transparent;
+  background: linear-gradient(90deg, rgba(23, 119, 168, 0.34), rgba(23, 119, 168, 0.14));
+}
+
+.scenes-panel__scene-list-item--active::before {
+  opacity: 1;
+}
+
+.scenes-panel__scene-list-item:has(.scenes-panel__scene-list-main:focus-visible),
+.scenes-panel__scene-list-item:has(.scenes-panel__scene-list-action:focus-visible) {
+  box-shadow: inset 0 0 0 1px rgba(38, 195, 255, 0.58);
 }
 
 .scenes-panel__scene-list-main:focus-visible,
 .scenes-panel__scene-list-action:focus-visible {
-  outline: 2px solid rgba(38, 195, 255, 0.86);
-  outline-offset: -2px;
+  outline: 0;
+}
+
+.scenes-panel__scene-list-main:hover,
+.scenes-panel__scene-list-main:active {
+  background: transparent;
 }
 
 .scenes-panel__scene-thumb {
@@ -2640,7 +2667,7 @@ label > .checkbox-list {
   width: 3.25rem;
   height: 2.35rem;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
   background: #0b1117;
 }
@@ -2696,10 +2723,13 @@ label > .checkbox-list {
 }
 
 .scenes-panel__scene-list-action {
+  -webkit-appearance: none;
+  appearance: none;
   display: inline-grid;
   place-items: center;
   width: 1.8rem;
   height: 2.2rem;
+  padding: 0;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -2708,7 +2738,7 @@ label > .checkbox-list {
 
 .scenes-panel__scene-list-action:hover,
 .scenes-panel__scene-list-action--open {
-  background: rgba(255, 255, 255, 0.09);
+  background: transparent;
   color: #e5f1fa;
 }
 
@@ -6791,7 +6821,8 @@ label > .checkbox-list {
   box-shadow: 0 0 0 1px rgba(23, 183, 216, 0.24);
 }
 
-.app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+.app-shell--editor-workbench
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
   min-height: 2rem;
   border: 1px solid rgba(108, 128, 145, 0.28);
   border-radius: 4px;
@@ -6802,14 +6833,17 @@ label > .checkbox-list {
   font-weight: 600;
 }
 
-.app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+.app-shell--editor-workbench
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
   border-color: rgba(23, 183, 216, 0.44);
   background: rgba(23, 119, 168, 0.22);
   color: #f4fbff;
 }
 
-.app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):disabled,
-.app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):disabled:hover {
+.app-shell--editor-workbench
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
+.app-shell--editor-workbench
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
   border-color: rgba(108, 128, 145, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: #708190;

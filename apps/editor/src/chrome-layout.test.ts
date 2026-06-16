@@ -64,7 +64,7 @@ describe("editor chrome styles", () => {
     expect(styles).not.toContain(".playtest-inventory-tray::before");
     expect(styles).toMatch(/\.playtest-inventory-slot\s*\{[\s\S]*?border: 0;[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;[\s\S]*?\}/);
     expect(styles).toContain(
-      ".app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {"
+      "button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {"
     );
     expect(styles).toContain(".playtest-inventory-slot__well {");
     expect(styles).toContain("border: 0;");
