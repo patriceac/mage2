@@ -271,8 +271,9 @@ export function LocalizationPanel({
   }
 
   async function handleImportVariant(asset: Asset) {
+    const variantAction = getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added";
     const filePaths = await dialogs.pickFiles({
-      title: `${getLocalizedAssetVariant(asset, activeLocale) ? "Replace" : "Add"} ${activeLocale} Variant`,
+      title: `${variantAction === "Updated" ? "Replace" : "Add"} ${activeLocale} Variant`,
       description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
       initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
       confirmLabel: "Use This File",
@@ -291,17 +292,14 @@ export function LocalizationPanel({
 
       setBusyLabel("Updating localized media");
       const updatedAsset = await window.editorApi.importAssetVariant(projectDir, asset, activeLocale, filePath);
-      const nextProject = structuredClone(project) as ProjectBundle;
-      const index = nextProject.assets.assets.findIndex((entry) => entry.id === asset.id);
-      if (index >= 0) {
-        nextProject.assets.assets[index] = updatedAsset;
-      }
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      setSavedProject(result.project);
+      mutateProject((draft) => {
+        const index = draft.assets.assets.findIndex((entry) => entry.id === asset.id);
+        if (index >= 0) {
+          draft.assets.assets[index] = updatedAsset;
+        }
+      });
       setSelectedAssetId(asset.id);
-      setStatusMessage(
-        `${getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added"} ${activeLocale} variant for ${asset.name}.`
-      );
+      setStatusMessage(`${variantAction} ${activeLocale} variant for ${asset.name}. Save the project to keep this change.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`Variant import failed: ${message}`);

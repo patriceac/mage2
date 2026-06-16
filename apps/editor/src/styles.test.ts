@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const workbenchSharedButtonSelector =
-  ".app-shell--editor-workbench button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
+  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const pendingSaveButtonSelector =
   ".app-shell--editor-workbench\n  button.titlebar-shell__save-button.titlebar-shell__save-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
 
@@ -98,6 +98,16 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toMatch(
       /\.playtest-hotspot-visibility-toggle__thumb\s*\{[\s\S]*?width: var\(--switch-thumb-size\);[\s\S]*?height: var\(--switch-thumb-size\);/
     );
+    expect(styles).toContain(".scenes-panel__playhead-row {");
+    expect(styles).toMatch(
+      /\.scenes-panel__background-loop-toggle input\s*\{[\s\S]*?position: absolute;[\s\S]*?inset: 0;[\s\S]*?opacity: 0;/
+    );
+    expect(styles).toMatch(
+      /\.scene-video-loop-toggle__track\s*\{[\s\S]*?width: var\(--switch-track-width\);[\s\S]*?height: var\(--switch-track-height\);/
+    );
+    expect(styles).toMatch(
+      /\.scene-video-loop-toggle__thumb\s*\{[\s\S]*?width: var\(--switch-thumb-size\);[\s\S]*?height: var\(--switch-thumb-size\);/
+    );
     expect(styles).toMatch(
       /\.app-shell--scene-editor \.scenes-floating-inspector__section > \.stack-inline > \.scenes-hotspot-duration-toggle input\s*\{[\s\S]*?width: var\(--switch-track-width\);[\s\S]*?height: var\(--switch-track-height\);[\s\S]*?min-height: var\(--switch-track-height\);[\s\S]*?padding: 0;/
     );
@@ -115,6 +125,9 @@ describe("hotspot idle visibility styles", () => {
     );
     expect(styles).toMatch(
       /\.playtest-hotspot-visibility-toggle input:checked \+ \.playtest-hotspot-visibility-toggle__track\s*\{[\s\S]*?border-color: #f6c177;[\s\S]*?background: #f6c177;[\s\S]*?box-shadow: inset 0 1px 3px rgba\(0, 0, 0, 0\.24\);/
+    );
+    expect(styles).toMatch(
+      /\.scenes-panel__background-loop-toggle input:checked \+ \.scene-video-loop-toggle__track\s*\{[\s\S]*?border-color: #f6c177;[\s\S]*?background: #f6c177;[\s\S]*?box-shadow: inset 0 1px 3px rgba\(0, 0, 0, 0\.24\);/
     );
     expect(styles).toMatch(
       /\.app-shell--editor-workbench \.scenes-panel__scene-audio-loop-toggle input:checked\s*\{[\s\S]*?border-color: #f6c177;[\s\S]*?background: #f6c177;[\s\S]*?box-shadow: inset 0 1px 3px rgba\(0, 0, 0, 0\.24\);/
@@ -176,7 +189,7 @@ describe("hotspot idle visibility styles", () => {
 
     expect(sharedButtonRule).toBeGreaterThan(-1);
     expect(pendingSaveRule).toBeGreaterThan(sharedButtonRule);
-    expect(resolveSelectorSpecificityScore(pendingSaveButtonSelector)).toBeGreaterThan(
+    expect(resolveSelectorSpecificityScore(pendingSaveButtonSelector)).toBeGreaterThanOrEqual(
       resolveSelectorSpecificityScore(workbenchSharedButtonSelector)
     );
     expect(styles).toMatch(

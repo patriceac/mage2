@@ -32,7 +32,11 @@ const editorApi = {
     existingAssets: Asset[],
     filePaths: string[],
     category?: AssetCategory
-  ): Promise<{ importedAssets: Asset[]; duplicateFilePaths: string[] }> =>
+  ): Promise<{
+    importedAssets: Asset[];
+    duplicateFilePaths: string[];
+    duplicateAssets: Array<{ filePath: string; assetId: string }>;
+  }> =>
     ipcRenderer.invoke("mage2:import-assets", projectDir, locale, existingAssets, filePaths, category),
   importAssetVariant: (projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset> =>
     ipcRenderer.invoke("mage2:import-asset-variant", projectDir, asset, locale, filePath),

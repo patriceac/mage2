@@ -4,8 +4,10 @@ import {
   SCENE_AUDIO_IMPORT_EXTENSIONS,
   classifyImportAssetPaths,
   isBackgroundImportPath,
+  isImageImportPath,
   isInventoryImageImportPath,
-  isSceneAudioImportPath
+  isSceneAudioImportPath,
+  isVideoImportPath
 } from "./asset-file-types";
 
 describe("classifyImportAssetPaths", () => {
@@ -57,6 +59,15 @@ describe("isBackgroundImportPath", () => {
     expect(isBackgroundImportPath("C:\\media\\scene.PNG")).toBe(true);
     expect(isBackgroundImportPath("C:\\media\\scene.mp3")).toBe(false);
     expect(isBackgroundImportPath("C:\\media\\scene.txt")).toBe(false);
+  });
+});
+
+describe("dedicated visual import path checks", () => {
+  it("distinguishes videos from images for scene background rules", () => {
+    expect(isVideoImportPath("C:\\media\\scene.mp4")).toBe(true);
+    expect(isVideoImportPath("C:\\media\\scene.png")).toBe(false);
+    expect(isImageImportPath("C:\\media\\scene.PNG")).toBe(true);
+    expect(isImageImportPath("C:\\media\\scene.webm")).toBe(false);
   });
 });
 

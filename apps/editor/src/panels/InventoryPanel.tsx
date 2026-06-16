@@ -4,14 +4,13 @@ import { INVENTORY_IMAGE_EXTENSIONS, isInventoryImageImportPath } from "../asset
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
 import { setEditorLocalizedText } from "../localized-project";
-import { addAssetRoots, addInventoryItem, cloneProject, isInventoryImageAsset } from "../project-helpers";
+import { addAssetRoots, addInventoryItem, isInventoryImageAsset } from "../project-helpers";
 import { AssetPreview } from "../previews";
 import { useEditorStore } from "../store";
 
 interface InventoryPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
-  setSavedProject: (project: ProjectBundle) => void;
   setStatusMessage: (message: string) => void;
   setBusyLabel: (label?: string) => void;
 }
@@ -19,7 +18,6 @@ interface InventoryPanelProps {
 export function InventoryPanel({
   project,
   mutateProject,
-  setSavedProject,
   setStatusMessage,
   setBusyLabel
 }: InventoryPanelProps) {
@@ -41,7 +39,7 @@ export function InventoryPanel({
       }
 
       setBusyLabel("Importing inventory image");
-      const { importedAssets, duplicateFilePaths } = await window.editorApi.importAssets(
+      const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
         project.assets.assets,
@@ -49,6 +47,24 @@ export function InventoryPanel({
         "inventory"
       );
       if (importedAssets.length === 0) {
+        const duplicateAsset = duplicateAssets[0]
+          ? project.assets.assets.find((entry) => entry.id === duplicateAssets[0]!.assetId)
+          : undefined;
+        if (duplicateAsset) {
+          mutateProject((draft) => {
+            const targetItem = draft.inventory.items.find((entry) => entry.id === itemId);
+            if (targetItem) {
+              targetItem.imageAssetId = duplicateAsset.id;
+            }
+          });
+          setSelectedInventoryItemId(itemId);
+          setSelectedAssetId(duplicateAsset.id);
+          setStatusMessage(
+            `Assigned existing ${duplicateAsset.name} to ${itemName}. Save the project to keep this change.`
+          );
+          return;
+        }
+
         if (duplicateFilePaths.length > 0) {
           setStatusMessage("That file already exists as an inventory asset. Choose it from the item image picker.");
         } else {
@@ -58,22 +74,18 @@ export function InventoryPanel({
       }
 
       const importedAsset = importedAssets[0]!;
-      const nextProject = cloneProject(project);
-      addAssetRoots(nextProject, [importedAsset]);
-      nextProject.assets.assets.push(importedAsset);
-      const targetItem = nextProject.inventory.items.find((entry) => entry.id === itemId);
-      if (targetItem) {
-        targetItem.imageAssetId = importedAsset.id;
-      }
-
-      const result = await window.editorApi.saveProject(projectDir, nextProject);
-      setSavedProject(result.project);
+      mutateProject((draft) => {
+        addAssetRoots(draft, [importedAsset]);
+        draft.assets.assets.push(importedAsset);
+        const targetItem = draft.inventory.items.find((entry) => entry.id === itemId);
+        if (targetItem) {
+          targetItem.imageAssetId = importedAsset.id;
+        }
+      });
       setSelectedInventoryItemId(itemId);
       setSelectedAssetId(importedAsset.id);
       setStatusMessage(
-        result.validationReport.valid
-          ? `Assigned ${importedAsset.name} to ${itemName}.`
-          : `Assigned ${importedAsset.name} to ${itemName}, saved with ${result.validationReport.issues.length} validation issue(s).`
+        `Imported ${importedAsset.name} and assigned it to ${itemName}. Save the project to keep this change.`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

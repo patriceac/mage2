@@ -169,6 +169,7 @@ describe("importAssetsToProject", () => {
 
     expect(result.importedAssets).toEqual([]);
     expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
+    expect(result.duplicateAssets).toEqual([{ filePath: duplicateSourcePath, assetId: existingAsset.id }]);
   });
 
   it("detects duplicate scene-audio imports by content hash", async () => {
@@ -190,6 +191,7 @@ describe("importAssetsToProject", () => {
     expect(existingAsset.category).toBe("sceneAudio");
     expect(result.importedAssets).toEqual([]);
     expect(result.duplicateFilePaths).toEqual([duplicateSourcePath]);
+    expect(result.duplicateAssets).toEqual([{ filePath: duplicateSourcePath, assetId: existingAsset.id }]);
   });
 
   it("generates proxy files immediately for newly imported assets", async () => {
@@ -206,6 +208,7 @@ describe("importAssetsToProject", () => {
     const variant = importedAsset?.variants.en;
 
     expect(result.duplicateFilePaths).toEqual([]);
+    expect(result.duplicateAssets).toEqual([]);
     expect(importedAsset).toBeDefined();
     expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${importedAsset!.id}.en.png`));
     expect(variant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", `${importedAsset!.id}.en.thumb.png`));

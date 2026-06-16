@@ -95,6 +95,10 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".scenes-panel__hotspot-actions {");
     expect(styles).toContain(".scenes-panel__scene-actions-menu {");
     expect(styles).toContain(".scenes-panel__background-dropzone-hint {");
+    expect(styles).toContain(".scenes-panel__background-dropzone--active .media-surface__placeholder,");
+    expect(styles).toContain("visibility: hidden;");
+    expect(styles).toContain(".scenes-panel__scene-audio-disabled {");
+    expect(styles).toContain("padding: 0.65rem 0.75rem;");
     expect(styles).toContain(".app-shell--scene-editor .scenes-panel__tool-button--danger:disabled svg {");
     expect(styles).toContain("color: inherit;");
   });

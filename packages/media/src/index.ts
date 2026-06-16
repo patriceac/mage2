@@ -24,6 +24,10 @@ export interface DeleteManagedAssetFilesResult {
 export interface ImportAssetsToProjectResult {
   importedAssets: Asset[];
   duplicateFilePaths: string[];
+  duplicateAssets: Array<{
+    filePath: string;
+    assetId: string;
+  }>;
 }
 
 export interface AssetImportOptions {
@@ -137,17 +141,23 @@ export async function importAssetsToProject(
     options.category === undefined
       ? existingAssets
       : existingAssets.filter((asset) => resolveAssetCategory(asset) === options.category);
-  const existingHashes = new Set(
-    (await Promise.all(existingCategoryAssets.map((asset) => collectAssetVariantSha256s(asset)))).flat().filter(isDefined)
-  );
+  const existingAssetsBySha256 = await collectAssetSha256Map(existingCategoryAssets);
   const seenImportHashes = new Set<string>();
   const importedAssets: Asset[] = [];
   const duplicateFilePaths: string[] = [];
+  const duplicateAssets: ImportAssetsToProjectResult["duplicateAssets"] = [];
 
   for (const filePath of filePaths) {
     const sha256 = await computeFileSha256(filePath);
-    if (existingHashes.has(sha256) || seenImportHashes.has(sha256)) {
+    const duplicateAsset = existingAssetsBySha256.get(sha256);
+    if (duplicateAsset || seenImportHashes.has(sha256)) {
       duplicateFilePaths.push(filePath);
+      if (duplicateAsset) {
+        duplicateAssets.push({
+          filePath,
+          assetId: duplicateAsset.id
+        });
+      }
       continue;
     }
 
@@ -164,7 +174,8 @@ export async function importAssetsToProject(
 
   return {
     importedAssets,
-    duplicateFilePaths
+    duplicateFilePaths,
+    duplicateAssets
   };
 }
 
@@ -665,6 +676,21 @@ function collectReferencedPaths(assets: Asset[]): Set<string> {
 
 async function collectAssetVariantSha256s(asset: Asset): Promise<Array<string | undefined>> {
   return Promise.all(Object.values(asset.variants).map((variant) => resolveAssetVariantSha256(variant)));
+}
+
+async function collectAssetSha256Map(assets: Asset[]): Promise<Map<string, Asset>> {
+  const assetsBySha256 = new Map<string, Asset>();
+
+  for (const asset of assets) {
+    const sha256s = await collectAssetVariantSha256s(asset);
+    for (const sha256 of sha256s) {
+      if (sha256 && !assetsBySha256.has(sha256)) {
+        assetsBySha256.set(sha256, asset);
+      }
+    }
+  }
+
+  return assetsBySha256;
 }
 
 async function resolveAssetVariantSha256(variant: AssetVariant): Promise<string | undefined> {

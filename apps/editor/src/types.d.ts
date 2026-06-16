@@ -63,6 +63,7 @@ declare global {
       ): Promise<{
         importedAssets: Asset[];
         duplicateFilePaths: string[];
+        duplicateAssets: Array<{ filePath: string; assetId: string }>;
       }>;
       importAssetVariant(projectDir: string, asset: Asset, locale: string, filePath: string): Promise<Asset>;
       generateProxy(projectDir: string, asset: Asset, locale: string): Promise<Asset>;

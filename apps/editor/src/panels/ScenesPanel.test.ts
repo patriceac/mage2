@@ -5,6 +5,8 @@ import { createDefaultProjectBundle, resolveHotspotInventoryAction, type Project
 import { DialogProvider } from "../dialogs";
 import {
   ScenesPanel,
+  applySceneBackgroundAsset,
+  canAssignSceneBackgroundAsset,
   applyHotspotInventoryAction,
   applyInventoryLinkToHotspot,
   filterInventoryPlacementOptions,
@@ -23,6 +25,7 @@ import {
   resolveInventoryDragPreviewOffset,
   resolveInventoryPreviewContentSize,
   resolveLinkedInventoryOptions,
+  resolveSceneAudioDropAcceptance,
   shouldApplyHotspotInspectorOpenRequest,
   shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleHotspotTransformShortcut,
@@ -87,7 +90,6 @@ function renderScenesPanel(
       React.createElement(ScenesPanel, {
         project,
         mutateProject: () => {},
-        setSavedProject: () => {},
         setStatusMessage: () => {},
         setBusyLabel: () => {}
       })
@@ -145,6 +147,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Delay (ms)</span>");
     expect(markup).toContain("scenes-panel__scene-audio-frame");
     expect(markup).toContain("scenes-panel__scene-audio-settings");
+    expect(markup).toContain("scenes-panel__playhead-row scenes-panel__playhead-row--audio");
     expect(markup).not.toContain("Drop image or video on the preview to replace this scene's background.");
     expect(markup).not.toContain("Loop scene audio");
     expect(markup).not.toContain("Start/Restart Delay (ms)");
@@ -153,6 +156,86 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain(">Playback</span>");
     expect(markup.indexOf("Clear audio")).toBeLessThan(markup.indexOf(">Delay (ms)</span>"));
     expect(markup.indexOf(">Delay (ms)</span>")).toBeLessThan(markup.indexOf(">Loop</span>"));
+  });
+
+  it("disables video background choices while scene audio is assigned", () => {
+    const markup = renderScenesPanel((project) => {
+      project.assets.assets.push(
+        {
+          id: "asset_background",
+          kind: "image",
+          name: "background.png",
+          variants: {
+            en: {
+              sourcePath: "D:\\project\\assets\\background.png",
+              importedAt: new Date().toISOString()
+            }
+          }
+        },
+        {
+          id: "asset_video",
+          kind: "video",
+          name: "intro.mp4",
+          variants: {
+            en: {
+              sourcePath: "D:\\project\\assets\\intro.mp4",
+              importedAt: new Date().toISOString(),
+              durationMs: 5000
+            }
+          }
+        },
+        {
+          id: "asset_scene_audio",
+          kind: "audio",
+          name: "ambience.mp3",
+          category: "sceneAudio",
+          variants: {
+            en: {
+              sourcePath: "D:\\project\\assets\\ambience.mp3",
+              importedAt: new Date().toISOString()
+            }
+          }
+        }
+      );
+      project.scenes.items[0].backgroundAssetId = "asset_background";
+      project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+    });
+
+    const imageOption = markup.match(/<option[^>]*value="asset_background"[^>]*>background\.png<\/option>/)?.[0];
+    const videoOption = markup.match(/<option[^>]*value="asset_video"[^>]*>intro\.mp4<\/option>/)?.[0];
+
+    expect(imageOption).toBeDefined();
+    expect(imageOption).not.toContain('disabled=""');
+    expect(videoOption).toBeDefined();
+    expect(videoOption).toContain('disabled=""');
+    expect(markup).toContain("Clear scene audio before choosing a video background.");
+    expect(markup).toContain("Create a new image background asset and assign it to this scene.");
+  });
+
+  it("keeps the empty scene-audio drop target compact", () => {
+    const markup = renderScenesPanel((project) => {
+      project.assets.assets.push({
+        id: "asset_background",
+        kind: "image",
+        name: "background.png",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\background.png",
+            importedAt: new Date().toISOString()
+          }
+        }
+      });
+      project.scenes.items[0].backgroundAssetId = "asset_background";
+      project.scenes.items[0].sceneAudioAssetId = undefined;
+    });
+
+    expect(markup).toContain("Drop scene audio here");
+    expect(markup).toContain("scenes-panel__scene-audio-dropzone--empty");
+    expect(markup).not.toContain("scenes-panel__scene-audio-frame");
+    expect(markup).not.toContain("Clear audio");
+    expect(markup).not.toContain(">Delay (ms)</span>");
+    expect(markup).not.toContain("scenes-panel__playhead-row");
+    expect(markup).not.toContain(">Playhead ");
   });
 
   it("renders a merged scene switcher and removes the standalone scene-name field", () => {
@@ -514,9 +597,116 @@ describe("ScenesPanel scene audio UI", () => {
     });
 
     expect(markup).toContain("Scene audio imports are disabled while this scene uses a video background.");
-    expect(markup).toContain(
-      "Scene audio only plays when the background is an image. Clear the scene audio or switch back to an image background to resolve validation errors."
+    expect(markup).toContain("Scene audio unavailable for video backgrounds");
+    expect(markup).toContain("Use an image background to import or play a separate audio file.");
+    expect(markup).toContain("Assigned for reference: ambience.mp3");
+    expect(markup).toContain("scenes-panel__scene-audio-disabled");
+    expect(markup).not.toContain("Drop scene audio here");
+    expect(markup).not.toContain("scenes-panel__scene-audio-frame");
+    expect(markup).not.toContain("Assign or drop an audio file here to attach optional scene audio.");
+
+    const sceneAudioLabelIndex = markup.indexOf(">Scene Audio</span>");
+    const sceneAudioSelectIndex = markup.indexOf("<select", sceneAudioLabelIndex);
+    const sceneAudioSelectTag = markup.slice(sceneAudioSelectIndex, markup.indexOf(">", sceneAudioSelectIndex) + 1);
+    expect(sceneAudioSelectTag).toContain('disabled=""');
+  });
+
+  it("refuses non-audio files in the scene-audio drop area", () => {
+    expect(resolveSceneAudioDropAcceptance([{ filePath: "D:\\project\\poster.png", mimeType: "image/png" }])).toBe(
+      "reject"
     );
+    expect(resolveSceneAudioDropAcceptance([{ filePath: "D:\\project\\clip.mp4", mimeType: "video/mp4" }])).toBe(
+      "reject"
+    );
+    expect(resolveSceneAudioDropAcceptance([{ filePath: "D:\\project\\ambience.mp3", mimeType: "" }])).toBe("accept");
+    expect(resolveSceneAudioDropAcceptance([{ mimeType: "audio/mpeg" }])).toBe("accept");
+    expect(resolveSceneAudioDropAcceptance([{}])).toBe("unknown");
+  });
+
+  it("blocks video background assignment while scene audio is assigned", () => {
+    const scene = {
+      backgroundAssetId: "asset_image",
+      sceneAudioAssetId: "asset_scene_audio"
+    };
+
+    const didApply = applySceneBackgroundAsset(scene, "asset_video", "video");
+
+    expect(didApply).toBe(false);
+    expect(scene).toEqual({
+      backgroundAssetId: "asset_image",
+      sceneAudioAssetId: "asset_scene_audio"
+    });
+    expect(canAssignSceneBackgroundAsset(scene, "video")).toBe(false);
+  });
+
+  it("keeps scene audio when an image background is assigned", () => {
+    const scene = {
+      backgroundAssetId: "asset_video",
+      sceneAudioAssetId: "asset_scene_audio"
+    };
+
+    const didApply = applySceneBackgroundAsset(scene, "asset_image", "image");
+
+    expect(didApply).toBe(true);
+    expect(scene).toEqual({
+      backgroundAssetId: "asset_image",
+      sceneAudioAssetId: "asset_scene_audio"
+    });
+  });
+
+  it("allows video background assignment when no scene audio is assigned", () => {
+    const scene = {
+      backgroundAssetId: "asset_image",
+      sceneAudioAssetId: undefined
+    };
+
+    const didApply = applySceneBackgroundAsset(scene, "asset_video", "video");
+
+    expect(didApply).toBe(true);
+    expect(scene).toEqual({
+      backgroundAssetId: "asset_video",
+      sceneAudioAssetId: undefined
+    });
+  });
+
+  it("renders the background video playhead in the Scene media controls", () => {
+    const markup = renderScenesPanel((project) => {
+      project.assets.assets.push({
+        id: "asset_video",
+        kind: "video",
+        name: "intro.mp4",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\intro.mp4",
+            importedAt: new Date().toISOString(),
+            durationMs: 5000
+          }
+        }
+      });
+      project.scenes.items[0].backgroundAssetId = "asset_video";
+      project.scenes.items[0].backgroundVideoLoop = true;
+    });
+
+    const sceneMediaIndex = markup.indexOf(">Scene media</span>");
+    const sceneAudioIndex = markup.indexOf(">Scene Audio</span>", sceneMediaIndex);
+    const detailsRowIndex = markup.indexOf('class="scenes-panel__details-row"');
+    const playheadRowIndex = markup.indexOf('class="scenes-panel__playhead-row scenes-panel__playhead-row--video"');
+    const playheadTrackIndex = markup.indexOf('class="scenes-panel__playhead-range"', playheadRowIndex);
+    const loopToggleIndex = markup.indexOf('class="scene-video-loop-toggle scenes-panel__background-loop-toggle"', playheadRowIndex);
+
+    expect(sceneMediaIndex).toBeGreaterThan(-1);
+    expect(sceneAudioIndex).toBeGreaterThan(sceneMediaIndex);
+    expect(detailsRowIndex).toBeGreaterThan(-1);
+    expect(playheadRowIndex).toBeGreaterThan(-1);
+    expect(playheadRowIndex).toBeGreaterThan(detailsRowIndex);
+    expect(playheadRowIndex).toBeGreaterThan(sceneAudioIndex);
+    expect(playheadTrackIndex).toBeGreaterThan(playheadRowIndex);
+    expect(loopToggleIndex).toBeGreaterThan(playheadTrackIndex);
+    expect(markup).toContain('aria-label="Loop background video indefinitely"');
+    expect(markup).toContain("scene-video-loop-toggle__track");
+    expect(markup).toContain("scene-video-loop-toggle__thumb");
+    expect(markup).toContain(">Loop video</span>");
+    expect(markup).not.toContain(">Loop background video indefinitely</span>");
   });
 
   it("renders the hotspot inspector as a floating window when a hotspot is selected", () => {

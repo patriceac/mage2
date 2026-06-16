@@ -1049,7 +1049,6 @@ export function App() {
                   project={project}
                   mutateProject={mutateProject}
                   hotspotInspectorOpenRequest={hotspotInspectorOpenRequest}
-                  setSavedProject={replaceSavedProject}
                   setStatusMessage={setStatusMessage}
                   setBusyLabel={setBusyLabel}
                 />
@@ -1080,7 +1079,6 @@ export function App() {
                 <InventoryPanel
                   project={project}
                   mutateProject={mutateProject}
-                  setSavedProject={replaceSavedProject}
                   setStatusMessage={setStatusMessage}
                   setBusyLabel={setBusyLabel}
                 />

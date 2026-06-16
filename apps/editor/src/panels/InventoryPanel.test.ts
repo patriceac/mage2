@@ -38,7 +38,6 @@ describe("InventoryPanel locale behavior", () => {
         React.createElement(InventoryPanel, {
           project,
           mutateProject: () => {},
-          setSavedProject: () => {},
           setStatusMessage: () => {},
           setBusyLabel: () => {}
         })
