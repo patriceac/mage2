@@ -72,6 +72,20 @@ describe("addLocation and addScene", () => {
   });
 });
 
+describe("addInventoryItem", () => {
+  it("adds new inventory items before older items", () => {
+    const project = createDefaultProjectBundle("Inventory ordering");
+
+    const firstItem = addInventoryItem(project);
+    const secondItem = addInventoryItem(project);
+
+    expect(project.inventory.items.map((item) => item.id)).toEqual([secondItem.id, firstItem.id]);
+    expect(project.inventory.items.map((item) => item.name)).toEqual(["Item 2", "Item 1"]);
+    expect(getDefaultStrings(project)[firstItem.textId]).toBe("Item 1");
+    expect(getDefaultStrings(project)[secondItem.textId]).toBe("Item 2");
+  });
+});
+
 describe("addHotspot", () => {
   it("keeps hotspot numbers increasing after earlier hotspots are deleted", () => {
     const project = createDefaultProjectBundle("Hotspot numbering");

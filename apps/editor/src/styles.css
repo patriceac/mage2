@@ -178,6 +178,11 @@ label > .checkbox-list {
   background: #080d12;
 }
 
+.app-shell--editor-workbench > *,
+.app-shell--scene-editor > * {
+  min-width: 0;
+}
+
 .app-region-no-drag,
 .app-region-no-drag * {
   app-region: no-drag;
@@ -621,6 +626,9 @@ label > .checkbox-list {
 
 .app-shell--editor-workbench .editor-scroll-region {
   background: #0b1218;
+  min-width: 0;
+  width: 100%;
+  max-width: 100vw;
   padding: 0.72rem;
 }
 
@@ -7326,6 +7334,7 @@ label > .checkbox-list {
 .app-shell--editor-workbench {
   --workbench-bg: #0b1218;
   --workbench-rail: #101820;
+  --workbench-rail-strong: #121d26;
   --workbench-panel: #111a22;
   --workbench-panel-soft: rgba(255, 255, 255, 0.03);
   --workbench-control: #0f171f;
@@ -7351,6 +7360,14 @@ label > .checkbox-list {
 .app-shell--editor-workbench .panel {
   gap: 0.75rem;
   padding: 0.75rem;
+}
+
+.app-shell--editor-workbench .panel-grid:not(.panel-grid--single) {
+  gap: 0.75rem;
+}
+
+.app-shell--editor-workbench .panel-grid--single {
+  gap: 0;
 }
 
 .app-shell--editor-workbench.app-shell--scene-editor .scenes-panel {
@@ -7621,6 +7638,30 @@ label > .checkbox-list {
   color: rgba(231, 166, 176, 0.38);
 }
 
+.app-shell--editor-workbench .assets-panel,
+.app-shell--editor-workbench .inventory-panel,
+.app-shell--editor-workbench .panel-grid--playtest > .panel:first-child {
+  min-height: calc(100vh - 6.9rem);
+  max-height: calc(100vh - 6.9rem);
+  overflow: auto;
+}
+
+.app-shell--editor-workbench .panel-grid--assets > aside.panel {
+  align-self: start;
+  max-height: calc(100vh - 6.9rem);
+  overflow: auto;
+}
+
+.app-shell--editor-workbench .assets-panel,
+.app-shell--editor-workbench .inventory-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.app-shell--editor-workbench .assets-panel > .list-stack,
+.app-shell--editor-workbench .inventory-panel > :not(.panel__toolbar) {
+  min-height: 0;
+}
+
 .app-shell--editor-workbench .issues-sidebar {
   max-height: calc(100vh - 6.9rem);
   border-radius: 8px;
@@ -7741,7 +7782,7 @@ label > .checkbox-list {
 }
 
 .app-shell--editor-workbench .panel-grid--dialogue {
-  grid-template-columns: minmax(13.5rem, 16.5rem) minmax(26rem, 1fr) minmax(18rem, 20rem);
+  grid-template-columns: minmax(13.5rem, 16.5rem) minmax(0, 1fr) minmax(18rem, 20rem);
 }
 
 .app-shell--editor-workbench .panel-grid--localization {
@@ -7750,6 +7791,17 @@ label > .checkbox-list {
 
 .app-shell--editor-workbench .panel-grid--playtest {
   grid-template-columns: minmax(0, 1.35fr) minmax(21rem, 0.78fr);
+}
+
+.app-shell--editor-workbench .panel-grid--assets > aside.panel,
+.app-shell--editor-workbench .panel-grid--playtest > aside.panel,
+.app-shell--editor-workbench .dialogue-library,
+.app-shell--editor-workbench .dialogue-launch-panel,
+.app-shell--editor-workbench .localization-context,
+.app-shell--editor-workbench .world-panel__details {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 9rem),
+    var(--workbench-rail);
 }
 
 .app-shell--editor-workbench .panel--flow {
@@ -7909,15 +7961,31 @@ label > .checkbox-list {
 }
 
 .app-shell--editor-workbench .list-card {
+  position: relative;
   gap: 0.62rem;
   padding: 0.72rem;
 }
 
 .app-shell--editor-workbench .list-card--selected,
-.app-shell--editor-workbench .localization-entry--selected {
+.app-shell--editor-workbench .localization-entry--selected,
+.app-shell--editor-workbench .dialogue-library-item--selected,
+.app-shell--editor-workbench .dialogue-line-card--selected {
   border-color: rgba(23, 183, 216, 0.68);
   background: linear-gradient(90deg, rgba(23, 119, 168, 0.3), rgba(23, 119, 168, 0.12));
   box-shadow: inset 0 0 0 1px rgba(23, 183, 216, 0.2);
+}
+
+.app-shell--editor-workbench .list-card--selected::before,
+.app-shell--editor-workbench .localization-entry--selected::before,
+.app-shell--editor-workbench .dialogue-line-card--selected::before {
+  content: "";
+  position: absolute;
+  inset: 0.55rem auto 0.55rem 0.22rem;
+  width: 3px;
+  border-radius: 999px;
+  background: #27c6ec;
+  box-shadow: 0 0 12px rgba(39, 198, 236, 0.46);
+  pointer-events: none;
 }
 
 .app-shell--editor-workbench .list-stack {
@@ -8020,6 +8088,16 @@ label > .checkbox-list {
   overflow: auto;
 }
 
+.app-shell--editor-workbench .dialogue-workspace {
+  min-height: calc(100vh - 6.9rem);
+}
+
+.app-shell--editor-workbench .dialogue-library,
+.app-shell--editor-workbench .dialogue-builder,
+.app-shell--editor-workbench .dialogue-launch-panel {
+  min-width: 0;
+}
+
 .app-shell--editor-workbench :where(.dialogue-library-item, .dialogue-usage-item, .dialogue-line-card, .dialogue-reply-card, .dialogue-preview-card, .dialogue-start-panel, .dialogue-start-callout, .localization-subtab-strip) {
   border-color: rgba(108, 128, 145, 0.24);
   border-radius: 4px;
@@ -8027,7 +8105,16 @@ label > .checkbox-list {
   box-shadow: none;
 }
 
+.app-shell--editor-workbench .dialogue-library__header {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell--editor-workbench .dialogue-library__header .button-accent {
+  justify-self: stretch;
+}
+
 .app-shell--editor-workbench .dialogue-library-item {
+  position: relative;
   min-height: 3.2rem;
   padding: 0.5rem 0.58rem;
 }
@@ -8036,6 +8123,10 @@ label > .checkbox-list {
 .app-shell--editor-workbench .dialogue-line-card--selected {
   border-color: rgba(23, 183, 216, 0.68);
   background: linear-gradient(90deg, rgba(23, 119, 168, 0.32), rgba(23, 119, 168, 0.14));
+}
+
+.app-shell--editor-workbench .dialogue-library-item--selected {
+  border-left-color: rgba(23, 183, 216, 0.68);
 }
 
 .app-shell--editor-workbench .dialogue-line-card__select {
@@ -8056,6 +8147,11 @@ label > .checkbox-list {
   border-color: rgba(23, 183, 216, 0.18);
   border-radius: 4px;
   background: rgba(4, 8, 12, 0.4);
+}
+
+.app-shell--editor-workbench .dialogue-start-callout {
+  border-color: rgba(246, 163, 19, 0.36);
+  background: rgba(246, 163, 19, 0.08);
 }
 
 .app-shell--editor-workbench .localization-subtab-strip {
@@ -8086,14 +8182,76 @@ label > .checkbox-list {
   scrollbar-color: rgba(108, 128, 145, 0.55) transparent;
 }
 
+.app-shell--editor-workbench .localization-page {
+  gap: 0.75rem;
+}
+
+.app-shell--editor-workbench .localization-shell__header {
+  gap: 0.62rem;
+}
+
+.app-shell--editor-workbench .localization-overview__notice {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  padding: 0.62rem 0.72rem;
+}
+
 .app-shell--editor-workbench .panel-grid--playtest > aside.panel {
   max-height: calc(100vh - 6.9rem);
+}
+
+.app-shell--editor-workbench .panel-grid--playtest > .panel:first-child {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) repeat(5, auto);
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar-field {
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar-field--playhead {
+  top: 0;
+  max-width: none;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar-field--action,
+.app-shell--editor-workbench .playtest-panel__toolbar-field--session,
+.app-shell--editor-workbench .playtest-panel__toolbar-field--toggle {
+  padding-top: 0;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar-button,
+.app-shell--editor-workbench .playtest-panel__toolbar-toggle {
+  min-height: 2.18rem;
+}
+
+.app-shell--editor-workbench .playtest-panel__toolbar-label {
+  color: #b9c5cf;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.app-shell--editor-workbench .playtest-stage {
+  width: min(100%, max(42rem, calc((100vh - 16rem) * 16 / 8.75)));
+  border-radius: 0;
 }
 
 .app-shell--editor-workbench .panel-grid--playtest .playtest-stage .media-surface {
   border-radius: 0;
   border-color: var(--workbench-border-strong);
   background: #05080c;
+}
+
+.app-shell--editor-workbench .scene-audio-strip {
+  border-color: rgba(108, 128, 145, 0.24);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 @media (max-width: 1100px) {

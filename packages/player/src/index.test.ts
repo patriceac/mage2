@@ -119,6 +119,60 @@ describe("player controller", () => {
     expect(controller.getSnapshot().flags.lanternSeen).toBe(true);
   });
 
+  it("adds newly picked up inventory items before older items", () => {
+    const project = createDefaultProjectBundle();
+    const scene = project.scenes.items[0]!;
+    project.inventory.items.push(
+      {
+        id: "item_candle",
+        name: "Candle",
+        textId: "text.item_candle.name"
+      },
+      {
+        id: "item_map",
+        name: "Map",
+        textId: "text.item_map.name"
+      }
+    );
+    scene.hotspots = [
+      {
+        id: "hotspot_candle",
+        name: "Candle",
+        x: 0,
+        y: 0,
+        width: 0.1,
+        height: 0.1,
+        startMs: 0,
+        endMs: 30000,
+        timingMode: "sceneDuration",
+        requiredItemIds: [],
+        conditions: [{ type: "always" }],
+        effects: [{ type: "addItem", itemId: "item_candle" }]
+      },
+      {
+        id: "hotspot_map",
+        name: "Map",
+        x: 0.2,
+        y: 0,
+        width: 0.1,
+        height: 0.1,
+        startMs: 0,
+        endMs: 30000,
+        timingMode: "sceneDuration",
+        requiredItemIds: [],
+        conditions: [{ type: "always" }],
+        effects: [{ type: "addItem", itemId: "item_map" }]
+      }
+    ];
+
+    const controller = createPlayerController(project);
+    controller.selectHotspot("hotspot_candle", 1000);
+    controller.selectHotspot("hotspot_map", 1000);
+
+    expect(controller.save().inventory).toEqual(["item_map", "item_candle"]);
+    expect(controller.getSnapshot().inventoryItems.map((item) => item.id)).toEqual(["item_map", "item_candle"]);
+  });
+
   it("allows multiple copies of one inventory item and removes one copy at a time", () => {
     const project = createDefaultProjectBundle();
     const scene = project.scenes.items[0]!;

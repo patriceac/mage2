@@ -140,7 +140,7 @@ export function createPlayerController(
           state.flags[effect.flag] = effect.value;
           break;
         case "addItem":
-          state.inventory.push(effect.itemId);
+          state.inventory.unshift(effect.itemId);
           break;
         case "removeItem":
           state.inventory = removeSingleInventoryItem(state.inventory, effect.itemId);

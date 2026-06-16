@@ -519,7 +519,7 @@ export function addInventoryItem(project: ProjectBundle): InventoryItem {
 
   ensureString(project, textId, item.name);
   ensureString(project, descriptionTextId, `${item.name} description`);
-  project.inventory.items.push(item);
+  project.inventory.items.unshift(item);
   return item;
 }
 
