@@ -48,10 +48,10 @@ import {
 const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "world", label: "World" },
   { id: "scenes", label: "Scenes" },
-  { id: "assets", label: "Assets" },
   { id: "dialogue", label: "Dialogue" },
   { id: "inventory", label: "Inventory" },
   { id: "localization", label: "Localization" },
+  { id: "assets", label: "Assets" },
   { id: "playtest", label: "Playtest" }
 ];
 

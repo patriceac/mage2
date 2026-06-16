@@ -254,15 +254,17 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
             <div className="world-panel__scenes">
               <div className="world-panel__section-header">
                 <h4>Scenes</h4>
-                <button
-                  type="button"
-                  className="world-panel__compact-action world-panel__compact-action--primary"
-                  title={`Add a scene to ${currentLocation.name}.`}
-                  onClick={createSceneInCurrentLocation}
-                >
-                  <WorldPanelIcon kind="sceneAdd" />
-                  <span>Add Scene</span>
-                </button>
+                {currentLocation.sceneIds.length > 0 ? (
+                  <button
+                    type="button"
+                    className="world-panel__compact-action world-panel__compact-action--primary"
+                    title={`Add a scene to ${currentLocation.name}.`}
+                    onClick={createSceneInCurrentLocation}
+                  >
+                    <WorldPanelIcon kind="sceneAdd" />
+                    <span>Add Scene</span>
+                  </button>
+                ) : null}
               </div>
 
               {currentLocation.sceneIds.length > 0 ? (

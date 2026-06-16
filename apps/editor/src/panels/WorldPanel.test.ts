@@ -66,6 +66,15 @@ describe("WorldPanel", () => {
     expect(addSceneIndex).toBeGreaterThan(mapToolbarIndex);
   });
 
+  it("shows one Add Scene action for an empty selected location", () => {
+    const markup = renderWorldPanel((project) => {
+      project.locations.items[0]!.sceneIds = [];
+    });
+
+    expect(markup).toContain("No scenes here");
+    expect(markup.match(/>Add Scene<\/span>/g)).toHaveLength(1);
+  });
+
   it("surfaces missing scene references in the selected location", () => {
     const markup = renderWorldPanel((project) => {
       project.locations.items[0]?.sceneIds.push("scene_missing");

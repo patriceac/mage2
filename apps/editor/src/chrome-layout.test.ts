@@ -121,6 +121,16 @@ describe("editor chrome styles", () => {
     expect(appSource).not.toContain('<nav className="tab-strip tab-strip--chrome app-region-no-drag"');
   });
 
+  it("places Assets between Localization and Playtest in the screen tabs", () => {
+    const localizationTabIndex = appSource.indexOf('{ id: "localization", label: "Localization" }');
+    const assetsTabIndex = appSource.indexOf('{ id: "assets", label: "Assets" }');
+    const playtestTabIndex = appSource.indexOf('{ id: "playtest", label: "Playtest" }');
+
+    expect(localizationTabIndex).toBeGreaterThanOrEqual(0);
+    expect(assetsTabIndex).toBeGreaterThan(localizationTabIndex);
+    expect(playtestTabIndex).toBeGreaterThan(assetsTabIndex);
+  });
+
   it("describes the project save state without implying autosave exists", () => {
     expect(appSource).toContain('hasUnsavedChanges ? "Unsaved changes" : "Saved"');
     expect(appSource).not.toContain("Autosave:");
