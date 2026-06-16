@@ -3710,15 +3710,354 @@ label > .checkbox-list {
   gap: var(--space-md);
 }
 
+.world-panel__workspace {
+  display: grid;
+  grid-template-columns: minmax(13.5rem, 16rem) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
+  align-items: stretch;
+  gap: 0;
+  height: 70vh;
+  min-height: 70vh;
+}
+
+.world-panel__location-rail,
+.world-panel__map-column {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.world-panel__location-rail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.075);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 12rem),
+    rgba(6, 11, 16, 0.72);
+}
+
+.world-panel__rail-header,
+.world-panel__rail-footer,
+.world-panel__map-toolbar,
+.world-panel__section-header,
+.world-panel__details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.world-panel__rail-header {
+  padding: 0.72rem 0.72rem 0.58rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.world-panel__rail-header h3,
+.world-panel__toolbar-title h3,
+.world-panel__details-header h3,
+.world-panel__section-header h4 {
+  margin: 0;
+}
+
+.world-panel__rail-footer {
+  padding: 0.58rem 0.72rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: #93a4b3;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.world-panel__location-list,
+.world-panel__scene-list {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108, 128, 145, 0.55) transparent;
+}
+
+.world-panel__location-list {
+  gap: 0.35rem;
+  padding: 0.58rem;
+}
+
+.world-panel__scene-list {
+  gap: 0.42rem;
+}
+
+.world-panel__location-row,
+.world-panel__scene-row,
+.world-panel__map-node {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid rgba(108, 128, 145, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.024);
+  color: #dbe7ef;
+}
+
+.world-panel__location-row,
+.world-panel__scene-row {
+  width: 100%;
+  text-align: left;
+}
+
+.world-panel__location-row {
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  gap: 0.58rem;
+  padding: 0.62rem;
+}
+
+.world-panel__scene-row {
+  grid-template-columns: 1.25rem minmax(0, 1fr) 1.1rem;
+  gap: 0.62rem;
+  padding: 0.68rem 0.72rem;
+}
+
+.world-panel__scene-row--missing {
+  color: #ffb1b1;
+}
+
+.world-panel__location-row:hover,
+.world-panel__scene-row:hover {
+  border-color: rgba(23, 183, 216, 0.46);
+  background: rgba(23, 119, 168, 0.12);
+}
+
+.world-panel__location-row--selected,
+.world-panel__scene-row--selected {
+  border-color: rgba(23, 183, 216, 0.72);
+  background: linear-gradient(90deg, rgba(23, 119, 168, 0.34), rgba(23, 119, 168, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(23, 183, 216, 0.2);
+}
+
+.world-panel__location-row svg,
+.world-panel__scene-row svg,
+.world-panel__map-node svg,
+.world-panel__compact-action svg,
+.world-panel__toolbar-actions svg,
+.world-panel__empty-state svg,
+.world-panel__stat-grid svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #81ddeb;
+}
+
+.world-panel__compact-action svg,
+.world-panel__toolbar-actions svg,
+.world-panel__empty-state button svg {
+  color: currentColor;
+}
+
+.world-panel__location-row-copy,
+.world-panel__scene-copy,
+.world-panel__map-node-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.world-panel__location-row-copy strong,
+.world-panel__scene-copy strong,
+.world-panel__map-node-copy strong {
+  overflow: hidden;
+  color: #f3f8fb;
+  font-size: 0.88rem;
+  line-height: 1.22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-panel__location-row-copy span,
+.world-panel__scene-copy span,
+.world-panel__map-node-copy span,
+.world-panel__location-row-count {
+  overflow: hidden;
+  color: #93a4b3;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-panel__location-row-count {
+  color: #bfccd6;
+}
+
+.world-panel__map-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.world-panel__toolbar-title {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.world-panel__toolbar-title span {
+  color: #93a4b3;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.world-panel__map-stage {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+}
+
+.world-panel__map-stage > .react-flow {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.world-panel__flow-node .react-flow__handle {
+  display: none;
+}
+
+.world-panel__map-node {
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  gap: 0.58rem;
+  min-height: 3.55rem;
+  padding: 0.72rem;
+  background: rgba(17, 26, 34, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.world-panel__map-node--selected {
+  border-color: rgba(23, 183, 216, 0.9);
+  background: linear-gradient(180deg, rgba(23, 119, 168, 0.34), rgba(17, 26, 34, 0.96));
+  box-shadow:
+    inset 0 0 0 1px rgba(23, 183, 216, 0.22),
+    0 0 0 1px rgba(23, 183, 216, 0.24),
+    0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.world-panel__start-badge {
+  align-self: start;
+  padding: 0.12rem 0.32rem;
+  border: 1px solid rgba(246, 193, 119, 0.42);
+  border-radius: 4px;
+  background: rgba(246, 193, 119, 0.12);
+  color: #f6c177;
+  font-size: 0.66rem;
+  font-weight: 750;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .world-panel__details {
   display: grid;
   align-content: start;
   gap: var(--space-md);
 }
 
+.world-panel__details-header {
+  align-items: flex-start;
+}
+
+.world-panel__eyebrow {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: #93a4b3;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.world-panel__details-count {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.44rem;
+  border: 1px solid rgba(108, 128, 145, 0.24);
+  border-radius: 4px;
+  color: #bfccd6;
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.world-panel__stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.world-panel__stat-grid > div {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  padding: 0.5rem 0.58rem;
+  border: 1px solid rgba(108, 128, 145, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.world-panel__stat-grid span {
+  overflow: hidden;
+  color: #a6b6c4;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-panel__stat-grid strong {
+  color: #eef7fb;
+  font-size: 0.82rem;
+}
+
 .world-panel__scenes {
   display: grid;
-  gap: var(--space-sm);
+  gap: 0.62rem;
+}
+
+.world-panel__compact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.05rem;
+  padding: 0.34rem 0.52rem;
+  gap: 0.38rem;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.world-panel__compact-action--primary {
+  border-color: rgba(246, 193, 119, 0.48);
+  background: rgba(246, 193, 119, 0.12);
+  color: #f6c177;
+}
+
+.world-panel__empty-state {
+  display: grid;
+  place-items: center;
+  gap: 0.62rem;
+  min-width: 0;
+  padding: 1rem;
+  color: #a6b6c4;
+  text-align: center;
+}
+
+.world-panel__empty-state strong {
+  color: #dce7ef;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.world-panel__empty-state button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 
 .list-stack,
@@ -6603,6 +6942,10 @@ label > .checkbox-list {
   overflow: hidden;
 }
 
+.app-shell--editor-workbench .world-panel__workspace {
+  height: calc(100vh - 6.7rem);
+}
+
 .app-shell--editor-workbench .panel--flow .panel__toolbar {
   padding: 0.62rem 0.75rem;
   border-bottom-color: var(--workbench-border-strong);
@@ -6611,7 +6954,8 @@ label > .checkbox-list {
     var(--workbench-rail);
 }
 
-.app-shell--editor-workbench .panel--flow > .react-flow {
+.app-shell--editor-workbench .panel--flow > .react-flow,
+.app-shell--editor-workbench .world-panel__map-stage > .react-flow {
   background: #0a1016;
 }
 
@@ -6840,6 +7184,16 @@ label > .checkbox-list {
   .four-grid,
   .cue-row {
     grid-template-columns: 1fr;
+  }
+
+  .world-panel__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .world-panel__location-rail {
+    max-height: 18rem;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.075);
   }
 
   .titlebar-shell__inner,

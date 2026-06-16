@@ -113,4 +113,9 @@ describe("editor chrome styles", () => {
     expect(appSource).not.toContain('<nav className="scene-screen-tabs app-region-no-drag"');
     expect(appSource).not.toContain('<nav className="tab-strip tab-strip--chrome app-region-no-drag"');
   });
+
+  it("describes the project save state without implying autosave exists", () => {
+    expect(appSource).toContain('hasUnsavedChanges ? "Unsaved changes" : "Saved"');
+    expect(appSource).not.toContain("Autosave:");
+  });
 });

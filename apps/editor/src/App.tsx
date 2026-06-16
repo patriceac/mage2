@@ -917,7 +917,7 @@ export function App() {
     activeSceneAssetVariant?.width && activeSceneAssetVariant.height
       ? formatAspectRatio(activeSceneAssetVariant.width, activeSceneAssetVariant.height)
       : "--";
-  const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Autosave: Unsaved changes" : "Autosave: Saved";
+  const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Unsaved changes" : "Saved";
   const shellClassName = isSceneEditorSurface
     ? "app-shell app-shell--project app-shell--editor-workbench app-shell--scene-editor"
     : "app-shell app-shell--project app-shell--editor-workbench";
