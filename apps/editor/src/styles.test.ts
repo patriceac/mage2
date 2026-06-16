@@ -262,6 +262,21 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).not.toContain("max-width: var(--titlebar-path-max-width);");
   });
 
+  it("keeps the issues pane aligned with compact workbench chrome", () => {
+    expect(styles).toMatch(/\.validation-panel\s*\{[\s\S]*?border-radius: 8px;[\s\S]*?background:[\s\S]*?#101820;/);
+    expect(styles).toMatch(/\.validation-item\s*\{[\s\S]*?border-radius: 4px;[\s\S]*?rgba\(17, 25, 31, 0\.84\);/);
+    expect(styles).toContain(".validation-item--error::before");
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.validation-panel__pin-toggle:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?width: 2\.18rem;[\s\S]*?border-radius: 4px;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.status-pill:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?min-height: 1\.7rem;[\s\S]*?border-radius: 4px;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench\s+button\.issue-link:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?background: transparent;[\s\S]*?text-decoration: underline;/
+    );
+  });
+
   it("defines the shared non-editable dropdown shell", () => {
     expect(styles).toContain(".dropdown-select {");
     expect(styles).toContain(".dropdown-select__native {");

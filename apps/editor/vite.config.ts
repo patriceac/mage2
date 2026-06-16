@@ -26,10 +26,6 @@ export default defineConfig({
         manualChunks(id) {
           const moduleId = normalizeModuleId(id);
 
-          if (moduleId.includes("/node_modules/reactflow/")) {
-            return "vendor-flow";
-          }
-
           if (
             moduleId.includes("/node_modules/react/") ||
             moduleId.includes("/node_modules/react-dom/") ||

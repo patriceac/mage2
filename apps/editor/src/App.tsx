@@ -900,7 +900,8 @@ export function App() {
   }
 
   const validationReport = validateProject(project);
-  const shouldShowIssuesSidebar = showValidationDetails || validationReport.issues.length > 0;
+  const hasValidationErrors = validationReport.issues.some((issue) => issue.level === "error");
+  const shouldShowIssuesSidebar = showValidationDetails || hasValidationErrors;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
@@ -1135,7 +1136,10 @@ export function App() {
                     const target = resolveIssueNavigation(project, issue);
                     const entityLabel = issue.entityId ? resolveIssueEntityLabel(project, issue, target) : undefined;
                     return (
-                      <article key={`${issue.code}-${issue.entityId ?? "global"}-${index}`} className="validation-item">
+                      <article
+                        key={`${issue.code}-${issue.entityId ?? "global"}-${index}`}
+                        className={issue.level === "error" ? "validation-item validation-item--error" : "validation-item validation-item--warning"}
+                      >
                         <div className="validation-item__header">
                           <span className={issue.level === "error" ? "validation-tag validation-tag--error" : "validation-tag validation-tag--warning"}>
                             {issue.level}

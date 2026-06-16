@@ -37,13 +37,22 @@ describe("WorldPanel", () => {
     const markup = renderWorldPanel();
 
     expect(markup).toContain("Locations");
-    expect(markup).toContain("World Map");
-    expect(markup).toContain("Location Name");
+    expect(markup).toContain("Search locations...");
+    expect(markup).toContain("Location Map");
+    expect(markup).toContain("Location map tools");
+    expect(markup).toContain("Search map...");
+    expect(markup).toContain("world-panel__map-node");
+    expect(markup).toContain("Location Details");
+    expect(markup).toContain(">Name</span>");
     expect(markup).toContain("Location summary");
+    expect(markup).toContain("Quests");
+    expect(markup).toContain("NPCs");
+    expect(markup).toContain("Variables");
     expect(markup).toContain("Opening Scene");
     expect(markup).toContain("Start scene");
+    expect(markup).toContain("world-panel__scene-index");
     expect(markup).toContain('title="Open Opening Scene in Scenes."');
-    expect(markup).not.toContain("Location Map");
+    expect(markup).not.toContain("World Map");
     expect(markup).not.toContain("pill-list");
   });
 

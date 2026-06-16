@@ -16,7 +16,6 @@
     "electron": "^37.4.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "reactflow": "^11.11.4",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
