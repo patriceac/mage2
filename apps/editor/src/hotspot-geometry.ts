@@ -17,6 +17,10 @@ export interface HotspotSurfaceSize {
   height: number;
 }
 
+export interface HotspotDragOptions {
+  materializeCornerMidpoints?: boolean;
+}
+
 export interface HotspotRotationDrag {
   startPointerXPx: number;
   startPointerYPx: number;
@@ -73,7 +77,8 @@ export function applyHotspotDrag(
   handle: Exclude<HotspotDragHandle, "rotate">,
   deltaX: number,
   deltaY: number,
-  surfaceSize?: HotspotSurfaceSize
+  surfaceSize?: HotspotSurfaceSize,
+  options: HotspotDragOptions = {}
 ): HotspotGeometry {
   if (handle === "move") {
     return roundGeometry(moveHotspot(geometry, deltaX, deltaY));
@@ -87,7 +92,7 @@ export function applyHotspotDrag(
     return roundGeometry(moveHotspotMidpoint(geometry, handle, deltaX, deltaY));
   }
 
-  return roundGeometry(moveHotspotCorner(geometry, handle, deltaX, deltaY));
+  return roundGeometry(moveHotspotCorner(geometry, handle, deltaX, deltaY, Boolean(options.materializeCornerMidpoints)));
 }
 
 export function applyHotspotBounds(geometry: HotspotGeometry, bounds: HotspotBounds): HotspotGeometry {
@@ -367,9 +372,22 @@ function moveHotspotCorner(
   geometry: HotspotGeometry,
   handle: HotspotCornerHandle,
   deltaX: number,
-  deltaY: number
+  deltaY: number,
+  materializeMidpoints: boolean
 ): HotspotGeometry {
   const sourcePolygon = resolveHotspotPolygon(geometry);
+  if (sourcePolygon.length === 4 && !materializeMidpoints) {
+    const nextFourPointPolygon = sourcePolygon.map((point) => ({ ...point }));
+    nextFourPointPolygon[HOTSPOT_FOUR_POINT_CORNER_INDEX_BY_HANDLE[handle]] = resolveClampedFourPointHotspotCorner(
+      sourcePolygon,
+      handle,
+      deltaX,
+      deltaY
+    );
+
+    return withPolygon(nextFourPointPolygon, geometry);
+  }
+
   const polygon = resolveHotspotPolygonWithMidpoints(sourcePolygon);
   const nextPolygon = polygon.map((point) => ({ ...point }));
 

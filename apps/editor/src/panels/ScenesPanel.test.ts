@@ -24,8 +24,11 @@ import {
   resolveDroppedInventoryHotspotBounds,
   resolveInventoryDragPreviewOffset,
   resolveInventoryPreviewContentSize,
+  resolveCornerFirstHotspotHandlesPreferenceValue,
   resolveLinkedInventoryOptions,
   resolveSceneAudioDropAcceptance,
+  loadCornerFirstHotspotHandlesPreference,
+  saveCornerFirstHotspotHandlesPreference,
   shouldApplyHotspotInspectorOpenRequest,
   shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleHotspotTransformShortcut,
@@ -322,11 +325,32 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain('aria-label="Pan tool"');
     expect(markup).toContain('aria-label="Zoom tool"');
     expect(markup).toContain('aria-label="Fit scene preview"');
+    expect(markup).toContain('aria-label="Corner-first handles"');
+    expect(markup).toContain("Corner-first handles: center handles stay derived until moved.");
     expect(markup).toContain("Cycle the scene preview zoom level.");
     expect(markup).toContain(">100%</span>");
     expect(markup).not.toContain(">Fit</span>");
     expect(markup).not.toContain("Canvas fit mode.");
     expect(formatCanvasZoomLabel(1.25)).toBe("125%");
+  });
+
+  it("defaults hotspot corner handles to corner-first mode and stores the setting", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value)
+    };
+
+    expect(resolveCornerFirstHotspotHandlesPreferenceValue(undefined)).toBe(true);
+    expect(resolveCornerFirstHotspotHandlesPreferenceValue("true")).toBe(true);
+    expect(resolveCornerFirstHotspotHandlesPreferenceValue("false")).toBe(false);
+    expect(loadCornerFirstHotspotHandlesPreference(storage)).toBe(true);
+
+    saveCornerFirstHotspotHandlesPreference(false, storage);
+    expect(loadCornerFirstHotspotHandlesPreference(storage)).toBe(false);
+
+    saveCornerFirstHotspotHandlesPreference(true, storage);
+    expect(loadCornerFirstHotspotHandlesPreference(storage)).toBe(true);
   });
 
   it("builds scene switcher options with location metadata", () => {

@@ -638,7 +638,7 @@ label > .checkbox-list {
   height: 100%;
 }
 
-.app-shell--scene-editor .editor-layout {
+.app-shell--scene-editor .editor-layout:not(.editor-layout--with-issues) {
   display: block;
 }
 
@@ -3102,10 +3102,17 @@ label > .checkbox-list {
 }
 
 .scenes-panel__canvas-toolset,
+.scenes-panel__canvas-handle-controls,
 .scenes-panel__canvas-view-controls {
   display: inline-flex;
   align-items: center;
   gap: 0.48rem;
+}
+
+.scenes-panel__canvas-handle-controls {
+  margin-left: 0.1rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid rgba(128, 151, 168, 0.26);
 }
 
 .scenes-panel__canvas-tool,

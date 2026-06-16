@@ -67,7 +67,7 @@ describe("applyHotspotDrag", () => {
     });
   });
 
-  it("moves only the dragged corner so hotspots can become non-rectangular", () => {
+  it("keeps center handles virtual by default when a corner moves", () => {
     expect(
       applyHotspotDrag(
         {
@@ -79,6 +79,35 @@ describe("applyHotspotDrag", () => {
         "nw",
         0.25,
         0.2
+      )
+    ).toEqual({
+      x: 0.2,
+      y: 0.15,
+      width: 0.18,
+      height: 0.16,
+      polygon: [
+        { x: 0.37, y: 0.3 },
+        { x: 0.38, y: 0.15 },
+        { x: 0.38, y: 0.31 },
+        { x: 0.2, y: 0.31 }
+      ]
+    });
+  });
+
+  it("can materialize side-center dots while moving a corner", () => {
+    expect(
+      applyHotspotDrag(
+        {
+          x: 0.2,
+          y: 0.15,
+          width: 0.18,
+          height: 0.16
+        },
+        "nw",
+        0.25,
+        0.2,
+        undefined,
+        { materializeCornerMidpoints: true }
       )
     ).toEqual({
       x: 0.2,
@@ -155,13 +184,9 @@ describe("applyHotspotDrag", () => {
       height: 0.22,
       polygon: [
         { x: 0.76, y: 0.78 },
-        { x: 0.85, y: 0.78 },
         { x: 0.94, y: 0.78 },
-        { x: 0.94, y: 0.855 },
         { x: 1, y: 1 },
-        { x: 0.85, y: 0.93 },
-        { x: 0.76, y: 0.93 },
-        { x: 0.76, y: 0.855 }
+        { x: 0.76, y: 0.93 }
       ]
     });
   });

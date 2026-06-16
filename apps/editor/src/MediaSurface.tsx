@@ -61,6 +61,7 @@ interface MediaSurfaceProps {
   viewportTool?: MediaSurfaceViewportTool;
   viewportTransform?: MediaSurfaceViewportTransform;
   onViewportTransformChange?: (transform: MediaSurfaceViewportTransform) => void;
+  materializeHotspotMidpointsOnCornerDrag?: boolean;
 }
 
 export type MediaSurfaceViewportTool = "select" | "pan" | "zoom";
@@ -120,7 +121,8 @@ export function MediaSurface({
   children,
   viewportTool = "select",
   viewportTransform = DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM,
-  onViewportTransformChange
+  onViewportTransformChange,
+  materializeHotspotMidpointsOnCornerDrag = false
 }: MediaSurfaceProps) {
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
@@ -887,7 +889,8 @@ export function MediaSurface({
           handle,
           (moveEvent.clientX - startClientX) / bounds.width,
           (moveEvent.clientY - startClientY) / bounds.height,
-          surfaceSize
+          surfaceSize,
+          { materializeCornerMidpoints: materializeHotspotMidpointsOnCornerDrag }
         );
 
         if (geometryMatches(nextGeometry, latestGeometry)) {

@@ -1,6 +1,7 @@
 import type { ProjectBundle, ValidationIssue } from "@mage2/schema";
 import type { EditorNavigationTarget } from "./navigation-target";
 import { resolveProjectTextUsageForIssue } from "./project-text";
+import type { EditorTab } from "./store";
 
 export function resolveSceneNavigationTarget(
   project: ProjectBundle,
@@ -196,6 +197,18 @@ export function resolveIssueNavigation(
     default:
       return undefined;
   }
+}
+
+export function resolveVisibleIssuesForTab(
+  project: ProjectBundle,
+  issues: ValidationIssue[],
+  activeTab: EditorTab
+): ValidationIssue[] {
+  if (activeTab === "world") {
+    return issues;
+  }
+
+  return issues.filter((issue) => resolveIssueNavigation(project, issue)?.tab === activeTab);
 }
 
 export function resolveIssueEntityLabel(

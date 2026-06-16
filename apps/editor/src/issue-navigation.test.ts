@@ -1,13 +1,44 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, validateProject } from "@mage2/schema";
 import { addDialogueTree } from "./project-helpers";
-import { resolveIssueNavigation } from "./issue-navigation";
+import { resolveIssueNavigation, resolveVisibleIssuesForTab } from "./issue-navigation";
 
 function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
   return project.strings.byLocale[project.manifest.defaultLanguage];
 }
 
 describe("resolveIssueNavigation", () => {
+  it("shows all issues on World and only tab-local issues elsewhere", () => {
+    const project = createDefaultProjectBundle("Contextual issue filtering");
+    const openingScene = project.scenes.items[0];
+    openingScene.backgroundAssetId = undefined;
+    delete getDefaultStrings(project)[openingScene.hotspots[0].commentTextId!];
+    project.inventory.items.push({
+      id: "item_unillustrated",
+      name: "Unillustrated Item",
+      textId: "text.item_unillustrated.name"
+    });
+    getDefaultStrings(project)["text.item_unillustrated.name"] = "Unillustrated Item";
+
+    const issues = validateProject(project).issues;
+    const issueCodes = issues.map((issue) => issue.code);
+
+    expect(issueCodes).toEqual(
+      expect.arrayContaining(["SCENE_BACKGROUND_MISSING", "HOTSPOT_COMMENT_TEXT_MISSING", "INVENTORY_IMAGE_MISSING"])
+    );
+    expect(resolveVisibleIssuesForTab(project, issues, "world")).toHaveLength(issues.length);
+    expect(resolveVisibleIssuesForTab(project, issues, "scenes").map((issue) => issue.code)).toEqual([
+      "SCENE_BACKGROUND_MISSING"
+    ]);
+    expect(resolveVisibleIssuesForTab(project, issues, "localization").map((issue) => issue.code)).toEqual([
+      "HOTSPOT_COMMENT_TEXT_MISSING"
+    ]);
+    expect(resolveVisibleIssuesForTab(project, issues, "inventory").map((issue) => issue.code)).toEqual([
+      "INVENTORY_IMAGE_MISSING"
+    ]);
+    expect(resolveVisibleIssuesForTab(project, issues, "playtest")).toHaveLength(0);
+  });
+
   it("routes missing hotspot comment text to the Localization tab", () => {
     const project = createDefaultProjectBundle("Hotspot comment navigation");
     delete getDefaultStrings(project)[project.scenes.items[0].hotspots[0].commentTextId!];

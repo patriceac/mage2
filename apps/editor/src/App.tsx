@@ -24,7 +24,8 @@ import {
   getIssueHint,
   resolveIssueEntityLabel,
   resolveIssueNavigation,
-  resolveSceneNavigationTarget
+  resolveSceneNavigationTarget,
+  resolveVisibleIssuesForTab
 } from "./issue-navigation";
 import type { EditorNavigationTarget } from "./navigation-target";
 import { cloneProject } from "./project-helpers";
@@ -900,8 +901,9 @@ export function App() {
   }
 
   const validationReport = validateProject(project);
-  const hasValidationErrors = validationReport.issues.some((issue) => issue.level === "error");
-  const shouldShowIssuesSidebar = showValidationDetails || hasValidationErrors;
+  const visibleValidationIssues = resolveVisibleIssuesForTab(project, validationReport.issues, activeTab);
+  const hasProjectIssues = validationReport.issues.length > 0;
+  const shouldShowIssuesSidebar = showValidationDetails || visibleValidationIssues.length > 0;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
@@ -919,6 +921,12 @@ export function App() {
       ? formatAspectRatio(activeSceneAssetVariant.width, activeSceneAssetVariant.height)
       : "--";
   const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Unsaved changes" : "Saved";
+  const issuesPanelTitle = resolveIssuesPanelTitle(activeTab);
+  const issuesPanelSummary = resolveIssuesPanelSummary(
+    activeTab,
+    visibleValidationIssues.length,
+    validationReport.issues.length
+  );
   const shellClassName = isSceneEditorSurface
     ? "app-shell app-shell--project app-shell--editor-workbench app-shell--scene-editor"
     : "app-shell app-shell--project app-shell--editor-workbench";
@@ -1121,18 +1129,20 @@ export function App() {
               </button>
               <div className="panel__toolbar validation-panel__header">
                 <div>
-                  <h3>Issues</h3>
+                  <h3>{issuesPanelTitle}</h3>
                   <p className="muted">
-                    {validationReport.issues.length > 0
-                      ? "Use the linked names to jump to the affected editor surface when available."
-                      : "No validation issues detected."}
+                    {visibleValidationIssues.length > 0
+                      ? issuesPanelSummary
+                      : hasProjectIssues
+                        ? "No issues for this screen. Open World to review the full project list."
+                        : "No validation issues detected."}
                   </p>
                 </div>
               </div>
 
-              {validationReport.issues.length > 0 ? (
+              {visibleValidationIssues.length > 0 ? (
                 <div className="validation-list">
-                  {validationReport.issues.map((issue, index) => {
+                  {visibleValidationIssues.map((issue, index) => {
                     const target = resolveIssueNavigation(project, issue);
                     const entityLabel = issue.entityId ? resolveIssueEntityLabel(project, issue, target) : undefined;
                     return (
@@ -1194,15 +1204,15 @@ export function App() {
         </div>
         <button
           type="button"
-          className={validationReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--warn"}
+          className={hasProjectIssues ? "status-pill status-pill--warn" : "status-pill status-pill--ok"}
           onClick={() => setShowValidationDetails((value) => !value)}
           title={
-            validationReport.valid
-              ? "Validation passed. Click to pin the issues sidebar open anyway."
-              : "Open or close the validation issues sidebar."
+            hasProjectIssues
+              ? "Open or close the validation issues sidebar. World shows the full issue list."
+              : "Validation passed. Click to pin the issues sidebar open anyway."
           }
         >
-          {validationReport.valid ? "Valid" : `${validationReport.issues.length} issue(s)`}
+          {hasProjectIssues ? formatIssueCount(validationReport.issues.length) : "Valid"}
         </button>
       </footer>
     </div>
@@ -1499,6 +1509,41 @@ function resolveLaunchTab(tab: InitialLaunchOptions["tab"]): EditorTab | undefin
 
 function resolveTabLabel(tab: EditorTab): string {
   return TABS.find((candidate) => candidate.id === tab)?.label ?? tab;
+}
+
+function resolveIssuesPanelTitle(tab: EditorTab): string {
+  switch (tab) {
+    case "world":
+      return "All Issues";
+    case "assets":
+      return "Asset Issues";
+    case "scenes":
+      return "Scene Issues";
+    case "dialogue":
+      return "Dialogue Issues";
+    case "inventory":
+      return "Inventory Issues";
+    case "localization":
+      return "Localization Issues";
+    case "playtest":
+      return "Playtest Issues";
+  }
+}
+
+function resolveIssuesPanelSummary(tab: EditorTab, visibleIssueCount: number, projectIssueCount: number): string {
+  if (tab === "world") {
+    return `Showing ${formatIssueCount(projectIssueCount)} across the project.`;
+  }
+
+  if (visibleIssueCount === projectIssueCount) {
+    return `Showing ${formatIssueCount(visibleIssueCount)} for this screen.`;
+  }
+
+  return `Showing ${formatIssueCount(visibleIssueCount)} for this screen. World has ${formatIssueCount(projectIssueCount)} total.`;
+}
+
+function formatIssueCount(count: number): string {
+  return `${count} ${count === 1 ? "issue" : "issues"}`;
 }
 
 function formatAspectRatio(width: number, height: number): string {

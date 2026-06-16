@@ -82,12 +82,15 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".app-shell--editor-workbench {");
     expect(styles).toContain(".scene-screen-tabs {");
     expect(styles).toContain(".app-shell--scene-editor .scenes-panel__stage-layout {");
+    expect(styles).toContain(".app-shell--scene-editor .editor-layout:not(.editor-layout--with-issues) {");
+    expect(styles).not.toContain(".app-shell--scene-editor .editor-layout {\n  display: block;");
     expect(styles).toContain(
       "grid-template-columns: minmax(17.5rem, 19.5rem) minmax(0, 1fr) minmax(8.75rem, 9.75rem);"
     );
     expect(styles).toContain("height: 100%;");
     expect(styles).toContain("min-height: 0;");
     expect(styles).toContain(".scenes-panel__canvas-toolbar {");
+    expect(styles).toContain(".scenes-panel__canvas-handle-controls {");
     expect(styles).toContain(".scenes-panel__scene-list {");
     expect(styles).toContain(".scenes-panel__rail-heading {");
     expect(styles).toContain(".scenes-panel__side-controls {");

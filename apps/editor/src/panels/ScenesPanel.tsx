@@ -102,6 +102,7 @@ const INVENTORY_ITEM_DRAG_SIZE_TYPE = "application/x-mage2-inventory-preview-siz
 const INVENTORY_DRAG_PREVIEW_SCALE = 2 / 3;
 const SCENE_AUDIO_DROP_REJECTION_MESSAGE = "Scene audio accepts MP3, WAV, OGG, M4A, or AAC files only.";
 const VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE = "Clear scene audio before assigning a video background.";
+const CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY = "mage2:scene-editor:corner-first-hotspot-handles";
 
 export interface SceneAudioDropCandidate {
   filePath?: string;
@@ -109,6 +110,41 @@ export interface SceneAudioDropCandidate {
 }
 
 export type SceneAudioDropAcceptance = "accept" | "reject" | "unknown";
+
+interface ScenesPreferenceStorage {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+}
+
+export function resolveCornerFirstHotspotHandlesPreferenceValue(value: string | null | undefined): boolean {
+  return value !== "false";
+}
+
+export function loadCornerFirstHotspotHandlesPreference(storage?: ScenesPreferenceStorage): boolean {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    return resolveCornerFirstHotspotHandlesPreferenceValue(preferenceStorage?.getItem(CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY));
+  } catch {
+    return true;
+  }
+}
+
+export function saveCornerFirstHotspotHandlesPreference(enabled: boolean, storage?: ScenesPreferenceStorage): void {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    preferenceStorage?.setItem(CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY, enabled ? "true" : "false");
+  } catch {
+    // Ignore storage failures; the editor should keep working in restricted contexts.
+  }
+}
+
+function getScenesPreferenceStorage(): ScenesPreferenceStorage | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  return window.localStorage;
+}
 
 export function resolveSceneAudioDropAcceptance(candidates: readonly SceneAudioDropCandidate[]): SceneAudioDropAcceptance {
   if (candidates.length === 0) {
@@ -234,6 +270,9 @@ export function ScenesPanel({
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
   const [canvasTool, setCanvasTool] = useState<MediaSurfaceViewportTool>("select");
+  const [cornerFirstHotspotHandles, setCornerFirstHotspotHandles] = useState<boolean>(() =>
+    loadCornerFirstHotspotHandlesPreference()
+  );
   const [canvasViewportTransform, setCanvasViewportTransform] = useState<MediaSurfaceViewportTransform>({
     scale: 1,
     offsetX: 0,
@@ -301,6 +340,10 @@ export function ScenesPanel({
   useEffect(() => {
     latestPlayheadMsRef.current = playheadMs;
   }, [playheadMs]);
+
+  useEffect(() => {
+    saveCornerFirstHotspotHandlesPreference(cornerFirstHotspotHandles);
+  }, [cornerFirstHotspotHandles]);
 
   useEffect(() => {
     setIsLocationMenuOpen(false);
@@ -2362,6 +2405,22 @@ export function ScenesPanel({
                   <SceneToolIcon kind="fit" />
                 </button>
               </div>
+              <div className="scenes-panel__canvas-handle-controls" role="toolbar" aria-label="Hotspot handle settings">
+                <button
+                  type="button"
+                  className={`${resolveCanvasToolButtonClassName(cornerFirstHotspotHandles)} scenes-panel__canvas-tool--setting`}
+                  aria-label="Corner-first handles"
+                  aria-pressed={cornerFirstHotspotHandles}
+                  onClick={() => setCornerFirstHotspotHandles((enabled) => !enabled)}
+                  title={
+                    cornerFirstHotspotHandles
+                      ? "Corner-first handles: center handles stay derived until moved."
+                      : "Independent center handles: corner drags keep current center dots."
+                  }
+                >
+                  <SceneToolIcon kind="corner-first" />
+                </button>
+              </div>
               <div className="scenes-panel__canvas-view-controls" aria-label="Scene view controls">
                 <button
                   type="button"
@@ -2408,6 +2467,7 @@ export function ScenesPanel({
                   viewportTool={canvasTool}
                   viewportTransform={canvasViewportTransform}
                   onViewportTransformChange={setCanvasViewportTransform}
+                  materializeHotspotMidpointsOnCornerDrag={!cornerFirstHotspotHandles}
                   onSurfaceClick={({ normalizedX, normalizedY, createRequested }) => {
                     if (!createRequested) {
                       selectHotspot(undefined);
@@ -3284,7 +3344,7 @@ function ChevronDownIcon() {
   );
 }
 
-function SceneToolIcon({ kind }: { kind: "select" | "pan" | "zoom" | "fit" | "edit" | "plus" }) {
+function SceneToolIcon({ kind }: { kind: "select" | "pan" | "zoom" | "fit" | "edit" | "plus" | "corner-first" }) {
   if (kind === "edit") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3348,6 +3408,24 @@ function SceneToolIcon({ kind }: { kind: "select" | "pan" | "zoom" | "fit" | "ed
           strokeLinejoin="round"
           strokeWidth="1.75"
         />
+      </svg>
+    );
+  }
+
+  if (kind === "corner-first") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M6.5 17.5V6.5h11"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+        <circle cx="6.5" cy="6.5" r="2" fill="currentColor" />
+        <circle cx="12" cy="6.5" r="1.15" fill="currentColor" opacity="0.55" />
+        <circle cx="6.5" cy="12" r="1.15" fill="currentColor" opacity="0.55" />
       </svg>
     );
   }
