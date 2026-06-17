@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent
+} from "react";
 import {
   buildHotspotPickupFlag,
   buildHotspotPlacementFlag,
@@ -160,6 +169,36 @@ export function App() {
     } catch {
       setRecentProjects((currentProjects) => removeRecentProjectEntry(currentProjects, targetProjectDir));
     }
+  }
+
+  async function refreshRecentProjects() {
+    const nextRecentProjects = await withBusy("Refreshing recent projects", () => window.editorApi.getRecentProjects());
+    if (!nextRecentProjects) {
+      return;
+    }
+
+    setRecentProjects(nextRecentProjects);
+    setStatusMessage("Recent projects refreshed.");
+  }
+
+  async function revealRecentProjectEntry(event: ReactMouseEvent<HTMLButtonElement>, targetProjectDir: string) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      await window.editorApi.revealPath(targetProjectDir);
+      setStatusMessage("Revealed project folder.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Could not reveal that folder: ${message}`);
+    }
+  }
+
+  async function removeRecentProject(event: ReactMouseEvent<HTMLButtonElement>, targetProjectDir: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    await forgetRecentProjectEntry(targetProjectDir);
+    setStatusMessage("Removed project from recents.");
   }
 
   async function openProjectDirectory(
@@ -832,72 +871,181 @@ export function App() {
         <header className="titlebar-shell titlebar-shell--landing">
           <div className="titlebar-shell__inner titlebar-shell__inner--landing">
             <div className="titlebar-shell__identity" title="MAGE2 Editor">
+              <span className="titlebar-shell__mark" aria-hidden="true">
+                M2
+              </span>
               <h1 className="titlebar-shell__title">MAGE2 Editor</h1>
             </div>
           </div>
         </header>
 
-        <main className="landing">
-          <div className="landing__card">
-            <p className="eyebrow">MAGE2</p>
-            <h1>Full-motion adventure editor</h1>
-            <p>
-              Build locations, timed hotspots, dialogue graphs, inventory conditions, and static runtime
-              exports from one project folder.
-            </p>
-            <label>
-              <span className="field-label--inset">Project Name</span>
-              <input
-                value={newProjectName}
-                onChange={(event) => setNewProjectName(event.target.value)}
-                placeholder="My Project"
-                title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
-              />
-            </label>
-            <p className="muted">If left blank, the selected folder name will be used.</p>
-            <div className="landing__actions">
-              <button
-                type="button"
-                onClick={handleCreateProject}
-                title="Create a new project structure inside a folder you choose."
-              >
-                New Project
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={handleOpenProject}
-                title="Open an existing project folder from disk."
-              >
-                Open Project
-              </button>
-            </div>
-            {recentProjects.length > 0 ? (
-              <section className="recent-projects">
-                <div className="recent-projects__header">
-                  <h2>Recent Projects</h2>
-                  <p className="muted">The last five projects are remembered here, even after rebuilding the app.</p>
+        <main className="landing" onDragOver={handleLandingDragOver} onDrop={(event) => void handleLandingDrop(event)}>
+          <section className="landing__workspace" aria-labelledby="landing-projects-title">
+            <aside className="landing__start-panel" aria-labelledby="landing-projects-title">
+              <header className="landing__intro">
+                <p className="landing__product">MAGE2 Editor</p>
+                <h1 id="landing-projects-title">Projects</h1>
+                <p>Create a full-motion adventure project, or reopen an existing one.</p>
+              </header>
+
+              <div className="landing__divider" aria-hidden="true" />
+
+              <div className="landing__start-form">
+                <label className="landing__field">
+                  <span className="field-label--inset">Project name</span>
+                  <input
+                    value={newProjectName}
+                    onChange={(event) => setNewProjectName(event.target.value)}
+                    placeholder="Untitled project"
+                    title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
+                  />
+                </label>
+                <p className="landing__field-help">If left blank, the selected folder name will be used.</p>
+                <div className="landing__actions">
+                  <button
+                    type="button"
+                    className="landing__primary-action"
+                    onClick={handleCreateProject}
+                    title="Create a new project structure inside a folder you choose."
+                  >
+                    <FolderPlusIcon />
+                    Create project
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary landing__secondary-action"
+                    onClick={handleOpenProject}
+                    title="Open an existing project folder from disk."
+                  >
+                    <OpenFolderIcon />
+                    Open folder
+                  </button>
                 </div>
-                <div className="recent-projects__list">
-                  {recentProjects.map((recentProject) => (
-                    <button
-                      key={recentProject.projectDir}
-                      type="button"
-                      className="recent-project"
-                      onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
-                      title={recentProject.projectDir}
-                    >
-                      <span className="recent-project__name">{recentProject.projectName}</span>
-                      <span className="recent-project__path">{recentProject.projectDir}</span>
-                    </button>
-                  ))}
+              </div>
+
+              <p className="landing__tip">
+                <InfoIcon />
+                <span>Tip: You can also open a folder by dragging it onto this window.</span>
+              </p>
+            </aside>
+
+            <section className="recent-projects" aria-labelledby="recent-projects-title">
+              <header className="recent-projects__header">
+                <div>
+                  <h2 id="recent-projects-title">Recent projects</h2>
+                  <p className="muted">Your last five projects stay here on this device.</p>
                 </div>
-              </section>
-            ) : null}
-          </div>
+                <button
+                  type="button"
+                  className="recent-projects__refresh"
+                  onClick={() => void refreshRecentProjects()}
+                  title="Refresh recent projects from this device."
+                >
+                  <RefreshIcon />
+                  Refresh
+                </button>
+              </header>
+
+              <div className="recent-projects__table" role="table" aria-label="Recent projects">
+                <div className="recent-projects__columns" role="row">
+                  <span role="columnheader">Project name</span>
+                  <span role="columnheader">Last opened</span>
+                  <span role="columnheader">Location</span>
+                  <span className="sr-only" role="columnheader">
+                    Actions
+                  </span>
+                </div>
+                {recentProjects.length > 0 ? (
+                  <div className="recent-projects__list" role="rowgroup">
+                    {recentProjects.map((recentProject) => {
+                      const openedAtLabel = formatRecentProjectOpenedAt(recentProject.lastOpenedAt);
+
+                      return (
+                        <div key={recentProject.projectDir} className="recent-project" role="row">
+                          <button
+                            type="button"
+                            className="recent-project__open"
+                            onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
+                            title={`Open ${recentProject.projectName}`}
+                          >
+                            <span className="recent-project__name-cell">
+                              <span className="recent-project__folder-tile" aria-hidden="true">
+                                <FolderIcon />
+                              </span>
+                              <span className="recent-project__name">{recentProject.projectName}</span>
+                            </span>
+                            <span className="recent-project__opened">{openedAtLabel}</span>
+                            <span className="recent-project__path" title={recentProject.projectDir}>
+                              {recentProject.projectDir}
+                            </span>
+                          </button>
+                          <span className="recent-project__row-actions">
+                            <button
+                              type="button"
+                              className="recent-project__icon-button"
+                              onClick={(event) => void revealRecentProjectEntry(event, recentProject.projectDir)}
+                              title="Reveal in folder"
+                              aria-label={`Reveal ${recentProject.projectName} in folder`}
+                            >
+                              <RevealFolderIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className="recent-project__icon-button"
+                              onClick={(event) => void removeRecentProject(event, recentProject.projectDir)}
+                              title="Remove from recents"
+                              aria-label={`Remove ${recentProject.projectName} from recent projects`}
+                            >
+                              <TrashIcon />
+                            </button>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="recent-projects__empty">
+                    <h3>No recent projects</h3>
+                    <p>Create a project or open an existing folder to add it here.</p>
+                  </div>
+                )}
+              </div>
+
+              <p className="recent-projects__missing">
+                <InfoIcon />
+                <span>
+                  Missing a project?{" "}
+                  <button type="button" onClick={handleOpenProject}>
+                    Open folder...
+                  </button>{" "}
+                  to add it back.
+                </span>
+              </p>
+            </section>
+          </section>
         </main>
       </div>
     );
+  }
+
+  function handleLandingDragOver(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  async function handleLandingDrop(event: ReactDragEvent<HTMLElement>) {
+    event.preventDefault();
+    const droppedFile = event.dataTransfer.files.item(0);
+    if (!droppedFile) {
+      return;
+    }
+
+    const droppedPath = window.editorApi.getPathForDroppedFile(droppedFile);
+    if (!droppedPath) {
+      return;
+    }
+
+    await openProjectDirectory(droppedPath);
   }
 
   const validationReport = validateProject(project);
@@ -1567,6 +1715,45 @@ function formatAspectRatio(width: number, height: number): string {
   return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
 }
 
+function formatRecentProjectOpenedAt(input: string): string {
+  const openedAt = new Date(input);
+  if (Number.isNaN(openedAt.getTime())) {
+    return "Unknown";
+  }
+
+  const now = new Date();
+  const timeLabel = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(openedAt);
+
+  if (isSameCalendarDate(openedAt, now)) {
+    return `Today, ${timeLabel}`;
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameCalendarDate(openedAt, yesterday)) {
+    return `Yesterday, ${timeLabel}`;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: openedAt.getFullYear() === now.getFullYear() ? undefined : "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(openedAt);
+}
+
+function isSameCalendarDate(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
 function greatestCommonDivisor(left: number, right: number): number {
   let a = Math.max(Math.abs(left), 1);
   let b = Math.max(Math.abs(right), 1);
@@ -1629,6 +1816,112 @@ function renderIssueMessage(
   }
 
   return issue.message;
+}
+
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.5 7.5h6.1l1.7 2h9.2v8.8H3.5V7.5Zm0 3.2h17M3.5 7.5V5.7h5.4l1.8 1.8"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function FolderPlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.5 7.5h6.1l1.7 2h9.2v8.8H3.5V7.5Zm0 3.2h17M16.2 14.6h4.1m-2.05-2.05v4.1"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function OpenFolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.5 8.2h5.8l1.6 1.8h9.6v7.8h-17V8.2Zm0 2.9h17M8.6 15.2h4.6m-1.9-1.9 1.9 1.9-1.9 1.9"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function RevealFolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.5 7.5h6.1l1.7 2h9.2v8.8H3.5V7.5Zm0 3.2h17m-8.1 4.4h5.1m0 0-1.8-1.8m1.8 1.8-1.8 1.8"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M8 8.2V6.6h8v1.6m-10.2 0h12.4m-10.9 0 .7 10.2h8l.7-10.2M10.4 11.4v4.5m3.2-4.5v4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M18.2 7.9A6.8 6.8 0 1 0 19 14m-.8-6.1V4.8h-3.1"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M12 10.8v5.1m0-8.1h.01"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
 }
 
 function SaveIcon() {

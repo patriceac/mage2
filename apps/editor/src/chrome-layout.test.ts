@@ -17,13 +17,23 @@ describe("editor chrome styles", () => {
     expect(appSource).toContain("app-shell app-shell--landing");
     expect(appSource).toContain("titlebar-shell titlebar-shell--landing");
     expect(appSource).toContain("titlebar-shell__inner titlebar-shell__inner--landing");
+    expect(appSource).toContain('className="titlebar-shell__mark"');
+    expect(appSource).toContain('className="landing__workspace"');
+    expect(appSource).toContain('className="landing__start-panel"');
+    expect(appSource).toContain('className="recent-projects__table"');
+    expect(appSource).toContain("Last opened");
+    expect(appSource).toContain("revealRecentProjectEntry");
+    expect(appSource).toContain("Projects");
     expect(styles).toContain(".app-shell--landing {");
     expect(styles).toContain("grid-template-rows: auto minmax(0, 1fr);");
+    expect(styles).toContain(".titlebar-shell__mark {");
     expect(styles).toContain(".app-shell--landing .landing {");
     expect(styles).toContain("overflow: auto;");
-    expect(styles).toContain(".app-shell--landing .landing__card,");
+    expect(styles).toContain(".app-shell--landing .landing__workspace,");
+    expect(styles).toContain(".app-shell--landing .landing__workspace *");
     expect(styles).toMatch(/\.app-shell--landing \.landing\s*\{[\s\S]*?-webkit-app-region: drag;[\s\S]*?\}/);
-    expect(styles).toMatch(/\.app-shell--landing \.landing__card,[\s\S]*?-webkit-app-region: no-drag;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.app-shell--landing \.landing__workspace,[\s\S]*?-webkit-app-region: no-drag;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.app-shell--landing \.landing__workspace \*[\s\S]*?-webkit-app-region: no-drag;[\s\S]*?\}/);
   });
 
   it("uses a single scroll region with dedicated chrome rows", () => {

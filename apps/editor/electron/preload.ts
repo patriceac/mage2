@@ -14,6 +14,7 @@ const editorApi = {
     ipcRenderer.invoke("mage2:remember-recent-project", projectDir, projectName),
   forgetRecentProject: (projectDir: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke("mage2:forget-recent-project", projectDir),
+  revealPath: (targetPath: string): Promise<void> => ipcRenderer.invoke("mage2:reveal-path", targetPath),
   getFileBrowserLocations: () => ipcRenderer.invoke("mage2:get-file-browser-locations"),
   listDirectory: (targetPath: string) => ipcRenderer.invoke("mage2:list-directory", targetPath),
   createDirectory: (parentDirectory: string, directoryName: string) =>

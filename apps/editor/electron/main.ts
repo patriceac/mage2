@@ -1,5 +1,5 @@
 import path from "node:path";
-import { app, BrowserWindow, ipcMain, Menu, screen } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, screen, shell } from "electron";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
 import {
@@ -195,6 +195,14 @@ function registerIpcHandlers(): void {
     const recentProjects = forgetRecentProject(loadRecentProjects(userDataPath), projectDir);
     saveRecentProjects(userDataPath, recentProjects);
     return recentProjects;
+  });
+
+  ipcMain.handle("mage2:reveal-path", async (_event, targetPath: string) => {
+    if (!targetPath.trim()) {
+      throw new Error("No path was provided.");
+    }
+
+    shell.showItemInFolder(targetPath);
   });
 
   ipcMain.handle("mage2:get-file-browser-locations", async () => {
