@@ -17,6 +17,8 @@ interface FileBrowserEntry {
   path: string;
   kind: "directory" | "file";
   extension?: string;
+  modifiedAtMs?: number;
+  sizeBytes?: number;
 }
 
 interface FileBrowserDirectoryListing {

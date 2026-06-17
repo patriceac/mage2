@@ -1090,6 +1090,22 @@ export function App() {
                   mutateProject={mutateProject}
                   setStatusMessage={setStatusMessage}
                   setBusyLabel={setBusyLabel}
+                  onOpenScenesHotspot={(sceneId, hotspotId) => {
+                    if (sceneId) {
+                      const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+                      if (scene) {
+                        setSelectedLocationId(scene.locationId);
+                      }
+                      setSelectedSceneId(sceneId);
+                    }
+                    setSelectedHotspotId(hotspotId);
+                    setActiveTab("scenes");
+                    setStatusMessage(
+                      hotspotId
+                        ? "Opened the hotspot that uses this item."
+                        : "Opened the scene that uses this item."
+                    );
+                  }}
                 />
               ) : null}
               {activeTab === "localization" ? (

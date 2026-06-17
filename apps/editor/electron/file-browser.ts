@@ -14,6 +14,8 @@ export interface FileBrowserEntry {
   path: string;
   kind: "directory" | "file";
   extension?: string;
+  modifiedAtMs?: number;
+  sizeBytes?: number;
 }
 
 export interface FileBrowserDirectoryListing {
@@ -94,47 +96,36 @@ export async function listDirectoryContents(inputPath: string): Promise<FileBrow
     await Promise.all(
       directoryEntries.map(async (entry): Promise<FileBrowserEntry | undefined> => {
         const entryPath = path.join(directoryPath, entry.name);
-        if (entry.isDirectory()) {
+
+        if (!entry.isDirectory() && !entry.isFile() && !entry.isSymbolicLink()) {
+          return undefined;
+        }
+
+        let entryStats: Awaited<ReturnType<typeof stat>>;
+        try {
+          entryStats = await stat(entryPath);
+        } catch {
+          return undefined;
+        }
+
+        if (entryStats.isDirectory()) {
           return {
             name: entry.name,
             path: entryPath,
-            kind: "directory"
+            kind: "directory",
+            modifiedAtMs: entryStats.mtime.getTime()
           };
         }
 
-        if (entry.isFile()) {
+        if (entryStats.isFile()) {
           return {
             name: entry.name,
             path: entryPath,
             kind: "file",
-            extension: resolveExtension(entry.name)
+            extension: resolveExtension(entry.name),
+            modifiedAtMs: entryStats.mtime.getTime(),
+            sizeBytes: entryStats.size
           };
-        }
-
-        if (!entry.isSymbolicLink()) {
-          return undefined;
-        }
-
-        try {
-          const targetStats = await stat(entryPath);
-          if (targetStats.isDirectory()) {
-            return {
-              name: entry.name,
-              path: entryPath,
-              kind: "directory"
-            };
-          }
-
-          if (targetStats.isFile()) {
-            return {
-              name: entry.name,
-              path: entryPath,
-              kind: "file",
-              extension: resolveExtension(entry.name)
-            };
-          }
-        } catch {
-          return undefined;
         }
 
         return undefined;

@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "./DropdownSelect";
+import { resolveFileUrl } from "./file-url-cache";
 import { countSceneReferences, type SceneReferenceSummary } from "./project-helpers";
 import { ScenePreviewCard } from "./previews";
 
@@ -24,6 +25,8 @@ interface FileBrowserEntry {
   path: string;
   kind: "directory" | "file";
   extension?: string;
+  modifiedAtMs?: number;
+  sizeBytes?: number;
 }
 
 interface FileBrowserDirectoryListing {
@@ -37,6 +40,31 @@ interface ProjectDirectoryInspection {
   projectName?: string;
   reason?: string;
 }
+
+type FileBrowserIconName =
+  | "check"
+  | "chevron-right"
+  | "close"
+  | "desktop"
+  | "document"
+  | "download"
+  | "drive"
+  | "file"
+  | "folder"
+  | "folder-filled"
+  | "folder-plus"
+  | "go"
+  | "grid"
+  | "home"
+  | "image"
+  | "info"
+  | "list"
+  | "refresh"
+  | "sort"
+  | "up"
+  | "warning";
+
+const FILE_BROWSER_IMAGE_EXTENSIONS = new Set([".apng", ".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 
 interface ConfirmDialogOptions {
   title: string;
@@ -250,6 +278,313 @@ export function useDialogs(): DialogContextValue {
 
 export function shouldToggleFileSelectionOnClick(clickDetail: number): boolean {
   return clickDetail <= 1;
+}
+
+function FileBrowserIcon({ name }: { name: FileBrowserIconName }) {
+  switch (name) {
+    case "check":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m5 13 4 4L19 7" />
+        </svg>
+      );
+    case "chevron-right":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      );
+    case "close":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      );
+    case "desktop":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 20h8" />
+          <path d="M12 16v4" />
+        </svg>
+      );
+    case "document":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+          <path d="M9 13h6" />
+          <path d="M9 17h4" />
+        </svg>
+      );
+    case "download":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 3v11" />
+          <path d="m7 9 5 5 5-5" />
+          <path d="M5 19h14" />
+        </svg>
+      );
+    case "drive":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 14h16l-2-8H6z" />
+          <path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+          <path d="M7 17h.01" />
+          <path d="M11 17h6" />
+        </svg>
+      );
+    case "file":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+        </svg>
+      );
+    case "folder":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        </svg>
+      );
+    case "folder-filled":
+      return (
+        <svg className="file-browser__filled-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2.25 2.25H18.5A2.5 2.5 0 0 1 21 9.75v6.75A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+        </svg>
+      );
+    case "folder-plus":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <path d="M12 11v5" />
+          <path d="M9.5 13.5h5" />
+        </svg>
+      );
+    case "go":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 12h14" />
+          <path d="m13 6 6 6-6 6" />
+        </svg>
+      );
+    case "grid":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="4" y="4" width="6" height="6" rx="1" />
+          <rect x="14" y="4" width="6" height="6" rx="1" />
+          <rect x="4" y="14" width="6" height="6" rx="1" />
+          <rect x="14" y="14" width="6" height="6" rx="1" />
+        </svg>
+      );
+    case "home":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m4 11 8-7 8 7" />
+          <path d="M6 10v10h12V10" />
+          <path d="M10 20v-6h4v6" />
+        </svg>
+      );
+    case "image":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="4" y="5" width="16" height="14" rx="2" />
+          <path d="m8 15 3-3 3 3 2-2 3 3" />
+          <path d="M8 9h.01" />
+        </svg>
+      );
+    case "info":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v6" />
+          <path d="M12 7h.01" />
+        </svg>
+      );
+    case "list":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M8 6h12" />
+          <path d="M8 12h12" />
+          <path d="M8 18h12" />
+          <path d="M4 6h.01" />
+          <path d="M4 12h.01" />
+          <path d="M4 18h.01" />
+        </svg>
+      );
+    case "refresh":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20 12a8 8 0 0 1-13 6" />
+          <path d="M4 12a8 8 0 0 1 13-6" />
+          <path d="M17 3v4h-4" />
+          <path d="M7 21v-4h4" />
+        </svg>
+      );
+    case "sort":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m8 9 4-4 4 4" />
+          <path d="m16 15-4 4-4-4" />
+        </svg>
+      );
+    case "up":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 19V5" />
+          <path d="m6 11 6-6 6 6" />
+        </svg>
+      );
+    case "warning":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 3 2.5 20h19z" />
+          <path d="M12 9v5" />
+          <path d="M12 17h.01" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+function resolveLocationIconName(location: FileBrowserLocation): FileBrowserIconName {
+  const label = location.label.toLowerCase();
+
+  if (label.includes("home")) {
+    return "home";
+  }
+
+  if (label.includes("desktop")) {
+    return "desktop";
+  }
+
+  if (label.includes("documents")) {
+    return "document";
+  }
+
+  if (label.includes("downloads")) {
+    return "download";
+  }
+
+  return location.kind === "drive" ? "drive" : "folder";
+}
+
+function resolveEntryIconName(entry: FileBrowserEntry): FileBrowserIconName {
+  if (entry.kind === "directory") {
+    return "folder-filled";
+  }
+
+  return isFileBrowserImageEntry(entry) ? "image" : "file";
+}
+
+function isFileBrowserImageEntry(entry: FileBrowserEntry): boolean {
+  return entry.kind === "file" && Boolean(entry.extension && FILE_BROWSER_IMAGE_EXTENSIONS.has(entry.extension.toLowerCase()));
+}
+
+function resolveFileBrowserType(entry: FileBrowserEntry): string {
+  if (entry.kind === "directory") {
+    return "File folder";
+  }
+
+  if (!entry.extension) {
+    return "File";
+  }
+
+  return `${entry.extension.replace(/^\./, "").toUpperCase()} file`;
+}
+
+function formatFileBrowserModified(modifiedAtMs: number | undefined): string {
+  if (!modifiedAtMs) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  })
+    .format(new Date(modifiedAtMs))
+    .replace(",", "");
+}
+
+function formatFileBrowserSize(entry: FileBrowserEntry): string {
+  if (entry.kind === "directory" || entry.sizeBytes === undefined) {
+    return "—";
+  }
+
+  if (entry.sizeBytes < 1024) {
+    return `${entry.sizeBytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"];
+  let size = entry.sizeBytes / 1024;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatBreadcrumbLabel(label: string): string {
+  return label === "_MAGE2_TESTBED" ? "MAGE2_TESTBED" : label;
+}
+
+function FileBrowserEntryMedia({ entry }: { entry: FileBrowserEntry }) {
+  const [previewUrl, setPreviewUrl] = useState<string>();
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const canPreview = isFileBrowserImageEntry(entry);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!canPreview) {
+      setPreviewUrl(undefined);
+      setPreviewFailed(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setPreviewUrl(undefined);
+    setPreviewFailed(false);
+
+    resolveFileUrl(entry.path)
+      .then((nextUrl) => {
+        if (!cancelled) {
+          setPreviewUrl(nextUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canPreview, entry.path]);
+
+  if (canPreview && previewUrl && !previewFailed) {
+    return (
+      <span className="file-browser__entry-thumbnail" aria-hidden="true">
+        <img src={previewUrl} alt="" decoding="async" loading="lazy" onError={() => setPreviewFailed(true)} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="file-browser__entry-icon" aria-hidden="true">
+      <FileBrowserIcon name={resolveEntryIconName(entry)} />
+    </span>
+  );
 }
 
 function ConfirmDialog({
@@ -584,8 +919,10 @@ function FileBrowserDialog({
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isCreatingDirectory, setIsCreatingDirectory] = useState(false);
   const [newDirectoryName, setNewDirectoryName] = useState("");
+  const [entryViewMode, setEntryViewMode] = useState<"list" | "grid">("list");
   const requiresProjectDirectory =
     mode === "directory" && "directoryRequirement" in options && options.directoryRequirement === "project";
+  const canCreateDirectory = mode === "files" || ("allowCreateDirectory" in options && options.allowCreateDirectory);
 
   const allowedExtensionSet =
     mode === "files" && "allowedExtensions" in options && options.allowedExtensions
@@ -740,11 +1077,6 @@ function FileBrowserDialog({
   const confirmLabel =
     options.confirmLabel ?? (mode === "directory" ? "Use This Folder" : "Import Selected Files");
 
-  const selectedFileNames =
-    mode === "files"
-      ? selectedPaths.map((selectedPath) => selectedPath.replace(/^.*[\\/]/, ""))
-      : [];
-
   const directoryValidationMessage = resolveDirectoryValidationMessage(
     requiresProjectDirectory,
     isLoading,
@@ -755,6 +1087,17 @@ function FileBrowserDialog({
     requiresProjectDirectory && directoryInspection && !directoryInspection.isProjectDirectory
       ? "warning"
       : "default";
+  const footerMessage =
+    mode === "directory"
+      ? directoryValidationMessage
+      : selectedPaths.length > 0
+        ? `${selectedPaths.length} file${selectedPaths.length === 1 ? "" : "s"} selected.`
+        : "Select one or more files to continue.";
+  const instructionText = requiresProjectDirectory
+    ? "Choose a folder that contains a valid MAGE2 project."
+    : mode === "directory"
+      ? "Choose the current folder when you reach the project location you want."
+      : "Click a folder to open it, or double-click a file to choose it.";
 
   function navigateToPath(nextPath: string) {
     const trimmedPath = nextPath.trim();
@@ -804,20 +1147,14 @@ function FileBrowserDialog({
       title={options.title}
       description={options.description}
       wide
+      shellClassName="dialog-shell--file-browser"
       bodyClassName="dialog-shell__body--file-browser"
       onCancel={() => onResolve(mode === "directory" ? undefined : [])}
       footer={
         <div className="dialog-actions dialog-actions--spread">
           <div className="dialog-selection-summary">
-            {mode === "directory" ? (
-              <span>{directoryValidationMessage}</span>
-            ) : selectedPaths.length > 0 ? (
-              <span>
-                {selectedPaths.length} file{selectedPaths.length === 1 ? "" : "s"} selected
-              </span>
-            ) : (
-              <span>Select one or more files to continue.</span>
-            )}
+            <FileBrowserIcon name="info" />
+            <span>{footerMessage}</span>
           </div>
           <div className="dialog-button-row">
             <button
@@ -846,7 +1183,7 @@ function FileBrowserDialog({
             <p className="dialog-eyebrow">Locations</p>
             <div className="file-browser__locations">
               {locations.map((location) => {
-                const isActive = isSamePath(listing?.path ?? requestedPath, location.path);
+                const isActive = isActiveFileBrowserLocation(listing?.path ?? requestedPath, location);
                 return (
                   <button
                     key={location.path}
@@ -855,26 +1192,15 @@ function FileBrowserDialog({
                     onClick={() => navigateToPath(location.path)}
                     title={location.path}
                   >
+                    <span className="file-browser__location-icon" aria-hidden="true">
+                      <FileBrowserIcon name={resolveLocationIconName(location)} />
+                    </span>
                     <strong>{location.label}</strong>
-                    <span>{location.kind}</span>
                   </button>
                 );
               })}
             </div>
           </div>
-
-          {mode === "files" && selectedFileNames.length > 0 ? (
-            <div className="file-browser__sidebar-section">
-              <p className="dialog-eyebrow">Selection</p>
-              <div className="file-browser__selection-list">
-                {selectedFileNames.map((fileName, index) => (
-                  <span key={`${fileName}-${index}`} className="file-browser__selection-pill">
-                    {fileName}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
         </aside>
 
         <section className="file-browser__main">
@@ -885,23 +1211,30 @@ function FileBrowserDialog({
                   <button
                     key={breadcrumb.path}
                     type="button"
-                    className="file-browser__breadcrumb"
+                    className={
+                      index === breadcrumbItems.length - 1
+                        ? "file-browser__breadcrumb file-browser__breadcrumb--active"
+                        : "file-browser__breadcrumb"
+                    }
                     onClick={() => navigateToPath(breadcrumb.path)}
                     title={breadcrumb.path}
                   >
-                    {index === breadcrumbItems.length - 1 ? <strong>{breadcrumb.label}</strong> : breadcrumb.label}
+                    <span>{formatBreadcrumbLabel(breadcrumb.label)}</span>
                   </button>
                 ))}
               </div>
             ) : null}
 
             <form className="file-browser__path-form" onSubmit={handlePathSubmit}>
-              <input
-                value={pathInput}
-                onChange={(event) => setPathInput(event.target.value)}
-                placeholder="Enter a path"
-                title="Type a path directly and press Go."
-              />
+              <label className="file-browser__path-field">
+                <span className="sr-only">Current path</span>
+                <input
+                  value={pathInput}
+                  onChange={(event) => setPathInput(event.target.value)}
+                  placeholder="Enter a path"
+                  title="Type a path directly and press Go."
+                />
+              </label>
               <div className="dialog-button-row">
                 <button
                   type="button"
@@ -911,7 +1244,7 @@ function FileBrowserDialog({
                   aria-label="Go to parent folder"
                   title="Go to parent folder"
                 >
-                  ⬆️
+                  <FileBrowserIcon name="up" />
                 </button>
                 <button
                   type="submit"
@@ -919,7 +1252,7 @@ function FileBrowserDialog({
                   aria-label="Go to path"
                   title="Go to path"
                 >
-                  ➡️
+                  <FileBrowserIcon name="go" />
                 </button>
                 <button
                   type="button"
@@ -929,59 +1262,83 @@ function FileBrowserDialog({
                   aria-label="Refresh current folder"
                   title="Refresh current folder"
                 >
-                  🔄
+                  <FileBrowserIcon name="refresh" />
                 </button>
+                {canCreateDirectory ? (
+                  <button
+                    type="button"
+                    className="button-secondary file-browser__toolbar-button"
+                    disabled={!listing?.path}
+                    onClick={() => setIsCreatingDirectory((currentValue) => !currentValue)}
+                    aria-label={isCreatingDirectory ? "Hide new folder form" : "New folder"}
+                    title={isCreatingDirectory ? "Hide new folder form" : "New folder"}
+                  >
+                    <FileBrowserIcon name="folder-plus" />
+                  </button>
+                ) : null}
+                <span className="file-browser__view-toggle" aria-label="File view mode">
+                  <button
+                    type="button"
+                    className={
+                      entryViewMode === "list"
+                        ? "button-secondary file-browser__toolbar-button file-browser__toolbar-button--active"
+                        : "button-secondary file-browser__toolbar-button"
+                    }
+                    onClick={() => setEntryViewMode("list")}
+                    aria-label="List view"
+                    title="List view"
+                  >
+                    <FileBrowserIcon name="list" />
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      entryViewMode === "grid"
+                        ? "button-secondary file-browser__toolbar-button file-browser__toolbar-button--active"
+                        : "button-secondary file-browser__toolbar-button"
+                    }
+                    onClick={() => setEntryViewMode("grid")}
+                    aria-label="Grid view"
+                    title="Grid view"
+                  >
+                    <FileBrowserIcon name="grid" />
+                  </button>
+                </span>
               </div>
             </form>
 
-            {"allowCreateDirectory" in options && options.allowCreateDirectory ? (
+            {canCreateDirectory && isCreatingDirectory ? (
               <div className="file-browser__folder-tools">
-                {isCreatingDirectory ? (
-                  <>
-                    <input
-                      value={newDirectoryName}
-                      onChange={(event) => setNewDirectoryName(event.target.value)}
-                      placeholder="New folder name"
-                      title="Create a new folder inside the current directory."
-                    />
-                    <div className="dialog-button-row">
-                      <button type="button" className="button-secondary" onClick={() => setIsCreatingDirectory(false)}>
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className="button-accent"
-                        disabled={newDirectoryName.trim().length === 0 || !listing?.path}
-                        onClick={() => void handleCreateDirectory()}
-                      >
-                        Create Folder
-                      </button>
-                    </div>
-                  </>
-                ) : (
+                <input
+                  value={newDirectoryName}
+                  onChange={(event) => setNewDirectoryName(event.target.value)}
+                  placeholder="New folder name"
+                  title="Create a new folder inside the current directory."
+                />
+                <div className="dialog-button-row">
+                  <button type="button" className="button-secondary" onClick={() => setIsCreatingDirectory(false)}>
+                    Cancel
+                  </button>
                   <button
                     type="button"
-                    className="button-secondary"
-                    disabled={!listing?.path}
-                    onClick={() => setIsCreatingDirectory(true)}
+                    className="button-accent"
+                    disabled={newDirectoryName.trim().length === 0 || !listing?.path}
+                    onClick={() => void handleCreateDirectory()}
                   >
-                    New Folder
+                    <FileBrowserIcon name="folder-plus" />
+                    <span>Create Folder</span>
                   </button>
-                )}
+                </div>
               </div>
             ) : null}
           </div>
 
           <div className="file-browser__status-row">
-            <span>
-              {requiresProjectDirectory
-                ? "Choose a folder that contains a valid MAGE2 project."
-                : mode === "directory"
-                ? "Choose the current folder when you reach the project location you want."
-                : "Click files to select them, or double-click a file to choose it right away. Open folders to keep browsing."}
-            </span>
+            <span>{instructionText}</span>
             {hiddenFileCount > 0 ? (
-              <span>{hiddenFileCount} unsupported file{hiddenFileCount === 1 ? "" : "s"} hidden</span>
+              <span className="file-browser__hidden-count">
+                {hiddenFileCount} unsupported file{hiddenFileCount === 1 ? "" : "s"} hidden
+              </span>
             ) : null}
           </div>
 
@@ -997,7 +1354,22 @@ function FileBrowserDialog({
             </div>
           ) : null}
 
-          <div className="file-browser__entries">
+          <div
+            className={
+              entryViewMode === "grid" ? "file-browser__entries file-browser__entries--grid" : "file-browser__entries"
+            }
+          >
+            {entryViewMode === "list" ? (
+              <div className="file-browser__entry-header" aria-hidden="true">
+                <span className="file-browser__entry-name-heading">
+                  Name
+                  <FileBrowserIcon name="sort" />
+                </span>
+                <span>Type</span>
+                <span>Modified</span>
+                <span>Size</span>
+              </div>
+            ) : null}
             {isLoading ? <p className="muted">Loading folder contents...</p> : null}
             {!isLoading && errorMessage ? <p className="dialog-error">{errorMessage}</p> : null}
             {!isLoading && !errorMessage && visibleEntries?.length === 0 ? (
@@ -1034,13 +1406,13 @@ function FileBrowserDialog({
                       }}
                       title={entry.path}
                     >
-                      <div className="file-browser__entry-copy">
+                      <span className="file-browser__entry-name-cell">
+                        <FileBrowserEntryMedia entry={entry} />
                         <strong>{entry.name}</strong>
-                        <span>{entry.kind === "directory" ? "Folder" : entry.extension ?? "File"}</span>
-                      </div>
-                      <span className="file-browser__entry-action">
-                        {entry.kind === "directory" ? "Open" : isSelected ? "Selected" : "Select"}
                       </span>
+                      <span>{resolveFileBrowserType(entry)}</span>
+                      <span>{formatFileBrowserModified(entry.modifiedAtMs)}</span>
+                      <span>{formatFileBrowserSize(entry)}</span>
                     </button>
                   );
                 })
@@ -1060,7 +1432,8 @@ function DialogFrame({
   onCancel,
   children,
   footer,
-  bodyClassName
+  bodyClassName,
+  shellClassName
 }: {
   title: string;
   description?: string;
@@ -1070,9 +1443,11 @@ function DialogFrame({
   children: ReactNode;
   footer?: ReactNode;
   bodyClassName?: string;
+  shellClassName?: string;
 }) {
   const titleId = useId();
   const descriptionId = useId();
+  const isFileBrowserShell = shellClassName?.includes("dialog-shell--file-browser") ?? false;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -1097,8 +1472,8 @@ function DialogFrame({
       <div
         className={
           wide
-            ? `dialog-shell dialog-shell--wide dialog-shell--${tone}`
-            : `dialog-shell dialog-shell--${tone}`
+            ? `dialog-shell dialog-shell--wide dialog-shell--${tone}${shellClassName ? ` ${shellClassName}` : ""}`
+            : `dialog-shell dialog-shell--${tone}${shellClassName ? ` ${shellClassName}` : ""}`
         }
         role="dialog"
         aria-modal="true"
@@ -1115,8 +1490,14 @@ function DialogFrame({
               </p>
             ) : null}
           </div>
-          <button type="button" className="dialog-close" onClick={onCancel} aria-label="Close dialog">
-            Close
+          <button
+            type="button"
+            className={isFileBrowserShell ? "dialog-close dialog-close--icon-only" : "dialog-close"}
+            onClick={onCancel}
+            aria-label="Close dialog"
+          >
+            {isFileBrowserShell ? <FileBrowserIcon name="close" /> : null}
+            <span className={isFileBrowserShell ? "sr-only" : undefined}>Close</span>
           </button>
         </div>
 
@@ -1286,4 +1667,22 @@ function isSamePath(leftPath: string | undefined, rightPath: string | undefined)
   }
 
   return leftPath.trim().replaceAll("/", "\\").toLowerCase() === rightPath.trim().replaceAll("/", "\\").toLowerCase();
+}
+
+function isActiveFileBrowserLocation(currentPath: string | undefined, location: FileBrowserLocation): boolean {
+  if (isSamePath(currentPath, location.path)) {
+    return true;
+  }
+
+  if (!currentPath || location.kind !== "drive") {
+    return false;
+  }
+
+  const normalizedCurrentPath = ensureTrailingSeparator(currentPath.trim().replaceAll("/", "\\").toLowerCase());
+  const normalizedLocationPath = ensureTrailingSeparator(location.path.trim().replaceAll("/", "\\").toLowerCase());
+  return normalizedCurrentPath.startsWith(normalizedLocationPath);
+}
+
+function ensureTrailingSeparator(inputPath: string): string {
+  return /[\\/]$/.test(inputPath) ? inputPath : `${inputPath}\\`;
 }

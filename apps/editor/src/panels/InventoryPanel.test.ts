@@ -7,7 +7,7 @@ import { useEditorStore } from "../store";
 import { InventoryPanel } from "./InventoryPanel";
 
 describe("InventoryPanel locale behavior", () => {
-  it("always renders the default locale even when Localization is pointed elsewhere", () => {
+  it("renders the default locale in the reference-style inventory workbench", () => {
     const project = createDefaultProjectBundle("Inventory locale");
     const item = {
       id: "item_lantern",
@@ -46,10 +46,14 @@ describe("InventoryPanel locale behavior", () => {
 
     expect(markup).toContain('value="Lantern"');
     expect(markup).toContain("Default description");
-    expect(markup).toContain("Drag an image onto the preview to assign this item&#x27;s art.");
+    expect(markup).toContain("Inventory Image");
+    expect(markup).toContain("Used in Scenes");
+    expect(markup).toContain("Pickup hotspots");
+    expect(markup).toContain("Placement targets");
+    expect(markup).toContain("No image assigned");
     expect(markup).not.toContain("asset-preview--intrinsic");
     expect(markup).not.toContain("Lanterne");
     expect(markup).not.toContain("Description francaise");
-    expect(markup).toContain("button-danger-quiet");
+    expect(markup).not.toContain("Drag an image onto the preview to assign this item&#x27;s art.");
   });
 });
