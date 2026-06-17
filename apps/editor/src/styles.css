@@ -10151,6 +10151,2061 @@ button.recent-project__icon-button:hover {
   padding: 0.62rem 0.72rem;
 }
 
+.app-shell--editor-workbench .localization-workbench-page {
+  --localization-panel: rgba(13, 21, 28, 0.92);
+  --localization-panel-strong: rgba(16, 27, 36, 0.96);
+  --localization-border: rgba(108, 128, 145, 0.28);
+  --localization-border-strong: rgba(41, 167, 231, 0.62);
+  --localization-control: rgba(8, 15, 22, 0.78);
+  --localization-text: #e6edf3;
+  --localization-muted: #9eafbe;
+  --localization-blue: #4ab8ff;
+  --localization-blue-soft: rgba(29, 154, 230, 0.16);
+  --localization-red: #ff7586;
+  --localization-red-soft: rgba(255, 93, 116, 0.14);
+  --localization-amber: #f6c157;
+  --localization-amber-soft: rgba(246, 193, 87, 0.13);
+  --localization-green: #72d391;
+  --localization-green-soft: rgba(76, 205, 128, 0.13);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 0.62rem;
+  height: calc(100vh - 8.4rem);
+  min-height: 42rem;
+}
+
+.app-shell--editor-workbench .localization-commandbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.9rem;
+  min-height: 2.6rem;
+  padding: 0.12rem 0.25rem;
+}
+
+.app-shell--editor-workbench .localization-commandbar__field,
+.app-shell--editor-workbench .localization-commandbar__actions,
+.app-shell--editor-workbench .localization-locale-select,
+.app-shell--editor-workbench .localization-command-button,
+.app-shell--editor-workbench .localization-link-button,
+.app-shell--editor-workbench .localization-detail-title,
+.app-shell--editor-workbench .localization-detail-header__badges,
+.app-shell--editor-workbench .localization-health-panel__header,
+.app-shell--editor-workbench .localization-media-actions,
+.app-shell--editor-workbench .localization-footer,
+.app-shell--editor-workbench .localization-footer__locale {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .localization-commandbar__label {
+  color: #c6d2dc;
+  font-size: 0.8rem;
+}
+
+.app-shell--editor-workbench .localization-locale-select {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 13rem) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  padding: 0 0.45rem 0 0.62rem;
+  border: 1px solid var(--localization-border);
+  border-radius: 4px;
+  background: rgba(14, 23, 31, 0.84);
+}
+
+.app-shell--editor-workbench .localization-locale-select .dropdown-select__native {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 1.8rem;
+}
+
+.app-shell--editor-workbench .localization-locale-select__flag {
+  position: relative;
+  flex: 0 0 1.35rem;
+  width: 1.35rem;
+  height: 0.92rem;
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(90deg, #2441a8 0 33.333%, #f5f7fb 33.333% 66.666%, #d73346 66.666% 100%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+
+.app-shell--editor-workbench .localization-default-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.15rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 4px;
+  background: rgba(45, 166, 234, 0.18);
+  color: #6ac7ff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.app-shell--editor-workbench .localization-commandbar__actions {
+  flex-wrap: wrap;
+}
+
+.app-shell--editor-workbench .localization-command-button svg,
+.app-shell--editor-workbench .localization-link-button svg,
+.app-shell--editor-workbench .localization-icon-button svg,
+.app-shell--editor-workbench .localization-queue-row svg,
+.app-shell--editor-workbench .localization-health-card svg,
+.app-shell--editor-workbench .localization-rail svg,
+.app-shell--editor-workbench .localization-usage-card svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.app-shell--editor-workbench .localization-rail__title svg:nth-child(2),
+.app-shell--editor-workbench .localization-icon-button svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.app-shell--editor-workbench .localization-command-button--danger {
+  border-color: rgba(255, 113, 129, 0.28);
+  background: rgba(120, 26, 42, 0.16);
+  color: #ff7d8d;
+}
+
+.app-shell--editor-workbench .localization-health-panel {
+  gap: 0.72rem;
+  padding: 0.78rem 0.82rem 0.88rem;
+  border-radius: 6px;
+}
+
+.app-shell--editor-workbench .localization-health-panel__header {
+  justify-content: space-between;
+  min-height: 1.45rem;
+}
+
+.app-shell--editor-workbench .localization-health-panel__header h3 {
+  color: #c6d2dc;
+  font-size: 0.82rem;
+  font-weight: 550;
+}
+
+.app-shell--editor-workbench .localization-link-button,
+.app-shell--editor-workbench button.localization-link-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  min-height: 1.65rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64bdf4;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.app-shell--editor-workbench .localization-link-button:hover,
+.app-shell--editor-workbench button.localization-link-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+  background: transparent;
+  color: #9dddff;
+}
+
+.app-shell--editor-workbench .localization-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.app-shell--editor-workbench .localization-health-card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.72rem;
+  min-height: 3.65rem;
+  padding: 0.72rem 1rem;
+  border: 1px solid var(--localization-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.app-shell--editor-workbench .localization-health-card--missing {
+  border-color: rgba(255, 99, 118, 0.48);
+  background: linear-gradient(90deg, rgba(255, 93, 116, 0.18), rgba(255, 93, 116, 0.06));
+}
+
+.app-shell--editor-workbench .localization-health-card--empty {
+  border-color: rgba(246, 193, 87, 0.48);
+  background: linear-gradient(90deg, rgba(246, 193, 87, 0.16), rgba(246, 193, 87, 0.055));
+}
+
+.app-shell--editor-workbench .localization-health-card--orphaned {
+  border-color: rgba(43, 191, 221, 0.38);
+  background: linear-gradient(90deg, rgba(29, 154, 230, 0.16), rgba(43, 191, 221, 0.055));
+}
+
+.app-shell--editor-workbench .localization-health-card--ready {
+  border-color: rgba(76, 205, 128, 0.36);
+  background: linear-gradient(90deg, rgba(76, 205, 128, 0.14), rgba(76, 205, 128, 0.045));
+}
+
+.app-shell--editor-workbench .localization-health-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.app-shell--editor-workbench .localization-health-card strong {
+  color: #ff9aaa;
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.app-shell--editor-workbench .localization-health-card--empty strong,
+.app-shell--editor-workbench .localization-health-card--empty .localization-health-card__icon {
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-health-card--orphaned strong,
+.app-shell--editor-workbench .localization-health-card--orphaned .localization-health-card__icon {
+  color: #68d7f3;
+}
+
+.app-shell--editor-workbench .localization-health-card--missing .localization-health-card__icon {
+  color: #ff7586;
+}
+
+.app-shell--editor-workbench .localization-health-card span {
+  display: block;
+  color: #e7eef5;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.app-shell--editor-workbench .localization-health-card small {
+  display: block;
+  color: var(--localization-muted);
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-view-switch {
+  width: fit-content;
+  min-width: min(22rem, 100%);
+  padding: 0.16rem;
+  border-radius: 4px;
+}
+
+.app-shell--editor-workbench .localization-view-switch .localization-subtab {
+  min-width: 7.8rem;
+  justify-content: center;
+}
+
+.app-shell--editor-workbench .localization-workbench {
+  display: grid;
+  grid-template-columns: minmax(25rem, 0.88fr) minmax(30rem, 1.1fr) minmax(18rem, 0.58fr);
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--localization-border);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 12rem),
+    rgba(9, 15, 21, 0.9);
+}
+
+.app-shell--editor-workbench .localization-queue-pane,
+.app-shell--editor-workbench .localization-detail-panel,
+.app-shell--editor-workbench .localization-rail {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell--editor-workbench .localization-queue-pane {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 0.48rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border-right: 1px solid var(--localization-border);
+}
+
+.app-shell--editor-workbench .localization-queue-controls {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(6.8rem, 0.45fr) minmax(7rem, 0.48fr) minmax(7rem, 0.5fr);
+  align-items: end;
+  gap: 0.46rem;
+}
+
+.app-shell--editor-workbench .localization-queue-controls--media {
+  grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 0.58fr);
+}
+
+.app-shell--editor-workbench .localization-search-field {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .localization-search-field input {
+  padding-right: 2rem;
+}
+
+.app-shell--editor-workbench .localization-search-field svg {
+  position: absolute;
+  right: 0.64rem;
+  bottom: 0.48rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #95a6b6;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  pointer-events: none;
+}
+
+.app-shell--editor-workbench .localization-queue-summary,
+.app-shell--editor-workbench .localization-orphan-action,
+.app-shell--editor-workbench .localization-queue-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  color: var(--localization-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .localization-queue-summary svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  stroke: currentColor;
+  fill: none;
+}
+
+.app-shell--editor-workbench .localization-orphan-action {
+  padding: 0.42rem 0.55rem;
+  border: 1px solid rgba(255, 113, 129, 0.22);
+  border-radius: 4px;
+  background: rgba(255, 93, 116, 0.055);
+}
+
+.app-shell--editor-workbench .localization-queue-list {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.18rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108, 128, 145, 0.55) transparent;
+}
+
+.app-shell--editor-workbench .localization-queue-group {
+  display: grid;
+  gap: 0.32rem;
+  margin-bottom: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-queue-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 1.45rem;
+  color: #c8d4de;
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.app-shell--editor-workbench .localization-queue-group h4 svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  stroke: currentColor;
+  fill: none;
+}
+
+.app-shell--editor-workbench .localization-queue-group--missing h4 {
+  color: #ff7d8d;
+}
+
+.app-shell--editor-workbench .localization-queue-group--empty h4 {
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-queue-group--ready h4 {
+  color: var(--localization-green);
+}
+
+.app-shell--editor-workbench .localization-queue-group--orphaned h4 {
+  color: #74d5ec;
+}
+
+.app-shell--editor-workbench .localization-queue-group__rows {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(108, 128, 145, 0.22);
+  border-radius: 4px;
+}
+
+.app-shell--editor-workbench button.localization-queue-row:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  display: grid;
+  grid-template-columns: 1.35rem minmax(4.8rem, 0.52fr) minmax(8rem, 1fr) minmax(7rem, 0.9fr) auto 1rem;
+  align-items: center;
+  gap: 0.54rem;
+  width: 100%;
+  min-height: 2.18rem;
+  padding: 0 0.56rem;
+  border: 0;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.16);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.018);
+  color: #cbd7e1;
+  text-align: left;
+}
+
+.app-shell--editor-workbench button.localization-queue-row:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+  background: rgba(29, 154, 230, 0.08);
+  color: #f1f7fc;
+}
+
+.app-shell--editor-workbench button.localization-queue-row--selected:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle),
+.app-shell--editor-workbench button.localization-queue-row--selected:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+  box-shadow: inset 0 0 0 1px var(--localization-border-strong);
+  background: linear-gradient(90deg, rgba(29, 154, 230, 0.2), rgba(29, 154, 230, 0.075));
+  color: #f7fbff;
+}
+
+.app-shell--editor-workbench .localization-queue-row:last-child {
+  border-bottom: 0;
+}
+
+.app-shell--editor-workbench .localization-queue-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #9fb0be;
+}
+
+.app-shell--editor-workbench .localization-queue-row__area,
+.app-shell--editor-workbench .localization-queue-row__preview,
+.app-shell--editor-workbench .localization-queue-row code,
+.app-shell--editor-workbench .localization-coverage-table span,
+.app-shell--editor-workbench .localization-footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .localization-queue-row__area {
+  color: #b7c4cf;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .localization-queue-row code,
+.app-shell--editor-workbench .localization-detail-title code,
+.app-shell--editor-workbench .localization-metadata-grid dd:last-child {
+  color: #dfe7ee;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .localization-queue-row__preview {
+  color: #a9b8c5;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .localization-status--ready {
+  background: var(--localization-green-soft);
+  color: #8be7a5;
+}
+
+.app-shell--editor-workbench .localization-status--missing {
+  background: var(--localization-red-soft);
+  color: #ff97a4;
+}
+
+.app-shell--editor-workbench .localization-status--empty {
+  background: var(--localization-amber-soft);
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-status--orphaned {
+  background: rgba(43, 191, 221, 0.12);
+  color: #7cd6ec;
+}
+
+.app-shell--editor-workbench .localization-queue-pager {
+  min-height: 1.45rem;
+}
+
+.app-shell--editor-workbench .localization-pager-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+}
+
+.app-shell--editor-workbench .localization-pager-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid rgba(108, 128, 145, 0.24);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #9fb0be;
+}
+
+.app-shell--editor-workbench .localization-pager-button--active {
+  border-color: rgba(74, 184, 255, 0.6);
+  color: #aee2ff;
+}
+
+.app-shell--editor-workbench .localization-detail-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, auto);
+  align-content: start;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border-right: 1px solid var(--localization-border);
+}
+
+.app-shell--editor-workbench .localization-detail-header,
+.app-shell--editor-workbench .localization-detail-block {
+  padding: 0.88rem 0.95rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-height: 4.2rem;
+}
+
+.app-shell--editor-workbench .localization-detail-header p {
+  margin: 0.26rem 0 0;
+}
+
+.app-shell--editor-workbench .localization-icon-button,
+.app-shell--editor-workbench button.localization-icon-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  min-height: 1.32rem;
+  width: 1.32rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #8ea1b0;
+}
+
+.app-shell--editor-workbench .localization-translation-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.06fr);
+  align-items: center;
+  gap: 0.72rem;
+  padding: 1rem 0.95rem 0.82rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-text-field {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .localization-text-field > span {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 1.2rem;
+  color: #d9e4ee;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.app-shell--editor-workbench .localization-text-field small {
+  color: var(--localization-muted);
+  font-size: 0.7rem;
+}
+
+.app-shell--editor-workbench .localization-text-field textarea {
+  min-height: 6.1rem;
+  resize: vertical;
+  color: #eaf1f7;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.app-shell--editor-workbench .localization-text-field--source textarea {
+  background: rgba(11, 18, 24, 0.74);
+}
+
+.app-shell--editor-workbench .localization-text-field--target textarea {
+  border-color: rgba(74, 184, 255, 0.66);
+  box-shadow: 0 0 0 1px rgba(74, 184, 255, 0.12);
+}
+
+.app-shell--editor-workbench .localization-translation-arrow {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  color: #9fb0be;
+}
+
+.app-shell--editor-workbench .localization-detail-block {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-detail-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-usage-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.app-shell--editor-workbench .localization-usage-card {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.68rem;
+  min-height: 3.3rem;
+  padding: 0.6rem 0.68rem;
+  border: 1px solid rgba(108, 128, 145, 0.22);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.023);
+}
+
+.app-shell--editor-workbench .localization-usage-card strong,
+.app-shell--editor-workbench .localization-usage-card span,
+.app-shell--editor-workbench .localization-rail-usage strong,
+.app-shell--editor-workbench .localization-rail-usage span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .localization-usage-card span,
+.app-shell--editor-workbench .localization-rail-usage span {
+  color: var(--localization-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .localization-usage-button {
+  gap: 0.35rem;
+}
+
+.app-shell--editor-workbench .localization-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.56rem 1rem;
+  margin: 0;
+}
+
+.app-shell--editor-workbench .localization-metadata-grid dt {
+  color: var(--localization-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .localization-metadata-grid dd {
+  margin: 0;
+  min-width: 0;
+  color: #dfe8ef;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .localization-detail-panel--media {
+  grid-template-rows: auto auto auto auto;
+}
+
+.app-shell--editor-workbench .localization-media-variant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+  padding: 1rem 0.95rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-media-variant-grid section {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .localization-media-variant-grid__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.app-shell--editor-workbench .localization-media-variant-grid .asset-preview {
+  min-height: 10.5rem;
+}
+
+.app-shell--editor-workbench .localization-media-actions {
+  flex-wrap: wrap;
+  padding: 0.88rem 0.95rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-rail {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, auto) auto;
+  align-content: start;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.app-shell--editor-workbench .localization-rail__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-height: 3rem;
+  padding: 0.75rem 0.82rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.22);
+}
+
+.app-shell--editor-workbench .localization-rail__title > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #8ea1b0;
+}
+
+.app-shell--editor-workbench .localization-rail-section {
+  display: grid;
+  gap: 0.68rem;
+  padding: 0.82rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.18);
+}
+
+.app-shell--editor-workbench .localization-rail-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.app-shell--editor-workbench .localization-rail-usage {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.app-shell--editor-workbench .localization-next-step {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr);
+  gap: 0.55rem;
+  color: #dfe7ee;
+}
+
+.app-shell--editor-workbench .localization-next-step strong,
+.app-shell--editor-workbench .localization-next-step span {
+  display: block;
+}
+
+.app-shell--editor-workbench .localization-next-step span {
+  margin-top: 0.18rem;
+  color: var(--localization-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .localization-next-step--missing {
+  color: #ff7d8d;
+}
+
+.app-shell--editor-workbench .localization-next-step--empty {
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-next-step--ready {
+  color: var(--localization-green);
+}
+
+.app-shell--editor-workbench .localization-coverage-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgba(108, 128, 145, 0.18);
+  border-radius: 4px;
+}
+
+.app-shell--editor-workbench .localization-coverage-table__header,
+.app-shell--editor-workbench .localization-coverage-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 3.2rem minmax(5.2rem, 0.75fr) 4.1rem;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.78rem;
+  padding: 0 0.55rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.12);
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-coverage-table__header {
+  color: var(--localization-muted);
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.app-shell--editor-workbench .localization-coverage-table__row:last-child {
+  border-bottom: 0;
+}
+
+.app-shell--editor-workbench .localization-coverage-table__row span:nth-child(3) {
+  color: #95d9a7;
+}
+
+.app-shell--editor-workbench .localization-coverage-table__missing {
+  display: inline-flex;
+  justify-content: center;
+  width: fit-content;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.34rem;
+  border: 1px solid rgba(255, 113, 129, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 93, 116, 0.12);
+  color: #ff9aaa;
+}
+
+.app-shell--editor-workbench .localization-quick-actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.app-shell--editor-workbench .localization-quick-actions button {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.app-shell--editor-workbench .localization-quick-actions kbd {
+  min-width: 1.1rem;
+  color: #8597a7;
+  font-family: inherit;
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.app-shell--editor-workbench .localization-footer {
+  min-height: 2rem;
+  padding: 0.28rem 0.72rem;
+  border: 1px solid var(--localization-border);
+  border-radius: 4px;
+  background: rgba(9, 15, 21, 0.88);
+  color: var(--localization-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .localization-footer > span {
+  padding-right: 0.7rem;
+  border-right: 1px solid rgba(108, 128, 145, 0.22);
+}
+
+.app-shell--editor-workbench .localization-footer > span:last-child {
+  border-right: 0;
+}
+
+.app-shell--editor-workbench .localization-empty-state {
+  margin: 0;
+  color: var(--localization-muted);
+}
+
+@container (max-width: 1280px) {
+  .app-shell--editor-workbench .localization-workbench {
+    grid-template-columns: minmax(22rem, 0.92fr) minmax(28rem, 1.08fr);
+  }
+
+  .app-shell--editor-workbench .localization-rail {
+    display: none;
+  }
+
+  .app-shell--editor-workbench .localization-detail-panel {
+    border-right: 0;
+  }
+}
+
+@container (max-width: 980px) {
+  .app-shell--editor-workbench .localization-workbench-page {
+    height: auto;
+  }
+
+  .app-shell--editor-workbench .localization-health-grid,
+  .app-shell--editor-workbench .localization-workbench,
+  .app-shell--editor-workbench .localization-translation-editor,
+  .app-shell--editor-workbench .localization-media-variant-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell--editor-workbench .localization-queue-pane,
+  .app-shell--editor-workbench .localization-detail-panel {
+    border-right: 0;
+    border-bottom: 1px solid var(--localization-border);
+  }
+
+  .app-shell--editor-workbench .localization-queue-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.app-shell--editor-workbench .assets-workbench-page {
+  --assets-bg: #071018;
+  --assets-panel: #0d151d;
+  --assets-panel-soft: #111b24;
+  --assets-rail: #0e171f;
+  --assets-control: #0a121a;
+  --assets-border: rgba(132, 150, 166, 0.2);
+  --assets-border-strong: rgba(132, 150, 166, 0.32);
+  --assets-text: #edf6fb;
+  --assets-muted: #9aa9b6;
+  --assets-subtle: #6f7f8c;
+  --assets-accent: #21a8f2;
+  --assets-accent-strong: #2bbcff;
+  --assets-amber: #f2b84b;
+  --assets-rose: #ff6b78;
+  --assets-delete-red: #ff4d4f;
+  --assets-green: #61d394;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.68rem;
+  height: calc(100vh - 6.9rem);
+  min-height: 0;
+  color: var(--assets-text);
+}
+
+.app-shell--editor-workbench .assets-workbench-page svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-shell--editor-workbench .assets-command-bar {
+  display: grid;
+  grid-template-columns: auto minmax(16rem, 21rem) auto auto auto;
+  align-items: center;
+  gap: 0.72rem;
+  min-height: 3.12rem;
+  padding: 0.48rem 0.58rem;
+  border: 1px solid var(--assets-border);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.006)),
+    rgba(8, 15, 22, 0.78);
+}
+
+.app-shell--editor-workbench .assets-category-tabs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0;
+  color: var(--assets-muted);
+  font-size: 0.82rem;
+}
+
+.app-shell--editor-workbench .assets-category-tabs > span {
+  margin-right: 0.55rem;
+}
+
+.app-shell--editor-workbench button.assets-category-tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  min-width: 5.2rem;
+  min-height: 2.18rem;
+  border-color: var(--assets-border);
+  border-radius: 0;
+  background: #0c151d;
+  color: #d5e1eb;
+  padding: 0.3rem 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.app-shell--editor-workbench button.assets-category-tab:first-of-type {
+  border-radius: 4px 0 0 4px;
+}
+
+.app-shell--editor-workbench button.assets-category-tab:last-of-type {
+  border-radius: 0 4px 4px 0;
+}
+
+.app-shell--editor-workbench button.assets-category-tab--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle),
+.app-shell--editor-workbench button.assets-category-tab--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+  border-color: rgba(33, 168, 242, 0.78);
+  background: rgba(19, 87, 133, 0.34);
+  color: #7dd6ff;
+  box-shadow: inset 0 0 0 1px rgba(33, 168, 242, 0.22);
+}
+
+.app-shell--editor-workbench .assets-search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  min-height: 2.18rem;
+  padding: 0 0.62rem;
+  border: 1px solid var(--assets-border);
+  border-radius: 5px;
+  background: rgba(7, 12, 18, 0.8);
+  color: var(--assets-muted);
+}
+
+.app-shell--editor-workbench .assets-search-field input {
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--assets-text);
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-search-field input::placeholder {
+  color: #8796a3;
+}
+
+.app-shell--editor-workbench .assets-search-field kbd,
+.app-shell--editor-workbench .assets-quick-actions kbd {
+  color: #7d8995;
+  font: 600 0.7rem/1 "Inter", "Segoe UI", sans-serif;
+}
+
+.app-shell--editor-workbench .assets-view-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 2.18rem);
+  justify-self: start;
+  width: fit-content;
+  border: 1px solid var(--assets-border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.app-shell--editor-workbench button.assets-icon-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  display: grid;
+  place-items: center;
+  width: 2.18rem;
+  min-width: 2.18rem;
+  min-height: 2.18rem;
+  border: 0;
+  border-right: 1px solid var(--assets-border);
+  border-radius: 0;
+  background: rgba(12, 20, 28, 0.92);
+  color: #93a4b2;
+  padding: 0;
+}
+
+.app-shell--editor-workbench button.assets-icon-button:last-child {
+  border-right: 0;
+}
+
+.app-shell--editor-workbench button.assets-icon-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle),
+.app-shell--editor-workbench button.assets-icon-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
+  background: rgba(33, 168, 242, 0.16);
+  color: var(--assets-accent-strong);
+}
+
+.app-shell--editor-workbench button.assets-import-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  gap: 0.42rem;
+  width: fit-content;
+  min-width: 9.2rem;
+  min-height: 2.18rem;
+  border-color: rgba(33, 168, 242, 0.58);
+  background: rgba(21, 84, 128, 0.24);
+  color: #7dd6ff;
+  padding: 0.34rem 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.app-shell--editor-workbench .assets-total-count {
+  color: var(--assets-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-workbench {
+  display: grid;
+  grid-template-columns: minmax(23rem, 0.92fr) minmax(30rem, 1.08fr) minmax(18rem, 0.5fr);
+  min-height: 0;
+  border: 1px solid var(--assets-border-strong);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 52% 0%, rgba(30, 63, 78, 0.18), transparent 30rem),
+    rgba(5, 11, 16, 0.92);
+  overflow: hidden;
+}
+
+.app-shell--editor-workbench .assets-browser,
+.app-shell--editor-workbench .assets-inspector,
+.app-shell--editor-workbench .assets-usage-rail {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell--editor-workbench .assets-browser,
+.app-shell--editor-workbench .assets-inspector {
+  border-right: 1px solid var(--assets-border);
+}
+
+.app-shell--editor-workbench .assets-browser {
+  --assets-browser-scrollbar-gutter: 1.3rem;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 9rem),
+    rgba(10, 18, 26, 0.78);
+  padding: 0;
+}
+
+.app-shell--editor-workbench .assets-browser__header {
+  display: grid;
+  grid-template-columns: 4.8rem minmax(0, 1fr) 4.5rem 4.5rem 2.6rem;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.62rem;
+  padding: 0.48rem calc(0.46rem + var(--assets-browser-scrollbar-gutter)) 0.48rem 0.46rem;
+  border-bottom: 1px solid var(--assets-border);
+  background: rgba(255, 255, 255, 0.018);
+  color: #c7d3dc;
+  font-size: 0.74rem;
+}
+
+.app-shell--editor-workbench .assets-browser__header h3 {
+  grid-column: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--assets-text);
+  font-size: 0.88rem;
+}
+
+.app-shell--editor-workbench .assets-browser__header--list {
+  grid-template-columns: 3.6rem minmax(0, 1fr) 4rem 4rem 2.4rem;
+}
+
+.app-shell--editor-workbench .assets-browser__header > span {
+  justify-self: stretch;
+  text-align: center;
+}
+
+.app-shell--editor-workbench .assets-browser__header h3 svg {
+  color: var(--assets-amber);
+}
+
+.app-shell--editor-workbench .assets-browser__list {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.42rem 0.32rem;
+  scrollbar-gutter: stable;
+}
+
+.app-shell--editor-workbench .assets-browser__list--grid {
+  gap: 0;
+}
+
+.app-shell--editor-workbench .assets-group {
+  display: grid;
+  gap: 0;
+}
+
+.app-shell--editor-workbench .assets-group__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2rem;
+  padding: 0.28rem 0.58rem;
+  color: var(--assets-amber);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.app-shell--editor-workbench .assets-group__heading--sceneAudio {
+  color: var(--assets-accent-strong);
+}
+
+.app-shell--editor-workbench .assets-group__heading--inventory {
+  color: var(--assets-green);
+}
+
+.app-shell--editor-workbench .assets-browser-row {
+  display: grid;
+  grid-template-columns: 4.8rem minmax(0, 1fr) 4.5rem 4.5rem 2.6rem;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 3.9rem;
+  margin: 0 0.12rem;
+  padding: 0.28rem 0.34rem;
+  border: 1px solid transparent;
+  border-bottom-color: rgba(132, 150, 166, 0.14);
+  border-radius: 3px;
+  color: #dce8f1;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.app-shell--editor-workbench .assets-browser-row--list {
+  grid-template-columns: 3.6rem minmax(0, 1fr) 4rem 4rem 2.4rem;
+  min-height: 3.2rem;
+}
+
+.app-shell--editor-workbench .assets-browser-row:hover {
+  border-color: rgba(33, 168, 242, 0.3);
+  background: rgba(33, 168, 242, 0.06);
+}
+
+.app-shell--editor-workbench .assets-browser-row--selected,
+.app-shell--editor-workbench .assets-browser-row--selected:hover {
+  border-color: rgba(33, 168, 242, 0.8);
+  background:
+    linear-gradient(90deg, rgba(23, 119, 168, 0.34), rgba(23, 119, 168, 0.12)),
+    rgba(13, 23, 32, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(33, 168, 242, 0.16);
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview {
+  width: 4.8rem;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #050a0f;
+}
+
+.app-shell--editor-workbench .assets-browser-row--list .assets-browser-row__preview {
+  width: 3.6rem;
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 3px;
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview--audio {
+  padding: 0;
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview__audio {
+  width: 92%;
+  height: 1.8rem;
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview--placeholder {
+  gap: 0;
+  padding: 0.25rem;
+  text-align: center;
+}
+
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview--placeholder strong,
+.app-shell--editor-workbench .assets-browser-row__preview .asset-preview--placeholder span {
+  font-size: 0;
+}
+
+.app-shell--editor-workbench .assets-browser-row__identity,
+.app-shell--editor-workbench .assets-browser-row__usage {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.app-shell--editor-workbench .assets-browser-row__usage {
+  justify-items: center;
+  text-align: center;
+}
+
+.app-shell--editor-workbench .assets-browser-row__identity strong,
+.app-shell--editor-workbench .assets-browser-row__usage strong,
+.app-shell--editor-workbench .assets-browser-row__variants strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #edf6fb;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-browser-row__identity span,
+.app-shell--editor-workbench .assets-browser-row__usage span {
+  overflow: hidden;
+  color: var(--assets-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-browser-row__variants {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.48rem;
+  color: var(--assets-green);
+}
+
+.app-shell--editor-workbench .assets-variant-dot {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--assets-green);
+  box-shadow: 0 0 10px rgba(97, 211, 148, 0.28);
+}
+
+.app-shell--editor-workbench .assets-variant-dot--missing {
+  background: var(--assets-rose);
+  box-shadow: 0 0 10px rgba(255, 107, 120, 0.28);
+}
+
+.app-shell--editor-workbench button.assets-delete-status:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  border: 0;
+  background: transparent;
+  color: var(--assets-delete-red);
+  line-height: 0;
+  padding: 0;
+}
+
+.app-shell--editor-workbench button.assets-delete-status svg {
+  display: block;
+  width: 1.55rem;
+  height: 1.55rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transform: translate(-0.03125rem, -0.03125rem);
+}
+
+.app-shell--editor-workbench button.assets-delete-status--available:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  color: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench
+  button.assets-delete-status.assets-delete-status--available:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action),
+.app-shell--editor-workbench
+  button.assets-delete-status.assets-delete-status--available:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench button.assets-delete-status.assets-delete-status--available svg {
+  stroke: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench button.assets-delete-status:disabled,
+.app-shell--editor-workbench button.assets-delete-status:disabled:hover {
+  background: transparent;
+  color: #6f7c87;
+  opacity: 0.7;
+}
+
+.app-shell--editor-workbench .assets-browser__empty {
+  margin: 0.5rem 0.58rem 0.8rem;
+  color: var(--assets-muted);
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-browser__pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.9rem;
+  padding: 0.45rem 0.66rem;
+  border-top: 1px solid var(--assets-border);
+  color: var(--assets-muted);
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-browser__pagination > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.app-shell--editor-workbench .assets-browser__pagination button {
+  display: grid;
+  place-items: center;
+  width: 1.82rem;
+  min-width: 1.82rem;
+  min-height: 1.82rem;
+  padding: 0;
+}
+
+.app-shell--editor-workbench button.assets-page-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  border-color: rgba(33, 168, 242, 0.76);
+  background: rgba(33, 168, 242, 0.16);
+  color: #9be0ff;
+}
+
+.app-shell--editor-workbench .assets-inspector {
+  display: grid;
+  grid-template-rows: auto auto minmax(11rem, 0.85fr) auto auto minmax(7.2rem, 0.55fr) auto;
+  gap: 0.56rem;
+  padding: 0.74rem;
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 11rem),
+    rgba(8, 15, 22, 0.66);
+}
+
+.app-shell--editor-workbench .assets-inspector--empty {
+  align-content: center;
+  justify-items: center;
+  color: var(--assets-muted);
+  text-align: center;
+}
+
+.app-shell--editor-workbench .assets-inspector__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.54rem;
+  min-height: 2rem;
+}
+
+.app-shell--editor-workbench .assets-inspector__title-row h3 {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--assets-text);
+  font-size: 0.98rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-inspector__title-row button {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0;
+}
+
+.app-shell--editor-workbench .assets-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.52rem;
+}
+
+.app-shell--editor-workbench .assets-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.72rem;
+  padding: 0.22rem 0.52rem;
+  border: 1px solid var(--assets-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.026);
+  color: #d8e4ed;
+  font-size: 0.72rem;
+  font-weight: 730;
+}
+
+.app-shell--editor-workbench .assets-chip--background {
+  border-color: rgba(242, 184, 75, 0.48);
+  background: rgba(242, 184, 75, 0.12);
+  color: #f2c46a;
+}
+
+.app-shell--editor-workbench .assets-chip--sceneAudio {
+  border-color: rgba(33, 168, 242, 0.5);
+  background: rgba(33, 168, 242, 0.12);
+  color: #7dd6ff;
+}
+
+.app-shell--editor-workbench .assets-chip--inventory {
+  border-color: rgba(97, 211, 148, 0.44);
+  background: rgba(97, 211, 148, 0.12);
+  color: #8be8b4;
+}
+
+.app-shell--editor-workbench .assets-chip--info {
+  border-color: rgba(33, 168, 242, 0.42);
+  background: rgba(33, 168, 242, 0.1);
+  color: #89d9ff;
+}
+
+.app-shell--editor-workbench .assets-chip--ok {
+  border-color: rgba(97, 211, 148, 0.42);
+  background: rgba(97, 211, 148, 0.1);
+  color: #8be8b4;
+}
+
+.app-shell--editor-workbench .assets-chip--warning {
+  border-color: rgba(242, 184, 75, 0.42);
+  background: rgba(242, 184, 75, 0.1);
+  color: #f2c46a;
+}
+
+.app-shell--editor-workbench .assets-chip--danger {
+  border-color: rgba(255, 107, 120, 0.42);
+  background: rgba(255, 107, 120, 0.1);
+  color: #ff9ca5;
+}
+
+.app-shell--editor-workbench .assets-preview-stage {
+  min-height: 0;
+  padding: 0.42rem;
+  border: 1px solid var(--assets-border);
+  border-radius: 4px;
+  background: #070d13;
+}
+
+.app-shell--editor-workbench .assets-preview-stage .asset-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 10rem;
+  border-color: rgba(132, 150, 166, 0.18);
+  border-radius: 3px;
+}
+
+.app-shell--editor-workbench .assets-preview-stage .asset-preview--audio {
+  min-height: 10rem;
+  padding: 1rem;
+}
+
+.app-shell--editor-workbench .assets-preview-caption {
+  margin: -0.22rem 0 0;
+  color: var(--assets-muted);
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel,
+.app-shell--editor-workbench .assets-variants-panel,
+.app-shell--editor-workbench .assets-roots-panel,
+.app-shell--editor-workbench .assets-quick-actions {
+  border: 1px solid var(--assets-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.app-shell--editor-workbench .assets-metadata-panel,
+.app-shell--editor-workbench .assets-variants-panel {
+  padding: 0.55rem 0.62rem;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel h4,
+.app-shell--editor-workbench .assets-variants-panel h4,
+.app-shell--editor-workbench .assets-rail-section h4,
+.app-shell--editor-workbench .assets-roots-panel h4,
+.app-shell--editor-workbench .assets-quick-actions h4,
+.app-shell--editor-workbench .assets-delete-safety h4 {
+  margin: 0;
+  color: #e7f1f7;
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel dl {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0.48rem 0 0;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel dl > div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel dt,
+.app-shell--editor-workbench .assets-metadata-panel dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-metadata-panel dt {
+  color: var(--assets-muted);
+}
+
+.app-shell--editor-workbench .assets-metadata-panel dd {
+  color: #cfdae3;
+}
+
+.app-shell--editor-workbench .assets-variants-panel {
+  overflow: auto;
+}
+
+.app-shell--editor-workbench .assets-variants-panel table {
+  width: 100%;
+  margin-top: 0.46rem;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.app-shell--editor-workbench .assets-variants-panel th,
+.app-shell--editor-workbench .assets-variants-panel td {
+  max-width: 11rem;
+  overflow: hidden;
+  padding: 0.38rem 0.48rem;
+  border-bottom: 1px solid rgba(132, 150, 166, 0.16);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-variants-panel th {
+  color: var(--assets-muted);
+  font-weight: 660;
+}
+
+.app-shell--editor-workbench .assets-variants-panel td {
+  color: #d5e1ea;
+}
+
+.app-shell--editor-workbench .assets-variants-panel td span:not(.assets-status-label) {
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.32rem;
+  border-radius: 3px;
+  background: rgba(33, 168, 242, 0.14);
+  color: #7dd6ff;
+  font-size: 0.64rem;
+  font-weight: 760;
+}
+
+.app-shell--editor-workbench .assets-status-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.22rem;
+  padding: 0.08rem 0.34rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.app-shell--editor-workbench .assets-status-label--present {
+  border: 1px solid rgba(97, 211, 148, 0.28);
+  background: rgba(97, 211, 148, 0.12);
+  color: #8be8b4;
+}
+
+.app-shell--editor-workbench .assets-status-label--missing {
+  border: 1px solid rgba(255, 107, 120, 0.28);
+  background: rgba(255, 107, 120, 0.1);
+  color: #ff9ca5;
+}
+
+.app-shell--editor-workbench .assets-inspector__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto)) minmax(5.2rem, auto);
+  gap: 0.54rem;
+  align-items: center;
+}
+
+.app-shell--editor-workbench button.assets-action-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-height: 2.14rem;
+  min-width: 0;
+  border-color: var(--assets-border);
+  background: rgba(255, 255, 255, 0.035);
+  color: #dbe7ee;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.74rem;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench button.assets-action-button--primary:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  border-color: rgba(33, 168, 242, 0.58);
+  background: rgba(33, 168, 242, 0.14);
+  color: #88dcff;
+}
+
+.app-shell--editor-workbench button.assets-action-button--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  justify-self: end;
+  border-color: rgba(255, 77, 79, 0.42);
+  background: rgba(255, 77, 79, 0.1);
+  color: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench
+  button.assets-action-button.assets-action-button--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action),
+.app-shell--editor-workbench
+  button.assets-action-button.assets-action-button--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  border-color: rgba(255, 77, 79, 0.42);
+  background: rgba(255, 77, 79, 0.1);
+  color: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench button.assets-action-button.assets-action-button--danger svg {
+  stroke: var(--assets-delete-red);
+}
+
+.app-shell--editor-workbench .assets-usage-rail {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, auto);
+  align-content: start;
+  gap: 0.64rem;
+  overflow: auto;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 9rem),
+    var(--assets-rail);
+}
+
+.app-shell--editor-workbench .assets-rail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.8rem;
+  padding: 0.62rem 0.72rem;
+  border-bottom: 1px solid var(--assets-border);
+}
+
+.app-shell--editor-workbench .assets-rail__header h3 {
+  margin: 0;
+  color: #ecf5fa;
+  font-size: 0.92rem;
+  font-weight: 760;
+}
+
+.app-shell--editor-workbench .assets-rail__header > div {
+  display: inline-flex;
+  gap: 0.34rem;
+}
+
+.app-shell--editor-workbench .assets-rail__header button {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  min-width: 1.8rem;
+  min-height: 1.8rem;
+  border: 0;
+  background: transparent;
+  color: #8f9fab;
+  padding: 0;
+}
+
+.app-shell--editor-workbench .assets-rail-section,
+.app-shell--editor-workbench .assets-delete-safety,
+.app-shell--editor-workbench .assets-roots-panel,
+.app-shell--editor-workbench .assets-quick-actions {
+  margin: 0 0.58rem;
+}
+
+.app-shell--editor-workbench .assets-rail-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.app-shell--editor-workbench .assets-rail-section__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.app-shell--editor-workbench .assets-rail-section__title span {
+  padding: 0.12rem 0.42rem;
+  border: 1px solid rgba(33, 168, 242, 0.18);
+  border-radius: 4px;
+  background: rgba(33, 168, 242, 0.08);
+  color: #9db0bd;
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .assets-usage-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.app-shell--editor-workbench .assets-usage-item {
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.52rem;
+  min-height: 3.1rem;
+  padding: 0.48rem 0.52rem;
+  border: 1px solid rgba(132, 150, 166, 0.18);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.app-shell--editor-workbench .assets-usage-item > svg {
+  color: #c0cbd5;
+}
+
+.app-shell--editor-workbench .assets-usage-item div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.app-shell--editor-workbench .assets-usage-item strong,
+.app-shell--editor-workbench .assets-usage-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-usage-item strong {
+  color: #ecf5fa;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-usage-item span {
+  color: var(--assets-muted);
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .assets-usage-item button {
+  min-height: 1.8rem;
+  padding: 0.22rem 0.56rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-rail-empty {
+  margin: 0;
+  padding: 0.52rem;
+  color: var(--assets-muted);
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-delete-safety {
+  display: grid;
+  gap: 0.34rem;
+  padding: 0.82rem 0.8rem;
+  border: 1px solid rgba(255, 107, 120, 0.32);
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, rgba(255, 107, 120, 0.11), rgba(255, 107, 120, 0.035)),
+    rgba(20, 14, 20, 0.78);
+}
+
+.app-shell--editor-workbench .assets-delete-safety--ok {
+  border-color: rgba(97, 211, 148, 0.28);
+  background:
+    linear-gradient(135deg, rgba(97, 211, 148, 0.09), rgba(97, 211, 148, 0.025)),
+    rgba(12, 22, 18, 0.78);
+}
+
+.app-shell--editor-workbench .assets-delete-safety h4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #ff8994;
+}
+
+.app-shell--editor-workbench .assets-delete-safety--ok h4 {
+  color: #8be8b4;
+}
+
+.app-shell--editor-workbench .assets-delete-safety strong {
+  color: #ff9ca5;
+  font-size: 0.78rem;
+}
+
+.app-shell--editor-workbench .assets-delete-safety--ok strong {
+  color: #8be8b4;
+}
+
+.app-shell--editor-workbench .assets-delete-safety p {
+  margin: 0;
+  color: #d3dde5;
+  font-size: 0.76rem;
+  line-height: 1.44;
+}
+
+.app-shell--editor-workbench .assets-roots-panel,
+.app-shell--editor-workbench .assets-quick-actions {
+  display: grid;
+  gap: 0.52rem;
+  padding: 0.78rem 0.72rem;
+}
+
+.app-shell--editor-workbench .assets-roots-panel ul {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell--editor-workbench .assets-roots-panel li {
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  gap: 0.42rem;
+  align-items: center;
+  color: #cfdbe3;
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .assets-roots-panel li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-quick-actions button {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.48rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.3rem 0.48rem;
+  color: #dce7ef;
+  text-align: left;
+}
+
+.app-shell--editor-workbench .assets-quick-actions button span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-status-footer {
+  display: grid;
+  grid-template-columns: minmax(12rem, auto) repeat(5, auto) minmax(10rem, 1fr);
+  align-items: center;
+  gap: 0.72rem;
+  min-height: 2rem;
+  padding: 0.32rem 0.72rem;
+  border: 1px solid var(--assets-border);
+  border-radius: 4px;
+  background: rgba(8, 15, 22, 0.82);
+  color: var(--assets-muted);
+  font-size: 0.76rem;
+}
+
+.app-shell--editor-workbench .assets-status-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-width: 0;
+  padding-right: 0.72rem;
+  border-right: 1px solid rgba(132, 150, 166, 0.22);
+  white-space: nowrap;
+}
+
+.app-shell--editor-workbench .assets-status-footer > span:last-child {
+  justify-content: flex-end;
+  border-right: 0;
+}
+
+.app-shell--editor-workbench .assets-status-footer b {
+  padding: 0.08rem 0.32rem;
+  border-radius: 3px;
+  background: rgba(33, 168, 242, 0.16);
+  color: #7dd6ff;
+  font-size: 0.64rem;
+}
+
+.app-shell--editor-workbench .assets-footer-locale-dot {
+  width: 1.1rem;
+  height: 0.72rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #2454c7 0 33%, #fff 33% 66%, #ef4d61 66%);
+}
+
+.app-shell--editor-workbench .assets-footer-save-state {
+  margin-left: auto;
+  color: #9fd9b7;
+}
+
+@container (max-width: 1320px) {
+  .app-shell--editor-workbench .assets-workbench {
+    grid-template-columns: minmax(21rem, 0.9fr) minmax(29rem, 1.1fr);
+  }
+
+  .app-shell--editor-workbench .assets-usage-rail {
+    display: none;
+  }
+}
+
+@container (max-width: 980px) {
+  .app-shell--editor-workbench .assets-workbench-page {
+    height: auto;
+  }
+
+  .app-shell--editor-workbench .assets-command-bar,
+  .app-shell--editor-workbench .assets-workbench,
+  .app-shell--editor-workbench .assets-status-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell--editor-workbench .assets-browser,
+  .app-shell--editor-workbench .assets-inspector {
+    border-right: 0;
+    border-bottom: 1px solid var(--assets-border);
+  }
+
+  .app-shell--editor-workbench .assets-inspector__actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .app-shell--editor-workbench .panel-grid--playtest > aside.panel {
   max-height: calc(100vh - 6.9rem);
 }

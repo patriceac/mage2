@@ -92,19 +92,23 @@ function renderLocalizationPanel(
 }
 
 describe("LocalizationPanel internal subtabs", () => {
-  it("renders only the overview workspace when overview is active", () => {
+  it("renders the work queue workspace when overview is active", () => {
     const markup = renderLocalizationPanel("overview");
 
-    expect(markup).toContain(">Localization</h3>");
-    expect(markup).toContain(">Overview</h3>");
+    expect(markup).toContain("Locale Health");
+    expect(markup).toContain("Work Queue");
+    expect(markup).toContain("Strings missing");
+    expect(markup).toContain("Empty strings");
+    expect(markup).toContain("Media missing");
+    expect(markup).toContain("Usage and Coverage");
     expect(markup).toContain("Review Strings");
     expect(markup).toContain("Review Media");
     expect(markup).toContain("Add Locale");
-    expect(markup).toContain("Set Default");
+    expect(markup).toContain("Set as Default");
     expect(markup).toContain("Remove Locale");
     expect(markup).toContain('aria-selected="true"');
-    expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
-    expect(markup).not.toContain(">Usage</h3>");
+    expect(markup).toContain('placeholder="Search text id, asset, or source text..."');
+    expect(markup).toContain("Usage Locations");
   });
 
   it("keeps project text surfaces in strings", () => {
@@ -113,18 +117,18 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain('id="localization-tab-strings"');
     expect(markup).toContain('aria-controls="localization-panel-strings"');
     expect(markup).toContain('id="localization-panel-strings"');
-    expect(markup).toContain(">Strings</h3>");
-    expect(markup).toContain('placeholder="Search text id, value, usage, or owner"');
-    expect(markup).toContain(">Usage</h3>");
+    expect(markup).toContain(">Strings</button>");
+    expect(markup).toContain('placeholder="Search text id, asset, or source text..."');
+    expect(markup).toContain("Usage Locations");
     expect(markup).toContain('value="all"');
-    expect(markup).toContain(">All areas</option>");
+    expect(markup).toContain(">All Areas</option>");
     expect(markup).toContain('value="scenes"');
     expect(markup).toContain(">Scenes</option>");
     expect(markup).toContain('value="dialogue"');
     expect(markup).toContain(">Dialogue</option>");
     expect(markup).toContain('value="inventory"');
     expect(markup).toContain(">Inventory</option>");
-    expect(markup).not.toContain("Review Strings");
+    expect(markup).toContain("Review Strings");
   });
 
   it("renders only media content when media is active", () => {
@@ -133,11 +137,11 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain('id="localization-tab-media"');
     expect(markup).toContain('aria-controls="localization-panel-media"');
     expect(markup).toContain('id="localization-panel-media"');
-    expect(markup).toContain(">Media</h3>");
+    expect(markup).toContain(">Media</button>");
     expect(markup).toContain("No background assets yet. Upload scene media from Scenes before localizing it here.");
-    expect(markup).not.toContain('placeholder="Search text id, value, usage, or owner"');
-    expect(markup).not.toContain(">Usage</h3>");
-    expect(markup).not.toContain("Review Strings");
+    expect(markup).toContain('placeholder="Search media assets..."');
+    expect(markup).toContain("Usage and Coverage");
+    expect(markup).toContain("Review Strings");
   });
 
   it("can open the scene-audio media library when a scene-audio asset is selected", () => {
@@ -168,7 +172,7 @@ describe("LocalizationPanel shared header", () => {
 
     expect(markup).toContain(">Locale</span>");
     expect(markup).toContain("Add Locale");
-    expect(markup).toContain("Set Default");
+    expect(markup).toContain("Set as Default");
     expect(markup).toContain("Remove Locale");
     expect(markup).toContain("button-danger-quiet");
   });
