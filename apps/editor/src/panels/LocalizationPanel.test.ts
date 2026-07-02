@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -5,6 +6,8 @@ import { createDefaultProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
 import type { LocalizationSection } from "../store";
 import { LocalizationPanel, normalizeLocaleInput } from "./LocalizationPanel";
+
+const localizationPanelSource = readFileSync(new URL("./LocalizationPanel.tsx", import.meta.url), "utf8");
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
@@ -54,6 +57,20 @@ vi.mock("../store", () => {
 
   return { useEditorStore };
 });
+
+function extractSourceSection(source: string, startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  if (start < 0) {
+    throw new Error(`Missing source marker: ${startMarker}`);
+  }
+
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (end < 0) {
+    throw new Error(`Missing source marker: ${endMarker}`);
+  }
+
+  return source.slice(start, end);
+}
 
 function renderLocalizationPanel(
   section: LocalizationSection,
@@ -171,6 +188,16 @@ describe("LocalizationPanel internal subtabs", () => {
 
     expect(markup).toContain(">Scene Audio</option>");
     expect(markup).toContain("Scene Audio / audio");
+  });
+
+  it("keeps localization media comparison previews contained instead of cropped", () => {
+    const mediaDetailPanelBlock = extractSourceSection(
+      localizationPanelSource,
+      "function MediaDetailPanel",
+      "function CoverageRail"
+    );
+
+    expect(mediaDetailPanelBlock.match(/fit="contain"/g)).toHaveLength(2);
   });
 });
 

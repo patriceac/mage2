@@ -1272,7 +1272,7 @@ function MediaDetailPanel({
             <h4>Source ({projectDefaultLocale})</h4>
             <span className="localization-default-chip">Default</span>
           </div>
-          <AssetPreview asset={asset} locale={projectDefaultLocale} allowSourceFallback preferPosterForImages />
+          <AssetPreview asset={asset} locale={projectDefaultLocale} allowSourceFallback preferPosterForImages fit="contain" />
         </section>
         <section>
           <div className="localization-media-variant-grid__header">
@@ -1286,6 +1286,7 @@ function MediaDetailPanel({
             locale={activeLocale}
             allowSourceFallback={isDefaultLocale}
             preferPosterForImages
+            fit="contain"
             emptyTitle={`${activeLocale} variant missing`}
             emptyBody="Import a localized media file for this locale."
           />
