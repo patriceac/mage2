@@ -29,7 +29,7 @@ const enabledControlsThatMustHaveBehavior: ButtonExpectation[] = [
   {
     label: "Localization text-id copy",
     file: "panels/LocalizationPanel.tsx",
-    matcher: (block) => block.includes('className="localization-icon-button"') && block.includes("Selected text id")
+    matcher: (block) => block.includes("localization-icon-button") && block.includes("Selected text id")
   },
   {
     label: "Assets usage rail pin",
@@ -88,6 +88,10 @@ function hasWiringIssueMarker(block: string): boolean {
   return block.includes("control-wiring-issue");
 }
 
+function hasWiringWarningMarker(block: string): boolean {
+  return block.includes("control-wiring-warning");
+}
+
 function extractOnClickExpression(block: string): string | undefined {
   const match = /\bonClick=\{([^}]+)\}/.exec(block);
   return match?.[1].replace(/\s+/g, " ").trim();
@@ -114,24 +118,23 @@ describe("editor control wiring guardrails", () => {
     expect(hasDisabledState(block!.source), `${expectation.file}:${block!.line} should be disabled while it is a placeholder`).toBe(true);
   });
 
-  it("does not wire Assets Open File and Reveal in Folder to the same action", () => {
+  it("keeps Assets Open File treated as an orange duplicate warning, not a red wiring issue", () => {
     const source = readSource("panels/AssetsPanel.tsx");
     const blocks = findButtonBlocks(source);
     const openFileBlock = blocks.find((block) => block.source.includes("<span>Open File</span>"));
     const revealBlock = blocks.find((block) => block.source.includes("<span>Reveal in Folder</span>"));
 
-    if (!openFileBlock || !revealBlock) {
-      return;
-    }
-
-    if (extractOnClickExpression(openFileBlock.source) === extractOnClickExpression(revealBlock.source)) {
-      expect(
-        hasWiringIssueMarker(openFileBlock.source),
-        `Open File at panels/AssetsPanel.tsx:${openFileBlock.line} duplicates Reveal in Folder and should be visually marked`
-      ).toBe(true);
-      return;
-    }
-
-    expect(extractOnClickExpression(openFileBlock.source)).not.toBe(extractOnClickExpression(revealBlock.source));
+    expect(openFileBlock, "Assets Open File should still render").toBeDefined();
+    expect(revealBlock, "Assets Reveal in Folder should still render").toBeDefined();
+    expect(hasUserAction(openFileBlock!.source), `Open File at panels/AssetsPanel.tsx:${openFileBlock!.line} should stay wired`).toBe(true);
+    expect(extractOnClickExpression(openFileBlock!.source)).toBe(extractOnClickExpression(revealBlock!.source));
+    expect(
+      hasWiringWarningMarker(openFileBlock!.source),
+      `Open File at panels/AssetsPanel.tsx:${openFileBlock!.line} duplicates Reveal in Folder and should be visually marked orange`
+    ).toBe(true);
+    expect(
+      hasWiringIssueMarker(openFileBlock!.source),
+      `Open File at panels/AssetsPanel.tsx:${openFileBlock!.line} is wired and should not be visually marked red`
+    ).toBe(false);
   });
 });

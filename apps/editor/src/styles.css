@@ -8632,6 +8632,9 @@ button.recent-project__icon-button:hover {
   --workbench-wiring-issue: #ff4d4f;
   --workbench-wiring-issue-bg: rgba(255, 77, 79, 0.18);
   --workbench-wiring-issue-border: rgba(255, 77, 79, 0.72);
+  --workbench-wiring-warning: #ffb020;
+  --workbench-wiring-warning-bg: rgba(255, 176, 32, 0.18);
+  --workbench-wiring-warning-border: rgba(255, 176, 32, 0.72);
 }
 
 .app-shell--editor-workbench :where(.panel, .validation-panel) {
@@ -12539,4 +12542,32 @@ button.recent-project__icon-button:hover {
   button.control-wiring-issue:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)
   svg {
   stroke: var(--workbench-wiring-issue) !important;
+}
+
+.app-shell--editor-workbench
+  button.control-wiring-warning:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  border-color: var(--workbench-wiring-warning-border) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015)),
+    var(--workbench-wiring-warning-bg) !important;
+  color: #ffe4ad !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 176, 32, 0.28),
+    0 0 0 1px rgba(255, 176, 32, 0.2) !important;
+}
+
+.app-shell--editor-workbench
+  button.control-wiring-warning:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover,
+.app-shell--editor-workbench
+  button.control-wiring-warning:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):focus-visible {
+  border-color: var(--workbench-wiring-warning) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+    rgba(255, 176, 32, 0.26) !important;
+}
+
+.app-shell--editor-workbench
+  button.control-wiring-warning:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)
+  svg {
+  stroke: var(--workbench-wiring-warning) !important;
 }

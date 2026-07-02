@@ -200,6 +200,17 @@ describe("hotspot idle visibility styles", () => {
     );
   });
 
+  it("uses separate red issue and orange warning diagnostic control styles", () => {
+    expect(styles).toContain("--workbench-wiring-issue: #ff4d4f;");
+    expect(styles).toContain("--workbench-wiring-warning: #ffb020;");
+    expect(styles).toMatch(
+      /button\.control-wiring-issue:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?border-color: var\(--workbench-wiring-issue-border\) !important;[\s\S]*?rgba\(255, 77, 79, 0\.28\)/
+    );
+    expect(styles).toMatch(
+      /button\.control-wiring-warning:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?border-color: var\(--workbench-wiring-warning-border\) !important;[\s\S]*?rgba\(255, 176, 32, 0\.28\)/
+    );
+  });
+
   it("keeps title-bar history and save actions aligned with the slimmer file trigger sizing", () => {
     expect(styles).toContain(".titlebar-shell__history-actions {");
     expect(styles).toContain(".titlebar-shell__history-button,");
