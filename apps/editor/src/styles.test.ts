@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const workbenchSharedButtonSelector =
   ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
+const workbenchScreenTabSelector =
+  ".app-shell--editor-workbench\n  button.scene-screen-tabs__tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const pendingSaveButtonSelector =
   ".app-shell--editor-workbench\n  button.titlebar-shell__save-button.titlebar-shell__save-button--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)";
 
@@ -181,6 +183,16 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(`${workbenchSharedButtonSelector}:hover {`);
     expect(styles).not.toContain(".app-shell--editor-workbench button {");
     expect(styles).toContain(".hotspot__body--hidden,");
+  });
+
+  it("keeps the selected screen tab visually distinct from inactive tabs", () => {
+    const sharedButtonRule = styles.indexOf(`${workbenchSharedButtonSelector} {`);
+    const screenTabRule = styles.indexOf(`${workbenchScreenTabSelector} {`);
+
+    expect(screenTabRule).toBeGreaterThan(sharedButtonRule);
+    expect(styles).toMatch(
+      /button\.scene-screen-tabs__tab\.scene-screen-tabs__tab--active:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\):not\(\.scenes-panel__scene-list-main\):not\(\.scenes-panel__scene-list-action\),[\s\S]*?button\.scene-screen-tabs__tab\.scene-screen-tabs__tab--active:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\):not\(\.scenes-panel__scene-list-main\):not\(\.scenes-panel__scene-list-action\):hover\s*\{[\s\S]*?border-color: rgba\(246, 193, 119, 0\.92\);[\s\S]*?background: #f6c177;[\s\S]*?color: #121a22;[\s\S]*?font-weight: 750;/
+    );
   });
 
   it("keeps the pending save action highlighted after shared workbench button chrome", () => {

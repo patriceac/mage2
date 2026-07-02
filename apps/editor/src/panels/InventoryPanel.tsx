@@ -31,7 +31,6 @@ type InventoryIconKind =
   | "clear"
   | "copy"
   | "delete"
-  | "filter"
   | "grid"
   | "image"
   | "list"
@@ -402,13 +401,6 @@ export function InventoryPanel({
                 onChange={(event) => setItemSearch(event.target.value)}
               />
             </label>
-            <button
-              type="button"
-              className="inventory-tool-button inventory-tool-button--icon control-wiring-issue"
-              title="Filter items is not wired yet."
-            >
-              <InventoryPanelIcon kind="filter" />
-            </button>
           </div>
 
           <div className="inventory-browser-table__header" aria-hidden="true">
@@ -949,14 +941,6 @@ function InventoryPanelIcon({ kind }: { kind: InventoryIconKind }) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="10.8" cy="10.8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.65" />
         <path d="m15 15 4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.75" />
-      </svg>
-    );
-  }
-
-  if (kind === "filter") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5.4 7.2h13.2M8.2 12h7.6M10.4 16.8h3.2" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
       </svg>
     );
   }

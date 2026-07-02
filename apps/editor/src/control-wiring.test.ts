@@ -22,11 +22,6 @@ const enabledControlsThatMustHaveBehavior: ButtonExpectation[] = [
     matcher: (block) => block.includes('aria-label="Location settings"')
   },
   {
-    label: "Inventory filter",
-    file: "panels/InventoryPanel.tsx",
-    matcher: (block) => block.includes("Filter items")
-  },
-  {
     label: "Localization text-id copy",
     file: "panels/LocalizationPanel.tsx",
     matcher: (block) => block.includes("localization-icon-button") && block.includes("Selected text id")
@@ -119,5 +114,12 @@ describe("editor control wiring guardrails", () => {
     expect(revealBlock, "Assets Reveal in Folder should still render").toBeDefined();
     expect(hasUserAction(revealBlock!.source), `Reveal in Folder at panels/AssetsPanel.tsx:${revealBlock!.line} should stay wired`).toBe(true);
     expect(hasWiringIssueMarker(revealBlock!.source), `Reveal in Folder at panels/AssetsPanel.tsx:${revealBlock!.line} should not be marked red`).toBe(false);
+  });
+
+  it("keeps the Inventory browser free of the unused filter placeholder", () => {
+    const source = readSource("panels/InventoryPanel.tsx");
+
+    expect(source).not.toContain("Filter items");
+    expect(source).not.toContain('kind="filter"');
   });
 });
