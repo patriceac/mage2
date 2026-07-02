@@ -2,9 +2,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
+import { DialogProvider } from "../dialogs";
 import { addLocation } from "../project-helpers";
 import { useEditorStore } from "../store";
-import { resolveWorldLocationEdges, WorldPanel } from "./WorldPanel";
+import { resolveLocationIconKind, resolveWorldLocationEdges, WorldPanel } from "./WorldPanel";
 
 function renderWorldPanel(configureProject?: (project: ProjectBundle) => void) {
   const project = createDefaultProjectBundle("World test");
@@ -17,10 +18,14 @@ function renderWorldPanel(configureProject?: (project: ProjectBundle) => void) {
   });
 
   return renderToStaticMarkup(
-    React.createElement(WorldPanel, {
-      project,
-      mutateProject: () => {}
-    })
+    React.createElement(
+      DialogProvider,
+      null,
+      React.createElement(WorldPanel, {
+        project,
+        mutateProject: () => {}
+      })
+    )
   );
 }
 
@@ -82,6 +87,17 @@ describe("WorldPanel", () => {
 
     expect(markup).toContain("Missing scene");
     expect(markup).toContain("scene_missing");
+  });
+
+  it("uses a saved location icon override before falling back to name inference", () => {
+    const project = createDefaultProjectBundle("World icons");
+    const location = project.locations.items[0]!;
+
+    location.name = "Misty Forest";
+    expect(resolveLocationIconKind(location)).toBe("forest");
+
+    location.icon = "castle";
+    expect(resolveLocationIconKind(location)).toBe("castle");
   });
 
   it("deduplicates cross-location scene links into world map edges", () => {

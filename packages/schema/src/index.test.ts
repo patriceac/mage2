@@ -33,6 +33,15 @@ describe("project defaults", () => {
     expect(project.strings.byLocale[project.manifest.defaultLanguage]).not.toHaveProperty("text.scene.intro");
   });
 
+  it("round-trips optional location icon overrides", () => {
+    const project = createDefaultProjectBundle();
+    project.locations.items[0]!.icon = "forest";
+
+    const parsed = parseProjectBundle(project);
+
+    expect(parsed.locations.items[0]?.icon).toBe("forest");
+  });
+
   it("normalizes legacy visual assets to background and legacy audio assets to scene audio", () => {
     const parsed = parseProjectBundle({
       manifest: {

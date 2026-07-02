@@ -4,6 +4,7 @@ export const CURRENT_SCHEMA_VERSION = 8;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
+export const LocationIconSchema = z.enum(["mapPin", "settlement", "forest", "castle", "mine", "coast", "crystal", "mountain"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("always") }),
@@ -106,6 +107,7 @@ export const LocationSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   descriptionTextId: z.string().optional(),
+  icon: LocationIconSchema.optional(),
   x: z.number(),
   y: z.number(),
   sceneIds: z.array(z.string()).default([])
@@ -247,6 +249,7 @@ export const ProjectBundleSchema = z.object({
 
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 export type AssetCategory = z.infer<typeof AssetCategorySchema>;
+export type LocationIcon = z.infer<typeof LocationIconSchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;

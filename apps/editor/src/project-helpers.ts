@@ -81,6 +81,14 @@ export interface RemoveSceneFromProjectResult {
   removedTextIds: string[];
 }
 
+export interface RemoveLocationFromProjectResult {
+  deleted: boolean;
+  blockedReason?: "location-not-found" | "last-location" | "no-replacement-start-scene";
+  removedSceneIds: string[];
+  nextStartLocationId?: string;
+  nextStartSceneId?: string;
+}
+
 export interface RemoveHotspotFromProjectResult {
   deleted: boolean;
   removedTextIds: string[];
@@ -397,6 +405,58 @@ export function removeSceneFromProject(
   };
 }
 
+export function removeLocationFromProject(project: ProjectBundle, locationId: string): RemoveLocationFromProjectResult {
+  const location = project.locations.items.find((entry) => entry.id === locationId);
+
+  if (!location) {
+    return {
+      deleted: false,
+      blockedReason: "location-not-found",
+      removedSceneIds: []
+    };
+  }
+
+  const remainingLocations = project.locations.items.filter((entry) => entry.id !== locationId);
+  if (remainingLocations.length === 0) {
+    return {
+      deleted: false,
+      blockedReason: "last-location",
+      removedSceneIds: []
+    };
+  }
+
+  const removedSceneIds = [...new Set(location.sceneIds)];
+  const removedSceneIdSet = new Set(removedSceneIds);
+  const startNeedsRepair = project.manifest.startLocationId === locationId || removedSceneIdSet.has(project.manifest.startSceneId);
+  const replacementStartScene = startNeedsRepair ? findFirstSceneInLocations(project, remainingLocations) : undefined;
+
+  if (startNeedsRepair && !replacementStartScene) {
+    return {
+      deleted: false,
+      blockedReason: "no-replacement-start-scene",
+      removedSceneIds
+    };
+  }
+
+  for (const sceneId of removedSceneIds) {
+    removeSceneFromProject(project, sceneId, { mode: "cleanup" });
+  }
+
+  project.locations.items = project.locations.items.filter((entry) => entry.id !== locationId);
+
+  if (startNeedsRepair && replacementStartScene) {
+    project.manifest.startLocationId = replacementStartScene.locationId;
+    project.manifest.startSceneId = replacementStartScene.id;
+  }
+
+  return {
+    deleted: true,
+    removedSceneIds,
+    nextStartLocationId: project.manifest.startLocationId,
+    nextStartSceneId: project.manifest.startSceneId
+  };
+}
+
 export function removeHotspotFromProject(
   project: ProjectBundle,
   sceneId: string,
@@ -634,6 +694,19 @@ function rewriteSceneEffects(effects: Effect[], deletedSceneId: string, strategy
           }
         ];
   });
+}
+
+function findFirstSceneInLocations(project: ProjectBundle, locations: Location[]): Scene | undefined {
+  for (const location of locations) {
+    for (const sceneId of location.sceneIds) {
+      const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+      if (scene) {
+        return scene;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function getNextHotspotNumber(scene: Scene): number {

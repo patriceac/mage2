@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -8,8 +9,17 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent
 } from "react";
-import { collectSceneLinks, type Condition, type Effect, type Location, type ProjectBundle, type Scene } from "@mage2/schema";
-import { addLocation, addScene } from "../project-helpers";
+import {
+  collectSceneLinks,
+  type Condition,
+  type Effect,
+  type Location,
+  type LocationIcon,
+  type ProjectBundle,
+  type Scene
+} from "@mage2/schema";
+import { useDialogs } from "../dialogs";
+import { addLocation, addScene, removeLocationFromProject } from "../project-helpers";
 import { useEditorStore } from "../store";
 
 const MAP_NODE_WIDTH = 214;
@@ -19,6 +29,16 @@ const MAP_MIN_CANVAS_HEIGHT = 1100;
 const MAP_FIT_PADDING = 80;
 const MAP_MIN_SCALE = 0.38;
 const MAP_MAX_SCALE = 1.6;
+const LOCATION_ICON_OPTIONS = [
+  { icon: "mapPin", label: "Pin" },
+  { icon: "settlement", label: "Settlement" },
+  { icon: "forest", label: "Forest" },
+  { icon: "castle", label: "Castle" },
+  { icon: "mine", label: "Mine" },
+  { icon: "coast", label: "Coast" },
+  { icon: "crystal", label: "Crystal" },
+  { icon: "mountain", label: "Mountain" }
+] satisfies Array<{ icon: LocationIcon; label: string }>;
 
 interface WorldPanelProps {
   project: ProjectBundle;
@@ -58,11 +78,13 @@ type WorldPanelIconKind =
   | "search"
   | "select"
   | "settlement"
+  | "trash"
   | "variable"
   | "zoomIn"
   | "zoomOut";
 
 export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
+  const dialogs = useDialogs();
   const selectedLocationId = useEditorStore((state) => state.selectedLocationId);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const setSelectedLocationId = useEditorStore((state) => state.setSelectedLocationId);
@@ -70,9 +92,35 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const [locationSearch, setLocationSearch] = useState("");
   const [showConnectedOnly, setShowConnectedOnly] = useState(false);
+  const [showLocationSettings, setShowLocationSettings] = useState(false);
+  const locationSettingsId = useId();
+  const locationSettingsRef = useRef<HTMLDivElement>(null);
   const currentLocation = project.locations.items.find((entry) => entry.id === selectedLocationId) ?? project.locations.items[0];
   const locationEdges = resolveWorldLocationEdges(project);
   const locationConnectionCounts = resolveLocationConnectionCounts(locationEdges);
+  const currentLocationScenes = currentLocation ? resolveLocationScenes(project, currentLocation) : [];
+  const currentLocationSceneIdSet = useMemo(() => new Set(currentLocation?.sceneIds ?? []), [currentLocation?.sceneIds]);
+  const currentLocationFirstScene = currentLocationScenes[0];
+  const currentLocationIconKind = currentLocation ? resolveLocationIconKind(currentLocation) : "mapPin";
+  const currentLocationIsStart = Boolean(currentLocation && project.manifest.startLocationId === currentLocation.id);
+  const deleteWouldRemoveStart = Boolean(
+    currentLocation &&
+      (project.manifest.startLocationId === currentLocation.id || currentLocationSceneIdSet.has(project.manifest.startSceneId))
+  );
+  const replacementStartSceneAfterDelete = currentLocation
+    ? findFirstSceneOutsideLocation(project, currentLocation.id)
+    : undefined;
+  const canDeleteCurrentLocation = Boolean(
+    currentLocation &&
+      project.locations.items.length > 1 &&
+      (!deleteWouldRemoveStart || replacementStartSceneAfterDelete)
+  );
+  const deleteLocationTitle =
+    project.locations.items.length <= 1
+      ? "A project needs at least one location."
+      : deleteWouldRemoveStart && !replacementStartSceneAfterDelete
+        ? "Add another scene before deleting the start location."
+        : "Delete this location and its scenes.";
   const currentLocationSummary = currentLocation
     ? resolveLocationSummary(project, currentLocation, locationConnectionCounts.get(currentLocation.id) ?? 0)
     : undefined;
@@ -81,6 +129,34 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
     const matchesFilter = !showConnectedOnly || (locationConnectionCounts.get(location.id) ?? 0) > 0;
     return matchesSearch && matchesFilter;
   });
+
+  useEffect(() => {
+    setShowLocationSettings(false);
+  }, [currentLocation?.id]);
+
+  useEffect(() => {
+    if (!showLocationSettings) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !locationSettingsRef.current?.contains(event.target)) {
+        setShowLocationSettings(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowLocationSettings(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showLocationSettings]);
 
   const createLocation = () => {
     mutateProject((draft) => {
@@ -114,6 +190,86 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
         location.y = Math.round(position.y);
       }
     });
+  };
+
+  const setCurrentLocationAsStart = () => {
+    if (!currentLocation || !currentLocationFirstScene) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      draft.manifest.startLocationId = currentLocation.id;
+      draft.manifest.startSceneId = currentLocationFirstScene.id;
+    });
+    setSelectedSceneId(currentLocationFirstScene.id);
+    setShowLocationSettings(false);
+  };
+
+  const setLocationIconOverride = (icon: LocationIcon | undefined) => {
+    if (!currentLocation) {
+      return;
+    }
+
+    mutateProject((draft) => {
+      const location = draft.locations.items.find((entry) => entry.id === currentLocation.id);
+      if (location) {
+        location.icon = icon;
+      }
+    });
+  };
+
+  const deleteCurrentLocation = async () => {
+    if (!currentLocation || !canDeleteCurrentLocation) {
+      return;
+    }
+
+    setShowLocationSettings(false);
+    const sceneCount = currentLocation.sceneIds.length;
+    const confirmed = await dialogs.confirm({
+      title: "Delete Location",
+      tone: "danger",
+      confirmLabel: "Delete Location",
+      cancelLabel: "Keep Location",
+      body: (
+        <>
+          <p>{`Delete "${currentLocation.name}" from this project?`}</p>
+          <div className="dialog-callout dialog-callout--danger">
+            <strong>Permanent location deletion</strong>
+            <p>
+              {`This removes ${formatCount(sceneCount, "scene")} in this location and cleans references to those scenes.`}
+            </p>
+          </div>
+        </>
+      )
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    let nextSelection: { locationId?: string; sceneId?: string } = {};
+    mutateProject((draft) => {
+      const deletion = removeLocationFromProject(draft, currentLocation.id);
+      if (!deletion.deleted) {
+        return;
+      }
+
+      const nextLocation =
+        draft.locations.items.find((location) => location.id === deletion.nextStartLocationId) ?? draft.locations.items[0];
+      nextSelection = {
+        locationId: nextLocation?.id,
+        sceneId:
+          nextLocation?.sceneIds.find((sceneId) => draft.scenes.items.some((scene) => scene.id === sceneId)) ??
+          deletion.nextStartSceneId
+      };
+    });
+
+    if (nextSelection.locationId) {
+      setSelectedLocationId(nextSelection.locationId);
+    }
+    if (nextSelection.sceneId) {
+      setSelectedSceneId(nextSelection.sceneId);
+    }
   };
 
   return (
@@ -212,14 +368,88 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               <div>
                 <h3>Location Details</h3>
               </div>
-              <button
-                type="button"
-                className="world-panel__icon-action control-wiring-issue"
-                aria-label="Location settings"
-                title="Location settings is not wired yet."
-              >
-                <WorldPanelIcon kind="gear" />
-              </button>
+              <div className="world-panel__location-settings" ref={locationSettingsRef}>
+                <button
+                  type="button"
+                  className={showLocationSettings ? "world-panel__icon-action world-panel__icon-action--active" : "world-panel__icon-action"}
+                  aria-controls={locationSettingsId}
+                  aria-expanded={showLocationSettings}
+                  aria-haspopup="menu"
+                  aria-label="Location settings"
+                  title="Location settings."
+                  onClick={() => setShowLocationSettings((value) => !value)}
+                >
+                  <WorldPanelIcon kind="gear" />
+                </button>
+                {showLocationSettings ? (
+                  <div id={locationSettingsId} className="world-panel__location-settings-menu" role="menu" aria-label="Location settings">
+                    <button
+                      type="button"
+                      className="world-panel__settings-menu-item"
+                      disabled={currentLocationIsStart || !currentLocationFirstScene}
+                      title={
+                        currentLocationIsStart
+                          ? "This is already the start location."
+                          : currentLocationFirstScene
+                            ? `Start the project at ${currentLocation.name}.`
+                            : "Add a scene before making this the start location."
+                      }
+                      onClick={setCurrentLocationAsStart}
+                    >
+                      <WorldPanelIcon kind="mapPin" />
+                      <span>{currentLocationIsStart ? "Start location" : "Set as start location"}</span>
+                    </button>
+
+                    <div className="world-panel__settings-section">
+                      <span className="world-panel__settings-label">Map icon</span>
+                      <div className="world-panel__icon-choice-grid">
+                        <button
+                          type="button"
+                          className={
+                            currentLocation.icon
+                              ? "world-panel__icon-choice"
+                              : "world-panel__icon-choice world-panel__icon-choice--active"
+                          }
+                          aria-pressed={!currentLocation.icon}
+                          title={`Use the automatic icon (${resolveLocationIconLabel(currentLocationIconKind)}).`}
+                          onClick={() => setLocationIconOverride(undefined)}
+                        >
+                          <WorldPanelIcon kind={resolveLocationIconKind({ ...currentLocation, icon: undefined })} />
+                          <span>Automatic</span>
+                        </button>
+                        {LOCATION_ICON_OPTIONS.map((option) => (
+                          <button
+                            key={option.icon}
+                            type="button"
+                            className={
+                              currentLocation.icon === option.icon
+                                ? "world-panel__icon-choice world-panel__icon-choice--active"
+                                : "world-panel__icon-choice"
+                            }
+                            aria-pressed={currentLocation.icon === option.icon}
+                            title={`Use ${option.label.toLowerCase()} icon.`}
+                            onClick={() => setLocationIconOverride(option.icon)}
+                          >
+                            <WorldPanelIcon kind={option.icon} />
+                            <span>{option.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="world-panel__settings-menu-item world-panel__settings-menu-item--danger"
+                      disabled={!canDeleteCurrentLocation}
+                      title={deleteLocationTitle}
+                      onClick={() => void deleteCurrentLocation()}
+                    >
+                      <WorldPanelIcon kind="trash" />
+                      <span>Delete location...</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <label>
               <span className="field-label--inset">Name</span>
@@ -391,7 +621,11 @@ function formatIndex(index: number) {
   return String(index + 1).padStart(2, "0");
 }
 
-function resolveLocationIconKind(location: Location): WorldPanelIconKind {
+export function resolveLocationIconKind(location: Location): LocationIcon {
+  if (location.icon) {
+    return location.icon;
+  }
+
   const label = `${location.name} ${location.id}`.toLowerCase();
 
   if (label.includes("forest") || label.includes("wood")) {
@@ -423,6 +657,27 @@ function resolveLocationIconKind(location: Location): WorldPanelIconKind {
   }
 
   return "mapPin";
+}
+
+function resolveLocationIconLabel(icon: LocationIcon) {
+  return LOCATION_ICON_OPTIONS.find((option) => option.icon === icon)?.label ?? "Pin";
+}
+
+function findFirstSceneOutsideLocation(project: ProjectBundle, locationId: string): Scene | undefined {
+  for (const location of project.locations.items) {
+    if (location.id === locationId) {
+      continue;
+    }
+
+    for (const sceneId of location.sceneIds) {
+      const scene = project.scenes.items.find((entry) => entry.id === sceneId);
+      if (scene) {
+        return scene;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function resolveLocationSummary(project: ProjectBundle, location: Location, connections: number) {
@@ -1127,6 +1382,14 @@ function WorldPanelIcon({
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="m12 3.8 1.4.6.6 2 2 .9 1.9-.8 1.3 1.4-.8 1.9.8 2 1.8.9v1.9l-1.8.9-.8 2 .8 1.9-1.3 1.4-1.9-.8-2 .9-.6 2-1.4.6-1.4-.6-.6-2-2-.9-1.9.8-1.3-1.4.8-1.9-.8-2-1.8-.9v-1.9l1.8-.9.8-2-.8-1.9 1.3-1.4 1.9.8 2-.9.6-2 1.4-.6Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.45" />
         <circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.55" />
+      </svg>
+    );
+  }
+
+  if (kind === "trash") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.2 8.3h9.6M9.2 8.3l.4 10.3h4.8l.4-10.3M10 6.1h4l.7 2.2H9.3L10 6.1Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
       </svg>
     );
   }

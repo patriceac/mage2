@@ -14,6 +14,7 @@ import {
   createProjectRevision,
   removeHotspotFromProject,
   removeAssetFromProject,
+  removeLocationFromProject,
   removeSceneFromProject
 } from "./project-helpers";
 
@@ -592,6 +593,49 @@ describe("removeSceneFromProject", () => {
     expect(getDefaultStrings(project)[prunedHotspot.commentTextId!]).toBeUndefined();
     expect(getDefaultStrings(project)[sharedLabelTextId]).toBe("Hotspot 2");
     expect(getDefaultStrings(project)[preservedHotspot.commentTextId]).toBe("Manual scene comment");
+  });
+});
+
+describe("removeLocationFromProject", () => {
+  it("removes a location with its scenes and repairs the start target", () => {
+    const project = createDefaultProjectBundle("Location deletion");
+    const deletedLocation = project.locations.items[0]!;
+    const deletedScene = project.scenes.items[0]!;
+    const replacementLocation = addLocation(project);
+    const replacementScene = project.scenes.items.find((scene) => replacementLocation.sceneIds.includes(scene.id))!;
+    const sourceScene = addScene(project, replacementLocation.id);
+    const hotspot = addHotspot(project, sourceScene.id, 0.25, 0.25)!;
+
+    hotspot.targetSceneId = deletedScene.id;
+    hotspot.conditions = [{ type: "sceneVisited", sceneId: deletedScene.id }];
+    hotspot.effects = [{ type: "goToScene", sceneId: deletedScene.id }];
+    sourceScene.onEnterEffects = [{ type: "goToScene", sceneId: deletedScene.id }];
+    project.manifest.startLocationId = deletedLocation.id;
+    project.manifest.startSceneId = deletedScene.id;
+
+    const result = removeLocationFromProject(project, deletedLocation.id);
+
+    expect(result.deleted).toBe(true);
+    expect(result.removedSceneIds).toEqual([deletedScene.id]);
+    expect(project.locations.items.map((location) => location.id)).not.toContain(deletedLocation.id);
+    expect(project.scenes.items.map((scene) => scene.id)).not.toContain(deletedScene.id);
+    expect(project.manifest.startLocationId).toBe(replacementLocation.id);
+    expect(project.manifest.startSceneId).toBe(replacementScene.id);
+    expect(hotspot.targetSceneId).toBeUndefined();
+    expect(hotspot.conditions).toEqual([]);
+    expect(hotspot.effects).toEqual([]);
+    expect(sourceScene.onEnterEffects).toEqual([]);
+  });
+
+  it("blocks deleting the final location", () => {
+    const project = createDefaultProjectBundle("Last location");
+
+    const result = removeLocationFromProject(project, project.locations.items[0]!.id);
+
+    expect(result.deleted).toBe(false);
+    expect(result.blockedReason).toBe("last-location");
+    expect(project.locations.items).toHaveLength(1);
+    expect(project.scenes.items).toHaveLength(1);
   });
 });
 
