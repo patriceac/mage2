@@ -101,8 +101,10 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain("Empty strings");
     expect(markup).toContain("Media missing");
     expect(markup).toContain("Usage and Coverage");
-    expect(markup).toContain("Review Strings");
-    expect(markup).toContain("Review Media");
+    expect(markup).not.toContain("View Overview");
+    expect(markup).not.toContain("View Work Queue");
+    expect(markup).not.toContain("Review Strings");
+    expect(markup).not.toContain("Review Media");
     expect(markup).toContain("Add Locale");
     expect(markup).toContain("Set as Default");
     expect(markup).toContain("Remove Locale");
@@ -128,7 +130,10 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain(">Dialogue</option>");
     expect(markup).toContain('value="inventory"');
     expect(markup).toContain(">Inventory</option>");
-    expect(markup).toContain("Review Strings");
+    expect(markup).not.toContain("View Overview");
+    expect(markup).not.toContain("View Work Queue");
+    expect(markup).not.toContain("Review Strings");
+    expect(markup).not.toContain("Review Media");
   });
 
   it("renders only media content when media is active", () => {
@@ -141,7 +146,10 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain("No background assets yet. Upload scene media from Scenes before localizing it here.");
     expect(markup).toContain('placeholder="Search media assets..."');
     expect(markup).toContain("Usage and Coverage");
-    expect(markup).toContain("Review Strings");
+    expect(markup).not.toContain("View Overview");
+    expect(markup).not.toContain("View Work Queue");
+    expect(markup).not.toContain("Review Strings");
+    expect(markup).not.toContain("Review Media");
   });
 
   it("can open the scene-audio media library when a scene-audio asset is selected", () => {

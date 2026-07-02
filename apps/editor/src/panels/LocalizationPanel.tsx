@@ -549,10 +549,6 @@ export function LocalizationPanel({
       <section className="panel localization-health-panel" aria-label={`Locale health for ${localeLabel}`}>
         <div className="localization-health-panel__header">
           <h3>Locale Health — {localeLabel}</h3>
-          <button type="button" className="localization-link-button" onClick={() => setLocalizationSection("overview")}>
-            View Overview
-            <LocalizationIcon name="arrowRight" />
-          </button>
         </div>
         <div className="localization-health-grid">
           <HealthMetricCard
@@ -644,8 +640,6 @@ export function LocalizationPanel({
             onFindNextEmpty={() => handleFindNextString("empty")}
             onFindNextMissing={() => handleFindNextString("missing")}
             onNavigate={handleNavigate}
-            onOpenMedia={() => setLocalizationSection("media")}
-            onOpenStrings={() => setLocalizationSection("strings")}
           />
         </section>
       ) : null}
@@ -700,8 +694,6 @@ export function LocalizationPanel({
             onFindNextEmpty={() => handleFindNextString("empty")}
             onFindNextMissing={() => handleFindNextString("missing")}
             onNavigate={handleNavigate}
-            onOpenMedia={() => setLocalizationSection("media")}
-            onOpenStrings={() => setLocalizationSection("strings")}
           />
         </section>
       ) : null}
@@ -745,8 +737,6 @@ export function LocalizationPanel({
             onFindNextEmpty={() => handleFindNextString("empty")}
             onFindNextMissing={() => handleFindNextString("missing")}
             onNavigate={handleNavigate}
-            onOpenMedia={() => setLocalizationSection("media")}
-            onOpenStrings={() => setLocalizationSection("strings")}
           />
         </section>
       ) : null}
@@ -1275,9 +1265,7 @@ function CoverageRail({
   mediaCoverageRows,
   onFindNextEmpty,
   onFindNextMissing,
-  onNavigate,
-  onOpenMedia,
-  onOpenStrings
+  onNavigate
 }: {
   activeLocale: string;
   asset?: Asset;
@@ -1288,8 +1276,6 @@ function CoverageRail({
   onFindNextEmpty: () => void;
   onFindNextMissing: () => void;
   onNavigate: (target: EditorNavigationTarget, textId?: string) => void;
-  onOpenMedia: () => void;
-  onOpenStrings: () => void;
 }) {
   const primaryUsage = selectedStringEntry?.usages[0];
   const primaryAssetUsage = assetUsages[0];
@@ -1364,14 +1350,6 @@ function CoverageRail({
             <LocalizationIcon name="circle" />
             Find Next Empty
             <kbd>E</kbd>
-          </button>
-          <button type="button" className="button-secondary" onClick={onOpenStrings}>
-            <LocalizationIcon name="text" />
-            Review Strings
-          </button>
-          <button type="button" className="button-secondary" onClick={onOpenMedia}>
-            <LocalizationIcon name="upload" />
-            Review Media
           </button>
         </div>
       </section>

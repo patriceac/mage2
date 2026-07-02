@@ -10340,11 +10340,22 @@ button.recent-project__icon-button:hover {
   color: var(--workbench-muted);
 }
 
-.app-shell--editor-workbench .localization-subtab--active,
-.app-shell--editor-workbench .localization-subtab[aria-selected="true"] {
-  border-color: rgba(23, 183, 216, 0.68);
-  background: rgba(23, 119, 168, 0.32);
-  color: #f4fbff;
+.app-shell--editor-workbench
+  button.localization-subtab.localization-subtab--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action),
+.app-shell--editor-workbench
+  button.localization-subtab[aria-selected="true"]:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action),
+.app-shell--editor-workbench
+  button.localization-subtab.localization-subtab--active:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover,
+.app-shell--editor-workbench
+  button.localization-subtab[aria-selected="true"]:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  border-color: rgba(246, 193, 119, 0.92);
+  background: #f6c177;
+  color: #121a22;
+  font-weight: 750;
+  box-shadow:
+    0 0 0 1px rgba(246, 193, 119, 0.28),
+    0 6px 16px rgba(246, 193, 119, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .app-shell--editor-workbench :where(.localization-status, .localization-area, .validation-tag, .status-pill) {
