@@ -212,7 +212,12 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               <div>
                 <h3>Location Details</h3>
               </div>
-              <button type="button" className="world-panel__icon-action" aria-label="Location settings" title="Location settings.">
+              <button
+                type="button"
+                className="world-panel__icon-action control-wiring-issue"
+                aria-label="Location settings"
+                title="Location settings is not wired yet."
+              >
                 <WorldPanelIcon kind="gear" />
               </button>
             </div>

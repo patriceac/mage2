@@ -901,7 +901,13 @@ function AssetInspector({
           <Icon name="refresh" />
           <span>Replace Source</span>
         </button>
-        <button type="button" className="assets-action-button" onClick={onRevealSelectedAsset} disabled={!hasRevealPath}>
+        <button
+          type="button"
+          className="assets-action-button control-wiring-issue"
+          onClick={onRevealSelectedAsset}
+          disabled={!hasRevealPath}
+          title="Open File currently uses Reveal in Folder."
+        >
           <Icon name="folder" />
           <span>Open File</span>
         </button>
@@ -944,10 +950,10 @@ function AssetUsageRail({
       <div className="assets-rail__header">
         <h3>Usage and Safety</h3>
         <div>
-          <button type="button" title="Pin panel">
+          <button type="button" className="control-wiring-issue" title="Pin panel is not wired yet.">
             <Icon name="pin" />
           </button>
-          <button type="button" title="Close panel">
+          <button type="button" className="control-wiring-issue" title="Close panel is not wired yet.">
             <Icon name="x" />
           </button>
         </div>

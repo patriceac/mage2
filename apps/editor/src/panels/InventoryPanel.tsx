@@ -402,7 +402,11 @@ export function InventoryPanel({
                 onChange={(event) => setItemSearch(event.target.value)}
               />
             </label>
-            <button type="button" className="inventory-tool-button inventory-tool-button--icon" title="Filter items.">
+            <button
+              type="button"
+              className="inventory-tool-button inventory-tool-button--icon control-wiring-issue"
+              title="Filter items is not wired yet."
+            >
               <InventoryPanelIcon kind="filter" />
             </button>
           </div>

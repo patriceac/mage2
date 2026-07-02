@@ -1044,7 +1044,12 @@ function StringDetailPanel({
         <div>
           <div className="localization-detail-title">
             <code>{entry.textId}</code>
-            <button type="button" className="localization-icon-button" title={`Selected text id ${entry.textId}.`} aria-label={`Selected text id ${entry.textId}`}>
+            <button
+              type="button"
+              className="localization-icon-button control-wiring-issue"
+              title={`Copy text id is not wired yet: ${entry.textId}.`}
+              aria-label={`Selected text id ${entry.textId}`}
+            >
               <LocalizationIcon name="copy" />
             </button>
           </div>
