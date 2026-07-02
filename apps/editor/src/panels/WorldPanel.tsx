@@ -437,16 +437,18 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className="world-panel__settings-menu-item world-panel__settings-menu-item--danger"
-                      disabled={!canDeleteCurrentLocation}
-                      title={deleteLocationTitle}
-                      onClick={() => void deleteCurrentLocation()}
-                    >
-                      <WorldPanelIcon kind="trash" />
-                      <span>Delete location...</span>
-                    </button>
+                    <div className="world-panel__settings-danger-zone">
+                      <button
+                        type="button"
+                        className="button-danger-quiet world-panel__settings-menu-item world-panel__settings-menu-item--danger"
+                        disabled={!canDeleteCurrentLocation}
+                        title={deleteLocationTitle}
+                        onClick={() => void deleteCurrentLocation()}
+                      >
+                        <WorldPanelIcon kind="trash" />
+                        <span>Delete location...</span>
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>

@@ -4707,6 +4707,12 @@ label > .checkbox-list {
   opacity: 0.55;
 }
 
+.world-panel__settings-danger-zone {
+  margin-top: 0.08rem;
+  padding-top: 0.52rem;
+  border-top: 1px solid rgba(248, 113, 113, 0.16);
+}
+
 .world-panel__settings-menu-item svg,
 .world-panel__icon-choice svg {
   width: 1rem;
@@ -9295,6 +9301,56 @@ button.recent-project__icon-button:hover {
   border-color: rgba(246, 193, 119, 0.48);
   background: rgba(246, 193, 119, 0.12);
   color: #f6c177;
+}
+
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.44rem 0.52rem;
+  border-color: rgba(108, 128, 145, 0.24);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.024);
+  color: #dbe7ef;
+  text-align: left;
+}
+
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  border-color: rgba(39, 198, 236, 0.5);
+  background: rgba(23, 119, 168, 0.12);
+  color: #f4fbff;
+}
+
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
+  border-color: rgba(255, 112, 112, 0.32);
+  background: rgba(255, 95, 95, 0.1);
+  color: #ffb1b1;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 rgba(255, 112, 112, 0.52);
+}
+
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  border-color: rgba(255, 112, 112, 0.54);
+  background: rgba(255, 95, 95, 0.18);
+  color: #ffd7d7;
+}
+
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
+.app-shell--editor-workbench
+  button.world-panel__settings-menu-item--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(.playtest-inventory-toggle):disabled:hover {
+  border-color: rgba(108, 128, 145, 0.14);
+  background: rgba(255, 95, 95, 0.035);
+  color: rgba(231, 166, 176, 0.38);
+  box-shadow: inset 3px 0 0 rgba(255, 112, 112, 0.18);
+  opacity: 1;
 }
 
 .app-shell--editor-workbench .world-panel__location-row,
