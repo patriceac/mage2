@@ -210,6 +210,17 @@ describe("hotspot idle visibility styles", () => {
     );
   });
 
+  it("centers localization detail icon buttons and keeps copy feedback visible", () => {
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.localization-icon-button,[\s\S]*?button\.localization-icon-button:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\):not\(\.scenes-panel__scene-list-main\):not\(\.scenes-panel__scene-list-action\)\s*\{[\s\S]*?display: inline-grid;[\s\S]*?place-items: center;[\s\S]*?width: 1\.45rem;[\s\S]*?height: 1\.45rem;[\s\S]*?line-height: 1;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.localization-rail__title svg:nth-child\(2\),[\s\S]*?\.app-shell--editor-workbench \.localization-icon-button svg\s*\{[\s\S]*?display: block;[\s\S]*?width: 0\.9rem;[\s\S]*?height: 0\.9rem;/
+    );
+    expect(styles).toContain(".localization-icon-button--copied");
+    expect(styles).toContain(".localization-icon-button--failed");
+  });
+
   it("keeps the pending save action highlighted after shared workbench button chrome", () => {
     const sharedButtonRule = styles.indexOf(`${workbenchSharedButtonSelector} {`);
     const pendingSaveRule = styles.indexOf(`${pendingSaveButtonSelector} {`);

@@ -36,6 +36,7 @@ type LocalizationStatusFilter = "all" | LocalizedStringStatus;
 type LocalizedStringStatus = "missing" | "empty" | "ready" | "orphaned";
 type QueueItemStatus = LocalizedStringStatus;
 type QueueItemKind = "string" | "media";
+type CopyTextIdFeedbackStatus = "copied" | "failed";
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
@@ -102,6 +103,7 @@ const QUEUE_GROUPS: ReadonlyArray<{
 ];
 
 const TEXT_AREAS: ReadonlyArray<ProjectTextArea> = ["scenes", "dialogue", "inventory"];
+const COPY_TEXT_ID_FEEDBACK_MS = 1600;
 
 export function LocalizationPanel({
   project,
@@ -135,6 +137,11 @@ export function LocalizationPanel({
   const [mediaAssetFilter, setMediaAssetFilter] = useState<MediaAssetFilter>(
     selectedAsset ? classifyEditorAssetCategory(selectedAsset) : "background"
   );
+  const [copyTextIdFeedback, setCopyTextIdFeedback] = useState<{
+    textId: string;
+    status: CopyTextIdFeedbackStatus;
+  }>();
+  const copyTextIdFeedbackTimerRef = useRef<number | undefined>(undefined);
   const stringsListRef = useRef<HTMLDivElement | null>(null);
   const defaultLocaleStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
 
@@ -234,6 +241,14 @@ export function LocalizationPanel({
       window.cancelAnimationFrame(frame);
     };
   }, [activeTextEntryId, localizationSection, visibleStringEntries]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTextIdFeedbackTimerRef.current !== undefined) {
+        window.clearTimeout(copyTextIdFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   function handleNavigate(target: EditorNavigationTarget, textId?: string) {
     setSelectedTextId(target.textId ?? textId);
@@ -461,6 +476,37 @@ export function LocalizationPanel({
     setLocalizationSection("overview");
   }
 
+  async function handleCopyTextId(textId: string) {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard is not available.");
+      }
+
+      await navigator.clipboard.writeText(textId);
+      showCopyTextIdFeedback(textId, "copied");
+      setStatusMessage(`Copied text id ${textId}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showCopyTextIdFeedback(textId, "failed");
+      setStatusMessage(`Copy text id failed: ${message}`);
+    }
+  }
+
+  function showCopyTextIdFeedback(textId: string, status: CopyTextIdFeedbackStatus) {
+    setCopyTextIdFeedback({ textId, status });
+
+    if (copyTextIdFeedbackTimerRef.current !== undefined) {
+      window.clearTimeout(copyTextIdFeedbackTimerRef.current);
+    }
+
+    copyTextIdFeedbackTimerRef.current = window.setTimeout(() => {
+      setCopyTextIdFeedback((current) =>
+        current?.textId === textId && current.status === status ? undefined : current
+      );
+      copyTextIdFeedbackTimerRef.current = undefined;
+    }, COPY_TEXT_ID_FEEDBACK_MS);
+  }
+
   const workbenchDetail =
     selectedQueueItem?.kind === "media" ? (
       <MediaDetailPanel
@@ -478,6 +524,12 @@ export function LocalizationPanel({
         defaultLocale={project.manifest.defaultLanguage}
         defaultValue={selectedStringEntry ? defaultLocaleStrings[selectedStringEntry.textId] ?? "" : ""}
         entry={selectedStringEntry}
+        copyFeedback={
+          copyTextIdFeedback && selectedStringEntry?.textId === copyTextIdFeedback.textId
+            ? copyTextIdFeedback.status
+            : undefined
+        }
+        onCopyTextId={handleCopyTextId}
         onChange={(entry, value) =>
           mutateProject((draft) => {
             setEditorLocalizedText(draft, activeLocale, entry.textId, value);
@@ -675,6 +727,12 @@ export function LocalizationPanel({
             defaultLocale={project.manifest.defaultLanguage}
             defaultValue={selectedStringEntry ? defaultLocaleStrings[selectedStringEntry.textId] ?? "" : ""}
             entry={selectedStringEntry}
+            copyFeedback={
+              copyTextIdFeedback && selectedStringEntry?.textId === copyTextIdFeedback.textId
+                ? copyTextIdFeedback.status
+                : undefined
+            }
+            onCopyTextId={handleCopyTextId}
             onChange={(entry, value) =>
               mutateProject((draft) => {
                 setEditorLocalizedText(draft, activeLocale, entry.textId, value);
@@ -1012,6 +1070,8 @@ function StringDetailPanel({
   defaultLocale,
   defaultValue,
   entry,
+  copyFeedback,
+  onCopyTextId,
   onChange,
   onFocus,
   onNavigate
@@ -1020,6 +1080,8 @@ function StringDetailPanel({
   defaultLocale: string;
   defaultValue: string;
   entry?: ProjectTextEntry;
+  copyFeedback?: CopyTextIdFeedbackStatus;
+  onCopyTextId: (textId: string) => void | Promise<void>;
   onChange: (entry: ProjectTextEntry, value: string) => void;
   onFocus: (entry: ProjectTextEntry) => void;
   onNavigate: (target: EditorNavigationTarget, textId?: string) => void;
@@ -1033,6 +1095,12 @@ function StringDetailPanel({
   }
 
   const status = getLocalizedStringStatus(entry);
+  const copyFeedbackLabel =
+    copyFeedback === "copied"
+      ? `Copied text id ${entry.textId}.`
+      : copyFeedback === "failed"
+        ? `Copy text id failed for ${entry.textId}.`
+        : undefined;
 
   return (
     <section className="panel localization-detail-panel">
@@ -1042,11 +1110,19 @@ function StringDetailPanel({
             <code>{entry.textId}</code>
             <button
               type="button"
-              className="localization-icon-button control-wiring-issue"
-              title={`Copy text id is not wired yet: ${entry.textId}.`}
-              aria-label={`Selected text id ${entry.textId}`}
+              className={
+                copyFeedback
+                  ? `localization-icon-button localization-icon-button--${copyFeedback}`
+                  : "localization-icon-button"
+              }
+              title={copyFeedbackLabel ?? `Copy text id ${entry.textId}`}
+              aria-label={copyFeedbackLabel ?? `Selected text id ${entry.textId}`}
+              onClick={() => void onCopyTextId(entry.textId)}
             >
-              <LocalizationIcon name="copy" />
+              <LocalizationIcon name={copyFeedback === "copied" ? "check" : copyFeedback === "failed" ? "alert" : "copy"} />
+              <span className="sr-only" aria-live="polite">
+                {copyFeedbackLabel ?? ""}
+              </span>
             </button>
           </div>
           <p className="muted">{summarizeProjectTextUsages(entry.usages)}</p>

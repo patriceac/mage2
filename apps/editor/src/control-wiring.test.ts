@@ -97,6 +97,24 @@ describe("editor control wiring guardrails", () => {
     ).toBe(true);
   });
 
+  it("keeps the Localization text-id copy button wired", () => {
+    const expectation = enabledControlsThatMustHaveBehavior.find((entry) => entry.label === "Localization text-id copy");
+    expect(expectation).toBeDefined();
+
+    const block = findButtonBlock(expectation!);
+
+    expect(block, "Localization text-id copy button should render").toBeDefined();
+    expect(hasUserAction(block!.source), `Localization copy button at ${expectation!.file}:${block!.line} should stay wired`).toBe(true);
+    expect(hasWiringIssueMarker(block!.source), `Localization copy button at ${expectation!.file}:${block!.line} should not be marked red`).toBe(
+      false
+    );
+    expect(block!.source).toContain("onCopyTextId(entry.textId)");
+    expect(block!.source).toContain("localization-icon-button--${copyFeedback}");
+    expect(block!.source).toContain('copyFeedback === "copied"');
+    expect(block!.source).toContain('copyFeedback === "failed"');
+    expect(block!.source).not.toContain("not wired");
+  });
+
   it.each(disabledPlaceholderControls)("$label remains explicitly disabled until implemented", (expectation) => {
     const block = findButtonBlock(expectation);
 
