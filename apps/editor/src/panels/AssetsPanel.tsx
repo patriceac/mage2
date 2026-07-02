@@ -525,8 +525,13 @@ export function AssetsPanel({
 
       <footer className="assets-status-footer" aria-label="Asset summary">
         <span>
-          <span className="assets-footer-locale-dot" />
-          Locale: {activeLocale} {activeLocale === project.manifest.defaultLanguage ? <b>DEFAULT</b> : null}
+          <span className="assets-footer-locale-icon" aria-hidden="true">
+            <Icon name="globe" />
+          </span>
+          {activeLocale === project.manifest.defaultLanguage ? "Project default locale" : "Editing locale"}: {activeLocale}
+          {activeLocale === project.manifest.defaultLanguage ? null : (
+            <span className="assets-footer-locale-source">Project default: {project.manifest.defaultLanguage}</span>
+          )}
         </span>
         <span>Total Assets: {assetTotals.total}</span>
         <span>In Use: {assetTotals.inUse}</span>
@@ -880,7 +885,7 @@ function AssetInspector({
                 <tr key={locale}>
                   <td>
                     {locale}
-                    {isDefault ? <span>DEFAULT</span> : null}
+                    {isDefault ? <span>Project default</span> : null}
                   </td>
                   <td>
                     <span className={variant ? "assets-status-label assets-status-label--present" : "assets-status-label assets-status-label--missing"}>
@@ -1446,6 +1451,7 @@ type IconName =
   | "film"
   | "folder"
   | "folderOpen"
+  | "globe"
   | "grid"
   | "image"
   | "list"
@@ -1520,6 +1526,14 @@ function Icon({ name }: { name: IconName }) {
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 18.5 5 9h5.4l1.8 2H21l-2 7.5H3Z" />
           <path d="M4.5 9V6.5h5.2l1.7 2H18V11" />
+        </svg>
+      );
+    case "globe":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
+          <path d="M3.6 9h16.8M3.6 15h16.8" />
+          <path d="M12 3c2.3 2.4 3.5 5.4 3.5 9s-1.2 6.6-3.5 9c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z" />
         </svg>
       );
     case "grid":

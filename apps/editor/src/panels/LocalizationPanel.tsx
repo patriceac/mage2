@@ -503,9 +503,11 @@ export function LocalizationPanel({
     <div className="localization-page localization-workbench-page">
       <section className="localization-commandbar">
         <div className="localization-commandbar__field">
-          <span className="localization-commandbar__label">Locale</span>
+          <span className="localization-commandbar__label">Editing locale</span>
           <label className="localization-locale-select">
-            <span className="localization-locale-select__flag" aria-hidden="true" />
+            <span className="localization-locale-select__icon" aria-hidden="true">
+              <LocalizationIcon name="globe" />
+            </span>
             <DropdownSelect value={activeLocale} onChange={(event) => setLocalizationLocale(event.target.value)}>
               {supportedLocales.map((locale) => (
                 <option key={locale} value={locale}>
@@ -513,7 +515,7 @@ export function LocalizationPanel({
                 </option>
               ))}
             </DropdownSelect>
-            {isDefaultLocale ? <span className="localization-default-chip">Default</span> : null}
+            {isDefaultLocale ? <span className="localization-default-chip">Project default</span> : null}
           </label>
         </div>
         <div className="localization-commandbar__actions">
@@ -751,9 +753,13 @@ export function LocalizationPanel({
 
       <footer className="localization-footer">
         <span className="localization-footer__locale">
-          <span className="localization-locale-select__flag" aria-hidden="true" />
-          Locale: {localeLabel}
-          {isDefaultLocale ? <span className="localization-default-chip">Default</span> : null}
+          <span className="localization-locale-select__icon" aria-hidden="true">
+            <LocalizationIcon name="globe" />
+          </span>
+          {isDefaultLocale ? "Project default locale" : "Editing locale"}: {activeLocale}
+          {isDefaultLocale ? null : (
+            <span className="localization-footer__source">Project default: {project.manifest.defaultLanguage}</span>
+          )}
         </span>
         <span>Total Strings: {stringMetrics.total}</span>
         <span>Translated: {stringMetrics.ready} ({formatCoveragePercent(stringMetrics.ready, stringMetrics.total)})</span>
@@ -1459,6 +1465,7 @@ type LocalizationIconName =
   | "copy"
   | "external"
   | "filter"
+  | "globe"
   | "image"
   | "message"
   | "pin"
@@ -1483,6 +1490,7 @@ function LocalizationIcon({ name }: { name: LocalizationIconName }) {
     copy: <path d="M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />,
     external: <path d="M14 5h5v5M19 5l-8 8M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4" />,
     filter: <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />,
+    globe: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.6 9h16.8M3.6 15h16.8M12 3c2.3 2.4 3.5 5.4 3.5 9s-1.2 6.6-3.5 9c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z" />,
     image: <path d="M4 5h16v14H4zM7 15l3-3 2 2 3-4 3 5M8 9h.01" />,
     message: <path d="M4 5h16v10H8l-4 4V5Z" />,
     pin: <path d="M8 3h8l-1 5 3 3v2h-5v7l-1 1-1-1v-7H6v-2l3-3-1-5Z" />,

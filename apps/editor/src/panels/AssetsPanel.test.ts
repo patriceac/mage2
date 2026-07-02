@@ -59,6 +59,11 @@ describe("AssetsPanel workbench UI", () => {
     expect(markup).toContain("Loading preview...");
     expect(markup).toContain("No project references found.");
     expect(markup).toContain("Safe to delete");
+    expect(markup).toContain("assets-footer-locale-icon");
+    expect(markup).not.toContain("assets-footer-locale-dot");
+    expect(markup).toContain("Project default locale: en");
+    expect(markup).toContain("Project default</span>");
+    expect(markup).not.toContain("DEFAULT");
     const rowDeleteButtonStart = markup.indexOf("assets-delete-status");
     const rowDeleteButtonEnd = markup.indexOf("</button>", rowDeleteButtonStart);
     const rowDeleteButtonMarkup = markup.slice(rowDeleteButtonStart, rowDeleteButtonEnd);

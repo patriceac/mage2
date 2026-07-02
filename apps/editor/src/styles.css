@@ -10230,17 +10230,20 @@ button.recent-project__icon-button:hover {
   min-height: 1.8rem;
 }
 
-.app-shell--editor-workbench .localization-locale-select__flag {
-  position: relative;
+.app-shell--editor-workbench .localization-locale-select__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 1.35rem;
   width: 1.35rem;
-  height: 0.92rem;
-  border-radius: 2px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background:
-    linear-gradient(90deg, #2441a8 0 33.333%, #f5f7fb 33.333% 66.666%, #d73346 66.666% 100%);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+  height: 1.35rem;
+  color: #8cc8e8;
+}
+
+.app-shell--editor-workbench .localization-locale-select__icon svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
 }
 
 .app-shell--editor-workbench .localization-default-chip {
@@ -10254,7 +10257,11 @@ button.recent-project__icon-button:hover {
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0;
-  text-transform: uppercase;
+  text-transform: none;
+}
+
+.app-shell--editor-workbench .localization-footer__source {
+  color: #8ca1ae;
 }
 
 .app-shell--editor-workbench .localization-commandbar__actions {
@@ -12161,19 +12168,22 @@ button.recent-project__icon-button:hover {
   border-right: 0;
 }
 
-.app-shell--editor-workbench .assets-status-footer b {
-  padding: 0.08rem 0.32rem;
-  border-radius: 3px;
-  background: rgba(33, 168, 242, 0.16);
-  color: #7dd6ff;
-  font-size: 0.64rem;
+.app-shell--editor-workbench .assets-footer-locale-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #8cc8e8;
 }
 
-.app-shell--editor-workbench .assets-footer-locale-dot {
-  width: 1.1rem;
-  height: 0.72rem;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #2454c7 0 33%, #fff 33% 66%, #ef4d61 66%);
+.app-shell--editor-workbench .assets-footer-locale-icon svg {
+  width: 0.92rem;
+  height: 0.92rem;
+}
+
+.app-shell--editor-workbench .assets-footer-locale-source {
+  color: var(--assets-subtle);
 }
 
 .app-shell--editor-workbench .assets-footer-save-state {

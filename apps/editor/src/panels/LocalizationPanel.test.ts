@@ -170,7 +170,11 @@ describe("LocalizationPanel shared header", () => {
   it("keeps locale controls visible above the active workspace", () => {
     const markup = renderLocalizationPanel("strings");
 
-    expect(markup).toContain(">Locale</span>");
+    expect(markup).toContain(">Editing locale</span>");
+    expect(markup).toContain("localization-locale-select__icon");
+    expect(markup).not.toContain("localization-locale-select__flag");
+    expect(markup).toContain("Project default");
+    expect(markup).toContain("Project default locale: en");
     expect(markup).toContain("Add Locale");
     expect(markup).toContain("Set as Default");
     expect(markup).toContain("Remove Locale");
