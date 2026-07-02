@@ -25,16 +25,6 @@ const enabledControlsThatMustHaveBehavior: ButtonExpectation[] = [
     label: "Localization text-id copy",
     file: "panels/LocalizationPanel.tsx",
     matcher: (block) => block.includes("localization-icon-button") && block.includes("Selected text id")
-  },
-  {
-    label: "Assets usage rail pin",
-    file: "panels/AssetsPanel.tsx",
-    matcher: (block) => block.includes("Pin panel")
-  },
-  {
-    label: "Assets usage rail close",
-    file: "panels/AssetsPanel.tsx",
-    matcher: (block) => block.includes("Close panel")
   }
 ];
 

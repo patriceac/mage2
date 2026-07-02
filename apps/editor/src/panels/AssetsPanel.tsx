@@ -944,14 +944,6 @@ function AssetUsageRail({
     <aside className="assets-usage-rail panel" aria-label="Usage and Safety">
       <div className="assets-rail__header">
         <h3>Usage and Safety</h3>
-        <div>
-          <button type="button" className="control-wiring-issue" title="Pin panel is not wired yet.">
-            <Icon name="pin" />
-          </button>
-          <button type="button" className="control-wiring-issue" title="Close panel is not wired yet.">
-            <Icon name="x" />
-          </button>
-        </div>
       </div>
 
       <section className="assets-rail-section">

@@ -55,6 +55,9 @@ describe("AssetsPanel workbench UI", () => {
     expect(markup).toContain("Import Asset");
     expect(markup).toContain("Asset Library");
     expect(markup).toContain("Usage and Safety");
+    expect(markup).not.toContain("Pin panel");
+    expect(markup).not.toContain("Close panel");
+    expect(markup).not.toContain("control-wiring-issue");
     expect(markup).toContain("Localized Variants");
     expect(markup).toContain("Loading preview...");
     expect(markup).toContain("No project references found.");
