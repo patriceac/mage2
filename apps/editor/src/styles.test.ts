@@ -211,6 +211,15 @@ describe("hotspot idle visibility styles", () => {
     );
   });
 
+  it("separates the Assets inspector delete action on the right edge", () => {
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.assets-inspector__actions\s*\{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, auto\)\) minmax\(1rem, 1fr\) minmax\(5\.2rem, auto\);/
+    );
+    expect(styles).toMatch(
+      /button\.assets-action-button--danger:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?grid-column: -2 \/ -1;[\s\S]*?justify-self: end;/
+    );
+  });
+
   it("keeps title-bar history and save actions aligned with the slimmer file trigger sizing", () => {
     expect(styles).toContain(".titlebar-shell__history-actions {");
     expect(styles).toContain(".titlebar-shell__history-button,");

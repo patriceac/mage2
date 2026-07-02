@@ -901,16 +901,6 @@ function AssetInspector({
           <Icon name="refresh" />
           <span>Replace Source</span>
         </button>
-        <button
-          type="button"
-          className="assets-action-button control-wiring-warning"
-          onClick={onRevealSelectedAsset}
-          disabled={!hasRevealPath}
-          title="Open File currently mirrors Reveal in Folder."
-        >
-          <Icon name="folder" />
-          <span>Open File</span>
-        </button>
         <button type="button" className="assets-action-button" onClick={onRevealSelectedAsset} disabled={!hasRevealPath}>
           <Icon name="folderOpen" />
           <span>Reveal in Folder</span>

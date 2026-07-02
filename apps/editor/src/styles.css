@@ -11856,7 +11856,7 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .assets-inspector__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, auto)) minmax(5.2rem, auto);
+  grid-template-columns: repeat(2, minmax(0, auto)) minmax(1rem, 1fr) minmax(5.2rem, auto);
   gap: 0.54rem;
   align-items: center;
 }
@@ -11884,6 +11884,7 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench button.assets-action-button--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  grid-column: -2 / -1;
   justify-self: end;
   border-color: rgba(255, 77, 79, 0.42);
   background: rgba(255, 77, 79, 0.1);
