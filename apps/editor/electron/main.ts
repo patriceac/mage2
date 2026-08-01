@@ -27,6 +27,9 @@ import { startEditorAutomationServer } from "./automation-server";
 
 let mainWindow: BrowserWindow | null = null;
 let stopAutomationServer: (() => void) | undefined;
+let closeGuardReady = false;
+let closeRequestPending = false;
+let allowWindowClose = false;
 const WINDOW_STATE_SAVE_DELAY_MS = 150;
 const APP_NAME = appMetadata.productName;
 const APP_ID = appMetadata.appId;
@@ -69,6 +72,9 @@ function createWindow(): void {
       nodeIntegration: false
     }
   });
+  closeGuardReady = false;
+  closeRequestPending = false;
+  allowWindowClose = false;
   mainWindow.removeMenu();
 
   if (restoredWindowState.x !== undefined && restoredWindowState.y !== undefined) {
@@ -82,6 +88,7 @@ function createWindow(): void {
     mainWindow.setSize(restoredWindowState.width, restoredWindowState.height);
   }
 
+  registerWindowCloseGuard(mainWindow);
   registerWindowStatePersistence(mainWindow);
 
   if (restoredWindowState.isMaximized) {
@@ -97,6 +104,9 @@ function createWindow(): void {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    closeGuardReady = false;
+    closeRequestPending = false;
+    allowWindowClose = false;
   });
 }
 
@@ -119,7 +129,7 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+app.on("will-quit", () => {
   stopAutomationServer?.();
   stopAutomationServer = undefined;
 });
@@ -169,7 +179,50 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
   window.on("close", persistNow);
 }
 
+function registerWindowCloseGuard(window: BrowserWindow): void {
+  window.webContents.on("did-start-loading", () => {
+    closeGuardReady = false;
+    closeRequestPending = false;
+  });
+
+  window.on("close", (event) => {
+    if (allowWindowClose || !closeGuardReady || window.webContents.isDestroyed()) {
+      return;
+    }
+
+    event.preventDefault();
+    if (closeRequestPending) {
+      return;
+    }
+
+    closeRequestPending = true;
+    window.webContents.send("mage2:request-close");
+  });
+}
+
 function registerIpcHandlers(): void {
+  ipcMain.on("mage2:close-guard-ready", (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      return;
+    }
+
+    closeGuardReady = true;
+  });
+
+  ipcMain.on("mage2:close-response", (event, shouldClose: boolean) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) {
+      return;
+    }
+
+    closeRequestPending = false;
+    if (shouldClose !== true) {
+      return;
+    }
+
+    allowWindowClose = true;
+    mainWindow.close();
+  });
+
   ipcMain.on("mage2:get-launch-options-sync", (event) => {
     event.returnValue = pendingLaunchOptions;
     pendingLaunchOptions = {};

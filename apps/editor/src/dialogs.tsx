@@ -74,6 +74,13 @@ interface ConfirmDialogOptions {
   tone?: "default" | "danger";
 }
 
+interface AlertDialogOptions {
+  title: string;
+  body: ReactNode;
+  confirmLabel?: string;
+  tone?: "default" | "danger";
+}
+
 interface PromptTextDialogOptions {
   title: string;
   description?: string;
@@ -120,6 +127,7 @@ export type DeleteSceneDialogResult =
     };
 
 interface DialogContextValue {
+  alert: (options: AlertDialogOptions) => Promise<void>;
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   promptText: (options: PromptTextDialogOptions) => Promise<string | undefined>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
@@ -129,6 +137,11 @@ interface DialogContextValue {
 }
 
 type DialogRequest =
+  | {
+      kind: "alert";
+      options: AlertDialogOptions;
+      resolve: () => void;
+    }
   | {
       kind: "confirm";
       options: ConfirmDialogOptions;
@@ -168,6 +181,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   const dialogApi = useMemo<DialogContextValue>(
     () => ({
+      alert: (options) =>
+        new Promise<void>((resolve) => {
+          setDialogQueue((currentQueue) => [...currentQueue, { kind: "alert", options, resolve }]);
+        }),
       confirm: (options) =>
         new Promise<boolean>((resolve) => {
           setDialogQueue((currentQueue) => [...currentQueue, { kind: "confirm", options, resolve }]);
@@ -203,6 +220,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   return (
     <DialogContext.Provider value={dialogApi}>
       {children}
+      {activeDialog?.kind === "alert" ? (
+        <AlertDialog
+          options={activeDialog.options}
+          onResolve={() => {
+            activeDialog.resolve();
+            dismissActiveDialog();
+          }}
+        />
+      ) : null}
       {activeDialog?.kind === "confirm" ? (
         <ConfirmDialog
           options={activeDialog.options}
@@ -622,6 +648,32 @@ function ConfirmDialog({
   );
 }
 
+function AlertDialog({
+  options,
+  onResolve
+}: {
+  options: AlertDialogOptions;
+  onResolve: () => void;
+}) {
+  return (
+    <DialogFrame
+      title={options.title}
+      wide={false}
+      tone={options.tone}
+      onCancel={onResolve}
+      footer={
+        <div className="dialog-actions">
+          <button type="button" className="button-accent" onClick={onResolve} autoFocus>
+            {options.confirmLabel ?? "Close"}
+          </button>
+        </div>
+      }
+    >
+      <div className="dialog-stack">{options.body}</div>
+    </DialogFrame>
+  );
+}
+
 function PromptTextDialog({
   options,
   onResolve
@@ -682,18 +734,18 @@ function CloseProjectDialog({
 }) {
   return (
     <DialogFrame
-      title="Close Project"
+      title="Save Changes?"
       onCancel={() => onResolve("cancel")}
       footer={
         <div className="dialog-actions dialog-actions--spread">
-          <button type="button" className="button-secondary" onClick={() => onResolve("cancel")} autoFocus>
-            Keep Editing
+          <button type="button" className="button-secondary" onClick={() => onResolve("cancel")}>
+            Cancel
           </button>
           <div className="dialog-button-row">
-            <button type="button" className="button-secondary" onClick={() => onResolve("discard")}>
-              Close Without Saving
+            <button type="button" className="button-danger" onClick={() => onResolve("discard")}>
+              Discard Changes
             </button>
-            <button type="button" className="button-accent" onClick={() => onResolve("save")}>
+            <button type="button" className="button-accent" onClick={() => onResolve("save")} autoFocus>
               Save and Close
             </button>
           </div>
@@ -701,10 +753,10 @@ function CloseProjectDialog({
       }
     >
       <div className="dialog-stack">
-        <p>{`Save changes to ${projectName}?`}</p>
+        <p>{`Save changes to “${projectName}” before closing MAGE2?`}</p>
         <div className="dialog-callout">
           <strong>Unsaved work detected</strong>
-          <p>If you close this project now, any unsaved changes will be lost.</p>
+          <p>Discarding these changes cannot be undone.</p>
         </div>
       </div>
     </DialogFrame>

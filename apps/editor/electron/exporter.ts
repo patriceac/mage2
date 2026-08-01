@@ -1,16 +1,69 @@
-import { existsSync } from "node:fs";
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { constants, existsSync } from "node:fs";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rmdir,
+  stat,
+  unlink,
+  writeFile
+} from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
-import { copyAssetVariantForBuild } from "@mage2/media";
 import {
   normalizeSupportedLocales,
+  parseBuildManifest,
   toExportProjectData,
   type BuildManifest,
   type ProjectBundle,
   validateProject
 } from "@mage2/schema";
+
+const EXPORT_MARKER_FILE = ".mage2-export.json";
+const EXPORT_MARKER_FORMAT = "mage2-runtime-export";
+const EXPORT_MARKER_VERSION = 2;
+const RESERVED_OUTPUT_DIRECTORY = "build";
+const RESERVED_RUNTIME_NAMES = new Set([
+  EXPORT_MARKER_FILE,
+  "build-manifest.json",
+  "content",
+  "media",
+  "validation-report.json"
+]);
+
+interface ExportFileRecord {
+  path: string;
+  sha256: string;
+  size: number;
+}
+
+interface ExportOwnershipMarker {
+  format: typeof EXPORT_MARKER_FORMAT;
+  version: typeof EXPORT_MARKER_VERSION;
+  projectId: string;
+  exportId: string;
+  files: ExportFileRecord[];
+}
+
+interface DirectoryIdentity {
+  path: string;
+  canonicalPath: string;
+  dev: string;
+  ino: string;
+  birthtimeNs: string;
+}
+
+type DestinationSnapshot =
+  | { kind: "missing" }
+  | { kind: "empty"; identity: DirectoryIdentity }
+  | { kind: "owned"; identity: DirectoryIdentity; fingerprint: string };
 
 export interface ExportResult {
   outputDirectory: string;
@@ -23,49 +76,596 @@ export async function exportProjectBundle(
   project: ProjectBundle
 ): Promise<ExportResult> {
   const validationReport = validateProject(project);
-  const outputDirectory = path.isAbsolute(project.manifest.buildSettings.outputDir)
-    ? project.manifest.buildSettings.outputDir
-    : path.join(projectDir, project.manifest.buildSettings.outputDir);
+  assertProjectCanBeExported(validationReport);
 
+  const { projectIdentity, outputDirectory } = await resolveSafeOutputDirectory(
+    projectDir,
+    project.manifest.buildSettings.outputDir
+  );
+  const initialDestination = await inspectDestination(outputDirectory, project.manifest.projectId);
+
+  // Development builds can be expensive, so reject an unsafe destination before
+  // compiling the runtime. Neither operation mutates the selected output folder.
   const runtimeDist = await resolveRuntimeWebDist();
-  await rm(outputDirectory, { recursive: true, force: true });
-  await mkdir(outputDirectory, { recursive: true });
+  await assertDirectoryIdentity(projectIdentity, "project folder");
 
-  await cp(runtimeDist, outputDirectory, { recursive: true, force: true });
+  const stagingIdentity = await createSiblingStagingDirectory(projectIdentity);
+  let stagingPromoted = false;
 
-  const mediaDirectory = path.join(outputDirectory, "media");
-  await mkdir(mediaDirectory, { recursive: true });
+  try {
+    let buildManifest: BuildManifest;
+    try {
+      buildManifest = await buildExportInDirectory(
+        stagingIdentity,
+        projectIdentity,
+        runtimeDist,
+        project,
+        validationReport
+      );
+    } catch (error) {
+      throw new Error(
+        `Export failed while preparing the new build. The existing export was not changed. ${errorMessage(error)}`,
+        { cause: error }
+      );
+    }
+
+    // Re-check after the potentially long runtime build. This catches path swaps
+    // and concurrent exports before either can replace an existing destination.
+    await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(stagingIdentity, "export staging folder");
+    const currentDestination = await inspectDestination(outputDirectory, project.manifest.projectId);
+    if (!sameDestinationSnapshot(initialDestination, currentDestination)) {
+      throw new Error(
+        `Export stopped because the output folder changed while the build was being prepared: "${outputDirectory}". ` +
+          "No existing files were replaced."
+      );
+    }
+
+    await promoteStagedExport(stagingIdentity, outputDirectory, currentDestination, projectIdentity);
+    stagingPromoted = true;
+
+    return {
+      outputDirectory,
+      buildManifest,
+      validationReport
+    };
+  } finally {
+    if (!stagingPromoted) {
+      await removeCreatedDirectoryBestEffort(stagingIdentity, projectIdentity);
+    }
+  }
+}
+
+function assertProjectCanBeExported(validationReport: ReturnType<typeof validateProject>): void {
+  const errors = validationReport.issues.filter((issue) => issue.level === "error");
+  if (errors.length === 0) {
+    return;
+  }
+
+  const preview = errors
+    .slice(0, 3)
+    .map((issue) => `[${issue.code}] ${issue.message}`)
+    .join(" ");
+  const remaining = errors.length > 3 ? ` ${errors.length - 3} more error(s) were found.` : "";
+  throw new Error(
+    `Export blocked by ${errors.length} project validation error(s). Fix the errors before exporting. ${preview}${remaining}`
+  );
+}
+
+async function resolveSafeOutputDirectory(
+  projectDir: string,
+  configuredOutputDirectory: string
+): Promise<{ projectIdentity: DirectoryIdentity; outputDirectory: string }> {
+  const absoluteProjectDirectory = path.resolve(projectDir);
+  let projectIdentity: DirectoryIdentity;
+
+  try {
+    projectIdentity = await captureDirectoryIdentity(absoluteProjectDirectory);
+  } catch (error) {
+    throw new Error(
+      `Export cannot use project folder "${absoluteProjectDirectory}": ${errorMessage(error)}`,
+      { cause: error }
+    );
+  }
+
+  const relativeSegments = parseCanonicalRelativeOutputPath(configuredOutputDirectory);
+  if (relativeSegments.length !== 1 || relativeSegments[0].toLocaleLowerCase("en-US") !== RESERVED_OUTPUT_DIRECTORY) {
+    throw new Error(
+      `Export output folder must be the reserved "${RESERVED_OUTPUT_DIRECTORY}" folder. ` +
+        `Custom project paths are refused so an export can never replace arbitrary project content: "${configuredOutputDirectory}".`
+    );
+  }
+
+  const outputDirectory = path.join(projectIdentity.canonicalPath, RESERVED_OUTPUT_DIRECTORY);
+  await assertProspectiveChildPath(projectIdentity, outputDirectory, "export output folder");
+  return { projectIdentity, outputDirectory };
+}
+
+function parseCanonicalRelativeOutputPath(configuredOutputDirectory: string): string[] {
+  if (configuredOutputDirectory.length === 0 || configuredOutputDirectory.trim().length === 0) {
+    throw new Error("Export output folder must be a non-empty relative path inside the project folder.");
+  }
+
+  if (
+    path.isAbsolute(configuredOutputDirectory) ||
+    path.posix.isAbsolute(configuredOutputDirectory.replace(/\\/g, "/")) ||
+    path.win32.isAbsolute(configuredOutputDirectory) ||
+    /^[a-zA-Z]:/.test(configuredOutputDirectory)
+  ) {
+    throw new Error(
+      `Export output folder must be relative to the project folder; absolute, drive-rooted, and UNC paths are not allowed: "${configuredOutputDirectory}".`
+    );
+  }
+
+  const segments = configuredOutputDirectory.split(/[\\/]/);
+  if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+    throw new Error(
+      `Export output folder must be a canonical descendant path without '.', '..', repeated separators, or a trailing separator: "${configuredOutputDirectory}".`
+    );
+  }
+
+  if (segments.some((segment) => segment.endsWith(".") || segment.endsWith(" "))) {
+    throw new Error(
+      `Export output folder contains a non-canonical path segment ending in a dot or space: "${configuredOutputDirectory}".`
+    );
+  }
+
+  return segments;
+}
+
+async function captureDirectoryIdentity(directoryPath: string): Promise<DirectoryIdentity> {
+  const resolvedPath = path.resolve(directoryPath);
+  const directoryStats = await lstat(resolvedPath, { bigint: true });
+  if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
+    throw new Error(`path is not a normal directory: "${resolvedPath}"`);
+  }
+
+  return {
+    path: resolvedPath,
+    canonicalPath: await realpath(resolvedPath),
+    dev: directoryStats.dev.toString(),
+    ino: directoryStats.ino.toString(),
+    birthtimeNs: directoryStats.birthtimeNs.toString()
+  };
+}
+
+async function assertDirectoryIdentity(identity: DirectoryIdentity, label: string): Promise<void> {
+  let currentIdentity: DirectoryIdentity;
+  try {
+    currentIdentity = await captureDirectoryIdentity(identity.path);
+  } catch (error) {
+    throw new Error(`Export stopped because the ${label} changed or became unsafe: ${errorMessage(error)}`, {
+      cause: error
+    });
+  }
+
+  if (!sameDirectoryIdentity(identity, currentIdentity)) {
+    throw new Error(`Export stopped because the ${label} identity changed during the operation.`);
+  }
+}
+
+function sameDirectoryIdentity(left: DirectoryIdentity, right: DirectoryIdentity): boolean {
+  return (
+    normalizeIdentityPath(left.canonicalPath) === normalizeIdentityPath(right.canonicalPath) &&
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeNs === right.birthtimeNs
+  );
+}
+
+function normalizeIdentityPath(inputPath: string): string {
+  const normalized = path.normalize(inputPath);
+  return process.platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized;
+}
+
+async function assertProspectiveChildPath(
+  parentIdentity: DirectoryIdentity,
+  candidatePath: string,
+  label: string
+): Promise<void> {
+  await assertDirectoryIdentity(parentIdentity, label === "export output folder" ? "project folder" : "parent folder");
+  let canonicalCandidate: string;
+  try {
+    canonicalCandidate = await resolveProspectiveCanonicalPath(candidatePath);
+  } catch (error) {
+    throw new Error(`Export cannot safely resolve ${label} "${candidatePath}": ${errorMessage(error)}`, {
+      cause: error
+    });
+  }
+
+  if (!isStrictDescendant(parentIdentity.canonicalPath, canonicalCandidate)) {
+    throw new Error(`${label} escapes its verified parent through a symbolic link or junction: "${candidatePath}".`);
+  }
+}
+
+async function resolveProspectiveCanonicalPath(inputPath: string): Promise<string> {
+  let currentPath = inputPath;
+  const missingSegments: string[] = [];
+
+  while (true) {
+    try {
+      const currentStats = await stat(currentPath);
+      if (missingSegments.length > 0 && !currentStats.isDirectory()) {
+        throw new Error(`path ancestor "${currentPath}" is not a directory`);
+      }
+
+      const canonicalAncestor = await realpath(currentPath);
+      return path.resolve(canonicalAncestor, ...missingSegments);
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        throw error;
+      }
+
+      const parentPath = path.dirname(currentPath);
+      if (parentPath === currentPath) {
+        throw error;
+      }
+
+      missingSegments.unshift(path.basename(currentPath));
+      currentPath = parentPath;
+    }
+  }
+}
+
+function isStrictDescendant(parentDirectory: string, candidatePath: string): boolean {
+  const relativePath = path.relative(parentDirectory, candidatePath);
+  return (
+    relativePath.length > 0 &&
+    relativePath !== ".." &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
+  );
+}
+
+async function inspectDestination(outputDirectory: string, projectId: string): Promise<DestinationSnapshot> {
+  let identity: DirectoryIdentity;
+  try {
+    identity = await captureDirectoryIdentity(outputDirectory);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return { kind: "missing" };
+    }
+    throw new Error(`Export cannot inspect output folder "${outputDirectory}": ${errorMessage(error)}`, {
+      cause: error
+    });
+  }
+
+  const entries = await readdir(outputDirectory);
+  if (entries.length === 0) {
+    return { kind: "empty", identity };
+  }
+
+  try {
+    const markerPath = path.join(outputDirectory, EXPORT_MARKER_FILE);
+    const markerText = await readVerifiedRegularFile(markerPath, 5 * 1024 * 1024);
+    const marker = parseOwnershipMarker(JSON.parse(markerText));
+    if (marker.projectId !== projectId) {
+      throw new Error("the ownership marker belongs to a different project");
+    }
+
+    const actualFiles = await collectExportFileInventory(identity, new Set([EXPORT_MARKER_FILE]));
+    assertExactFileInventory(marker.files, actualFiles);
+
+    const manifestRecord = actualFiles.find((record) => record.path === "build-manifest.json");
+    if (!manifestRecord) {
+      throw new Error("the build manifest is missing");
+    }
+    const manifest = parseBuildManifest(
+      JSON.parse(await readVerifiedRegularFile(path.join(outputDirectory, manifestRecord.path), 5 * 1024 * 1024))
+    );
+    if (manifest.projectId !== projectId) {
+      throw new Error("the build manifest belongs to a different project");
+    }
+    if (manifest.contentPath !== "content/project-content.json") {
+      throw new Error("the build manifest has an unexpected content path");
+    }
+    if (manifest.validationReportPath !== "validation-report.json") {
+      throw new Error("the build manifest has an unexpected validation report path");
+    }
+
+    const fingerprint = createHash("sha256")
+      .update(markerText)
+      .digest("hex");
+    return { kind: "owned", identity, fingerprint };
+  } catch (error) {
+    throw new Error(
+      `Export refused: output folder "${outputDirectory}" is not empty and is not a verified prior MAGE2 export for project "${projectId}". ` +
+        `Unknown, changed, linked, or spoofed content is never replaced. Clear the reserved build folder manually if appropriate. ${errorMessage(error)}`,
+      { cause: error }
+    );
+  }
+}
+
+function parseOwnershipMarker(input: unknown): ExportOwnershipMarker {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("the MAGE2 export ownership marker is invalid");
+  }
+
+  const marker = input as Record<string, unknown>;
+  const keys = Object.keys(marker).sort();
+  if (
+    keys.length !== 5 ||
+    keys[0] !== "exportId" ||
+    keys[1] !== "files" ||
+    keys[2] !== "format" ||
+    keys[3] !== "projectId" ||
+    keys[4] !== "version" ||
+    marker.format !== EXPORT_MARKER_FORMAT ||
+    marker.version !== EXPORT_MARKER_VERSION ||
+    typeof marker.projectId !== "string" ||
+    marker.projectId.length === 0 ||
+    typeof marker.exportId !== "string" ||
+    !/^[0-9a-f-]{36}$/i.test(marker.exportId) ||
+    !Array.isArray(marker.files)
+  ) {
+    throw new Error("the MAGE2 export ownership marker is invalid");
+  }
+
+  const files = marker.files.map(parseExportFileRecord);
+  assertInventoryPathsAreCanonical(files);
+  return { ...marker, files } as ExportOwnershipMarker;
+}
+
+function parseExportFileRecord(input: unknown): ExportFileRecord {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("the MAGE2 export file inventory is invalid");
+  }
+  const record = input as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (
+    keys.length !== 3 ||
+    keys[0] !== "path" ||
+    keys[1] !== "sha256" ||
+    keys[2] !== "size" ||
+    typeof record.path !== "string" ||
+    typeof record.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(record.sha256) ||
+    typeof record.size !== "number" ||
+    !Number.isSafeInteger(record.size) ||
+    record.size < 0
+  ) {
+    throw new Error("the MAGE2 export file inventory is invalid");
+  }
+  return record as unknown as ExportFileRecord;
+}
+
+async function readVerifiedRegularFile(filePath: string, maximumBytes: number): Promise<string> {
+  const fileStats = await lstat(filePath);
+  if (fileStats.isSymbolicLink() || !fileStats.isFile()) {
+    throw new Error(`required export file is not a regular file: "${filePath}"`);
+  }
+  if (fileStats.size > maximumBytes) {
+    throw new Error(`required export file is unexpectedly large: "${filePath}"`);
+  }
+  return readFile(filePath, "utf8");
+}
+
+async function collectExportFileInventory(
+  rootIdentity: DirectoryIdentity,
+  excludedRootFiles: ReadonlySet<string> = new Set()
+): Promise<ExportFileRecord[]> {
+  await assertDirectoryIdentity(rootIdentity, "export folder");
+  const records: ExportFileRecord[] = [];
+  const directories = new Set<string>();
+
+  async function walk(directoryIdentity: DirectoryIdentity, relativeDirectory: string): Promise<void> {
+    await assertDirectoryIdentity(rootIdentity, "export folder");
+    await assertDirectoryIdentity(directoryIdentity, "export subfolder");
+    const entries = (await readdir(directoryIdentity.path)).sort((left, right) => left.localeCompare(right));
+    if (entries.length === 0 && relativeDirectory.length > 0) {
+      throw new Error(`unexpected empty export directory: "${relativeDirectory}"`);
+    }
+
+    for (const entry of entries) {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${entry}` : entry;
+      assertCanonicalInventoryPath(relativePath);
+      const absolutePath = path.join(directoryIdentity.path, entry);
+      const entryStats = await lstat(absolutePath);
+      if (entryStats.isSymbolicLink()) {
+        throw new Error(`linked export content is not allowed: "${relativePath}"`);
+      }
+      if (entryStats.isDirectory()) {
+        directories.add(relativePath);
+        await walk(await captureDirectoryIdentity(absolutePath), relativePath);
+        continue;
+      }
+      if (!entryStats.isFile()) {
+        throw new Error(`non-regular export content is not allowed: "${relativePath}"`);
+      }
+      if (relativeDirectory.length === 0 && excludedRootFiles.has(entry)) {
+        continue;
+      }
+      records.push({ path: relativePath, ...(await hashRegularFile(absolutePath)) });
+    }
+  }
+
+  await walk(rootIdentity, "");
+  const expectedDirectories = new Set<string>();
+  for (const record of records) {
+    const segments = record.path.split("/");
+    for (let index = 1; index < segments.length; index += 1) {
+      expectedDirectories.add(segments.slice(0, index).join("/"));
+    }
+  }
+  if (![...directories].every((directory) => expectedDirectories.has(directory))) {
+    throw new Error("the export contains an unknown or empty directory");
+  }
+
+  records.sort((left, right) => left.path.localeCompare(right.path));
+  assertInventoryPathsAreCanonical(records);
+  return records;
+}
+
+async function hashRegularFile(filePath: string): Promise<Omit<ExportFileRecord, "path">> {
+  const handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile() || before.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(`export content is not a supported regular file: "${filePath}"`);
+    }
+    const hash = createHash("sha256");
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let position = 0;
+    while (position < Number(before.size)) {
+      const { bytesRead } = await handle.read(buffer, 0, Math.min(buffer.length, Number(before.size) - position), position);
+      if (bytesRead === 0) {
+        break;
+      }
+      hash.update(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeNs !== after.mtimeNs ||
+      position !== Number(before.size)
+    ) {
+      throw new Error(`export file changed while it was being verified: "${filePath}"`);
+    }
+    return { sha256: hash.digest("hex"), size: position };
+  } finally {
+    await handle.close();
+  }
+}
+
+function assertExactFileInventory(expected: ExportFileRecord[], actual: ExportFileRecord[]): void {
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    throw new Error("the export file inventory contains unknown, missing, or changed content");
+  }
+}
+
+function assertInventoryPathsAreCanonical(records: ExportFileRecord[]): void {
+  const caseFolded = new Set<string>();
+  let previous = "";
+  for (const record of records) {
+    assertCanonicalInventoryPath(record.path);
+    if (previous && previous.localeCompare(record.path) >= 0) {
+      throw new Error("the export file inventory must be strictly sorted and unique");
+    }
+    previous = record.path;
+    const folded = record.path.toLocaleLowerCase("en-US");
+    if (caseFolded.has(folded)) {
+      throw new Error("the export file inventory contains a Windows path collision");
+    }
+    caseFolded.add(folded);
+  }
+}
+
+function assertCanonicalInventoryPath(relativePath: string): void {
+  if (relativePath.includes("\\") || path.posix.isAbsolute(relativePath)) {
+    throw new Error(`non-canonical export path: "${relativePath}"`);
+  }
+  const segments = relativePath.split("/");
+  if (
+    segments.length === 0 ||
+    segments.some(
+      (segment) =>
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment.endsWith(".") ||
+        segment.endsWith(" ") ||
+        /[<>:"|?*\u0000-\u001f]/.test(segment)
+    )
+  ) {
+    throw new Error(`non-canonical export path: "${relativePath}"`);
+  }
+}
+
+function sameDestinationSnapshot(left: DestinationSnapshot, right: DestinationSnapshot): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  if (left.kind === "missing") {
+    return true;
+  }
+  if (right.kind === "missing" || !sameDirectoryIdentity(left.identity, right.identity)) {
+    return false;
+  }
+  return left.kind !== "owned" || (right.kind === "owned" && left.fingerprint === right.fingerprint);
+}
+
+async function createSiblingStagingDirectory(projectIdentity: DirectoryIdentity): Promise<DirectoryIdentity> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const stagingDirectory = path.join(projectIdentity.path, `.mage2-export-${randomUUID()}.staging`);
+    try {
+      await assertDirectoryIdentity(projectIdentity, "project folder");
+      await assertProspectiveChildPath(projectIdentity, stagingDirectory, "export staging folder");
+      await mkdir(stagingDirectory);
+      const stagingIdentity = await captureDirectoryIdentity(stagingDirectory);
+      if (!isStrictDescendant(projectIdentity.canonicalPath, stagingIdentity.canonicalPath)) {
+        throw new Error("the created staging folder escaped the project folder");
+      }
+      return stagingIdentity;
+    } catch (error) {
+      if (!isExistingPathError(error)) {
+        throw new Error(`Export could not create a staging folder beside the output: ${errorMessage(error)}`, {
+          cause: error
+        });
+      }
+    }
+  }
+
+  throw new Error("Export could not allocate a unique staging folder beside the output.");
+}
+
+async function buildExportInDirectory(
+  outputIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity,
+  runtimeDist: string,
+  project: ProjectBundle,
+  validationReport: ReturnType<typeof validateProject>
+): Promise<BuildManifest> {
+  await copyRuntimeDistribution(runtimeDist, outputIdentity, projectIdentity);
+
+  const mediaIdentity = await createVerifiedChildDirectory(outputIdentity, "media", projectIdentity);
   const supportedLocales = normalizeSupportedLocales(
     project.manifest.defaultLanguage,
     project.manifest.supportedLocales
   );
+  const generatedMediaPaths = new Set<string>();
 
-  const exportedAssets = await Promise.all(
-    project.assets.assets.map(async (asset) => {
-      const exportedVariants = Object.fromEntries(
-        await Promise.all(
-          supportedLocales
-            .filter((locale) => asset.variants[locale])
-            .map(async (locale) => {
-              const copiedPath = await copyAssetVariantForBuild(asset, locale, mediaDirectory);
-              const relativePath = toPosix(path.relative(outputDirectory, copiedPath));
-              const variant = asset.variants[locale]!;
-              return [
-                locale,
-                {
-                  ...variant,
-                  sourcePath: relativePath,
-                  proxyPath: undefined,
-                  posterPath: undefined
-                }
-              ] as const;
-            })
-        )
+  const exportedAssets: Array<readonly [string, ProjectBundle["assets"]["assets"][number]]> = [];
+  for (const asset of project.assets.assets) {
+    assertSafeGeneratedToken("asset ID", asset.id);
+    const exportedVariants: Record<string, (typeof asset.variants)[string]> = {};
+    for (const locale of supportedLocales.filter((candidate) => asset.variants[candidate])) {
+      assertSafeGeneratedToken("locale", locale);
+      const variant = asset.variants[locale]!;
+      const sourcePath =
+        asset.kind === "video" || asset.kind === "audio"
+          ? variant.proxyPath ?? variant.sourcePath
+          : variant.sourcePath;
+      const extension = safeAssetExtension(sourcePath, asset.kind);
+      const fileName = `${asset.id}.${locale}${extension}`;
+      const relativePath = `media/${fileName}`;
+      assertCanonicalInventoryPath(relativePath);
+      const foldedPath = relativePath.toLocaleLowerCase("en-US");
+      if (generatedMediaPaths.has(foldedPath)) {
+        throw new Error(`Export asset paths collide on Windows: "${relativePath}".`);
+      }
+      generatedMediaPaths.add(foldedPath);
+
+      const copiedPath = path.join(mediaIdentity.path, fileName);
+      await copyRegularFileIntoVerifiedDirectory(
+        sourcePath,
+        copiedPath,
+        mediaIdentity,
+        outputIdentity,
+        projectIdentity
       );
+      exportedVariants[locale] = {
+        ...variant,
+        sourcePath: relativePath,
+        proxyPath: undefined,
+        posterPath: undefined
+      };
+    }
 
-      return [asset.id, { ...asset, variants: exportedVariants }] as const;
-    })
-  );
+    exportedAssets.push([asset.id, { ...asset, variants: exportedVariants }]);
+  }
 
   const assetMap = Object.fromEntries(
     exportedAssets.map(([assetId, asset]) => [
@@ -78,16 +678,20 @@ export async function exportProjectBundle(
     assets: exportedAssets.map(([, asset]) => asset)
   };
 
-  await mkdir(path.join(outputDirectory, "content"), { recursive: true });
-  await writeFile(
-    path.join(outputDirectory, "content", "project-content.json"),
+  const contentIdentity = await createVerifiedChildDirectory(outputIdentity, "content", projectIdentity);
+  await writeNewFileInVerifiedDirectory(
+    contentIdentity,
+    "project-content.json",
     JSON.stringify(exportContent, null, 2),
-    "utf8"
+    outputIdentity,
+    projectIdentity
   );
-  await writeFile(
-    path.join(outputDirectory, "validation-report.json"),
+  await writeNewFileInVerifiedDirectory(
+    outputIdentity,
+    "validation-report.json",
     JSON.stringify(validationReport, null, 2),
-    "utf8"
+    outputIdentity,
+    projectIdentity
   );
 
   const buildManifest: BuildManifest = {
@@ -102,17 +706,282 @@ export async function exportProjectBundle(
     assetMap
   };
 
-  await writeFile(
-    path.join(outputDirectory, "build-manifest.json"),
+  await writeNewFileInVerifiedDirectory(
+    outputIdentity,
+    "build-manifest.json",
     JSON.stringify(buildManifest, null, 2),
-    "utf8"
+    outputIdentity,
+    projectIdentity
   );
 
-  return {
-    outputDirectory,
-    buildManifest,
-    validationReport
+  const files = await collectExportFileInventory(outputIdentity);
+  const marker: ExportOwnershipMarker = {
+    format: EXPORT_MARKER_FORMAT,
+    version: EXPORT_MARKER_VERSION,
+    projectId: project.manifest.projectId,
+    exportId: randomUUID(),
+    files
   };
+  await writeNewFileInVerifiedDirectory(
+    outputIdentity,
+    EXPORT_MARKER_FILE,
+    JSON.stringify(marker, null, 2),
+    outputIdentity,
+    projectIdentity
+  );
+
+  return buildManifest;
+}
+
+async function copyRuntimeDistribution(
+  runtimeDist: string,
+  outputIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  const sourceIdentity = await captureDirectoryIdentity(runtimeDist);
+  const seenPaths = new Set<string>();
+
+  async function copyChildren(sourceDirectory: string, targetIdentity: DirectoryIdentity, prefix: string): Promise<void> {
+    const entries = (await readdir(sourceDirectory)).sort((left, right) => left.localeCompare(right));
+    for (const entry of entries) {
+      if (!prefix && RESERVED_RUNTIME_NAMES.has(entry.toLocaleLowerCase("en-US"))) {
+        throw new Error(`Bundled runtime uses reserved export path "${entry}".`);
+      }
+      const relativePath = prefix ? `${prefix}/${entry}` : entry;
+      assertCanonicalInventoryPath(relativePath);
+      const foldedPath = relativePath.toLocaleLowerCase("en-US");
+      if (seenPaths.has(foldedPath)) {
+        throw new Error(`Bundled runtime contains a Windows path collision: "${relativePath}".`);
+      }
+      seenPaths.add(foldedPath);
+
+      const sourcePath = path.join(sourceDirectory, entry);
+      const sourceStats = await lstat(sourcePath);
+      if (sourceStats.isSymbolicLink()) {
+        throw new Error(`Bundled runtime contains a linked path: "${relativePath}".`);
+      }
+      if (sourceStats.isDirectory()) {
+        const childIdentity = await createVerifiedChildDirectory(targetIdentity, entry, projectIdentity, outputIdentity);
+        await copyChildren(sourcePath, childIdentity, relativePath);
+        continue;
+      }
+      if (!sourceStats.isFile()) {
+        throw new Error(`Bundled runtime contains unsupported content: "${relativePath}".`);
+      }
+      await copyRegularFileIntoVerifiedDirectory(
+        sourcePath,
+        path.join(targetIdentity.path, entry),
+        targetIdentity,
+        outputIdentity,
+        projectIdentity
+      );
+    }
+  }
+
+  await assertDirectoryIdentity(sourceIdentity, "bundled runtime folder");
+  await copyChildren(sourceIdentity.path, outputIdentity, "");
+}
+
+async function createVerifiedChildDirectory(
+  parentIdentity: DirectoryIdentity,
+  name: string,
+  projectIdentity: DirectoryIdentity,
+  outputIdentity: DirectoryIdentity = parentIdentity
+): Promise<DirectoryIdentity> {
+  assertCanonicalInventoryPath(name);
+  const childPath = path.join(parentIdentity.path, name);
+  await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(outputIdentity, "export staging folder");
+  await assertDirectoryIdentity(parentIdentity, "export parent folder");
+  await assertProspectiveChildPath(parentIdentity, childPath, "generated export folder");
+  await mkdir(childPath);
+  const childIdentity = await captureDirectoryIdentity(childPath);
+  if (!isStrictDescendant(outputIdentity.canonicalPath, childIdentity.canonicalPath)) {
+    throw new Error(`Generated export folder escaped staging: "${childPath}".`);
+  }
+  return childIdentity;
+}
+
+async function copyRegularFileIntoVerifiedDirectory(
+  sourcePath: string,
+  destinationPath: string,
+  parentIdentity: DirectoryIdentity,
+  outputIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  const sourceStats = await lstat(sourcePath);
+  if (sourceStats.isSymbolicLink() || !sourceStats.isFile()) {
+    throw new Error(`Export source is not a normal file: "${sourcePath}".`);
+  }
+  await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(outputIdentity, "export staging folder");
+  await assertDirectoryIdentity(parentIdentity, "export destination folder");
+  await assertProspectiveChildPath(parentIdentity, destinationPath, "generated export file");
+  await copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL);
+  await assertDirectoryIdentity(outputIdentity, "export staging folder");
+}
+
+async function writeNewFileInVerifiedDirectory(
+  parentIdentity: DirectoryIdentity,
+  name: string,
+  contents: string,
+  outputIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  assertCanonicalInventoryPath(name);
+  const destinationPath = path.join(parentIdentity.path, name);
+  await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(outputIdentity, "export staging folder");
+  await assertDirectoryIdentity(parentIdentity, "export destination folder");
+  await assertProspectiveChildPath(parentIdentity, destinationPath, "generated export file");
+  await writeFile(destinationPath, contents, { encoding: "utf8", flag: "wx" });
+  await assertDirectoryIdentity(outputIdentity, "export staging folder");
+}
+
+function assertSafeGeneratedToken(label: string, value: string): void {
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,126}[A-Za-z0-9])?$/.test(value)) {
+    throw new Error(`Export ${label} cannot be used in a safe generated filename: "${value}".`);
+  }
+}
+
+function safeAssetExtension(sourcePath: string, kind: ProjectBundle["assets"]["assets"][number]["kind"]): string {
+  const extension = path.extname(sourcePath) || (kind === "video" ? ".mp4" : kind === "audio" ? ".mp3" : ".png");
+  if (!/^\.[A-Za-z0-9]{1,10}$/.test(extension)) {
+    throw new Error(`Export asset extension cannot be used in a safe generated filename: "${extension}".`);
+  }
+  return extension.toLocaleLowerCase("en-US");
+}
+
+async function promoteStagedExport(
+  stagingIdentity: DirectoryIdentity,
+  outputDirectory: string,
+  destination: DestinationSnapshot,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  const backupDirectory = path.join(
+    projectIdentity.path,
+    `.mage2-export-${randomUUID()}.backup`
+  );
+  let backupIdentity: DirectoryIdentity | undefined;
+
+  if (destination.kind !== "missing") {
+    try {
+      await assertDirectoryIdentity(projectIdentity, "project folder");
+      await assertDirectoryIdentity(destination.identity, "existing export folder");
+      await assertProspectiveChildPath(projectIdentity, backupDirectory, "export backup folder");
+      await rename(outputDirectory, backupDirectory);
+      backupIdentity = await captureDirectoryIdentity(backupDirectory);
+      if (!sameDirectoryObject(destination.identity, backupIdentity)) {
+        throw new Error("the moved export folder did not retain the verified filesystem identity");
+      }
+    } catch (error) {
+      throw new Error(
+        `Export could not prepare output folder "${outputDirectory}" for replacement. The existing export was not changed. ${errorMessage(error)}`,
+        { cause: error }
+      );
+    }
+  }
+
+  try {
+    await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(stagingIdentity, "export staging folder");
+    await rename(stagingIdentity.path, outputDirectory);
+  } catch (promotionError) {
+    if (!backupIdentity) {
+      throw new Error(
+        `Export could not publish the staged build to "${outputDirectory}". ${errorMessage(promotionError)}`,
+        { cause: promotionError }
+      );
+    }
+
+    try {
+      await assertDirectoryIdentity(projectIdentity, "project folder");
+      await assertDirectoryIdentity(backupIdentity, "previous export backup");
+      await rename(backupDirectory, outputDirectory);
+    } catch (rollbackError) {
+      throw new Error(
+        `Export could not publish the new build or restore the previous build to "${outputDirectory}". ` +
+          `The previous build is preserved at "${backupDirectory}". ` +
+          `Publish error: ${errorMessage(promotionError)} Rollback error: ${errorMessage(rollbackError)}`,
+        { cause: rollbackError }
+      );
+    }
+
+    throw new Error(
+      `Export could not publish the new build to "${outputDirectory}". The previous export was restored. ${errorMessage(promotionError)}`,
+      { cause: promotionError }
+    );
+  }
+
+  const promotedIdentity = await captureDirectoryIdentity(outputDirectory);
+  if (!sameDirectoryObject(stagingIdentity, promotedIdentity)) {
+    throw new Error(
+      `Export publication identity changed unexpectedly. The previous build remains preserved at "${backupDirectory}".`
+    );
+  }
+
+  if (backupIdentity) {
+    await removeCreatedDirectoryBestEffort(backupIdentity, projectIdentity);
+  }
+}
+
+function sameDirectoryObject(left: DirectoryIdentity, right: DirectoryIdentity): boolean {
+  return left.dev === right.dev && left.ino === right.ino && left.birthtimeNs === right.birthtimeNs;
+}
+
+async function removeCreatedDirectoryBestEffort(
+  directoryIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  try {
+    await removeVerifiedDirectoryTree(directoryIdentity, directoryIdentity, projectIdentity);
+  } catch (error) {
+    console.warn(
+      `MAGE2 export left an identity-protected temporary folder "${directoryIdentity.path}": ${errorMessage(error)}`
+    );
+  }
+}
+
+async function removeVerifiedDirectoryTree(
+  directoryIdentity: DirectoryIdentity,
+  rootIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<void> {
+  await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(rootIdentity, "temporary export folder");
+  await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
+  const entries = await readdir(directoryIdentity.path);
+
+  for (const entry of entries) {
+    const entryPath = path.join(directoryIdentity.path, entry);
+    await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(rootIdentity, "temporary export folder");
+    await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
+    const entryStats = await lstat(entryPath);
+    if (entryStats.isDirectory() && !entryStats.isSymbolicLink()) {
+      await removeVerifiedDirectoryTree(
+        await captureDirectoryIdentity(entryPath),
+        rootIdentity,
+        projectIdentity
+      );
+      continue;
+    }
+    if (!entryStats.isFile() && !entryStats.isSymbolicLink()) {
+      throw new Error(`temporary export contains an unsupported filesystem entry: "${entryPath}"`);
+    }
+    await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(rootIdentity, "temporary export folder");
+    await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
+    await unlink(entryPath);
+  }
+
+  await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(rootIdentity, "temporary export folder");
+  await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
+  if ((await readdir(directoryIdentity.path)).length !== 0) {
+    throw new Error("temporary export folder changed during cleanup");
+  }
+  await rmdir(directoryIdentity.path);
 }
 
 async function buildRuntimeWeb(): Promise<void> {
@@ -153,6 +1022,22 @@ function getRepoRoot(): string {
 
 function toPosix(input: string): string {
   return input.replace(/\\/g, "/");
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return isNodeErrorWithCode(error, "ENOENT");
+}
+
+function isExistingPathError(error: unknown): boolean {
+  return isNodeErrorWithCode(error, "EEXIST");
+}
+
+function isNodeErrorWithCode(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function run(command: string, args: string[], cwd: string): Promise<void> {

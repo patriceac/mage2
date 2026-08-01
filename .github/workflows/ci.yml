@@ -26,6 +26,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Guard sensitive repository paths
+        run: npm run check:sensitive-paths
+
+      - name: Test sensitive-path guard
+        run: npm run test:sensitive-paths
+
       - name: Install dependencies
         run: npm ci
 

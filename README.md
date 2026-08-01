@@ -102,7 +102,7 @@ Using **Export Runtime** in the editor:
 4. Copies referenced media into `media/`.
 5. Writes `build-manifest.json`, `content/project-content.json`, and `validation-report.json`.
 
-The default export folder is `build` inside the selected project directory.
+The export folder is the reserved `build` directory inside the selected project. Custom output paths are refused so project data cannot redirect replacement into an arbitrary folder. MAGE2 replaces an existing `build` only when its complete file inventory still matches the prior managed export; otherwise it leaves the folder untouched and asks you to review it manually.
 
 ## CI
 

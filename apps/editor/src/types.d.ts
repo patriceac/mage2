@@ -42,6 +42,7 @@ declare global {
   interface Window {
     editorApi: {
       getLaunchOptionsSync(): EditorLaunchOptions;
+      onCloseRequested(handler: () => boolean | Promise<boolean>): () => void;
       getRecentProjectsSync(): RecentProjectSummary[];
       getRecentProjects(): Promise<RecentProjectSummary[]>;
       rememberRecentProject(projectDir: string, projectName?: string): Promise<RecentProjectSummary[]>;

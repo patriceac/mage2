@@ -8,6 +8,24 @@ const initialLaunchOptions = ipcRenderer.sendSync("mage2:get-launch-options-sync
 
 const editorApi = {
   getLaunchOptionsSync: (): EditorLaunchOptions => initialLaunchOptions,
+  onCloseRequested: (handler: () => boolean | Promise<boolean>): (() => void) => {
+    const listener = () => {
+      void Promise.resolve()
+        .then(handler)
+        .then((shouldClose) => {
+          ipcRenderer.send("mage2:close-response", shouldClose === true);
+        })
+        .catch(() => {
+          ipcRenderer.send("mage2:close-response", false);
+        });
+    };
+
+    ipcRenderer.on("mage2:request-close", listener);
+    ipcRenderer.send("mage2:close-guard-ready");
+    return () => {
+      ipcRenderer.removeListener("mage2:request-close", listener);
+    };
+  },
   getRecentProjectsSync: (): RecentProject[] => ipcRenderer.sendSync("mage2:get-recent-projects-sync"),
   getRecentProjects: (): Promise<RecentProject[]> => ipcRenderer.invoke("mage2:get-recent-projects"),
   rememberRecentProject: (projectDir: string, projectName?: string): Promise<RecentProject[]> =>

@@ -12,3 +12,47 @@ apps/runtime-web/dist/
 apps/editor/dist/
 apps/editor/dist-electron/
 recent-projects.json
+
+# Local scratch/export trees must stay outside version control.
+tmp/
+.tmp/
+temp/
+.temp/
+
+# Browser automation profiles and authenticated browser state.
+/.codex-*-profile/
+.browser-profile*/
+browser-profile*/
+browser-profiles*/
+.chrome-profile*/
+chrome-profile*/
+.chromium-profile*/
+chromium-profile*/
+chrome-user-data*/
+chromium-user-data*/
+user-data-dir*/
+playwright-profile*/
+puppeteer-profile*/
+playwright/.auth/
+.playwright/.auth/
+
+# Canonical Chromium profile databases and metadata.
+**/Cookies
+**/Cookies-journal
+**/Cookies-shm
+**/Cookies-wal
+**/History
+**/History-journal
+**/History-shm
+**/History-wal
+**/Login Data
+**/Login Data-journal
+**/Login Data-shm
+**/Login Data-wal
+**/Web Data
+**/Web Data-journal
+**/Web Data-shm
+**/Web Data-wal
+**/Local State
+**/Preferences
+**/Secure Preferences

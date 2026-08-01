@@ -121,19 +121,30 @@ export function App() {
   const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const exportMenuItemRef = useRef<HTMLButtonElement | null>(null);
   const lastAuthoringTabRef = useRef<EditorTab>("scenes");
+  const nativeCloseHandlerRef = useRef<() => Promise<boolean>>(async () => true);
+  const busyOperationRef = useRef<string | undefined>(undefined);
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const hasHandledInitialLaunchRef = useRef(false);
   const dialogs = useDialogs();
 
-  async function withBusy<T>(label: string, action: () => Promise<T>): Promise<T | undefined> {
+  async function withBusy<T>(
+    label: string,
+    action: () => Promise<T>,
+    onError?: (message: string) => void | Promise<void>
+  ): Promise<T | undefined> {
     try {
+      busyOperationRef.current = label;
       setBusyLabel(label);
       return await action();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`${label} failed: ${message}`);
+      await onError?.(message);
       return undefined;
     } finally {
+      if (busyOperationRef.current === label) {
+        busyOperationRef.current = undefined;
+      }
       setBusyLabel(undefined);
     }
   }
@@ -239,6 +250,14 @@ export function App() {
   useEffect(() => {
     document.title = formatEditorWindowTitle(project?.manifest.projectName, hasUnsavedChanges);
   }, [hasUnsavedChanges, project?.manifest.projectName]);
+
+  useEffect(() => {
+    if (!hasEditorApi) {
+      return;
+    }
+
+    return window.editorApi.onCloseRequested(() => nativeCloseHandlerRef.current());
+  }, [hasEditorApi]);
 
   useEffect(() => {
     if (activeTab !== "playtest") {
@@ -416,8 +435,27 @@ export function App() {
 
     const projectName = resolveProjectName(newProjectName, chosenDirectory);
 
-    const createdProject = await withBusy("Creating project", () =>
-      window.editorApi.createProject(chosenDirectory, projectName)
+    const createdProject = await withBusy(
+      "Creating project",
+      () => window.editorApi.createProject(chosenDirectory, projectName),
+      async (message) => {
+        const folderIsNotEmpty = /not empty|already contains files|must be empty/i.test(message);
+        await dialogs.alert({
+          title: folderIsNotEmpty ? "Folder Is Not Empty" : "Project Was Not Created",
+          body: (
+            <>
+              <p>
+                {folderIsNotEmpty
+                  ? "MAGE2 cannot create a project here because the folder already contains files. Existing files were not changed."
+                  : "MAGE2 could not create the project. Nothing was intentionally overwritten."}
+              </p>
+              <p>{`Details: ${message}`}</p>
+            </>
+          ),
+          confirmLabel: folderIsNotEmpty ? "Choose Another Folder" : "Close",
+          tone: folderIsNotEmpty ? "danger" : "default"
+        });
+      }
     );
     if (!createdProject) {
       return;
@@ -475,24 +513,59 @@ export function App() {
     await saveCurrentProject();
   }
 
+  async function confirmProjectCanClose(): Promise<boolean> {
+    const currentState = useEditorStore.getState();
+    const currentProject = currentState.project;
+    const currentProjectDir = currentState.projectDir;
+
+    const activeBusyLabel = busyOperationRef.current ?? busyLabel;
+    if (activeBusyLabel) {
+      setStatusMessage(`Wait for ${activeBusyLabel.toLowerCase()} to finish before closing MAGE2.`);
+      return false;
+    }
+
+    if (!currentProject || !currentProjectDir || !currentState.hasUnsavedChanges) {
+      return true;
+    }
+
+    const closeAction = await dialogs.confirmCloseProject(currentProject.manifest.projectName);
+    if (closeAction === "cancel") {
+      setStatusMessage(`Kept ${currentProject.manifest.projectName} open.`);
+      return false;
+    }
+
+    if (closeAction === "discard") {
+      return true;
+    }
+
+    const savedProject = await saveCurrentProject();
+    if (savedProject) {
+      return true;
+    }
+
+    await dialogs.alert({
+      title: "Save Failed",
+      body: (
+        <>
+          <p>{`MAGE2 could not save “${currentProject.manifest.projectName}”.`}</p>
+          <p>The project remains open, and your unsaved changes are still in the editor.</p>
+        </>
+      ),
+      confirmLabel: "Keep Editing",
+      tone: "danger"
+    });
+    return false;
+  }
+
+  nativeCloseHandlerRef.current = confirmProjectCanClose;
+
   async function handleCloseProject() {
     if (!project || !projectDir) {
       return;
     }
 
-    if (hasUnsavedChanges) {
-      const closeAction = await dialogs.confirmCloseProject(project.manifest.projectName);
-      if (closeAction === "cancel") {
-        setStatusMessage(`Kept ${project.manifest.projectName} open.`);
-        return;
-      }
-
-      if (closeAction === "save") {
-        const savedProject = await saveCurrentProject();
-        if (!savedProject) {
-          return;
-        }
-      }
+    if (!(await confirmProjectCanClose())) {
+      return;
     }
 
     const closingProjectName = project.manifest.projectName;
@@ -506,21 +579,56 @@ export function App() {
       return;
     }
 
+    const preflightReport = validateProject(project);
+    if (!preflightReport.valid) {
+      setShowValidationDetails(true);
+      setStatusMessage("Export blocked. Review the project issues and try again.");
+      await dialogs.alert({
+        title: "Project Is Not Ready to Export",
+        body: (
+          <p>{`Fix ${preflightReport.issues.length} blocking ${preflightReport.issues.length === 1 ? "issue" : "issues"} before creating a runtime build. No export files were changed.`}</p>
+        ),
+        confirmLabel: "Review Issues",
+        tone: "danger"
+      });
+      return;
+    }
+
     const savedProject = await saveCurrentProject();
     if (!savedProject) {
       return;
     }
 
-    const result = await withBusy("Exporting runtime build", () =>
-      window.editorApi.exportProject(projectDir, savedProject)
+    const result = await withBusy(
+      "Exporting runtime build",
+      () => window.editorApi.exportProject(projectDir, savedProject),
+      async (message) => {
+        const unsafeDestination =
+          /unsafe|refused|output folder|outside|absolute|traversal|not a recognized MAGE2|contains other files/i.test(
+            message
+          );
+        await dialogs.alert({
+          title: unsafeDestination ? "Export Folder Is Unsafe" : "Export Failed",
+          body: (
+            <>
+              <p>
+                {unsafeDestination
+                  ? "MAGE2 exports only to this project’s reserved build folder. It must be empty or an unchanged build previously created by MAGE2."
+                  : "MAGE2 could not create the new runtime build. Any previous build was kept unchanged."}
+              </p>
+              <p>{`Details: ${message}`}</p>
+            </>
+          ),
+          confirmLabel: "Close",
+          tone: "danger"
+        });
+      }
     );
     if (!result) {
       return;
     }
 
-    setStatusMessage(
-      `Exported runtime build to ${result.outputDirectory} (${result.validationReport.issues.length} validation issue(s)).`
-    );
+    setStatusMessage(`Runtime build exported to ${result.outputDirectory}.`);
   }
 
   async function handleFileMenuAction(action: () => Promise<void>) {
