@@ -31,7 +31,7 @@ import {
 import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
-type MediaAssetFilter = "background" | "inventory" | "sceneAudio";
+type MediaAssetFilter = "background" | "inventory" | "sceneAudio" | "response";
 type LocalizationStatusFilter = "all" | LocalizedStringStatus;
 type LocalizedStringStatus = "missing" | "empty" | "ready" | "orphaned";
 type QueueItemStatus = LocalizedStringStatus;
@@ -128,6 +128,9 @@ export function LocalizationPanel({
   const setSelectedHotspotId = useEditorStore((state) => state.setSelectedHotspotId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
+  const setSelectedResponseGroupId = useEditorStore((state) => state.setSelectedResponseGroupId);
+  const setSelectedResponseEntryId = useEditorStore((state) => state.setSelectedResponseEntryId);
+  const setDialogueSection = useEditorStore((state) => state.setDialogueSection);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
   const supportedLocales = getSupportedProjectLocales(project);
   const [search, setSearch] = useState("");
@@ -264,6 +267,11 @@ export function LocalizationPanel({
     setSelectedHotspotId(target.hotspotId);
     setSelectedDialogueId(target.dialogueId);
     setSelectedDialogueNodeId(target.dialogueNodeId);
+    setSelectedResponseGroupId(target.responseGroupId);
+    setSelectedResponseEntryId(target.responseEntryId);
+    if (target.dialogueSection) {
+      setDialogueSection(target.dialogueSection);
+    }
     setSelectedInventoryItemId(target.inventoryItemId);
     setSelectedAssetId(target.assetId);
   }
@@ -993,6 +1001,7 @@ function MediaQueueList({
           <DropdownSelect value={category} onChange={(event) => onCategoryChange(event.target.value as MediaAssetFilter)}>
             <option value="background">Background</option>
             <option value="sceneAudio">Scene Audio</option>
+            <option value="response">Responses</option>
             <option value="inventory">Inventory</option>
           </DropdownSelect>
         </label>
@@ -1737,7 +1746,7 @@ function buildStringCoverageRows(entries: ProjectTextEntry[]): CoverageRow[] {
 function buildMediaCoverageRows(project: ProjectBundle, locale: string): CoverageRow[] {
   const rows: CoverageRow[] = [];
 
-  for (const category of ["background", "sceneAudio", "inventory"] as const) {
+  for (const category of ["background", "sceneAudio", "response", "inventory"] as const) {
     const assets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === category);
     rows.push({
       label: formatMediaCategoryLabel(category),
@@ -1798,6 +1807,25 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
     }
   }
 
+  for (const group of project.dialogues.responseGroups) {
+    for (const entry of group.entries) {
+      if (entry.kind !== "text" && entry.assetId === asset.id) {
+        usages.push({
+          label: group.name,
+          detail: `${entry.kind === "audio" ? "Audio" : "Video"} response`,
+          navigation: {
+            label: group.name,
+            tab: "dialogue",
+            dialogueSection: "responses",
+            responseGroupId: group.id,
+            responseEntryId: entry.id,
+            assetId: asset.id
+          }
+        });
+      }
+    }
+  }
+
   return usages;
 }
 
@@ -1848,6 +1876,8 @@ function formatMediaCategoryLabel(category: MediaAssetFilter): string {
       return "Scene Audio";
     case "inventory":
       return "Inventory";
+    case "response":
+      return "Responses";
   }
 }
 
@@ -1859,6 +1889,8 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
       return "No scene audio assets yet. Upload scene audio from Scenes before localizing it here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
+    case "response":
+      return "No response media yet. Import audio or video from Dialogue > Responses before localizing it here.";
   }
 }
 

@@ -965,7 +965,7 @@ label > .checkbox-list {
   gap: 0.62rem;
 }
 
-.panel-grid--playtest .playtest-stage .media-surface {
+.panel-grid--playtest .playtest-stage :is(.media-surface, .mage2-player) {
   aspect-ratio: 16 / 8.75;
 }
 
@@ -8927,7 +8927,7 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
   min-height: 2rem;
   border: 1px solid rgba(108, 128, 145, 0.28);
   border-radius: 4px;
@@ -8939,16 +8939,16 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
   border-color: rgba(23, 183, 216, 0.44);
   background: rgba(23, 119, 168, 0.22);
   color: #f4fbff;
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
   border-color: rgba(108, 128, 145, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: #708190;
@@ -12547,7 +12547,7 @@ button.recent-project__icon-button:hover {
   border-radius: 0;
 }
 
-.app-shell--editor-workbench .panel-grid--playtest .playtest-stage .media-surface {
+.app-shell--editor-workbench .panel-grid--playtest .playtest-stage :is(.media-surface, .mage2-player) {
   border-radius: 0;
   border-color: var(--workbench-border-strong);
   background: #05080c;
@@ -12859,4 +12859,334 @@ button.recent-project__icon-button:hover {
   button.control-wiring-warning:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle)
   svg {
   stroke: var(--workbench-wiring-warning) !important;
+}
+.dialogue-screen {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .assets-chip--response {
+  border-color: rgba(188, 167, 255, 0.5);
+  background: rgba(188, 167, 255, 0.12);
+  color: #d7ccff;
+}
+
+.dialogue-section-tabs {
+  display: inline-flex;
+  width: max-content;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.dialogue-section-tab {
+  min-width: 112px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 700;
+}
+
+.dialogue-section-tab--active {
+  color: var(--text);
+  background: var(--panel-strong);
+  box-shadow: 0 1px 8px rgb(0 0 0 / 18%);
+}
+
+.response-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(420px, 1.45fr) minmax(250px, 0.82fr);
+  gap: 12px;
+  min-width: 0;
+  align-items: start;
+}
+
+.response-library,
+.response-builder,
+.response-usage {
+  min-width: 0;
+}
+
+.response-library__header,
+.response-builder__header,
+.response-entry-editor > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.response-library__header h3,
+.response-builder__header h4,
+.response-entry-editor h4,
+.response-usage h4 {
+  margin: 2px 0 0;
+}
+
+.response-library__intro {
+  margin: 10px 0 14px;
+  line-height: 1.45;
+}
+
+.response-library__list,
+.response-entry-list,
+.response-usage__list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.response-group-item,
+.response-entry-item,
+.response-usage__list button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+  text-align: left;
+}
+
+.response-group-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.response-group-item span,
+.response-entry-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.response-group-item small,
+.response-usage__list span {
+  color: var(--muted);
+}
+
+.response-group-item--selected,
+.response-entry-item--selected {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--panel-strong));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.response-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-strong) 65%, transparent);
+}
+
+.response-add-row > span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.response-add-row button,
+.response-kind-button {
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--panel);
+}
+
+.response-entry-list {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.response-entry-item {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.response-kind {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.response-kind--text { color: #88c8ff; }
+.response-kind--audio { color: #bca7ff; }
+.response-kind--video { color: #ffbd78; }
+
+.response-entry-editor {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+
+.response-entry-editor textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.response-kind-picker {
+  display: flex;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+}
+
+.response-kind-picker legend {
+  width: 100%;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.response-kind-button--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+}
+
+.response-localization-link {
+  width: max-content;
+}
+
+.response-media-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.response-media-fields > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.response-media-or {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.response-usage {
+  display: grid;
+  gap: 18px;
+}
+
+.response-usage > section + section {
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+
+.response-text-preview {
+  margin: 14px 0 0;
+  padding: 14px 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel-strong));
+  line-height: 1.5;
+}
+
+.response-media-preview {
+  min-height: 150px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #07090d;
+}
+
+.response-media-preview .asset-preview {
+  min-height: 150px;
+}
+
+.response-usage__list button {
+  gap: 3px;
+}
+
+.response-usage__connections > .button-accent {
+  margin-top: 12px;
+}
+
+.scenes-event-feedback-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 1180px) {
+  .response-workspace {
+    grid-template-columns: minmax(210px, 0.68fr) minmax(420px, 1.32fr);
+  }
+
+  .response-usage {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .response-usage > section + section {
+    padding-top: 0;
+    padding-left: 17px;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 760px) {
+  .dialogue-section-tabs {
+    width: 100%;
+  }
+
+  .dialogue-section-tab {
+    flex: 1;
+  }
+
+  .response-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .response-usage {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .response-usage > section + section {
+    padding-top: 17px;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .response-media-fields {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .response-media-or {
+    text-align: center;
+  }
 }

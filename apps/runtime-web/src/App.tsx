@@ -1,45 +1,38 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
-  clampPlayheadMs,
   createPlayerController,
   getSceneAudioPlayheadMs,
-  getVideoPlayheadMs,
   resolvePlayableDurationMs,
   resolveSceneAudioPlaybackDirective,
   resolveSceneAudioSyncState,
   resolveSceneTimelineDurationMs,
-  shouldSyncPlayheadMs
+  shouldSyncPlayheadMs,
+  type ActivePlayerResponse
 } from "@mage2/player";
 import {
-  createInitialSaveState,
   normalizeSupportedLocales,
-  resolveAssetCategory,
   resolveAssetVariant,
   parseSaveState,
-  resolveHotspotBounds,
-  resolveHotspotClipPath,
-  resolveHotspotInventoryAction,
-  resolvePlacedInventoryHotspotInstance,
-  resolvePlacedInventoryItemId,
-  resolveRelativeHotspotFrame,
-  resolveHotspotRotationDegrees,
-  resolveRelativeHotspotVisualBox,
-  shouldDisplayHotspotInventoryVisual,
   type Asset,
   type BuildManifest,
   type ExportProjectData,
-  type Hotspot,
-  type HotspotSurfaceSize,
-  type InventoryItem,
+  type ProjectBundle,
+  type SaveState,
   parseBuildManifest
 } from "@mage2/schema";
 import {
-  isOpaqueHotspotVisualHit,
-  loadHotspotVisualAlphaMask,
-  type HotspotVisualAlphaMask
-} from "./hotspot-alpha-hit-test";
+  PlayerSceneRenderer,
+  resolvePlayerSystemCopy,
+  resolvePlayerTextDirection,
+  type PlayerSourceResolver
+} from "@mage2/player-ui";
+
+const resolveRuntimeSourcePath: PlayerSourceResolver = async (sourcePath) => sourcePath;
+const RUNTIME_INVENTORY_BAG_ICON_SRC = new URL(
+  "../../editor/src/assets/playtest-inventory-bag.png",
+  import.meta.url
+).href;
 
 export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "manifest">): {
   projectName: string;
@@ -49,151 +42,247 @@ export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "ma
   };
 }
 
-export function resolveRuntimeInventoryItems(
-  items: InventoryItem[],
-  assets: Asset[],
-  locale: string,
-  strings: Record<string, string>
-): Array<{ id: string; label: string; description?: string; imageSrc?: string }> {
-  return items.map((item) => {
-    const asset = item.imageAssetId ? assets.find((entry) => entry.id === item.imageAssetId) : undefined;
-    const variant = asset ? resolveAssetVariant(asset, locale) : undefined;
-    const description = item.descriptionTextId ? strings[item.descriptionTextId]?.trim() : undefined;
-
-    return {
-      id: item.id,
-      label: strings[item.textId] ?? item.name ?? item.textId,
-      ...(description ? { description } : {}),
-      imageSrc: asset?.kind === "image" ? variant?.sourcePath : undefined
-    };
-  });
+export function isRuntimeDebugMode(search: string): boolean {
+  return new URLSearchParams(search).get("debug") === "1";
 }
 
-export function resolveRuntimeInventoryItemTooltip(label: string, description?: string): string {
-  const normalizedDescription = description?.trim().replace(/\s+/g, " ");
-  return normalizedDescription && normalizedDescription !== label ? `${label} - ${normalizedDescription}` : label;
+interface RuntimeSystemCopy {
+  cancel: string;
+  close: string;
+  closeMenu: string;
+  confirmLoad: string;
+  confirmLoadBody: string;
+  confirmLoadTitle: string;
+  confirmRestart: string;
+  confirmRestartBody: string;
+  confirmRestartTitle: string;
+  debugMode: string;
+  gameLoaded: string;
+  gameRestarted: string;
+  gameSaved: string;
+  language: string;
+  loadGame: string;
+  loading: string;
+  menu: string;
+  menuTitle: string;
+  noValidSave: string;
+  placedObject: string;
+  playhead: string;
+  rawSave: string;
+  restartGame: string;
+  saveGame: string;
+  saveRecovered: string;
+  showHotspots: string;
+  startupErrorBody: string;
+  startupErrorTitle: string;
 }
 
-export function resolveRuntimeHotspotVisuals(
-  hotspots: Hotspot[],
-  inventoryItems: InventoryItem[],
-  assets: Asset[],
-  locale: string,
-  strings: Record<string, string>,
-  flags?: Record<string, boolean>
-): Record<string, { imageSrc: string; alt: string }> {
-  const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
-  const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
-  const visuals: Record<string, { imageSrc: string; alt: string }> = {};
-
-  for (const hotspot of hotspots) {
-    if (!hotspot.inventoryItemId || !shouldDisplayHotspotInventoryVisual(hotspot, flags)) {
-      continue;
-    }
-
-    const item = itemsById.get(hotspot.inventoryItemId);
-    if (!item?.imageAssetId) {
-      continue;
-    }
-
-    const asset = assetsById.get(item.imageAssetId);
-    if (!asset || asset.kind !== "image" || resolveAssetCategory(asset) !== "inventory") {
-      continue;
-    }
-
-    const variant = resolveAssetVariant(asset, locale);
-    const imageSrc = variant?.proxyPath ?? variant?.sourcePath;
-    if (!imageSrc) {
-      continue;
-    }
-
-    visuals[hotspot.id] = {
-      imageSrc,
-      alt: strings[item.textId] ?? item.name ?? hotspot.name ?? hotspot.id
-    };
+const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
+  en: {
+    cancel: "Cancel",
+    close: "Close",
+    closeMenu: "Close player menu",
+    confirmLoad: "Load",
+    confirmLoadBody: "Current progress will be replaced.",
+    confirmLoadTitle: "Load saved game?",
+    confirmRestart: "Restart",
+    confirmRestartBody: "Saved progress on this device will be deleted.",
+    confirmRestartTitle: "Restart the game?",
+    debugMode: "Debug mode",
+    gameLoaded: "Saved game loaded.",
+    gameRestarted: "Game restarted.",
+    gameSaved: "Game saved.",
+    language: "Language",
+    loadGame: "Load game",
+    loading: "Loading game...",
+    menu: "Menu",
+    menuTitle: "Player menu",
+    noValidSave: "No valid saved game is available.",
+    placedObject: "This object is placed here.",
+    playhead: "Playhead",
+    rawSave: "Raw save state",
+    restartGame: "Restart game",
+    saveGame: "Save game",
+    saveRecovered: "The saved game could not be read. A new game was started.",
+    showHotspots: "Show hotspots",
+    startupErrorBody: "Check that the complete exported game was published, then try again.",
+    startupErrorTitle: "Unable to start this game"
+  },
+  fr: {
+    cancel: "Annuler",
+    close: "Fermer",
+    closeMenu: "Fermer le menu du jeu",
+    confirmLoad: "Charger",
+    confirmLoadBody: "La progression actuelle sera remplacée.",
+    confirmLoadTitle: "Charger la sauvegarde ?",
+    confirmRestart: "Recommencer",
+    confirmRestartBody: "La sauvegarde de cet appareil sera supprimée.",
+    confirmRestartTitle: "Recommencer la partie ?",
+    debugMode: "Mode debug",
+    gameLoaded: "Sauvegarde chargée.",
+    gameRestarted: "Partie recommencée.",
+    gameSaved: "Partie sauvegardée.",
+    language: "Langue",
+    loadGame: "Charger la partie",
+    loading: "Chargement du jeu...",
+    menu: "Menu",
+    menuTitle: "Menu du jeu",
+    noValidSave: "Aucune sauvegarde valide n'est disponible.",
+    placedObject: "Cet objet est placé ici.",
+    playhead: "Tête de lecture",
+    rawSave: "État brut de la sauvegarde",
+    restartGame: "Recommencer la partie",
+    saveGame: "Sauvegarder",
+    saveRecovered: "La sauvegarde était illisible. Une nouvelle partie a été lancée.",
+    showHotspots: "Afficher les zones",
+    startupErrorBody: "Vérifiez que le jeu exporté a été publié en entier, puis réessayez.",
+    startupErrorTitle: "Impossible de lancer ce jeu"
   }
+};
 
-  return visuals;
+export function resolveRuntimeSystemCopy(locale: string): RuntimeSystemCopy {
+  const normalizedLocale = locale.trim().toLowerCase().replaceAll("_", "-");
+  const baseLanguage = normalizedLocale.split("-")[0] ?? "";
+  return RUNTIME_SYSTEM_COPY[normalizedLocale] ?? RUNTIME_SYSTEM_COPY[baseLanguage] ?? RUNTIME_SYSTEM_COPY.en!;
 }
 
-export function resolveRuntimePlacedHotspotVisuals(
-  hotspots: Hotspot[],
-  flags: Record<string, boolean>,
-  inventoryItems: InventoryItem[],
-  assets: Asset[],
+export function resolveRuntimePlayerCopy(locale: string) {
+  return resolvePlayerSystemCopy(locale);
+}
+
+export function resolveRuntimeLocaleStrings(
+  strings: Record<string, Record<string, string>>,
   locale: string,
-  strings: Record<string, string>
-): Record<string, { imageSrc: string; alt: string }> {
-  const itemsById = new Map(inventoryItems.map((item) => [item.id, item] as const));
-  const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
-  const visuals: Record<string, { imageSrc: string; alt: string }> = {};
-
-  for (const hotspot of hotspots) {
-    const placedItemId = resolvePlacedInventoryItemId(hotspot, flags);
-    if (!placedItemId) {
-      continue;
-    }
-
-    const item = itemsById.get(placedItemId);
-    if (!item?.imageAssetId) {
-      continue;
-    }
-
-    const asset = assetsById.get(item.imageAssetId);
-    if (!asset || asset.kind !== "image" || resolveAssetCategory(asset) !== "inventory") {
-      continue;
-    }
-
-    const variant = resolveAssetVariant(asset, locale);
-    const imageSrc = variant?.proxyPath ?? variant?.sourcePath;
-    if (!imageSrc) {
-      continue;
-    }
-
-    visuals[hotspot.id] = {
-      imageSrc,
-      alt: strings[item.textId] ?? item.name ?? hotspot.name ?? hotspot.id
-    };
-  }
-
-  return visuals;
-}
-
-const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
-
-export function resolveInventoryCursorPreviewFrameStyle(
-  point: { x: number; y: number },
-  sizePx = INVENTORY_CURSOR_PREVIEW_SIZE_PX
-): CSSProperties {
+  defaultLocale: string
+): Record<string, string> {
   return {
-    position: "fixed",
-    left: `${point.x}px`,
-    top: `${point.y}px`,
-    transform: "translate(-50%, -50%)",
-    width: `${sizePx}px`,
-    height: `${sizePx}px`,
-    zIndex: 10000,
-    pointerEvents: "none",
-    display: "grid",
-    placeItems: "center"
+    ...(strings[defaultLocale] ?? {}),
+    ...(strings[locale] ?? {})
   };
 }
 
+export interface RuntimeSessionRestoration {
+  controller: ReturnType<typeof createPlayerController>;
+  saveState: SaveState;
+  recovered: boolean;
+}
+
+export function restoreRuntimeSession(
+  content: ExportProjectData,
+  storedSave: string | null
+): RuntimeSessionRestoration {
+  const project = toRuntimeProjectBundle(content);
+  const createCleanSession = (recovered: boolean): RuntimeSessionRestoration => {
+    const controller = createPlayerController(project);
+    return {
+      controller,
+      saveState: controller.save(),
+      recovered
+    };
+  };
+
+  if (storedSave === null) {
+    return createCleanSession(false);
+  }
+
+  try {
+    const saveState = parseSaveState(JSON.parse(storedSave) as unknown);
+    if (!isRuntimeSaveSemanticallyValid(project, saveState)) {
+      return createCleanSession(true);
+    }
+
+    const controller = createPlayerController(project, saveState);
+    controller.getSnapshot();
+    return { controller, saveState: controller.save(), recovered: false };
+  } catch {
+    return createCleanSession(true);
+  }
+}
+
+function toRuntimeProjectBundle(content: ExportProjectData): ProjectBundle {
+  return {
+    manifest: content.manifest,
+    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+    locations: { schemaVersion: content.schemaVersion, items: content.locations },
+    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+    dialogues: {
+      schemaVersion: content.schemaVersion,
+      items: content.dialogues,
+      responseGroups: content.responseGroups ?? [],
+      starterResponsesVersion: content.starterResponsesVersion ?? 0
+    },
+    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+    strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+  };
+}
+
+function isRuntimeSaveSemanticallyValid(project: ProjectBundle, saveState: SaveState): boolean {
+  const scene = project.scenes.items.find((entry) => entry.id === saveState.currentSceneId);
+  const location = project.locations.items.find((entry) => entry.id === saveState.currentLocationId);
+  if (!scene || !location || scene.locationId !== location.id) {
+    return false;
+  }
+
+  const sceneIds = new Set(project.scenes.items.map((entry) => entry.id));
+  if (
+    !saveState.visitedSceneIds.includes(saveState.currentSceneId) ||
+    saveState.visitedSceneIds.some((sceneId) => !sceneIds.has(sceneId))
+  ) {
+    return false;
+  }
+
+  const inventoryItemIds = new Set(project.inventory.items.map((entry) => entry.id));
+  if (saveState.inventory.some((itemId) => !inventoryItemIds.has(itemId))) {
+    return false;
+  }
+
+  const hasDialogueTree = saveState.activeDialogueTreeId !== undefined;
+  const hasDialogueNode = saveState.activeDialogueNodeId !== undefined;
+  if (hasDialogueTree !== hasDialogueNode) {
+    return false;
+  }
+
+  if (saveState.activeDialogueTreeId && saveState.activeDialogueNodeId) {
+    const tree = project.dialogues.items.find((entry) => entry.id === saveState.activeDialogueTreeId);
+    if (!tree?.nodes.some((node) => node.id === saveState.activeDialogueNodeId)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function resolveRuntimeLanguageName(locale: string): string {
+  try {
+    const name = new Intl.DisplayNames([locale], { type: "language" }).of(locale);
+    return name ? `${name.charAt(0).toLocaleUpperCase(locale)}${name.slice(1)}` : locale;
+  } catch {
+    return locale;
+  }
+}
+
 export function App() {
+  const [debugMode] = useState(() =>
+    isRuntimeDebugMode(typeof window === "undefined" ? "" : window.location.search)
+  );
   const [buildManifest, setBuildManifest] = useState<BuildManifest>();
   const [content, setContent] = useState<ExportProjectData>();
   const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
   const [activeLocale, setActiveLocale] = useState<string>();
   const [playheadMs, setPlayheadMs] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState<"load" | "restart">();
+  const [hasValidStoredSave, setHasValidStoredSave] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
-  const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
   const [runtimeNotice, setRuntimeNotice] = useState<string>();
-  const runtimeVideoRef = useRef<HTMLVideoElement>(null);
+  const [activeResponse, setActiveResponse] = useState<ActivePlayerResponse>();
+  const completeResponse = useCallback((sequence: number) => {
+    setActiveResponse((current) => (current?.sequence === sequence ? undefined : current));
+  }, []);
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
-  const runtimeOverlayRef = useRef<HTMLDivElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
   const sceneAudioAnimationFrameRef = useRef<number | undefined>(undefined);
   const sceneAudioDrivenPlayheadMsRef = useRef<number | undefined>(undefined);
@@ -202,8 +291,12 @@ export function App() {
   const sceneAudioInternalPauseRef = useRef(false);
   const sceneAudioPhaseRef = useRef<"idle" | "waiting" | "playing" | "ended">("idle");
   const latestPlayheadMsRef = useRef(playheadMs);
-  const [runtimeOverlaySize, setRuntimeOverlaySize] = useState<HotspotSurfaceSize>();
-  const [runtimeHotspotAlphaMasks, setRuntimeHotspotAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuDialogRef = useRef<HTMLElement>(null);
+  const confirmationDialogRef = useRef<HTMLElement>(null);
+  const startupCopy = resolveRuntimeSystemCopy(
+    typeof navigator === "undefined" ? "en" : navigator.language
+  );
 
   useEffect(() => {
     latestPlayheadMsRef.current = playheadMs;
@@ -233,39 +326,27 @@ export function App() {
           storedLocale && supportedLocales.includes(storedLocale)
             ? storedLocale
             : parsedContent.manifest.defaultLanguage;
-        const loadedProject = {
-          manifest: parsedContent.manifest,
-          assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
-          locations: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.locations },
-          scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
-          dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
-          inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-          strings: { schemaVersion: parsedContent.schemaVersion, byLocale: parsedContent.strings }
-        };
-        const normalizedSaveState = storedSave
-          ? parseSaveState({
-              ...createInitialSaveState(loadedProject),
-              ...(JSON.parse(storedSave) as object)
-            })
-          : undefined;
-        const nextController = createPlayerController(
-          loadedProject,
-          normalizedSaveState
-        );
+        const restoredSession = restoreRuntimeSession(parsedContent, storedSave);
+        if (restoredSession.recovered) {
+          localStorage.removeItem(storageKey);
+        }
 
         setBuildManifest(manifest);
         setContent(parsedContent);
-        setController(nextController);
+        setController(restoredSession.controller);
         setActiveLocale(nextLocale);
-        setSnapshot(nextController.getSnapshot());
-        setPlayheadMs(normalizedSaveState?.playheadMs ?? 0);
+        setSnapshot(restoredSession.controller.getSnapshot());
+        setPlayheadMs(restoredSession.saveState.playheadMs);
+        setActiveResponse(undefined);
+        setHasValidStoredSave(storedSave !== null && !restoredSession.recovered);
+        setRuntimeNotice(restoredSession.recovered ? resolveRuntimeSystemCopy(nextLocale).saveRecovered : undefined);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : String(error));
       }
     }
 
     void loadBuild();
-  }, [Boolean(buildManifest && content && controller && snapshot)]);
+  }, []);
 
   const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
@@ -274,13 +355,17 @@ export function App() {
       ? normalizeSupportedLocales(content.manifest.defaultLanguage, content.manifest.supportedLocales)
       : [];
   const locale = activeLocale ?? content?.manifest.defaultLanguage ?? "en";
-  const localeStrings = content?.strings[locale] ?? {};
+  const localeStrings = content
+    ? resolveRuntimeLocaleStrings(content.strings, locale, content.manifest.defaultLanguage)
+    : {};
+  const systemCopy = resolveRuntimeSystemCopy(locale);
+  const playerCopy = resolveRuntimePlayerCopy(locale);
+  const runtimeProject = useMemo(() => (content ? toRuntimeProjectBundle(content) : undefined), [content]);
   const currentAsset =
     content && snapshot
       ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)
       : undefined;
   const currentAssetVariant = currentAsset ? resolveAssetVariant(currentAsset, locale) : undefined;
-  const runtimeMediaStyle = resolveRuntimeMediaAspectRatioStyle(currentAssetVariant?.width, currentAssetVariant?.height);
   const sceneAudioAsset =
     content && snapshot?.scene.sceneAudioAssetId
       ? (content.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId) as Asset | undefined)
@@ -292,154 +377,7 @@ export function App() {
     currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs) : [];
-  const runtimeInventoryItems =
-    content && snapshot ? resolveRuntimeInventoryItems(snapshot.inventoryItems, content.assets, locale, localeStrings) : [];
-  const selectedRuntimeInventoryItem = runtimeInventoryItems.find((item) => item.id === selectedInventoryItemId);
-  const runtimeHotspotVisuals =
-    content && snapshot
-      ? resolveRuntimeHotspotVisuals(visibleHotspots, content.inventoryItems, content.assets, locale, localeStrings, snapshot.flags)
-      : {};
-  const runtimePlacedHotspotInstances =
-    content && snapshot
-      ? snapshot.scene.hotspots
-          .map((hotspot) =>
-            resolvePlacedInventoryItemId(hotspot, snapshot.flags)
-              ? resolvePlacedInventoryHotspotInstance(hotspot, snapshot.scene.hotspots)
-              : undefined
-          )
-          .filter((instance): instance is NonNullable<typeof instance> => Boolean(instance))
-      : [];
-  const runtimePlacedHotspots = runtimePlacedHotspotInstances.map((instance) => instance.hotspot);
-  const runtimePlacedHotspotVisuals =
-    content && snapshot
-      ? resolveRuntimeHotspotVisuals(
-          runtimePlacedHotspots,
-          content.inventoryItems,
-          content.assets,
-          locale,
-          localeStrings,
-          snapshot.flags
-        )
-      : {};
-  const runtimeHotspotVisualEntries = [...Object.entries(runtimeHotspotVisuals), ...Object.entries(runtimePlacedHotspotVisuals)];
-  const runtimeHotspotVisualSignature = runtimeHotspotVisualEntries
-    .map(([hotspotId, visual]) => `${hotspotId}:${visual.imageSrc}`)
-    .sort()
-    .join("|");
-
-  useEffect(() => {
-    if (selectedInventoryItemId && !runtimeInventoryItems.some((item) => item.id === selectedInventoryItemId)) {
-      setSelectedInventoryItemId(undefined);
-    }
-  }, [runtimeInventoryItems, selectedInventoryItemId]);
-
-  useEffect(() => {
-    const video = runtimeVideoRef.current;
-    if (!video || currentAsset?.kind !== "video" || !snapshot) {
-      return;
-    }
-
-    video.currentTime = 0;
-    void video.play().catch(() => {
-      // If autoplay is blocked, keep the runtime surface clean and leave playback stopped.
-    });
-  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.sourcePath, snapshot?.scene.id]);
-
-  useEffect(() => {
-    const video = runtimeVideoRef.current;
-    if (!video || currentAsset?.kind !== "video") {
-      return;
-    }
-
-    const durationMs = resolvePlayableDurationMs(video.duration, currentAssetVariant?.durationMs);
-    const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
-    const currentPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, currentAssetVariant?.durationMs);
-    if (!shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
-      return;
-    }
-
-    video.currentTime = nextPlayheadMs / 1000;
-  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.durationMs, currentAssetVariant?.sourcePath, playheadMs]);
-
-  useEffect(() => {
-    const video = runtimeVideoRef.current;
-    if (!video || currentAsset?.kind !== "video") {
-      return;
-    }
-
-    let animationFrameId: number | undefined;
-    let videoFrameRequestId: number | undefined;
-
-    const cancelScheduledSync = () => {
-      if (animationFrameId !== undefined) {
-        window.cancelAnimationFrame(animationFrameId);
-        animationFrameId = undefined;
-      }
-
-      if (videoFrameRequestId !== undefined && typeof video.cancelVideoFrameCallback === "function") {
-        video.cancelVideoFrameCallback(videoFrameRequestId);
-        videoFrameRequestId = undefined;
-      }
-    };
-
-    const syncFromVideoClock = () => {
-      const nextPlayheadMs = getVideoPlayheadMs(video.currentTime, video.duration, currentAssetVariant?.durationMs);
-      if (!shouldSyncPlayheadMs(latestPlayheadMsRef.current, nextPlayheadMs)) {
-        return;
-      }
-
-      setPlayheadMs(nextPlayheadMs);
-    };
-
-    const step = () => {
-      syncFromVideoClock();
-      if (video.paused || video.ended) {
-        return;
-      }
-
-      if (typeof video.requestVideoFrameCallback === "function") {
-        videoFrameRequestId = video.requestVideoFrameCallback(() => {
-          videoFrameRequestId = undefined;
-          step();
-        });
-        return;
-      }
-
-      animationFrameId = window.requestAnimationFrame(() => {
-        animationFrameId = undefined;
-        step();
-      });
-    };
-
-    const startSync = () => {
-      cancelScheduledSync();
-      step();
-    };
-
-    const stopSync = () => {
-      cancelScheduledSync();
-      syncFromVideoClock();
-    };
-
-    if (!video.paused && !video.ended) {
-      startSync();
-    } else {
-      syncFromVideoClock();
-    }
-
-    video.addEventListener("play", startSync);
-    video.addEventListener("pause", stopSync);
-    video.addEventListener("ended", stopSync);
-    video.addEventListener("seeked", syncFromVideoClock);
-
-    return () => {
-      cancelScheduledSync();
-      video.removeEventListener("play", startSync);
-      video.removeEventListener("pause", stopSync);
-      video.removeEventListener("ended", stopSync);
-      video.removeEventListener("seeked", syncFromVideoClock);
-    };
-  }, [currentAsset?.id, currentAsset?.kind, currentAssetVariant?.durationMs, currentAssetVariant?.sourcePath]);
+  const gameplayPaused = activeResponse?.entry.kind === "video";
 
   useEffect(() => {
     const audio = runtimeAudioRef.current;
@@ -473,6 +411,11 @@ export function App() {
       sceneAudioInternalPauseRef.current = true;
       audio.pause();
     };
+
+    if (gameplayPaused) {
+      pauseSceneAudio();
+      return;
+    }
 
     const clearPlayback = () => {
       if (sceneAudioTimeoutRef.current !== undefined) {
@@ -700,7 +643,8 @@ export function App() {
     snapshot?.scene.sceneAudioAssetId,
     snapshot?.scene.sceneAudioDelayMs,
     snapshot?.scene.sceneAudioLoop,
-    sceneAudioVariant?.durationMs
+    sceneAudioVariant?.durationMs,
+    gameplayPaused
   ]);
 
   useEffect(() => {
@@ -721,102 +665,90 @@ export function App() {
   }, [playheadMs, currentAsset?.kind, sceneAudioVariant?.sourcePath, snapshot?.scene.sceneAudioAssetId]);
 
   useEffect(() => {
-    if (localeStorageKey && activeLocale) {
-      localStorage.setItem(localeStorageKey, activeLocale);
-    }
-  }, [activeLocale, localeStorageKey]);
-
-  useEffect(() => {
-    const overlay = runtimeOverlayRef.current;
-    if (!overlay || typeof ResizeObserver === "undefined") {
+    if (!content) {
       return;
     }
 
-    const updateOverlaySize = () => {
-      const bounds = overlay.getBoundingClientRect();
-      setRuntimeOverlaySize(
-        bounds.width > 0 && bounds.height > 0
-          ? {
-              width: bounds.width,
-              height: bounds.height
-            }
-          : undefined
-      );
-    };
-
-    updateOverlaySize();
-
-    const observer = new ResizeObserver(updateOverlaySize);
-    observer.observe(overlay);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
+    document.documentElement.lang = locale;
+    document.documentElement.dir = resolvePlayerTextDirection(locale);
+    document.title = content.manifest.projectName;
+    if (localeStorageKey) {
+      localStorage.setItem(localeStorageKey, locale);
+    }
+  }, [content, locale, localeStorageKey]);
 
   useEffect(() => {
-    if (!selectedRuntimeInventoryItem) {
-      setInventoryCursorPoint(undefined);
+    const dialog = menuOpen
+      ? menuDialogRef.current
+      : confirmationAction
+        ? confirmationDialogRef.current
+        : undefined;
+    if (!dialog) {
       return;
     }
 
-    const handlePointerMove = (event: PointerEvent) => {
-      setInventoryCursorPoint({ x: event.clientX, y: event.clientY });
-    };
-    const clearPointer = () => setInventoryCursorPoint(undefined);
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const focusableSelector = [
+      "button:not([disabled])",
+      "select:not([disabled])",
+      "input:not([disabled])",
+      "[href]",
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(",");
+    const focusFirstControl = () => dialog.querySelector<HTMLElement>(focusableSelector)?.focus();
+    const animationFrame = window.requestAnimationFrame(focusFirstControl);
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("blur", clearPointer);
-    document.addEventListener("mouseleave", clearPointer);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("blur", clearPointer);
-      document.removeEventListener("mouseleave", clearPointer);
-    };
-  }, [selectedRuntimeInventoryItem?.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRuntimeHotspotAlphaMasks() {
-      if (runtimeHotspotVisualEntries.length === 0) {
-        setRuntimeHotspotAlphaMasks({});
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuOpen(false);
+        setConfirmationAction(undefined);
         return;
       }
 
-      const resolvedEntries = await Promise.all(
-        runtimeHotspotVisualEntries.map(async ([hotspotId, visual]) => {
-          try {
-            const alphaMask = await loadHotspotVisualAlphaMask(visual.imageSrc);
-            return alphaMask ? ([hotspotId, alphaMask] as const) : undefined;
-          } catch {
-            return undefined;
-          }
-        })
-      );
-
-      if (!cancelled) {
-        setRuntimeHotspotAlphaMasks(
-          Object.fromEntries(
-            resolvedEntries.filter(
-              (entry): entry is readonly [string, HotspotVisualAlphaMask] => Boolean(entry)
-            )
-          )
-        );
+      if (event.key !== "Tab") {
+        return;
       }
-    }
 
-    void loadRuntimeHotspotAlphaMasks();
-    return () => {
-      cancelled = true;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+        (element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true"
+      );
+      if (controls.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = controls[0]!;
+      const last = controls[controls.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [runtimeHotspotVisualSignature]);
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus();
+      } else {
+        menuButtonRef.current?.focus();
+      }
+    };
+  }, [confirmationAction, menuOpen]);
 
   if (errorMessage) {
     return (
       <main className="runtime-shell">
         <section className="runtime-card">
-          <h1>MAGE2 Runtime</h1>
-          <p>{errorMessage}</p>
+          <h1>{startupCopy.startupErrorTitle}</h1>
+          <p>{startupCopy.startupErrorBody}</p>
+          {debugMode ? <pre className="runtime-error-details">{errorMessage}</pre> : null}
         </section>
       </main>
     );
@@ -826,8 +758,7 @@ export function App() {
     return (
       <main className="runtime-shell">
         <section className="runtime-card">
-          <h1>MAGE2 Runtime</h1>
-          <p>Loading export...</p>
+          <h1>{startupCopy.loading}</h1>
         </section>
       </main>
     );
@@ -835,504 +766,300 @@ export function App() {
 
   const headerContent = resolveRuntimeHeaderContent(content);
 
+  const applyRestoredSession = (restoredSession: RuntimeSessionRestoration) => {
+    setController(restoredSession.controller);
+    setSnapshot(restoredSession.controller.getSnapshot());
+    setPlayheadMs(restoredSession.saveState.playheadMs);
+    setSelectedInventoryItemId(undefined);
+    setActiveResponse(undefined);
+  };
+
+  const applyPlayerResponseResolution = (
+    resolution: ReturnType<typeof controller.selectHotspot>
+  ) => {
+    if (resolution.response) {
+      setActiveResponse(resolution.response);
+    } else if (resolution.startedDialogueTreeId || resolution.transitionedToSceneId) {
+      setActiveResponse(undefined);
+    }
+  };
+
+  const saveGame = () => {
+    const nextSave = controller.save();
+    nextSave.playheadMs = playheadMs;
+    localStorage.setItem(storageKey, JSON.stringify(nextSave));
+    setHasValidStoredSave(true);
+    setRuntimeNotice(systemCopy.gameSaved);
+    setMenuOpen(false);
+  };
+
+  const loadSavedGame = () => {
+    const storedSave = localStorage.getItem(storageKey);
+    if (storedSave === null) {
+      setHasValidStoredSave(false);
+      setRuntimeNotice(systemCopy.noValidSave);
+      setConfirmationAction(undefined);
+      return;
+    }
+
+    const restoredSession = restoreRuntimeSession(content, storedSave);
+    applyRestoredSession(restoredSession);
+    if (restoredSession.recovered) {
+      localStorage.removeItem(storageKey);
+      setHasValidStoredSave(false);
+      setRuntimeNotice(systemCopy.saveRecovered);
+    } else {
+      setHasValidStoredSave(true);
+      setRuntimeNotice(systemCopy.gameLoaded);
+    }
+    setConfirmationAction(undefined);
+  };
+
+  const restartGame = () => {
+    localStorage.removeItem(storageKey);
+    applyRestoredSession(restoreRuntimeSession(content, null));
+    setHasValidStoredSave(false);
+    setRuntimeNotice(systemCopy.gameRestarted);
+    setConfirmationAction(undefined);
+  };
+
+  const modalOpen = menuOpen || Boolean(confirmationAction);
+
   return (
-    <main className="runtime-shell">
-      <section className="runtime-stage">
-        <header className="runtime-header">
-          <div>
-            <p className="runtime-eyebrow">{headerContent.projectName}</p>
-          </div>
-          <div className="runtime-actions">
+    <main className="runtime-shell" data-runtime-mode={debugMode ? "debug" : "player"}>
+      <section className="runtime-stage" aria-label={headerContent.projectName}>
+        <div
+          className="runtime-player-layer"
+          aria-hidden={modalOpen ? true : undefined}
+          inert={modalOpen ? true : undefined}
+        >
+          <header className="runtime-header">
+            <h1>{headerContent.projectName}</h1>
             <button
+              ref={menuButtonRef}
               type="button"
-              onClick={() => {
-                const nextSave = controller.save();
-                nextSave.playheadMs = playheadMs;
-                localStorage.setItem(storageKey, JSON.stringify(nextSave));
-              }}
+              className="runtime-menu-button"
+              aria-expanded={menuOpen}
+              aria-controls="runtime-player-menu"
+              onClick={() => setMenuOpen((open) => !open)}
             >
-              Save
+              {systemCopy.menu}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const storedSave = localStorage.getItem(storageKey);
-                if (!storedSave) {
-                  return;
-                }
+          </header>
 
-                const loadedProject = {
-                  manifest: content.manifest,
-                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
-                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
-                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
-                };
-                const nextSaveState = parseSaveState({
-                  ...createInitialSaveState(loadedProject),
-                  ...(JSON.parse(storedSave) as object)
-                });
-                const nextController = createPlayerController(
-                  loadedProject,
-                  nextSaveState
-                );
-                setController(nextController);
-                setSnapshot(nextController.getSnapshot());
-                setPlayheadMs(nextSaveState.playheadMs ?? 0);
-                setSelectedInventoryItemId(undefined);
-                setRuntimeNotice(undefined);
-              }}
-            >
-              Load
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem(storageKey);
-                const nextController = createPlayerController({
-                  manifest: content.manifest,
-                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
-                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
-                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
-                });
-                setController(nextController);
-                setSnapshot(nextController.getSnapshot());
-                setPlayheadMs(0);
-                setSelectedInventoryItemId(undefined);
-                setRuntimeNotice(undefined);
-              }}
-            >
-              Restart
-            </button>
-            <label
-              className="runtime-hotspot-visibility-toggle"
-              title="Show translucent hotspot regions for debugging. Labels remain hidden."
-            >
-              <input
-                type="checkbox"
-                checked={showHotspots}
-                onChange={(event) => setShowHotspots(event.target.checked)}
+          <div className="runtime-player-frame">
+            {currentAsset?.kind === "image" && currentAssetVariant?.sourcePath ? (
+              <div
+                className="runtime-player-backdrop"
+                style={{ backgroundImage: `url(${JSON.stringify(currentAssetVariant.sourcePath)})` }}
+                aria-hidden="true"
               />
-              <span>Show hotspots</span>
-            </label>
-            <label className="runtime-hotspot-visibility-toggle" title="Switch the active runtime locale.">
-              <span>Locale</span>
-              <select value={locale} onChange={(event) => setActiveLocale(event.target.value)}>
-                {supportedLocales.map((entry) => (
-                  <option key={entry} value={entry}>
-                    {entry}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </header>
-
-        <div className="runtime-media" style={runtimeMediaStyle}>
-          {currentAsset?.kind === "video" && currentAssetVariant ? (
-            <video
-              ref={runtimeVideoRef}
-              key={`${snapshot.scene.id}:${currentAsset.id}`}
-              src={currentAssetVariant.sourcePath}
-              autoPlay
-              loop={snapshot.scene.backgroundVideoLoop}
-              playsInline
-              className="runtime-media__asset"
-              onLoadedMetadata={(event) => {
-                const durationMs = resolvePlayableDurationMs(event.currentTarget.duration, currentAssetVariant?.durationMs);
-                const nextPlayheadMs = clampPlayheadMs(playheadMs, durationMs);
-                const currentPlayheadMs = getVideoPlayheadMs(
-                  event.currentTarget.currentTime,
-                  event.currentTarget.duration,
-                  currentAssetVariant?.durationMs
-                );
-
-                if (shouldSyncPlayheadMs(currentPlayheadMs, nextPlayheadMs)) {
-                  event.currentTarget.currentTime = nextPlayheadMs / 1000;
-                }
-
-                setPlayheadMs(
-                  getVideoPlayheadMs(
-                    event.currentTarget.currentTime,
-                    event.currentTarget.duration,
-                    currentAssetVariant?.durationMs
-                  )
-                );
-              }}
-              onSeeked={(event) =>
-                setPlayheadMs(
-                  getVideoPlayheadMs(event.currentTarget.currentTime, event.currentTarget.duration, currentAssetVariant?.durationMs)
-                )
+            ) : null}
+            <PlayerSceneRenderer
+              className={
+                gameplayPaused
+                  ? "runtime-player-renderer runtime-player-renderer--response-video"
+                  : "runtime-player-renderer"
               }
+              presentation="runtime-responsive"
+              project={runtimeProject!}
+              snapshot={snapshot}
+              locale={locale}
+              strings={localeStrings}
+              visibleHotspots={visibleHotspots}
+              playheadMs={playheadMs}
+              showHotspots={debugMode && showHotspots}
+              resolveSourcePath={resolveRuntimeSourcePath}
+              bagIconUrl={RUNTIME_INVENTORY_BAG_ICON_SRC}
+              copy={playerCopy}
+              selectedInventoryItemId={selectedInventoryItemId}
+              onSelectedInventoryItemIdChange={(itemId) => {
+                setSelectedInventoryItemId(itemId);
+                setRuntimeNotice(undefined);
+              }}
+              onHotspotActivate={(hotspotId) => {
+                const resolution = controller.selectHotspot(hotspotId, playheadMs, sceneTimelineDurationMs);
+                applyPlayerResponseResolution(resolution);
+                setSnapshot(controller.getSnapshot());
+                setPlayheadMs(0);
+                setRuntimeNotice(undefined);
+              }}
+              onHotspotEventActivate={(hotspotId, eventType) => {
+                const resolution = controller.selectHotspotEvent(
+                  hotspotId,
+                  eventType,
+                  playheadMs,
+                  sceneTimelineDurationMs
+                );
+                applyPlayerResponseResolution(resolution);
+                setSnapshot(controller.getSnapshot());
+                setPlayheadMs(0);
+                setRuntimeNotice(undefined);
+              }}
+              onPlacedHotspotActivate={(_hotspotId, itemId) => {
+                const item = itemId ? content.inventoryItems.find((entry) => entry.id === itemId) : undefined;
+                const label = item ? localeStrings[item.textId] ?? item.name : undefined;
+                setRuntimeNotice(label ? `${label} — ${systemCopy.placedObject}` : systemCopy.placedObject);
+              }}
+              onDialogueChoice={(choiceId) => {
+                controller.chooseDialogueChoice(choiceId);
+                setSnapshot(controller.getSnapshot());
+              }}
+              onDialogueContinue={() => {
+                controller.continueDialogue();
+                setSnapshot(controller.getSnapshot());
+              }}
+              onInteractionBlocked={() => setRuntimeNotice(undefined)}
+              activeResponse={activeResponse}
+              onResponseComplete={completeResponse}
+              onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
+              playbackResetKey={`${snapshot.scene.id}:${locale}`}
             />
-          ) : currentAsset?.kind === "image" && currentAssetVariant ? (
-            <img src={currentAssetVariant.sourcePath} alt={currentAsset.name} className="runtime-media__asset" />
-          ) : (
-            <div className="runtime-media__placeholder">No playable visual asset for this scene.</div>
-          )}
+          </div>
+
           {sceneAudioVariant?.sourcePath ? (
             <audio ref={runtimeAudioRef} src={sceneAudioVariant.sourcePath} preload="metadata" className="runtime-scene-audio" />
           ) : null}
 
-          <div ref={runtimeOverlayRef} className="runtime-media__overlay">
-            {visibleHotspots.map((hotspot) => {
-              const inventoryAction = resolveHotspotInventoryAction(hotspot);
-              const isCompatibleWithSelectedInventoryItem =
-                inventoryAction.type === "placeItem" && inventoryAction.itemId === selectedInventoryItemId;
-              return (
-                <RuntimeHotspotButton
-                  key={hotspot.id}
-                  hotspot={hotspot}
-                  showHotspots={showHotspots}
-                  surfaceSize={runtimeOverlaySize}
-                  visual={runtimeHotspotVisuals[hotspot.id]}
-                  alphaMask={runtimeHotspotAlphaMasks[hotspot.id]}
-                  strings={localeStrings}
-                  isCompatibleWithSelectedInventoryItem={isCompatibleWithSelectedInventoryItem}
-                  onActivate={() => {
-                    if (inventoryAction.type === "placeItem" && inventoryAction.itemId !== selectedInventoryItemId) {
-                      const requiredItem = runtimeInventoryItems.find((item) => item.id === inventoryAction.itemId);
-                      setRuntimeNotice(
-                        requiredItem
-                          ? `Select ${requiredItem.label} from inventory first.`
-                          : "Select the matching inventory item first."
-                      );
-                      return;
-                    }
+          <p
+            className={runtimeNotice ? "runtime-status" : "runtime-status runtime-status--empty"}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {runtimeNotice ?? ""}
+          </p>
 
-                    controller.selectHotspot(hotspot.id, playheadMs, sceneTimelineDurationMs);
-                    setSnapshot(controller.getSnapshot());
-                    setPlayheadMs(0);
-                    if (inventoryAction.type === "pickupItem" || inventoryAction.type === "placeItem") {
-                      setSelectedInventoryItemId(undefined);
-                      setRuntimeNotice(undefined);
-                    }
-                  }}
-                />
-              );
-            })}
-            {runtimePlacedHotspots.map((hotspot) => (
-              <RuntimeHotspotButton
-                key={hotspot.id}
-                hotspot={hotspot}
-                showHotspots={showHotspots}
-                surfaceSize={runtimeOverlaySize}
-                visual={runtimePlacedHotspotVisuals[hotspot.id]}
-                alphaMask={runtimeHotspotAlphaMasks[hotspot.id]}
-                strings={localeStrings}
-                onActivate={() => {
-                  const placedItem = runtimeInventoryItems.find((item) => item.id === hotspot.inventoryItemId);
-                  setRuntimeNotice(placedItem ? `${placedItem.label} is placed here.` : "This placed object is here.");
-                }}
-              />
-            ))}
-          </div>
-          <InventoryCursorPreview
-            imageSrc={selectedRuntimeInventoryItem?.imageSrc}
-            label={selectedRuntimeInventoryItem?.label}
-            point={inventoryCursorPoint}
-          />
+          {debugMode ? (
+            <details className="runtime-debug-panel" open>
+              <summary>{systemCopy.debugMode}</summary>
+              <div className="runtime-debug-panel__body">
+                <label className="runtime-hotspot-visibility-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showHotspots}
+                    onChange={(event) => setShowHotspots(event.target.checked)}
+                  />
+                  <span>{systemCopy.showHotspots}</span>
+                </label>
+                <label className="runtime-scrubber">
+                  <span>
+                    {systemCopy.playhead} {Math.round(playheadMs)}ms
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={sceneTimelineDurationMs}
+                    value={Math.min(playheadMs, sceneTimelineDurationMs)}
+                    onChange={(event) => setPlayheadMs(Number(event.target.value))}
+                  />
+                </label>
+                <div className="runtime-debug-state">
+                  <h2>{systemCopy.rawSave}</h2>
+                  <pre>{JSON.stringify(snapshot.saveState, null, 2)}</pre>
+                </div>
+              </div>
+            </details>
+          ) : null}
         </div>
 
-        <label className="runtime-scrubber">
-          Playhead {Math.round(playheadMs)}ms
-          <input
-            type="range"
-            min={0}
-            max={sceneTimelineDurationMs}
-            value={Math.min(playheadMs, sceneTimelineDurationMs)}
-            onChange={(event) => setPlayheadMs(Number(event.target.value))}
-          />
-        </label>
-
-        {snapshot.activeDialogue ? (
-          <div className="runtime-dialogue">
-            <h2>{snapshot.activeDialogue.node.speaker}</h2>
-            <p>{localeStrings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</p>
-            {snapshot.activeDialogue.choices.length > 0 ? (
-              <div className="runtime-choices">
-                {snapshot.activeDialogue.choices.map((choice) => (
-                  <button
-                    key={choice.id}
-                    type="button"
-                    onClick={() => {
-                      controller.chooseDialogueChoice(choice.id);
-                      setSnapshot(controller.getSnapshot());
-                    }}
-                  >
-                    {localeStrings[choice.textId] ?? choice.textId}
-                  </button>
-                ))}
+        {menuOpen ? (
+          <div className="runtime-modal-layer">
+            <div className="runtime-modal-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} />
+            <section
+              ref={menuDialogRef}
+              id="runtime-player-menu"
+              className="runtime-menu-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="runtime-menu-title"
+            >
+              <div className="runtime-panel-heading">
+                <h2 id="runtime-menu-title">{systemCopy.menuTitle}</h2>
+                <button
+                  type="button"
+                  className="runtime-close-button"
+                  aria-label={systemCopy.closeMenu}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {systemCopy.close}
+                </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  controller.continueDialogue();
-                  setSnapshot(controller.getSnapshot());
-                }}
-              >
-                Continue
-              </button>
-            )}
+              <label className="runtime-language-picker">
+                <span>{systemCopy.language}</span>
+                <select value={locale} onChange={(event) => setActiveLocale(event.target.value)}>
+                  {supportedLocales.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {resolveRuntimeLanguageName(entry)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="runtime-menu-actions">
+                <button type="button" onClick={saveGame}>
+                  {systemCopy.saveGame}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasValidStoredSave}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmationAction("load");
+                  }}
+                >
+                  {systemCopy.loadGame}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setConfirmationAction("restart");
+                  }}
+                >
+                  {systemCopy.restartGame}
+                </button>
+              </div>
+            </section>
           </div>
         ) : null}
 
-        <aside className="runtime-sidebar">
-          <section className="runtime-sidebar__section">
-            <h3>Inventory</h3>
-            {runtimeInventoryItems.length > 0 ? (
-              <div className="runtime-inventory">
-                {runtimeInventoryItems.map((item, index) => (
-                  <button
-                    key={`${item.id}:${index}`}
-                    type="button"
-                    className={
-                      item.id === selectedInventoryItemId
-                        ? "runtime-inventory__item runtime-inventory__item--selected"
-                        : "runtime-inventory__item"
-                    }
-                    aria-pressed={item.id === selectedInventoryItemId}
-                    title={resolveRuntimeInventoryItemTooltip(item.label, item.description)}
-                    onClick={() => {
-                      const nextSelectedItemId = item.id === selectedInventoryItemId ? undefined : item.id;
-                      setSelectedInventoryItemId(nextSelectedItemId);
-                      setRuntimeNotice(undefined);
-                    }}
-                  >
-                    {item.imageSrc ? (
-                      <img src={item.imageSrc} alt={item.label} className="runtime-inventory__thumb" />
-                    ) : (
-                      <div className="runtime-inventory__thumb runtime-inventory__thumb--placeholder">No art</div>
-                    )}
-                    <strong>{item.label}</strong>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="runtime-sidebar__empty">Inventory empty.</p>
-            )}
-            {runtimeNotice || selectedRuntimeInventoryItem ? (
-              <p className="runtime-inventory__hint">
-                {runtimeNotice ?? `Selected: ${selectedRuntimeInventoryItem?.label ?? ""}`}
+        {confirmationAction ? (
+          <div className="runtime-modal-layer">
+            <div
+              className="runtime-modal-scrim"
+              aria-hidden="true"
+              onClick={() => setConfirmationAction(undefined)}
+            />
+            <section
+              ref={confirmationDialogRef}
+              className="runtime-confirmation"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="runtime-confirmation-title"
+              aria-describedby="runtime-confirmation-body"
+            >
+              <h2 id="runtime-confirmation-title">
+                {confirmationAction === "load" ? systemCopy.confirmLoadTitle : systemCopy.confirmRestartTitle}
+              </h2>
+              <p id="runtime-confirmation-body">
+                {confirmationAction === "load" ? systemCopy.confirmLoadBody : systemCopy.confirmRestartBody}
               </p>
-            ) : null}
-          </section>
-
-          <section className="runtime-sidebar__section">
-            <h3>State</h3>
-            <pre>{JSON.stringify(snapshot.saveState, null, 2)}</pre>
-          </section>
-        </aside>
+              <div className="runtime-confirmation__actions">
+                <button type="button" autoFocus onClick={() => setConfirmationAction(undefined)}>
+                  {systemCopy.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="runtime-confirmation__primary"
+                  onClick={confirmationAction === "load" ? loadSavedGame : restartGame}
+                >
+                  {confirmationAction === "load" ? systemCopy.confirmLoad : systemCopy.confirmRestart}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </section>
     </main>
-  );
-}
-
-function RuntimeHotspotButton({
-  hotspot,
-  showHotspots,
-  surfaceSize,
-  visual,
-  alphaMask,
-  strings,
-  isCompatibleWithSelectedInventoryItem,
-  onActivate
-}: {
-  hotspot: Hotspot;
-  showHotspots: boolean;
-  surfaceSize?: HotspotSurfaceSize;
-  visual?: {
-    imageSrc: string;
-    alt: string;
-  };
-  alphaMask?: HotspotVisualAlphaMask;
-  strings: Record<string, string>;
-  isCompatibleWithSelectedInventoryItem?: boolean;
-  onActivate: () => void;
-}) {
-  const bounds = resolveHotspotBounds(hotspot);
-  const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
-  const clipPath =
-    hotspot.inventoryItemId && relativeFrame ? resolveRelativeHotspotClipPath(relativeFrame.polygon) : resolveHotspotClipPath(hotspot);
-  const rotationDegrees =
-    hotspot.inventoryItemId && relativeFrame ? relativeFrame.rotationDegrees : resolveHotspotRotationDegrees(hotspot);
-  const visualBox = resolveRelativeHotspotVisualBox(hotspot, surfaceSize ?? { width: 1, height: 1 });
-  const [isPointerOverOpaquePixel, setIsPointerOverOpaquePixel] = useState(false);
-  const usesAlphaAwarePointerFeedback = Boolean(visual?.imageSrc);
-  const isOpaquePointerEvent = (
-    event: Pick<React.MouseEvent<HTMLButtonElement>, "clientX" | "clientY" | "currentTarget">
-  ) => {
-    if (!visual?.imageSrc || !alphaMask) {
-      return false;
-    }
-
-    return isOpaqueHotspotVisualHit(alphaMask, {
-      pointX: event.clientX - event.currentTarget.getBoundingClientRect().left,
-      pointY: event.clientY - event.currentTarget.getBoundingClientRect().top,
-      hotspotWidth: event.currentTarget.getBoundingClientRect().width,
-      hotspotHeight: event.currentTarget.getBoundingClientRect().height,
-      visualBox,
-      rotationDegrees,
-      imageWidth: alphaMask.width,
-      imageHeight: alphaMask.height
-    });
-  };
-  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
-    if (visual?.imageSrc && alphaMask) {
-      const isPointerHit = isOpaquePointerEvent(event);
-      setIsPointerOverOpaquePixel(isPointerHit);
-      if (!isPointerHit) {
-        return;
-      }
-    }
-
-    onActivate();
-  };
-  const handleMouseMoveOrEnter: React.MouseEventHandler<HTMLButtonElement> = (event) => {
-    if (!usesAlphaAwarePointerFeedback) {
-      return;
-    }
-
-    if (!alphaMask) {
-      setIsPointerOverOpaquePixel(false);
-      return;
-    }
-
-    setIsPointerOverOpaquePixel(isOpaquePointerEvent(event));
-  };
-  const className = [
-    showHotspots || isCompatibleWithSelectedInventoryItem ? "runtime-hotspot" : "runtime-hotspot runtime-hotspot--hidden",
-    isCompatibleWithSelectedInventoryItem ? "runtime-hotspot--inventory-compatible" : undefined,
-    usesAlphaAwarePointerFeedback && !isPointerOverOpaquePixel ? "runtime-hotspot--pointer-inactive" : undefined
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <button
-      type="button"
-      className={className}
-      aria-label={`${resolveRuntimeHotspotTitle(hotspot, strings)}: activate this hotspot.`}
-      style={{
-        left: `${bounds.x * 100}%`,
-        top: `${bounds.y * 100}%`,
-        width: `${bounds.width * 100}%`,
-        height: `${bounds.height * 100}%`,
-        clipPath,
-        ...(usesAlphaAwarePointerFeedback ? { cursor: isPointerOverOpaquePixel ? "pointer" : "default" } : undefined)
-      }}
-      onClick={handleClick}
-      onMouseEnter={handleMouseMoveOrEnter}
-      onMouseMove={handleMouseMoveOrEnter}
-      onMouseLeave={() => setIsPointerOverOpaquePixel(false)}
-    >
-      {visual ? (
-        <div className="runtime-hotspot__visual-content" style={resolveRuntimeHotspotVisualContentStyle(visualBox, rotationDegrees)}>
-          <img src={visual.imageSrc} alt="" aria-hidden="true" className="runtime-hotspot__visual" />
-        </div>
-      ) : null}
-    </button>
-  );
-}
-
-function resolveRuntimeHotspotVisualContentStyle(
-  visualBox: { x: number; y: number; width: number; height: number },
-  rotationDegrees: number
-): React.CSSProperties | undefined {
-  const style: React.CSSProperties = {
-    left: `${visualBox.x * 100}%`,
-    top: `${visualBox.y * 100}%`,
-    width: `${visualBox.width * 100}%`,
-    height: `${visualBox.height * 100}%`
-  };
-
-  if (Math.abs(rotationDegrees) > 0.001) {
-    style.transform = `rotate(${rotationDegrees}deg)`;
-  }
-
-  return style;
-}
-
-function resolveRuntimeMediaAspectRatioStyle(
-  width: number | undefined,
-  height: number | undefined
-): CSSProperties | undefined {
-  if (!isPositiveFiniteNumber(width) || !isPositiveFiniteNumber(height)) {
-    return undefined;
-  }
-
-  return {
-    aspectRatio: `${width} / ${height}`
-  };
-}
-
-function isPositiveFiniteNumber(value: number | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function resolveRelativeHotspotClipPath(polygon?: Array<{ x: number; y: number }>): string | undefined {
-  if (!polygon || polygon.length === 0) {
-    return undefined;
-  }
-
-  return `polygon(${polygon.map((point) => `${formatHotspotPercent(point.x)} ${formatHotspotPercent(point.y)}`).join(", ")})`;
-}
-
-function formatHotspotPercent(value: number): string {
-  const percent = Math.max(0, Math.min(1, value)) * 100;
-  return `${Math.round(percent * 10000) / 10000}%`;
-}
-
-function normalizeHotspotText(value: string | undefined): string {
-  return value?.replace(/\s+/g, " ").trim() ?? "";
-}
-
-function resolveRuntimeHotspotTitle(hotspot: Hotspot, strings: Record<string, string>): string {
-  const comment = hotspot.commentTextId ? normalizeHotspotText(strings[hotspot.commentTextId]) : "";
-  return hotspot.name || comment || hotspot.id;
-}
-
-function InventoryCursorPreview({
-  imageSrc,
-  label,
-  point
-}: {
-  imageSrc?: string;
-  label?: string;
-  point?: { x: number; y: number };
-}) {
-  if (!imageSrc || !point) {
-    return null;
-  }
-
-  if (typeof document === "undefined") {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      aria-label={label ? `Selected item: ${label}` : "Selected inventory item"}
-      role="img"
-      style={resolveInventoryCursorPreviewFrameStyle(point)}
-    >
-      <img
-        src={imageSrc}
-        alt=""
-        draggable={false}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          filter: "drop-shadow(0 8px 10px rgba(0, 0, 0, 0.35))"
-        }}
-      />
-    </div>,
-    document.body
   );
 }

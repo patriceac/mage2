@@ -14,6 +14,11 @@ import {
 } from "./types";
 import { createRectangleHotspotPolygon } from "./hotspots";
 import { normalizeSupportedLocales } from "./localization";
+import {
+  createStarterResponseGroups,
+  seedStarterResponseStrings,
+  STARTER_RESPONSE_LIBRARY_VERSION
+} from "./responses";
 
 export function parseProjectBundle(input: unknown): ProjectBundle {
   return ProjectBundleSchema.parse(normalizeProjectBundleInput(input));
@@ -60,6 +65,12 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
   const locationId = "location_intro";
   const sceneId = "scene_intro";
   const defaultLanguage = "en";
+  const byLocale: Record<string, Record<string, string>> = {
+    [defaultLanguage]: {
+      [STARTER_HOTSPOT_COMMENT_TEXT_ID]: STARTER_HOTSPOT_COMMENT
+    }
+  };
+  seedStarterResponseStrings(byLocale);
 
   return {
     manifest: {
@@ -113,7 +124,9 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     },
     dialogues: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      items: []
+      items: [],
+      responseGroups: createStarterResponseGroups(),
+      starterResponsesVersion: STARTER_RESPONSE_LIBRARY_VERSION
     },
     inventory: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -121,11 +134,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     },
     strings: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      byLocale: {
-        [defaultLanguage]: {
-          [STARTER_HOTSPOT_COMMENT_TEXT_ID]: STARTER_HOTSPOT_COMMENT
-        }
-      }
+      byLocale
     }
   };
 }
@@ -149,6 +158,8 @@ export function toExportProjectData(project: ProjectBundle): ExportProjectData {
     locations: project.locations.items,
     scenes: project.scenes.items,
     dialogues: project.dialogues.items,
+    responseGroups: project.dialogues.responseGroups,
+    starterResponsesVersion: project.dialogues.starterResponsesVersion,
     inventoryItems: project.inventory.items,
     strings: project.strings.byLocale
   };
@@ -174,10 +185,113 @@ function normalizeProjectBundleInput(input: unknown): unknown {
     assets: normalizeAssets(rawBundle.assets, defaultLanguage),
     strings,
     locations: normalizeSchemaVersionedFile(rawBundle.locations),
-    scenes: normalizeSchemaVersionedFile(rawBundle.scenes),
-    dialogues: normalizeSchemaVersionedFile(rawBundle.dialogues),
+    scenes: normalizeScenes(rawBundle.scenes),
+    dialogues: normalizeDialogues(rawBundle.dialogues, strings),
     inventory: normalizeSchemaVersionedFile(rawBundle.inventory)
   };
+}
+
+function normalizeScenes(input: unknown) {
+  const rawFile = isRecord(input) ? input : {};
+  const rawItems = Array.isArray(rawFile.items) ? rawFile.items : [];
+
+  return {
+    ...rawFile,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    items: rawItems.map((scene) => {
+      if (!isRecord(scene) || !Array.isArray(scene.hotspots)) {
+        return scene;
+      }
+
+      return {
+        ...scene,
+        hotspots: scene.hotspots.map(normalizeLegacyHotspotInteractionEvents)
+      };
+    })
+  };
+}
+
+function normalizeLegacyHotspotInteractionEvents(input: unknown): unknown {
+  if (!isRecord(input) || !isRecord(input.otherwise)) {
+    return input;
+  }
+
+  const legacyEvent = normalizeHotspotEventInput(input.otherwise);
+  const normalized: Record<string, unknown> = { ...input };
+  delete normalized.otherwise;
+  if (!hasRawHotspotEvent(input.otherwise)) {
+    return normalized;
+  }
+
+  if (isRawPlacementHotspot(input)) {
+    normalized.clickEvent ??= legacyEvent;
+    normalized.otherItemEvent ??= legacyEvent;
+    return normalized;
+  }
+
+  if (!hasRawHotspotPrimaryEvent(input)) {
+    if (legacyEvent.targetSceneId) {
+      normalized.targetSceneId = legacyEvent.targetSceneId;
+    }
+    if (legacyEvent.dialogueTreeId) {
+      normalized.dialogueTreeId = legacyEvent.dialogueTreeId;
+    }
+    if (legacyEvent.response) {
+      normalized.response = legacyEvent.response;
+    }
+    normalized.effects = legacyEvent.effects;
+  }
+  normalized.otherItemEvent ??= legacyEvent;
+  return normalized;
+}
+
+function normalizeHotspotEventInput(input: Record<string, unknown>) {
+  const event: Record<string, unknown> = {
+    effects: Array.isArray(input.effects) ? input.effects : []
+  };
+  if (typeof input.targetSceneId === "string" && input.targetSceneId.length > 0) {
+    event.targetSceneId = input.targetSceneId;
+  }
+  if (typeof input.dialogueTreeId === "string" && input.dialogueTreeId.length > 0) {
+    event.dialogueTreeId = input.dialogueTreeId;
+  }
+  if (isRecord(input.response)) {
+    event.response = input.response;
+  }
+  return event;
+}
+
+function hasRawHotspotEvent(event: Record<string, unknown>): boolean {
+  return Boolean(
+    (typeof event.targetSceneId === "string" && event.targetSceneId.length > 0) ||
+      (typeof event.dialogueTreeId === "string" && event.dialogueTreeId.length > 0) ||
+      isRecord(event.response) ||
+      (Array.isArray(event.effects) && event.effects.length > 0)
+  );
+}
+
+function isRawPlacementHotspot(hotspot: Record<string, unknown>): boolean {
+  if (typeof hotspot.placedInventoryItemId === "string") {
+    return true;
+  }
+
+  const itemId = typeof hotspot.inventoryItemId === "string" ? hotspot.inventoryItemId : undefined;
+  return Boolean(
+    itemId &&
+      Array.isArray(hotspot.requiredItemIds) &&
+      hotspot.requiredItemIds.includes(itemId) &&
+      Array.isArray(hotspot.effects) &&
+      hotspot.effects.some((effect) => isRecord(effect) && effect.type === "removeItem" && effect.itemId === itemId)
+  );
+}
+
+function hasRawHotspotPrimaryEvent(hotspot: Record<string, unknown>): boolean {
+  return Boolean(
+    (typeof hotspot.targetSceneId === "string" && hotspot.targetSceneId.length > 0) ||
+      (typeof hotspot.dialogueTreeId === "string" && hotspot.dialogueTreeId.length > 0) ||
+      isRecord(hotspot.response) ||
+      (Array.isArray(hotspot.effects) && hotspot.effects.length > 0)
+  );
 }
 
 function normalizeManifest(input: unknown) {
@@ -225,7 +339,12 @@ function normalizeAsset(input: unknown, defaultLanguage: string): Asset {
 }
 
 function normalizeAssetCategory(input: Record<string, unknown>): AssetCategory | undefined {
-  if (input.category === "background" || input.category === "inventory" || input.category === "sceneAudio") {
+  if (
+    input.category === "background" ||
+    input.category === "inventory" ||
+    input.category === "sceneAudio" ||
+    input.category === "response"
+  ) {
     return input.category;
   }
 
@@ -300,6 +419,43 @@ function normalizeStrings(input: unknown, defaultLanguage: string) {
     byLocale: {
       [defaultLanguage]: normalizeStringRecord(rawStrings.values)
     }
+  };
+}
+
+function normalizeDialogues(
+  input: unknown,
+  strings: { schemaVersion: number; byLocale: Record<string, Record<string, string>> }
+) {
+  const rawFile = isRecord(input) ? input : {};
+  const rawGroups = Array.isArray(rawFile.responseGroups) ? rawFile.responseGroups : [];
+  const currentStarterVersion =
+    typeof rawFile.starterResponsesVersion === "number" && Number.isInteger(rawFile.starterResponsesVersion)
+      ? Math.max(0, rawFile.starterResponsesVersion)
+      : 0;
+
+  if (currentStarterVersion >= STARTER_RESPONSE_LIBRARY_VERSION) {
+    return {
+      ...rawFile,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      responseGroups: rawGroups,
+      starterResponsesVersion: currentStarterVersion
+    };
+  }
+
+  const existingGroupIds = new Set(
+    rawGroups
+      .filter(isRecord)
+      .map((group) => group.id)
+      .filter((id): id is string => typeof id === "string")
+  );
+  const starterGroups = createStarterResponseGroups().filter((group) => !existingGroupIds.has(group.id));
+  seedStarterResponseStrings(strings.byLocale);
+
+  return {
+    ...rawFile,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    responseGroups: [...rawGroups, ...starterGroups],
+    starterResponsesVersion: STARTER_RESPONSE_LIBRARY_VERSION
   };
 }
 

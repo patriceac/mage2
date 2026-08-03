@@ -518,6 +518,42 @@ describe("removed timed text persistence", () => {
 });
 
 describe("loadProjectFromDirectory", () => {
+  it("persists starter response groups exactly once when an existing project is first opened", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-response-migration-"));
+    tempDirs.push(projectDir);
+    await createProjectInDirectory(projectDir, "Existing Project");
+
+    const dialoguesPath = path.join(projectDir, "dialogues.json");
+    const stringsPath = path.join(projectDir, "strings.json");
+    const scenesPath = path.join(projectDir, "scenes.json");
+    const dialogues = JSON.parse(await readFile(dialoguesPath, "utf8")) as { schemaVersion: number; items: unknown[] };
+    const strings = JSON.parse(await readFile(stringsPath, "utf8")) as {
+      schemaVersion: number;
+      byLocale: Record<string, Record<string, string>>;
+    };
+    for (const values of Object.values(strings.byLocale)) {
+      for (const textId of Object.keys(values)) {
+        if (textId.startsWith("text.response.starter.")) delete values[textId];
+      }
+    }
+    await writeFile(dialoguesPath, JSON.stringify({ schemaVersion: dialogues.schemaVersion, items: dialogues.items }, null, 2), "utf8");
+    await writeFile(stringsPath, JSON.stringify(strings, null, 2), "utf8");
+
+    const migrated = await loadProjectFromDirectory(projectDir);
+    const persistedDialogues = JSON.parse(await readFile(dialoguesPath, "utf8")) as {
+      starterResponsesVersion: number;
+      responseGroups: unknown[];
+    };
+    const persistedScenes = JSON.parse(await readFile(scenesPath, "utf8")) as { items: Array<{ hotspots: unknown[] }> };
+    expect(migrated.dialogues.responseGroups).toHaveLength(4);
+    expect(persistedDialogues.starterResponsesVersion).toBe(1);
+    expect(persistedDialogues.responseGroups).toHaveLength(4);
+    expect(persistedScenes.items[0]!.hotspots[0]).not.toHaveProperty("response");
+
+    await writeFile(dialoguesPath, JSON.stringify({ ...persistedDialogues, responseGroups: [] }, null, 2), "utf8");
+    expect((await loadProjectFromDirectory(projectDir)).dialogues.responseGroups).toEqual([]);
+  });
+
   it("backfills dedicated image thumbnails for legacy preview metadata", async () => {
     const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-load-"));
     tempDirs.push(projectDir);

@@ -9,6 +9,65 @@ import {
 } from "./index";
 
 describe("player controller", () => {
+  it("keeps unassigned hotspot interactions completely silent", () => {
+    const project = createDefaultProjectBundle();
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    delete hotspot.response;
+
+    const resolution = createPlayerController(project).selectHotspot(hotspot.id, 1000);
+
+    expect(resolution.response).toBeUndefined();
+    expect(resolution.startedDialogueTreeId).toBeUndefined();
+  });
+
+  it("selects response groups randomly without repeating their most recent entry", () => {
+    const project = createDefaultProjectBundle();
+    const group = project.dialogues.responseGroups[0]!;
+    project.scenes.items[0]!.hotspots[0]!.response = { type: "group", groupId: group.id };
+    const controller = createPlayerController(project, undefined, { random: () => 0 });
+
+    const first = controller.selectHotspot("hotspot_inspect", 1000).response;
+    const second = controller.selectHotspot("hotspot_inspect", 1000).response;
+    const third = controller.selectHotspot("hotspot_inspect", 1000).response;
+
+    expect(first?.entry.id).toBe(group.entries[0]!.id);
+    expect(second?.entry.id).toBe(group.entries[1]!.id);
+    expect(third?.entry.id).toBe(group.entries[0]!.id);
+    expect(second?.sourceGroupId).toBe(group.id);
+  });
+
+  it("resets group history when a save is loaded into a new play session", () => {
+    const project = createDefaultProjectBundle();
+    const group = project.dialogues.responseGroups[0]!;
+    project.scenes.items[0]!.hotspots[0]!.response = { type: "group", groupId: group.id };
+    const firstSession = createPlayerController(project, undefined, { random: () => 0 });
+
+    expect(firstSession.selectHotspot("hotspot_inspect", 1000).response?.entry.id).toBe(group.entries[0]!.id);
+    const secondSession = createPlayerController(project, firstSession.save(), { random: () => 0 });
+    expect(secondSession.selectHotspot("hotspot_inspect", 1000).response?.entry.id).toBe(group.entries[0]!.id);
+  });
+
+  it("plays a specifically assigned response and lets dialogue take precedence over responses", () => {
+    const project = createDefaultProjectBundle();
+    const entry = project.dialogues.responseGroups[0]!.entries[2]!;
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.response = { type: "entry", entryId: entry.id };
+    const directController = createPlayerController(project);
+    expect(directController.selectHotspot(hotspot.id, 1000).response?.entry.id).toBe(entry.id);
+
+    project.dialogues.items.push({
+      id: "dialogue_test",
+      name: "Test",
+      startNodeId: "node_test",
+      nodes: [{ id: "node_test", speaker: "NPC", textId: "text.node_test", choices: [], effects: [] }]
+    });
+    hotspot.dialogueTreeId = "dialogue_test";
+    const dialogueController = createPlayerController(project);
+    const resolution = dialogueController.selectHotspot(hotspot.id, 1000);
+    expect(resolution.startedDialogueTreeId).toBe("dialogue_test");
+    expect(resolution.response).toBeUndefined();
+  });
+
   it("activates hotspots inside their timing window", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({
@@ -117,6 +176,44 @@ describe("player controller", () => {
     controller.selectHotspot(project.scenes.items[0]!.hotspots[0]!.id, 1000);
 
     expect(controller.getSnapshot().flags.lanternSeen).toBe(true);
+  });
+
+  it("executes explicit hotspot interaction events without running the primary event", () => {
+    const project = createDefaultProjectBundle();
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.effects = [{ type: "setFlag", flag: "cabinet.opened", value: true }];
+    hotspot.clickEvent = {
+      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+    };
+    hotspot.otherItemEvent = {
+      effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+    };
+    const controller = createPlayerController(project);
+
+    expect(controller.selectHotspotEvent(hotspot.id, "click", 1000)).toEqual({});
+    expect(controller.getSnapshot().flags).toMatchObject({ "cabinet.examined": true });
+    expect(controller.getSnapshot().flags["cabinet.opened"]).toBeUndefined();
+
+    expect(controller.selectHotspotEvent(hotspot.id, "otherItem", 1000)).toEqual({});
+    expect(controller.getSnapshot().flags).toMatchObject({ "cabinet.wrongItem": true });
+
+    controller.selectHotspot(hotspot.id, 1000);
+    expect(controller.getSnapshot().flags).toMatchObject({
+      "cabinet.examined": true,
+      "cabinet.wrongItem": true,
+      "cabinet.opened": true
+    });
+  });
+
+  it("keeps hotspots silent when an interaction event is not authored", () => {
+    const project = createDefaultProjectBundle();
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    const controller = createPlayerController(project);
+    const before = controller.save();
+
+    expect(controller.selectHotspotEvent(hotspot.id, "click", 1000)).toEqual({});
+    expect(controller.selectHotspotEvent(hotspot.id, "otherItem", 1000)).toEqual({});
+    expect(controller.save()).toEqual(before);
   });
 
   it("adds newly picked up inventory items before older items", () => {

@@ -269,7 +269,8 @@ describe("collectAssetReferenceSummary", () => {
     expect(summary).toEqual({
       sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
       sceneAudioAssignments: [],
-      inventoryImages: []
+      inventoryImages: [],
+      responseEntries: []
     });
   });
 
@@ -286,7 +287,8 @@ describe("collectAssetReferenceSummary", () => {
     expect(collectAssetReferenceSummary(project, sceneAudioAsset.id)).toEqual({
       sceneBackgrounds: [],
       sceneAudioAssignments: [{ sceneId: scene.id, sceneName: scene.name }],
-      inventoryImages: []
+      inventoryImages: [],
+      responseEntries: []
     });
   });
 });
@@ -404,6 +406,13 @@ describe("removeSceneFromProject", () => {
       { type: "setFlag", flag: "opened", value: true },
       { type: "goToScene", sceneId: deletedScene.id }
     ];
+    hotspot.clickEvent = {
+      targetSceneId: deletedScene.id,
+      effects: [
+        { type: "setFlag", flag: "examined", value: true },
+        { type: "goToScene", sceneId: deletedScene.id }
+      ]
+    };
     sourceScene.onEnterEffects = [
       { type: "goToScene", sceneId: deletedScene.id },
       { type: "setFlag", flag: "entered", value: true }
@@ -451,11 +460,11 @@ describe("removeSceneFromProject", () => {
     expect(summary).toMatchObject({
       isStartScene: true,
       locationReferenceCount: 1,
-      hotspotTargetReferenceCount: 1,
+      hotspotTargetReferenceCount: 2,
       sceneVisitedConditionCount: 2,
-      goToSceneEffectCount: 5
+      goToSceneEffectCount: 6
     });
-    expect(countSceneReferences(summary)).toBe(10);
+    expect(countSceneReferences(summary)).toBe(12);
 
     const result = removeSceneFromProject(project, deletedScene.id, { mode: "cleanup" });
 
@@ -470,6 +479,10 @@ describe("removeSceneFromProject", () => {
     expect(sourceScene.hotspots[0].targetSceneId).toBeUndefined();
     expect(sourceScene.hotspots[0].conditions).toEqual([{ type: "always" }]);
     expect(sourceScene.hotspots[0].effects).toEqual([{ type: "setFlag", flag: "opened", value: true }]);
+    expect(sourceScene.hotspots[0].clickEvent).toEqual({
+      targetSceneId: undefined,
+      effects: [{ type: "setFlag", flag: "examined", value: true }]
+    });
     expect(project.dialogues.items[0].nodes[0].effects).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].conditions).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([]);
@@ -494,6 +507,10 @@ describe("removeSceneFromProject", () => {
     hotspot.targetSceneId = deletedScene.id;
     hotspot.conditions = [{ type: "sceneVisited", sceneId: deletedScene.id }];
     hotspot.effects = [{ type: "goToScene", sceneId: deletedScene.id }];
+    hotspot.otherItemEvent = {
+      targetSceneId: deletedScene.id,
+      effects: [{ type: "goToScene", sceneId: deletedScene.id }]
+    };
     sourceScene.onEnterEffects = [{ type: "goToScene", sceneId: deletedScene.id }];
     sourceScene.onExitEffects = [{ type: "goToScene", sceneId: deletedScene.id }];
 
@@ -539,6 +556,10 @@ describe("removeSceneFromProject", () => {
     expect(result.removedTextIds).toEqual([]);
     expect(project.manifest.startSceneId).toBe(replacementScene.id);
     expect(project.manifest.startLocationId).toBe(replacementScene.locationId);
+    expect(hotspot.otherItemEvent).toEqual({
+      targetSceneId: replacementScene.id,
+      effects: [{ type: "goToScene", sceneId: replacementScene.id }]
+    });
     expect(project.locations.items.find((location) => location.id === deletedScene.locationId)?.sceneIds).toEqual([sourceScene.id]);
     expect(project.locations.items.find((location) => location.id === replacementScene.locationId)?.sceneIds).toEqual([
       replacementScene.id

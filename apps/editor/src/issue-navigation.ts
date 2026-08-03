@@ -79,9 +79,37 @@ export function resolveIssueNavigation(
       };
     }
 
+    const responseGroup = project.dialogues.responseGroups.find((entry) => entry.id === entityId);
+    if (responseGroup) {
+      return {
+        label: responseGroup.name,
+        tab: "dialogue",
+        dialogueSection: "responses",
+        responseGroupId: responseGroup.id,
+        responseEntryId: responseGroup.entries[0]?.id
+      };
+    }
+
+    for (const group of project.dialogues.responseGroups) {
+      const responseEntry = group.entries.find((entry) => entry.id === entityId);
+      if (responseEntry) {
+        return {
+          label: group.name,
+          tab: "dialogue",
+          dialogueSection: "responses",
+          responseGroupId: group.id,
+          responseEntryId: responseEntry.id
+        };
+      }
+    }
+
     const asset = project.assets.assets.find((entry) => entry.id === entityId);
     if (asset) {
-      if (issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" || issue.code === "SCENE_AUDIO_LOCALE_MISSING") {
+      if (
+        issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" ||
+        issue.code === "SCENE_AUDIO_LOCALE_MISSING" ||
+        issue.code === "RESPONSE_MEDIA_LOCALE_MISSING"
+      ) {
         return {
           label: asset.name,
           tab: "localization",
@@ -156,6 +184,7 @@ export function resolveIssueNavigation(
     case "SCENE_BACKGROUND_LOCALE_MISSING":
     case "SCENE_AUDIO_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
+    case "RESPONSE_MEDIA_LOCALE_MISSING":
       return {
         label: "localized media",
         tab: "localization",
@@ -171,6 +200,19 @@ export function resolveIssueNavigation(
       return {
         label: "dialogue",
         tab: "dialogue"
+      };
+    case "RESPONSE_GROUP_EMPTY":
+    case "RESPONSE_GROUP_ID_DUPLICATE":
+    case "RESPONSE_ENTRY_ID_DUPLICATE":
+    case "RESPONSE_MEDIA_UNASSIGNED":
+    case "RESPONSE_MEDIA_MISSING":
+    case "RESPONSE_MEDIA_KIND_INVALID":
+      return {
+        label: "responses",
+        tab: "dialogue",
+        dialogueSection: "responses",
+        responseGroupId: issue.entityId,
+        responseEntryId: issue.entityId
       };
     case "HOTSPOT_ITEM_MISSING":
     case "HOTSPOT_INVENTORY_ITEM_MISSING":
@@ -242,7 +284,20 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "SCENE_BACKGROUND_LOCALE_MISSING":
     case "SCENE_AUDIO_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
+    case "RESPONSE_MEDIA_LOCALE_MISSING":
       return "Add or replace the missing locale media variant in Localization > Media.";
+    case "RESPONSE_TEXT_MISSING":
+      return "Add the missing response text in Localization > Strings or Dialogue > Responses.";
+    case "RESPONSE_GROUP_EMPTY":
+    case "RESPONSE_MEDIA_UNASSIGNED":
+    case "RESPONSE_MEDIA_MISSING":
+    case "RESPONSE_MEDIA_KIND_INVALID":
+      return "Open Dialogue > Responses and complete the response entry before exporting.";
+    case "RESPONSE_GROUP_MISSING":
+    case "RESPONSE_GROUP_ASSIGNED_EMPTY":
+    case "RESPONSE_ENTRY_MISSING":
+    case "PLAYER_FEEDBACK_CONFLICT":
+      return "Open the hotspot in Scenes and choose one valid Player feedback option.";
     case "SCENE_BACKGROUND_MISSING":
     case "SCENE_BACKGROUND_CATEGORY_INVALID":
     case "SCENE_BACKGROUND_KIND_INVALID":

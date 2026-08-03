@@ -15,6 +15,7 @@
     "paths": {
       "@mage2/schema": ["packages/schema/src/index.ts"],
       "@mage2/player": ["packages/player/src/index.ts"],
+      "@mage2/player-ui": ["packages/player-ui/src/index.ts"],
       "@mage2/media": ["packages/media/src/index.ts"]
     },
     "types": ["node"]

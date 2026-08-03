@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultProjectBundle,
+  CURRENT_SCHEMA_VERSION,
   createInitialSaveState,
+  collectSceneLinks,
   parseProjectBundle,
   resolveAssetCategory,
   resolveHotspotBounds,
@@ -10,6 +12,7 @@ import {
   resolveRelativeHotspotContentBox,
   resolveRelativeHotspotFrame,
   resolveRelativeHotspotVisualBox,
+  toExportProjectData,
   validateProject
 } from "./index";
 
@@ -169,7 +172,7 @@ describe("project defaults", () => {
       strings: { schemaVersion: 5, byLocale: { en: {} } }
     });
 
-    expect(parsed.manifest.schemaVersion).toBe(8);
+    expect(parsed.manifest.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
     expect(parsed.scenes.items[0]?.hotspots[0]?.timingMode).toBe("fixed");
   });
@@ -200,6 +203,177 @@ describe("project defaults", () => {
     const parsed = parseProjectBundle(project);
 
     expect(parsed.scenes.items[0]?.hotspots[0]?.inventoryItemId).toBe("item_lantern");
+  });
+
+  it("seeds editable response groups and polished starter text without enabling extra locales", () => {
+    const project = createDefaultProjectBundle();
+
+    expect(project.dialogues.responseGroups.map((group) => group.name)).toEqual([
+      "Wrong item",
+      "Missing prerequisite",
+      "Already completed",
+      "No effect"
+    ]);
+    expect(project.dialogues.responseGroups.every((group) => group.entries.length === 4)).toBe(true);
+    expect(project.manifest.supportedLocales).toEqual(["en"]);
+    expect(project.strings.byLocale.en?.["text.response.starter.wrong_item.1"]).toBe("I can't use that here.");
+    expect(project.strings.byLocale.fr?.["text.response.starter.wrong_item.1"]).toBe("Je ne peux pas utiliser ça ici.");
+    expect(project.strings.byLocale["zh-Hans"]?.["text.response.starter.no_effect.1"]).toBe("什么也没发生。");
+    expect(project.strings.byLocale.ja?.["text.response.starter.already_completed.1"]).toBe("もう済んでいる。");
+    expect(project.strings.byLocale.ko?.["text.response.starter.missing_prerequisite.1"]).toBe("뭔가 부족하다.");
+    expect(project.strings.byLocale.ar?.["text.response.starter.no_effect.1"]).toBe("لا يحدث شيء.");
+  });
+
+  it("migrates existing projects once without assigning fallback behavior", () => {
+    const project = createDefaultProjectBundle();
+    project.dialogues = {
+      schemaVersion: project.dialogues.schemaVersion,
+      items: []
+    } as typeof project.dialogues;
+    project.scenes.items[0]!.hotspots[0]!.response = undefined;
+
+    const migrated = parseProjectBundle(project);
+    expect(migrated.dialogues.responseGroups).toHaveLength(4);
+    expect(migrated.dialogues.starterResponsesVersion).toBe(1);
+    expect(migrated.scenes.items[0]!.hotspots[0]!.response).toBeUndefined();
+
+    migrated.dialogues.responseGroups = [];
+    const reopened = parseProjectBundle(migrated);
+    expect(reopened.dialogues.responseGroups).toEqual([]);
+  });
+
+  it("exports the response library and validates assigned response media", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_response_audio",
+      name: "response.mp3",
+      kind: "audio",
+      category: "response",
+      variants: {
+        en: { sourcePath: "response.mp3", importedAt: new Date().toISOString() }
+      }
+    });
+    project.dialogues.responseGroups.push({
+      id: "response_group_audio",
+      name: "Audio",
+      entries: [{ id: "response_audio", kind: "audio", assetId: "asset_response_audio" }]
+    });
+    project.scenes.items[0]!.hotspots[0]!.response = { type: "group", groupId: "response_group_audio" };
+
+    const exported = toExportProjectData(project);
+    expect(exported.responseGroups?.at(-1)?.id).toBe("response_group_audio");
+    expect(exported.starterResponsesVersion).toBe(1);
+    expect(validateProject(project).issues.some((issue) => issue.code.startsWith("RESPONSE_"))).toBe(false);
+
+    project.dialogues.responseGroups.at(-1)!.entries[0] = {
+      id: "response_audio",
+      kind: "video",
+      assetId: "asset_response_audio"
+    };
+    expect(validateProject(project).issues.map((issue) => issue.code)).toContain("RESPONSE_MEDIA_KIND_INVALID");
+  });
+
+  it("round-trips explicit optional hotspot interaction events", () => {
+    const project = createDefaultProjectBundle("Interaction events");
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.clickEvent = {
+      dialogueTreeId: "dialogue_locked",
+      targetSceneId: "scene_locked",
+      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+    };
+    hotspot.otherItemEvent = {
+      effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+    };
+
+    const parsed = parseProjectBundle(project);
+
+    expect(parsed.manifest.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(parsed.scenes.items[0]?.hotspots[0]?.clickEvent).toEqual(hotspot.clickEvent);
+    expect(parsed.scenes.items[0]?.hotspots[0]?.otherItemEvent).toEqual(hotspot.otherItemEvent);
+    expect(toExportProjectData(parsed).scenes[0]?.hotspots[0]?.clickEvent).toEqual(hotspot.clickEvent);
+    expect(toExportProjectData(parsed).scenes[0]?.hotspots[0]?.otherItemEvent).toEqual(hotspot.otherItemEvent);
+  });
+
+  it("migrates a legacy Otherwise event according to the hotspot interaction type", () => {
+    const normalProject = createDefaultProjectBundle("Normal migration");
+    const normalHotspot = normalProject.scenes.items[0]!.hotspots[0]!;
+    Object.assign(normalHotspot as unknown as Record<string, unknown>, {
+      otherwise: {
+        dialogueTreeId: "dialogue_locked",
+        effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+      }
+    });
+
+    const parsedNormal = parseProjectBundle(normalProject);
+    const migratedNormal = parsedNormal.scenes.items[0]!.hotspots[0]!;
+    expect(migratedNormal.dialogueTreeId).toBe("dialogue_locked");
+    expect(migratedNormal.effects).toEqual([{ type: "setFlag", flag: "cabinet.examined", value: true }]);
+    expect(migratedNormal.otherItemEvent).toEqual({
+      dialogueTreeId: "dialogue_locked",
+      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+    });
+    expect(migratedNormal).not.toHaveProperty("otherwise");
+
+    const placementProject = createDefaultProjectBundle("Placement migration");
+    const placementHotspot = placementProject.scenes.items[0]!.hotspots[0]!;
+    placementHotspot.placedInventoryItemId = "item_key";
+    placementHotspot.requiredItemIds = ["item_key"];
+    placementHotspot.effects = [{ type: "removeItem", itemId: "item_key" }];
+    Object.assign(placementHotspot as unknown as Record<string, unknown>, {
+      otherwise: {
+        dialogueTreeId: "dialogue_locked",
+        effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+      }
+    });
+
+    const migratedPlacement = parseProjectBundle(placementProject).scenes.items[0]!.hotspots[0]!;
+    expect(migratedPlacement.clickEvent).toEqual(migratedPlacement.otherItemEvent);
+    expect(migratedPlacement.clickEvent?.dialogueTreeId).toBe("dialogue_locked");
+    expect(migratedPlacement.effects).toEqual([{ type: "removeItem", itemId: "item_key" }]);
+    expect(migratedPlacement).not.toHaveProperty("otherwise");
+
+    const emptyProject = createDefaultProjectBundle("Empty migration");
+    Object.assign(emptyProject.scenes.items[0]!.hotspots[0]! as unknown as Record<string, unknown>, {
+      otherwise: { effects: [] }
+    });
+    const emptyHotspot = parseProjectBundle(emptyProject).scenes.items[0]!.hotspots[0]!;
+    expect(emptyHotspot).not.toHaveProperty("clickEvent");
+    expect(emptyHotspot).not.toHaveProperty("otherItemEvent");
+  });
+
+  it("includes interaction-event navigation in scene links and validates its references", () => {
+    const project = createDefaultProjectBundle("Interaction event references");
+    const scene = project.scenes.items[0]!;
+    scene.hotspots[0]!.clickEvent = {
+      targetSceneId: "scene_click_missing",
+      dialogueTreeId: "dialogue_click_missing",
+      effects: [
+        { type: "goToScene", sceneId: "scene_click_effect_missing" },
+        { type: "addItem", itemId: "item_missing" }
+      ]
+    };
+    scene.hotspots[0]!.otherItemEvent = {
+      targetSceneId: "scene_other_missing",
+      dialogueTreeId: "dialogue_other_missing",
+      effects: [{ type: "goToScene", sceneId: "scene_other_effect_missing" }]
+    };
+
+    expect(collectSceneLinks(scene)).toEqual(
+      expect.arrayContaining([
+        "scene_click_missing",
+        "scene_click_effect_missing",
+        "scene_other_missing",
+        "scene_other_effect_missing"
+      ])
+    );
+
+    const codes = validateProject(project).issues.map((issue) => issue.code);
+    expect(codes).toContain("HOTSPOT_CLICK_TARGET_SCENE_MISSING");
+    expect(codes).toContain("HOTSPOT_CLICK_DIALOGUE_MISSING");
+    expect(codes).toContain("HOTSPOT_OTHER_ITEM_TARGET_SCENE_MISSING");
+    expect(codes).toContain("HOTSPOT_OTHER_ITEM_DIALOGUE_MISSING");
+    expect(codes).toContain("EFFECT_SCENE_MISSING");
+    expect(codes).toContain("EFFECT_ITEM_MISSING");
   });
 });
 

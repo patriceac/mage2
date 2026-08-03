@@ -14,6 +14,7 @@ import {
   resolvePlaytestInventorySummary,
   resolvePlaytestInventoryToggleLabel,
   resolvePlaytestInventoryItemTooltip,
+  resolvePlaytestPlayerCopy,
   resolvePlaytestStageHudClassName,
   resolvePlaytestVisualDurationMs,
   resolveStoredPlaytestLocale,
@@ -82,6 +83,8 @@ describe("resolveInventoryCursorPreviewFrameStyle", () => {
 });
 
 describe("PlaytestInventoryTray", () => {
+  const copy = resolvePlaytestPlayerCopy("en");
+
   it("uses compact fallback initials for inventory items without art", () => {
     expect(resolvePlaytestInventoryItemInitial(" red potion ")).toBe("R");
     expect(resolvePlaytestInventoryItemInitial("")).toBe("?");
@@ -112,15 +115,15 @@ describe("PlaytestInventoryTray", () => {
   });
 
   it("marks the playtest HUD as click-catching only while the inventory drawer is open", () => {
-    expect(resolvePlaytestStageHudClassName(false, false)).toBe("playtest-stage__hud");
+    expect(resolvePlaytestStageHudClassName(false, false)).toBe("mage2-player__hud");
     expect(resolvePlaytestStageHudClassName(true, false)).toBe(
-      "playtest-stage__hud playtest-stage__hud--dialogue"
+      "mage2-player__hud mage2-player__hud--dialogue"
     );
     expect(resolvePlaytestStageHudClassName(false, true)).toBe(
-      "playtest-stage__hud playtest-stage__hud--inventory-open"
+      "mage2-player__hud mage2-player__hud--inventory-open"
     );
     expect(resolvePlaytestStageHudClassName(true, true)).toBe(
-      "playtest-stage__hud playtest-stage__hud--dialogue playtest-stage__hud--inventory-open"
+      "mage2-player__hud mage2-player__hud--dialogue mage2-player__hud--inventory-open"
     );
   });
 
@@ -129,18 +132,20 @@ describe("PlaytestInventoryTray", () => {
       React.createElement(PlaytestInventoryTray, {
         items: [],
         isExpanded: false,
+        bagIconUrl: "bag.png",
+        copy,
         onExpandedChange: () => undefined,
         onSelectItem: () => undefined
       })
     );
 
-    expect(markup).toContain("playtest-inventory-tray");
-    expect(markup).toContain("playtest-inventory-toggle");
-    expect(markup).toContain("playtest-inventory-toggle__icon");
-    expect(markup).toContain("playtest-inventory-toggle__badge");
+    expect(markup).toContain("mage2-player__inventory");
+    expect(markup).toContain("mage2-player__inventory-toggle");
+    expect(markup).toContain("mage2-player__inventory-bag");
+    expect(markup).toContain("mage2-player__inventory-count");
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).toContain("playtest-inventory-tray__drawer");
-    expect(markup).toContain("playtest-inventory-tray__empty");
+    expect(markup).toContain("mage2-player__inventory-drawer");
+    expect(markup).toContain("mage2-player__inventory-empty");
     expect(markup).not.toContain("playtest-inventory-tray__ghost-slots");
     expect(markup).not.toContain("<h3>Inventory</h3>");
     expect(markup).toContain("Empty");
@@ -161,14 +166,16 @@ describe("PlaytestInventoryTray", () => {
           }
         ],
         isExpanded: false,
+        bagIconUrl: "bag.png",
+        copy,
         onExpandedChange: () => undefined,
         onSelectItem: () => undefined
       })
     );
 
-    expect(markup).toContain("playtest-inventory-slot--selected");
-    expect(markup).toContain("playtest-inventory-toggle--selected");
-    expect(markup).not.toContain("playtest-inventory-tray--expanded");
+    expect(markup).toContain("mage2-player__inventory-slot--selected");
+    expect(markup).toContain("mage2-player__inventory-toggle--selected");
+    expect(markup).not.toContain("mage2-player__inventory--expanded");
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('aria-label="Open inventory (1 item)"');
     expect(markup).not.toContain("playtest-inventory-slot--ghost");
@@ -185,19 +192,6 @@ describe("PlaytestInventoryTray", () => {
     expect(markup).not.toContain("matching hotspot");
   });
 
-  it("renders transient inventory feedback when provided", () => {
-    const markup = renderToStaticMarkup(
-      React.createElement(PlaytestInventoryTray, {
-        items: [],
-        hint: "Not here.",
-        isExpanded: false,
-        onExpandedChange: () => undefined,
-        onSelectItem: () => undefined
-      })
-    );
-
-    expect(markup).toContain("Not here.");
-  });
 });
 
 describe("PlaytestPanel toolbar", () => {
@@ -235,10 +229,10 @@ describe("PlaytestPanel toolbar", () => {
     const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project, onExit: () => undefined }));
 
     expect(markup).toContain("playtest-stage");
-    expect(markup).toContain("media-surface--playtest");
-    expect(markup).toContain("playtest-stage__hud");
-    expect(markup).toContain("playtest-stage__inventory");
-    expect(markup).toContain("playtest-inventory-tray");
+    expect(markup).toContain("playtest-shared-renderer");
+    expect(markup).toContain("mage2-player__hud");
+    expect(markup).toContain("mage2-player__inventory-anchor");
+    expect(markup).toContain("mage2-player__inventory");
     expect(markup).toContain("Runtime State");
     expect(markup).not.toContain("playtest-inventory-section");
     expect(markup).not.toContain("playtest-inventory-panel");
@@ -266,16 +260,17 @@ describe("PlaytestDialogueBox", () => {
           choices: node.choices
         },
         strings,
+        copy: resolvePlaytestPlayerCopy("en"),
         onChoice: () => undefined,
         onContinue: () => undefined
       })
     );
 
-    expect(markup).toContain("dialogue-box--playtest-scene");
-    expect(markup).toContain("dialogue-box__speaker");
-    expect(markup).toContain("dialogue-box__text");
-    expect(markup).toContain("dialogue-box__choices");
-    expect(markup).toContain("dialogue-box__choice-marker");
+    expect(markup).toContain("mage2-player__dialogue");
+    expect(markup).toContain("mage2-player__dialogue-speaker");
+    expect(markup).toContain("mage2-player__dialogue-text");
+    expect(markup).toContain("mage2-player__dialogue-choices");
+    expect(markup).toContain("mage2-player__dialogue-choice-marker");
     expect(markup).toContain("Hero");
     expect(markup).toContain("Opening line");
     expect(markup).toContain(">A</span>");
@@ -295,13 +290,14 @@ describe("PlaytestDialogueBox", () => {
           choices: []
         },
         strings: project.strings.byLocale[project.manifest.defaultLanguage],
+        copy: resolvePlaytestPlayerCopy("en"),
         onChoice: () => undefined,
         onContinue: () => undefined
       })
     );
 
     expect(markup).toContain("Narrator");
-    expect(markup).toContain("dialogue-box__continue");
+    expect(markup).toContain("mage2-player__dialogue-continue");
   });
 
   it("blocks map hotspot clicks while dialogue is active", () => {
@@ -310,6 +306,7 @@ describe("PlaytestDialogueBox", () => {
   });
 
   it("blocks non-matching hotspot clicks while an inventory item is selected", () => {
+    expect(shouldHandlePlaytestHotspotClick(false, undefined, { type: "placeItem", itemId: "item_potion" })).toBe(false);
     expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "none" })).toBe(false);
     expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "pickupItem", itemId: "item_key" })).toBe(false);
     expect(shouldHandlePlaytestHotspotClick(false, "item_potion", { type: "placeItem", itemId: "item_key" })).toBe(false);

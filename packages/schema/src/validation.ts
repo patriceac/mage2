@@ -2,6 +2,7 @@ import {
   type Condition,
   type DialogueTree,
   type Effect,
+  type HotspotEvent,
   type ProjectBundle,
   type Scene,
   type ValidationIssue,
@@ -20,6 +21,18 @@ export function collectSceneLinks(scene: Scene): string[] {
     for (const effect of hotspot.effects) {
       if (effect.type === "goToScene") {
         links.add(effect.sceneId);
+      }
+    }
+
+    for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
+      if (event?.targetSceneId) {
+        links.add(event.targetSceneId);
+      }
+
+      for (const effect of event?.effects ?? []) {
+        if (effect.type === "goToScene") {
+          links.add(effect.sceneId);
+        }
       }
     }
   }
@@ -88,6 +101,8 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   for (const dialogue of project.dialogues.items) {
     validateDialogue(project, dialogue, supportedLocales, sceneIds, inventoryIds, dialogueIds, issues);
   }
+
+  validateResponseLibrary(project, supportedLocales, assetsById, issues);
 
   for (const item of project.inventory.items) {
     validateInventoryItem(project, item, supportedLocales, assetsById, issues);
@@ -304,6 +319,31 @@ function validateScene(
       });
     }
 
+    validateResponseSelection(project, hotspot, "Hotspot", hotspot.id, issues);
+
+    validateHotspotEventReferences(
+      project,
+      hotspot.clickEvent,
+      "On click",
+      "HOTSPOT_CLICK",
+      hotspot.id,
+      issues,
+      inventoryIds,
+      sceneIds,
+      dialogueIds
+    );
+    validateHotspotEventReferences(
+      project,
+      hotspot.otherItemEvent,
+      "Any other item",
+      "HOTSPOT_OTHER_ITEM",
+      hotspot.id,
+      issues,
+      inventoryIds,
+      sceneIds,
+      dialogueIds
+    );
+
     if (hotspot.inventoryItemId && !inventoryIds.has(hotspot.inventoryItemId)) {
       issues.push({
         level: "error",
@@ -338,6 +378,204 @@ function validateScene(
   validateConditionEffectRefs([], scene.onEnterEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
   validateConditionEffectRefs([], scene.onExitEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
 
+}
+
+function validateHotspotEventReferences(
+  project: ProjectBundle,
+  event: HotspotEvent | undefined,
+  eventLabel: string,
+  codePrefix: "HOTSPOT_CLICK" | "HOTSPOT_OTHER_ITEM",
+  hotspotId: string,
+  issues: ValidationIssue[],
+  inventoryIds: Set<string>,
+  sceneIds: Set<string>,
+  dialogueIds: Set<string>
+): void {
+  if (!event) {
+    return;
+  }
+
+  if (event.targetSceneId && !sceneIds.has(event.targetSceneId)) {
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_TARGET_SCENE_MISSING`,
+      message: `Hotspot '${hotspotId}' ${eventLabel} event targets missing scene '${event.targetSceneId}'.`,
+      entityId: hotspotId
+    });
+  }
+
+  if (event.dialogueTreeId && !dialogueIds.has(event.dialogueTreeId)) {
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_DIALOGUE_MISSING`,
+      message: `Hotspot '${hotspotId}' ${eventLabel} event targets missing dialogue tree '${event.dialogueTreeId}'.`,
+      entityId: hotspotId
+    });
+  }
+
+  validateResponseSelection(project, event, `Hotspot ${eventLabel.toLowerCase()} event`, hotspotId, issues);
+
+  validateConditionEffectRefs([], event.effects, issues, inventoryIds, sceneIds, dialogueIds, hotspotId);
+}
+
+function validateResponseLibrary(
+  project: ProjectBundle,
+  supportedLocales: string[],
+  assetsById: Map<string, ProjectBundle["assets"]["assets"][number]>,
+  issues: ValidationIssue[]
+): void {
+  const groupIds = new Set<string>();
+  const entryIds = new Set<string>();
+
+  for (const group of project.dialogues.responseGroups) {
+    if (groupIds.has(group.id)) {
+      issues.push({
+        level: "error",
+        code: "RESPONSE_GROUP_ID_DUPLICATE",
+        message: `Response group ID '${group.id}' is used more than once.`,
+        entityId: group.id
+      });
+    }
+    groupIds.add(group.id);
+
+    if (group.entries.length === 0) {
+      issues.push({
+        level: "warning",
+        code: "RESPONSE_GROUP_EMPTY",
+        message: `Response group '${group.name}' has no entries.`,
+        entityId: group.id
+      });
+    }
+
+    for (const entry of group.entries) {
+      if (entryIds.has(entry.id)) {
+        issues.push({
+          level: "error",
+          code: "RESPONSE_ENTRY_ID_DUPLICATE",
+          message: `Response entry ID '${entry.id}' is used more than once.`,
+          entityId: entry.id
+        });
+      }
+      entryIds.add(entry.id);
+
+      if (entry.kind === "text") {
+        validateLocalizedTextCoverage(
+          project,
+          supportedLocales,
+          entry.textId,
+          "error",
+          "RESPONSE_TEXT_MISSING",
+          `Response entry '${entry.id}' references missing text`,
+          entry.id,
+          issues
+        );
+        continue;
+      }
+
+      if (!entry.assetId) {
+        issues.push({
+          level: "error",
+          code: "RESPONSE_MEDIA_UNASSIGNED",
+          message: `Response entry '${entry.id}' does not have a ${entry.kind} asset assigned.`,
+          entityId: entry.id
+        });
+        continue;
+      }
+
+      const asset = assetsById.get(entry.assetId);
+      if (!asset) {
+        issues.push({
+          level: "error",
+          code: "RESPONSE_MEDIA_MISSING",
+          message: `Response entry '${entry.id}' references missing asset '${entry.assetId}'.`,
+          entityId: entry.id
+        });
+        continue;
+      }
+
+      if (asset.kind !== entry.kind) {
+        issues.push({
+          level: "error",
+          code: "RESPONSE_MEDIA_KIND_INVALID",
+          message: `Response entry '${entry.id}' requires ${entry.kind}, but asset '${asset.id}' is '${asset.kind}'.`,
+          entityId: entry.id
+        });
+      }
+
+      for (const locale of supportedLocales) {
+        if (resolveAssetVariant(asset, locale)) {
+          continue;
+        }
+        issues.push({
+          level: "error",
+          code: "RESPONSE_MEDIA_LOCALE_MISSING",
+          message: `Asset '${asset.id}' is missing a '${locale}' variant for response '${entry.id}'.`,
+          entityId: asset.id,
+          locale
+        });
+      }
+    }
+  }
+}
+
+function validateResponseSelection(
+  project: ProjectBundle,
+  event: Pick<HotspotEvent, "dialogueTreeId" | "response" | "effects">,
+  eventLabel: string,
+  entityId: string,
+  issues: ValidationIssue[]
+): void {
+  const response = event.response;
+  if (!response) {
+    return;
+  }
+
+  const startsDialogue = Boolean(
+    event.dialogueTreeId || event.effects.some((effect) => effect.type === "playDialogue")
+  );
+  if (startsDialogue) {
+    issues.push({
+      level: "error",
+      code: "PLAYER_FEEDBACK_CONFLICT",
+      message: `${eventLabel} '${entityId}' cannot start a dialogue and present a response at the same time.`,
+      entityId
+    });
+  }
+
+  if (response.type === "group") {
+    const group = project.dialogues.responseGroups.find((candidate) => candidate.id === response.groupId);
+    if (!group) {
+      issues.push({
+        level: "error",
+        code: "RESPONSE_GROUP_MISSING",
+        message: `${eventLabel} '${entityId}' references missing response group '${response.groupId}'.`,
+        entityId
+      });
+      return;
+    }
+
+    if (group.entries.length === 0) {
+      issues.push({
+        level: "error",
+        code: "RESPONSE_GROUP_ASSIGNED_EMPTY",
+        message: `${eventLabel} '${entityId}' references response group '${group.name}', which has no entries.`,
+        entityId
+      });
+    }
+    return;
+  }
+
+  const entryExists = project.dialogues.responseGroups.some((group) =>
+    group.entries.some((entry) => entry.id === response.entryId)
+  );
+  if (!entryExists) {
+    issues.push({
+      level: "error",
+      code: "RESPONSE_ENTRY_MISSING",
+      message: `${eventLabel} '${entityId}' references missing response entry '${response.entryId}'.`,
+      entityId
+    });
+  }
 }
 
 function validateInventoryItem(

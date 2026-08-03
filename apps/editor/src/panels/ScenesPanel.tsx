@@ -20,6 +20,7 @@ import {
   getLocaleStringValues,
   buildHotspotPickupFlag,
   buildHotspotPlacementFlag,
+  hasHotspotEvent,
   resolveHotspotInventoryAction,
   resolvePlacedInventoryHotspotInstance,
   resolveHotspotRotationDegrees,
@@ -28,8 +29,10 @@ import {
   type Condition,
   type Effect,
   type Hotspot,
+  type HotspotEvent,
   type InventoryItem,
   type ProjectBundle,
+  type ResponseGroup,
   validateProject
 } from "@mage2/schema";
 import { resolveHotspotTimingWindow, resolveSceneTimelineDurationMs } from "@mage2/player";
@@ -2874,6 +2877,8 @@ export function ScenesPanel({
           anchorRef={scenesPanelRef}
           activeLocale={activeLocale}
           dialogueOptions={project.dialogues.items}
+          responseGroups={project.dialogues.responseGroups}
+          assets={project.assets.assets}
           localeStrings={localeStrings}
           inventoryItemOptions={linkedInventoryOptions}
           sceneTimelineDurationMs={sceneTimelineDurationMs}
@@ -3511,7 +3516,9 @@ function isTextEntryTarget(target: HTMLElement | undefined) {
 interface HotspotInspectorWindowProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   activeLocale: string;
+  assets: ProjectBundle["assets"]["assets"];
   dialogueOptions: ProjectBundle["dialogues"]["items"];
+  responseGroups: ProjectBundle["dialogues"]["responseGroups"];
   inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
@@ -3903,7 +3910,9 @@ function InventoryPlacementPickerWindow({
 function HotspotInspectorWindow({
   anchorRef,
   activeLocale,
+  assets,
   dialogueOptions,
+  responseGroups,
   inventoryItemOptions,
   localeStrings,
   position,
@@ -3975,6 +3984,14 @@ function HotspotInspectorWindow({
     : resolveHotspotRotationDegrees(selectedHotspot);
   const selectedHotspotTimingWindow = resolveHotspotTimingWindow(selectedHotspot, sceneTimelineDurationMs);
   const isUsingSceneDurationTiming = selectedHotspot.timingMode === "sceneDuration";
+  const inventoryAction = resolveHotspotInventoryAction(selectedHotspot);
+  const isPlacementHotspot = inventoryAction.type === "placeItem";
+  const placementItemLabel = inventoryAction.itemId
+    ? inventoryItemOptions
+        .find((option) => option.itemId === inventoryAction.itemId)
+        ?.label.replace(/ \(missing valid art\)$/u, "") ?? inventoryAction.itemId
+    : "configured item";
+  const primaryHotspotEventLabel = isPlacementHotspot ? `Use ${placementItemLabel}` : "On click";
 
   useEffect(() => {
     return () => {
@@ -4251,52 +4268,65 @@ function HotspotInspectorWindow({
               </label>
             </div>
             </details>
-            <details open className="scenes-floating-inspector__section">
-              <summary className="scenes-floating-inspector__section-title">Navigation</summary>
-            <label title="Scene that should open when this hotspot is activated.">
-              <span className="field-label--inset">Target Scene</span>
-              <DropdownSelect
-                value={selectedHotspot.targetSceneId ?? ""}
-                onChange={(event) =>
+            {isPlacementHotspot ? (
+              <HotspotEventSection
+                open
+                title="On click"
+                description="Runs only when the player clicks this hotspot without an inventory item selected. Leave every field empty for no response."
+                event={selectedHotspot.clickEvent ?? { effects: [] }}
+                scenes={scenes}
+                dialogueOptions={dialogueOptions}
+                responseGroups={responseGroups}
+                assets={assets}
+                localeStrings={localeStrings}
+                onChange={(mutator) =>
                   mutateSelectedHotspot((hotspot) => {
-                    hotspot.targetSceneId = event.target.value || undefined;
+                    updateOptionalHotspotEvent(hotspot, "clickEvent", mutator);
                   })
                 }
-              >
-                <option value="">None</option>
-                {scenes.map((scene) => (
-                  <option key={scene.id} value={scene.id}>
-                    {scene.name}
-                  </option>
-                ))}
-              </DropdownSelect>
-            </label>
-            <label title="Dialogue tree that should start when this hotspot is activated.">
-              <span className="field-label--inset">Start Dialogue</span>
-              <DropdownSelect
-                value={selectedHotspot.dialogueTreeId ?? ""}
-                onChange={(event) =>
+              />
+            ) : null}
+            <HotspotEventSection
+              open
+              title={primaryHotspotEventLabel}
+              description={
+                isPlacementHotspot
+                  ? `Runs only when ${placementItemLabel} is selected and used on this hotspot.`
+                  : "Runs when the player clicks this hotspot without an inventory item selected."
+              }
+              event={selectedHotspot}
+              scenes={scenes}
+              dialogueOptions={dialogueOptions}
+              responseGroups={responseGroups}
+              assets={assets}
+              localeStrings={localeStrings}
+              onChange={(mutator) =>
+                mutateSelectedHotspot((hotspot) => {
+                  mutator(hotspot);
+                })
+              }
+            />
+            {isPlacementHotspot || selectedHotspot.otherItemEvent ? (
+              <HotspotEventSection
+                title={isPlacementHotspot ? "Any other item" : "Use any item"}
+                description={
+                  isPlacementHotspot
+                    ? `Runs only when the player uses a selected item other than ${placementItemLabel}. Leave every field empty for no response.`
+                    : "Runs when the player uses any selected inventory item on this hotspot. Leave every field empty for no response."
+                }
+                event={selectedHotspot.otherItemEvent ?? { effects: [] }}
+                scenes={scenes}
+                dialogueOptions={dialogueOptions}
+                responseGroups={responseGroups}
+                assets={assets}
+                localeStrings={localeStrings}
+                onChange={(mutator) =>
                   mutateSelectedHotspot((hotspot) => {
-                    hotspot.dialogueTreeId = event.target.value || undefined;
+                    updateOptionalHotspotEvent(hotspot, "otherItemEvent", mutator);
                   })
                 }
-              >
-                <option value="">No dialogue</option>
-                {selectedHotspot.dialogueTreeId &&
-                !dialogueOptions.some((dialogue) => dialogue.id === selectedHotspot.dialogueTreeId) ? (
-                  <option value={selectedHotspot.dialogueTreeId}>Missing dialogue</option>
-                ) : null}
-                {dialogueOptions.map((dialogue) => (
-                  <option key={dialogue.id} value={dialogue.id}>
-                    {dialogue.name}
-                  </option>
-                ))}
-              </DropdownSelect>
-              {dialogueOptions.length === 0 ? (
-                <span className="muted">Create a dialogue in the Dialogue tab, then choose it here.</span>
-              ) : null}
-            </label>
-            </details>
+              />
+            ) : null}
             <details className="scenes-floating-inspector__section scenes-floating-inspector__section--advanced">
               <summary className="scenes-floating-inspector__section-title">Advanced</summary>
             <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
@@ -4324,23 +4354,194 @@ function HotspotInspectorWindow({
                 })
               }
             />
-            <JsonField
-              label="Advanced Effects JSON"
-              value={JSON.stringify(selectedHotspot.effects, null, 2)}
-              tooltip="Custom effect list that runs after this hotspot is activated. Use Start Dialogue above for normal dialogue triggers."
-              labelClassName="field-label--inset"
-              onCommit={(nextValue) =>
-                mutateSelectedHotspot((hotspot) => {
-                  hotspot.effects = parseJson(nextValue, hotspot.effects);
-                })
-              }
-            />
             </details>
           </div>
         </div>
       </aside>
     </div>
   );
+}
+
+interface HotspotEventSectionProps {
+  title: string;
+  description: string;
+  event: HotspotEvent;
+  scenes: ProjectBundle["scenes"]["items"];
+  assets: ProjectBundle["assets"]["assets"];
+  dialogueOptions: ProjectBundle["dialogues"]["items"];
+  responseGroups: ProjectBundle["dialogues"]["responseGroups"];
+  localeStrings: Record<string, string>;
+  open?: boolean;
+  onChange: (mutator: (event: HotspotEvent) => void) => void;
+}
+
+function HotspotEventSection({
+  title,
+  description,
+  event,
+  scenes,
+  assets,
+  dialogueOptions,
+  responseGroups,
+  localeStrings,
+  open,
+  onChange
+}: HotspotEventSectionProps) {
+  const feedbackValue = resolveHotspotFeedbackValue(event);
+  const feedbackOptions = buildHotspotFeedbackOptions(responseGroups, dialogueOptions, assets, localeStrings);
+  return (
+    <details open={open} className="scenes-floating-inspector__section">
+      <summary className="scenes-floating-inspector__section-title">{title}</summary>
+      <p className="muted">{description}</p>
+      <label title={`Scene that should open for ${title}.`}>
+        <span className="field-label--inset">Target Scene</span>
+        <DropdownSelect
+          value={event.targetSceneId ?? ""}
+          onChange={(changeEvent) =>
+            onChange((hotspotEvent) => {
+              hotspotEvent.targetSceneId = changeEvent.target.value || undefined;
+            })
+          }
+        >
+          <option value="">None</option>
+          {scenes.map((scene) => (
+            <option key={scene.id} value={scene.id}>
+              {scene.name}
+            </option>
+          ))}
+        </DropdownSelect>
+      </label>
+      <label title={`Optional player-facing feedback for ${title}. None means the interaction stays silent.`}>
+        <span className="field-label--inset">Player feedback</span>
+        <DropdownSelect
+          value={feedbackValue}
+          onChange={(changeEvent) =>
+            onChange((hotspotEvent) => {
+              applyHotspotFeedbackValue(hotspotEvent, changeEvent.target.value);
+            })
+          }
+        >
+          <option value="">None (silent)</option>
+          {feedbackValue && !feedbackOptions.some((option) => option.value === feedbackValue) ? (
+            <option value={feedbackValue}>Missing player feedback</option>
+          ) : null}
+          <optgroup label="Random from a response group">
+            {feedbackOptions.filter((option) => option.kind === "group").map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="One specific response">
+            {feedbackOptions.filter((option) => option.kind === "entry").map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Dialogue">
+            {feedbackOptions.filter((option) => option.kind === "dialogue").map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </optgroup>
+        </DropdownSelect>
+        <span className="scenes-event-feedback-note">
+          Choose a group for variety, one response for an exact line, or a dialogue for a conversation. None does nothing.
+        </span>
+      </label>
+      <JsonField
+        label="Effects JSON"
+        value={JSON.stringify(event.effects, null, 2)}
+        tooltip={`Custom effects that run only for ${title}.`}
+        labelClassName="field-label--inset"
+        onCommit={(nextValue) =>
+          onChange((hotspotEvent) => {
+            hotspotEvent.effects = parseJson(nextValue, hotspotEvent.effects);
+          })
+        }
+      />
+    </details>
+  );
+}
+
+type HotspotFeedbackOption = {
+  kind: "group" | "entry" | "dialogue";
+  value: string;
+  label: string;
+};
+
+export function resolveHotspotFeedbackValue(event: Pick<HotspotEvent, "dialogueTreeId" | "response">): string {
+  if (event.dialogueTreeId) {
+    return `dialogue:${event.dialogueTreeId}`;
+  }
+  if (event.response?.type === "group") {
+    return `group:${event.response.groupId}`;
+  }
+  if (event.response?.type === "entry") {
+    return `entry:${event.response.entryId}`;
+  }
+  return "";
+}
+
+export function applyHotspotFeedbackValue(event: HotspotEvent, value: string): void {
+  delete event.dialogueTreeId;
+  delete event.response;
+  const separatorIndex = value.indexOf(":");
+  if (separatorIndex < 1) {
+    return;
+  }
+  const type = value.slice(0, separatorIndex);
+  const id = value.slice(separatorIndex + 1);
+  if (!id) {
+    return;
+  }
+  if (type === "dialogue") {
+    event.dialogueTreeId = id;
+  } else if (type === "group") {
+    event.response = { type, groupId: id };
+  } else if (type === "entry") {
+    event.response = { type, entryId: id };
+  }
+}
+
+function buildHotspotFeedbackOptions(
+  responseGroups: ResponseGroup[],
+  dialogues: ProjectBundle["dialogues"]["items"],
+  assets: ProjectBundle["assets"]["assets"],
+  strings: Record<string, string>
+): HotspotFeedbackOption[] {
+  const options: HotspotFeedbackOption[] = [];
+  for (const group of responseGroups) {
+    options.push({ kind: "group", value: `group:${group.id}`, label: `${group.name} (${group.entries.length})` });
+    for (const [index, entry] of group.entries.entries()) {
+      const entryLabel =
+        entry.kind === "text"
+          ? strings[entry.textId]?.trim() || `Untitled text ${index + 1}`
+          : assets.find((asset) => asset.id === entry.assetId)?.name ?? `Choose ${entry.kind}`;
+      options.push({
+        kind: "entry",
+        value: `entry:${entry.id}`,
+        label: `${group.name} — ${entryLabel}`
+      });
+    }
+  }
+  for (const dialogue of dialogues) {
+    options.push({ kind: "dialogue", value: `dialogue:${dialogue.id}`, label: dialogue.name });
+  }
+  return options;
+}
+
+export type OptionalHotspotEventKey = "clickEvent" | "otherItemEvent";
+
+export function updateOptionalHotspotEvent(
+  hotspot: Hotspot,
+  key: OptionalHotspotEventKey,
+  mutator: (event: HotspotEvent) => void
+) {
+  const event = hotspot[key] ?? { effects: [] };
+  mutator(event);
+
+  if (hasHotspotEvent(event)) {
+    hotspot[key] = event;
+  } else {
+    delete hotspot[key];
+  }
 }
 
 function getFloatingWindowSize(

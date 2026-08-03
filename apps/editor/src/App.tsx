@@ -68,7 +68,7 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   assets: "Review background, scene-audio, and inventory assets after creating them from their owning editor tabs.",
   world: "Arrange locations on the world map and manage the scenes inside each location.",
   scenes: "Edit scene media, upload background and scene-audio assets, hotspots, and scene-level wiring.",
-  dialogue: "Write dialogue lines and player replies, then start them from scene hotspots.",
+  dialogue: "Write conversations and reusable text, audio, or video player responses, then assign them from scene hotspots.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
   localization: "Manage locale coverage and edit localized strings and media variants in one place.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, and state."
@@ -100,12 +100,15 @@ export function App() {
     setSelectedDialogueId,
     setSelectedHotspotId,
     setSelectedDialogueNodeId,
+    setSelectedResponseGroupId,
+    setSelectedResponseEntryId,
     setSelectedInventoryItemId,
     setSelectedAssetId,
     setSelectedTextId,
     setLocalizationLocale,
     setPlaytestLocale,
-    setLocalizationSection
+    setLocalizationSection,
+    setDialogueSection
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
   const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
@@ -697,10 +700,14 @@ export function App() {
     setSelectedHotspotId(target.hotspotId);
     setSelectedDialogueId(target.dialogueId);
     setSelectedDialogueNodeId(target.dialogueNodeId);
+    setSelectedResponseGroupId(target.responseGroupId);
+    setSelectedResponseEntryId(target.responseEntryId);
     setSelectedInventoryItemId(target.inventoryItemId);
     setSelectedAssetId(target.assetId);
     setSelectedTextId(target.textId);
-    if (target.tab === "localization") {
+    if (target.tab === "dialogue" && target.dialogueSection) {
+      setDialogueSection(target.dialogueSection);
+    } else if (target.tab === "localization") {
       setLocalizationLocale(target.locale);
       if (target.localizationSection) {
         setLocalizationSection(target.localizationSection);
@@ -1322,6 +1329,8 @@ export function App() {
                 <DialoguePanel
                   project={project}
                   mutateProject={mutateProject}
+                  setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
                   onOpenScenesHotspot={(sceneId, hotspotId) => {
                     if (sceneId) {
                       const scene = project.scenes.items.find((entry) => entry.id === sceneId);
@@ -1334,8 +1343,8 @@ export function App() {
                     setActiveTab("scenes");
                     setStatusMessage(
                       hotspotId
-                        ? "Opened the hotspot that starts this dialogue."
-                        : "Choose a hotspot, then set its Start Dialogue field."
+                        ? "Opened the hotspot that uses this player feedback."
+                        : "Choose a hotspot, then set its Player feedback field."
                     );
                   }}
                 />

@@ -817,6 +817,8 @@ function collectInventoryUsage(project: ProjectBundle, itemId: string): Inventor
 
       hotspotRefs += countInventoryConditions(hotspot.conditions, itemId);
       hotspotRefs += countInventoryEffects(hotspot.effects, itemId);
+      hotspotRefs += countInventoryEffects(hotspot.clickEvent?.effects ?? [], itemId);
+      hotspotRefs += countInventoryEffects(hotspot.otherItemEvent?.effects ?? [], itemId);
 
       if (hotspotRefs > 0) {
         registerScene(scene.id, scene.name, hotspot.id, hotspotRefs);

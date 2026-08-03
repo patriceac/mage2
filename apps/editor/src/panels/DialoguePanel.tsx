@@ -9,10 +9,13 @@ import {
   pruneOwnedGeneratedProjectTextEntries
 } from "../project-text";
 import { useEditorStore } from "../store";
+import { ResponseGroupsPanel } from "./ResponseGroupsPanel";
 
 interface DialoguePanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  setStatusMessage?: (message: string) => void;
+  setBusyLabel?: (label?: string) => void;
   onOpenScenesHotspot?: (sceneId?: string, hotspotId?: string) => void;
 }
 
@@ -31,7 +34,46 @@ interface DialogueUsage {
 
 const LINE_LABEL_PREVIEW_LENGTH = 64;
 
-export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: DialoguePanelProps) {
+export function DialoguePanel(props: DialoguePanelProps) {
+  const dialogueSection = useEditorStore((state) => state.dialogueSection) ?? "dialogues";
+  const setDialogueSection = useEditorStore((state) => state.setDialogueSection);
+
+  return (
+    <div className="dialogue-screen">
+      <nav className="dialogue-section-tabs" aria-label="Dialogue authoring sections">
+        <button
+          type="button"
+          className={dialogueSection === "dialogues" ? "dialogue-section-tab dialogue-section-tab--active" : "dialogue-section-tab"}
+          aria-pressed={dialogueSection === "dialogues"}
+          onClick={() => setDialogueSection("dialogues")}
+        >
+          Dialogues
+        </button>
+        <button
+          type="button"
+          className={dialogueSection === "responses" ? "dialogue-section-tab dialogue-section-tab--active" : "dialogue-section-tab"}
+          aria-pressed={dialogueSection === "responses"}
+          onClick={() => setDialogueSection("responses")}
+        >
+          Responses
+        </button>
+      </nav>
+      {dialogueSection === "dialogues" ? (
+        <DialogueAuthoringPanel {...props} />
+      ) : (
+        <ResponseGroupsPanel
+          project={props.project}
+          mutateProject={props.mutateProject}
+          setStatusMessage={props.setStatusMessage ?? (() => undefined)}
+          setBusyLabel={props.setBusyLabel ?? (() => undefined)}
+          onOpenScenesHotspot={props.onOpenScenesHotspot}
+        />
+      )}
+    </div>
+  );
+}
+
+function DialogueAuthoringPanel({ project, mutateProject, onOpenScenesHotspot }: DialoguePanelProps) {
   const selectedDialogueId = useEditorStore((state) => state.selectedDialogueId);
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
@@ -697,18 +739,34 @@ function collectDialogueUsage(project: ProjectBundle): Map<string, DialogueUsage
   const usageByDialogue = new Map<string, DialogueUsage[]>();
   for (const scene of project.scenes.items) {
     scene.hotspots.forEach((hotspot, index) => {
-      if (!hotspot.dialogueTreeId) {
-        return;
+      if (hotspot.dialogueTreeId) {
+        const usages = usageByDialogue.get(hotspot.dialogueTreeId) ?? [];
+        usages.push({
+          dialogueId: hotspot.dialogueTreeId,
+          sceneId: scene.id,
+          sceneName: scene.name,
+          hotspotId: hotspot.id,
+          hotspotLabel: `Hotspot ${index + 1} (${formatCompactId(hotspot.id)})`
+        });
+        usageByDialogue.set(hotspot.dialogueTreeId, usages);
       }
-      const usages = usageByDialogue.get(hotspot.dialogueTreeId) ?? [];
-      usages.push({
-        dialogueId: hotspot.dialogueTreeId,
-        sceneId: scene.id,
-        sceneName: scene.name,
-        hotspotId: hotspot.id,
-        hotspotLabel: `Hotspot ${index + 1} (${formatCompactId(hotspot.id)})`
-      });
-      usageByDialogue.set(hotspot.dialogueTreeId, usages);
+
+      for (const [event, label] of [
+        [hotspot.clickEvent, "On click"],
+        [hotspot.otherItemEvent, "Any other item"]
+      ] as const) {
+        if (event?.dialogueTreeId) {
+          const usages = usageByDialogue.get(event.dialogueTreeId) ?? [];
+          usages.push({
+            dialogueId: event.dialogueTreeId,
+            sceneId: scene.id,
+            sceneName: scene.name,
+            hotspotId: hotspot.id,
+            hotspotLabel: `Hotspot ${index + 1} ${label} (${formatCompactId(hotspot.id)})`
+          });
+          usageByDialogue.set(event.dialogueTreeId, usages);
+        }
+      }
     });
   }
   return usageByDialogue;

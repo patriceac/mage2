@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const workbenchSharedButtonSelector =
-  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
+  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchScreenTabSelector =
   ".app-shell--editor-workbench\n  button.scene-screen-tabs__tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchLocalizationSubtabActiveSelector =
@@ -344,8 +344,9 @@ describe("hotspot idle visibility styles", () => {
 });
 
 function resolveSelectorSpecificityScore(selector: string) {
-  const classLikeCount = selector.match(/\.[\w-]+/g)?.length ?? 0;
-  const typeCount = selector.match(/(^|[\s>+~])button(?=[\s.#:[{]|$)/g)?.length ?? 0;
+  const selectorWithoutZeroSpecificity = selector.replace(/:where\([^)]*\)/g, "");
+  const classLikeCount = selectorWithoutZeroSpecificity.match(/\.[\w-]+/g)?.length ?? 0;
+  const typeCount = selectorWithoutZeroSpecificity.match(/(^|[\s>+~])button(?=[\s.#:[{]|$)/g)?.length ?? 0;
   return classLikeCount * 100 + typeCount;
 }
 

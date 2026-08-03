@@ -6,10 +6,13 @@ import {
   type Effect,
   resolveAssetVariant,
   type Hotspot,
+  type HotspotEvent,
   type InventoryItem,
   type Location,
   parseSaveState,
   type ProjectBundle,
+  type ResponseEntry,
+  type ResponseSelection,
   type SaveState,
   type Scene,
   createInitialSaveState
@@ -34,13 +37,32 @@ export interface PlayerSnapshot {
 export interface HotspotResolution {
   transitionedToSceneId?: string;
   startedDialogueTreeId?: string;
+  response?: ActivePlayerResponse;
 }
+
+export interface ActivePlayerResponse {
+  sequence: number;
+  entry: ResponseEntry;
+  sourceGroupId?: string;
+}
+
+export interface PlayerControllerOptions {
+  random?: () => number;
+}
+
+export type HotspotInteractionEventType = "click" | "otherItem";
 
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
   getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
   enterScene(sceneId: string): void;
   selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution;
+  selectHotspotEvent(
+    hotspotId: string,
+    eventType: HotspotInteractionEventType,
+    timeMs: number,
+    sceneTimelineDurationMs?: number
+  ): HotspotResolution;
   startDialogue(dialogueTreeId: string): void;
   continueDialogue(): void;
   chooseDialogueChoice(choiceId: string): void;
@@ -51,12 +73,16 @@ export const DEFAULT_SCENE_TIMELINE_DURATION_MS = 30000;
 
 export function createPlayerController(
   project: ProjectBundle,
-  initialSaveState?: SaveState
+  initialSaveState?: SaveState,
+  options: PlayerControllerOptions = {}
 ): PlayerController {
   const state = parseSaveState({
     ...createInitialSaveState(project),
     ...(initialSaveState ?? {})
   });
+  const lastResponseEntryIdByGroup = new Map<string, string>();
+  const random = options.random ?? Math.random;
+  let responseSequence = 0;
 
   function getScene(sceneId = state.currentSceneId): Scene {
     const scene = project.scenes.items.find((entry) => entry.id === sceneId);
@@ -241,18 +267,72 @@ export function createPlayerController(
       return {};
     }
 
-    const resolution = applyEffects(hotspot.effects);
-    if (hotspot.dialogueTreeId && !resolution.startedDialogueTreeId) {
-      startDialogue(hotspot.dialogueTreeId);
-      resolution.startedDialogueTreeId = hotspot.dialogueTreeId;
+    return applyHotspotEvent(hotspot);
+  }
+
+  function selectHotspotEvent(
+    hotspotId: string,
+    eventType: HotspotInteractionEventType,
+    timeMs: number,
+    sceneTimelineDurationMs?: number
+  ): HotspotResolution {
+    const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
+    const event = eventType === "click" ? hotspot?.clickEvent : hotspot?.otherItemEvent;
+    return event ? applyHotspotEvent(event) : {};
+  }
+
+  function applyHotspotEvent(event: HotspotEvent): HotspotResolution {
+    const resolution = applyEffects(event.effects);
+    if (event.dialogueTreeId && !resolution.startedDialogueTreeId) {
+      startDialogue(event.dialogueTreeId);
+      resolution.startedDialogueTreeId = event.dialogueTreeId;
     }
 
-    if (hotspot.targetSceneId && !resolution.transitionedToSceneId) {
-      enterScene(hotspot.targetSceneId);
-      resolution.transitionedToSceneId = hotspot.targetSceneId;
+    if (event.targetSceneId && !resolution.transitionedToSceneId) {
+      enterScene(event.targetSceneId);
+      resolution.transitionedToSceneId = event.targetSceneId;
+    }
+
+    if (event.response && !resolution.startedDialogueTreeId) {
+      resolution.response = resolvePlayerResponse(event.response);
     }
 
     return resolution;
+  }
+
+  function resolvePlayerResponse(selection: ResponseSelection): ActivePlayerResponse | undefined {
+    if (selection.type === "entry") {
+      for (const group of project.dialogues.responseGroups) {
+        const entry = group.entries.find((candidate) => candidate.id === selection.entryId);
+        if (entry) {
+          responseSequence += 1;
+          return { sequence: responseSequence, entry };
+        }
+      }
+      return undefined;
+    }
+
+    const group = project.dialogues.responseGroups.find((candidate) => candidate.id === selection.groupId);
+    if (!group || group.entries.length === 0) {
+      return undefined;
+    }
+
+    const lastEntryId = lastResponseEntryIdByGroup.get(group.id);
+    const candidates =
+      group.entries.length > 1
+        ? group.entries.filter((entry) => entry.id !== lastEntryId)
+        : group.entries;
+    const sampledRandomValue = random();
+    const randomValue = Number.isFinite(sampledRandomValue) ? Math.max(0, sampledRandomValue) : 0;
+    const selectedIndex = Math.min(candidates.length - 1, Math.floor(randomValue * candidates.length));
+    const entry = candidates[selectedIndex] ?? candidates[0];
+    if (!entry) {
+      return undefined;
+    }
+
+    lastResponseEntryIdByGroup.set(group.id, entry.id);
+    responseSequence += 1;
+    return { sequence: responseSequence, entry, sourceGroupId: group.id };
   }
 
   function getSnapshot(): PlayerSnapshot {
@@ -274,6 +354,7 @@ export function createPlayerController(
     getVisibleHotspots,
     enterScene,
     selectHotspot,
+    selectHotspotEvent,
     startDialogue,
     continueDialogue,
     chooseDialogueChoice,

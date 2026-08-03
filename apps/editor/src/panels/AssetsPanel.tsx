@@ -17,6 +17,7 @@ import {
   IMAGE_IMPORT_EXTENSIONS,
   INVENTORY_IMAGE_EXTENSIONS,
   isSceneAudioImportPath,
+  RESPONSE_MEDIA_IMPORT_EXTENSIONS,
   SCENE_AUDIO_IMPORT_EXTENSIONS,
   SUPPORTED_ASSET_EXTENSIONS,
   VIDEO_IMPORT_EXTENSIONS
@@ -47,7 +48,7 @@ interface AssetsPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
-type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio";
+type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio" | "response";
 type AssetViewMode = "grid" | "list";
 
 interface AssetRowModel {
@@ -69,6 +70,7 @@ const CATEGORY_TABS: Array<{
   { id: "all", label: "All" },
   { id: "background", label: "Backgrounds" },
   { id: "sceneAudio", label: "Scene Audio" },
+  { id: "response", label: "Responses" },
   { id: "inventory", label: "Inventory" }
 ];
 
@@ -79,13 +81,14 @@ const ASSET_GROUPS: Array<{
 }> = [
   { id: "background", label: "Backgrounds", icon: "image" },
   { id: "sceneAudio", label: "Scene Audio", icon: "waveform" },
+  { id: "response", label: "Responses", icon: "film" },
   { id: "inventory", label: "Inventory", icon: "box" }
 ];
 
 export function resolveAssetCardPreviewPresentation(category: AssetLibraryFilter): {
   fit: "cover" | "contain";
 } {
-  return category === "inventory" ? { fit: "contain" } : { fit: "cover" };
+  return category === "inventory" || category === "response" ? { fit: "contain" } : { fit: "cover" };
 }
 
 export function resolveAssetLibraryKeyboardSelection(
@@ -409,6 +412,14 @@ export function AssetsPanel({
   }
 
   function navigateToUsage(usage: AssetUsageModel) {
+    if (usage.kind === "response") {
+      useEditorStore.getState().setSelectedResponseGroupId(usage.id);
+      useEditorStore.getState().setSelectedResponseEntryId(usage.entryId);
+      useEditorStore.getState().setDialogueSection("responses");
+      useEditorStore.getState().setActiveTab("dialogue");
+      return;
+    }
+
     if (usage.kind === "inventory") {
       useEditorStore.getState().setSelectedInventoryItemId(usage.id);
       useEditorStore.getState().setActiveTab("inventory");
@@ -957,7 +968,7 @@ function AssetUsageRail({
           {usages.length > 0 ? (
             usages.map((usage) => (
               <div className="assets-usage-item" key={`${usage.kind}-${usage.id}`}>
-                <Icon name={usage.kind === "inventory" ? "box" : "film"} />
+                <Icon name={usage.kind === "inventory" ? "box" : usage.kind === "response" ? "waveform" : "film"} />
                 <div>
                   <strong>{usage.label}</strong>
                   <span>{usage.detail}</span>
@@ -1030,7 +1041,8 @@ function AssetUsageRail({
 
 interface AssetUsageModel {
   id: string;
-  kind: "scene" | "inventory";
+  entryId?: string;
+  kind: "scene" | "inventory" | "response";
   label: string;
   detail: string;
   actionLabel: string;
@@ -1058,6 +1070,14 @@ function buildAssetUsageModels(summary: AssetReferenceSummary): AssetUsageModel[
       label: entry.itemName,
       detail: "Inventory Image",
       actionLabel: "Open Item"
+    })),
+    ...summary.responseEntries.map((entry) => ({
+      id: entry.groupId,
+      entryId: entry.entryId,
+      kind: "response" as const,
+      label: entry.groupName,
+      detail: `${entry.kind === "audio" ? "Audio" : "Video"} Response`,
+      actionLabel: "Open Response"
     }))
   ];
 }
@@ -1066,7 +1086,8 @@ function calculateCategoryCounts(rows: AssetRowModel[]): Record<AssetCategory, n
   return {
     background: rows.filter((row) => row.category === "background").length,
     sceneAudio: rows.filter((row) => row.category === "sceneAudio").length,
-    inventory: rows.filter((row) => row.category === "inventory").length
+    inventory: rows.filter((row) => row.category === "inventory").length,
+    response: rows.filter((row) => row.category === "response").length
   };
 }
 
@@ -1106,6 +1127,8 @@ function resolveImportDialogTitle(filter: AssetLibraryFilter): string {
       return "Import Scene Audio Assets";
     case "inventory":
       return "Import Inventory Assets";
+    case "response":
+      return "Import Response Media";
     case "all":
       return "Import Assets";
   }
@@ -1119,6 +1142,8 @@ function resolveImportDialogDescription(filter: AssetLibraryFilter): string {
       return "Choose audio files to add to the scene audio asset library.";
     case "inventory":
       return "Choose image files to add to the inventory asset library.";
+    case "response":
+      return "Choose audio or video files to use in response groups.";
     case "all":
       return "Choose media files to add to the asset library. Audio imports as scene audio; image and video imports as backgrounds.";
   }
@@ -1132,6 +1157,8 @@ function resolveImportExtensions(filter: AssetLibraryFilter): readonly string[] 
       return SCENE_AUDIO_IMPORT_EXTENSIONS;
     case "inventory":
       return INVENTORY_IMAGE_EXTENSIONS;
+    case "response":
+      return RESPONSE_MEDIA_IMPORT_EXTENSIONS;
     case "all":
       return SUPPORTED_ASSET_EXTENSIONS;
   }
@@ -1153,11 +1180,12 @@ function groupImportPathsByCategory(filePaths: string[], filter: AssetLibraryFil
   const groupedPaths: Record<AssetCategory, string[]> = {
     background: [],
     sceneAudio: [],
-    inventory: []
+    inventory: [],
+    response: []
   };
 
   for (const filePath of filePaths) {
-    if (filter === "background" || filter === "sceneAudio" || filter === "inventory") {
+    if (filter === "background" || filter === "sceneAudio" || filter === "inventory" || filter === "response") {
       groupedPaths[filter].push(filePath);
       continue;
     }
@@ -1176,6 +1204,8 @@ function formatAssetCategoryLabel(category: AssetCategory): string {
       return "Scene Audio";
     case "inventory":
       return "Inventory";
+    case "response":
+      return "Response";
   }
 }
 
@@ -1190,6 +1220,10 @@ function formatUsageCountLabel(summary: AssetReferenceSummary): string {
 
   if (summary.inventoryImages.length > 0) {
     return `item${summary.inventoryImages.length === 1 ? "" : "s"}`;
+  }
+
+  if (summary.responseEntries.length > 0) {
+    return `response${summary.responseEntries.length === 1 ? "" : "s"}`;
   }
 
   return "unused";
@@ -1269,6 +1303,10 @@ function resolveDeleteSafetyMessage(row?: AssetRowModel): string {
     return "This asset is used by an inventory item. Remove or replace that item image before deleting.";
   }
 
+  if (row.blockedReason === "response-media-in-use") {
+    return "This asset is used by a response. Choose different media or delete that response before deleting the asset.";
+  }
+
   if (row.blockedReason === "background-in-use-without-replacement") {
     return "This asset is used as a scene background and no replacement background asset is available.";
   }
@@ -1330,6 +1368,13 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
                 .join(", ")}`}
             </li>
           ) : null}
+          {summary.responseEntries.length > 0 ? (
+            <li>
+              {`Response${summary.responseEntries.length === 1 ? "" : "s"}: ${summary.responseEntries
+                .map((entry) => entry.groupName)
+                .join(", ")}`}
+            </li>
+          ) : null}
         </ul>
       </div>
       <div className="dialog-callout dialog-callout--danger">
@@ -1356,6 +1401,10 @@ function resolveDeleteBlockedMessage(
     return `Cannot delete ${assetName} because one or more inventory items still reference it.`;
   }
 
+  if (blockedReason === "response-media-in-use") {
+    return `Cannot delete ${assetName} because one or more responses still use it.`;
+  }
+
   return `${assetName} could not be deleted because it is no longer present in the project.`;
 }
 
@@ -1369,6 +1418,10 @@ function resolveDeleteDisabledTitle(
 
   if (blockedReason === "inventory-image-in-use") {
     return `${assetName} cannot be deleted until it is removed from every inventory item that references it.`;
+  }
+
+  if (blockedReason === "response-media-in-use") {
+    return `${assetName} cannot be deleted until it is removed from every response that references it.`;
   }
 
   return `${assetName} could not be deleted because it is no longer present in the project.`;
