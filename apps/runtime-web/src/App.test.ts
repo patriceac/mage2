@@ -5,6 +5,7 @@ import {
   resolveRuntimeHeaderContent,
   resolveRuntimeLocaleStrings,
   resolveRuntimePlayerCopy,
+  resolveRuntimeSaveLoadNotice,
   resolveRuntimeSystemCopy,
   restoreRuntimeSession
 } from "./App";
@@ -117,6 +118,18 @@ describe("restoreRuntimeSession", () => {
 
     expect(restored.recovered).toBe(true);
     expect(restored.saveState).toEqual(createInitialSaveState(project));
+  });
+
+  it("uses localized player copy instead of an internal diagnostic after corrupt-save recovery", () => {
+    const project = createDefaultProjectBundle("Runtime Recovery Notice");
+    const restored = restoreRuntimeSession(toExportProjectData(project), "{not-json");
+
+    expect(resolveRuntimeSaveLoadNotice(restored.loadResult, "en")).toBe(
+      "The saved game could not be read. A new game was started."
+    );
+    expect(resolveRuntimeSaveLoadNotice(restored.loadResult, "fr")).toBe(
+      "La sauvegarde était illisible. Une nouvelle partie a été lancée."
+    );
   });
 });
 

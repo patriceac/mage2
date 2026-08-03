@@ -387,4 +387,30 @@ describe("shared player component contract", () => {
     );
     expect(styles).not.toMatch(/\.playtest-|\.runtime-|\.media-surface|\.dialogue-box/);
   });
+
+  it("keeps scene-audio orchestration shared by the editor and runtime adapters", () => {
+    const sharedAudioSource = readFileSync(new URL("./PlayerSceneAudio.tsx", import.meta.url), "utf8");
+    const editorSource = readFileSync(
+      new URL("../../../apps/editor/src/PlaytestPanel.tsx", import.meta.url),
+      "utf8"
+    );
+    const runtimeSource = readFileSync(
+      new URL("../../../apps/runtime-web/src/App.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(sharedAudioSource).toContain("export function usePlayerSceneAudioPlayback");
+    expect(sharedAudioSource).toContain('"mage2-player__scene-audio"');
+    expect(sharedAudioSource).not.toMatch(/useEditorStore|electronAPI|localStorage|sessionStorage/);
+
+    for (const adapterSource of [editorSource, runtimeSource]) {
+      expect(adapterSource).toContain("<PlayerSceneAudio");
+      expect(adapterSource).not.toMatch(
+        /sceneAudioTimeoutRef|sceneAudioAnimationFrameRef|syncSceneAudioToPlayheadRef|sceneAudioPlaybackIntentRef/
+      );
+      expect(adapterSource).not.toMatch(
+        /getSceneAudioPlayheadMs|resolveSceneAudioPlaybackDirective|resolveSceneAudioSyncState/
+      );
+    }
+  });
 });
