@@ -1207,6 +1207,7 @@ function FileBrowserDialog({
   const [directoryInspection, setDirectoryInspection] = useState<ProjectDirectoryInspection>();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isCreatingDirectory, setIsCreatingDirectory] = useState(false);
+  const [isAuthorizingDirectory, setIsAuthorizingDirectory] = useState(false);
   const [newDirectoryName, setNewDirectoryName] = useState("");
   const [entryViewMode, setEntryViewMode] = useState<"list" | "grid">("list");
   const requiresProjectDirectory =
@@ -1419,6 +1420,34 @@ function FileBrowserDialog({
     }
   }
 
+  async function handleAuthorizeDirectory() {
+    try {
+      setIsAuthorizingDirectory(true);
+      setErrorMessage(undefined);
+      const authorizedPath = await window.editorApi.authorizeDirectory();
+      if (!authorizedPath) {
+        return;
+      }
+      setLocations((currentLocations) =>
+        currentLocations.some((location) => location.path === authorizedPath)
+          ? currentLocations
+          : [
+              ...currentLocations,
+              {
+                label: "Granted folder",
+                path: authorizedPath,
+                kind: "favorite"
+              }
+            ]
+      );
+      navigateToPath(authorizedPath);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsAuthorizingDirectory(false);
+    }
+  }
+
   function toggleFileSelection(filePath: string) {
     setSelectedPaths((currentSelection) =>
       currentSelection.includes(filePath)
@@ -1488,6 +1517,18 @@ function FileBrowserDialog({
                   </button>
                 );
               })}
+              <button
+                type="button"
+                className="file-browser__location"
+                onClick={() => void handleAuthorizeDirectory()}
+                disabled={isAuthorizingDirectory}
+                title="Grant access to a folder outside the listed locations"
+              >
+                <span className="file-browser__location-icon" aria-hidden="true">
+                  <FileBrowserIcon name="folder" />
+                </span>
+                <strong>{isAuthorizingDirectory ? "Opening..." : "Choose another folder..."}</strong>
+              </button>
             </div>
           </div>
         </aside>

@@ -10,6 +10,7 @@ import {
   formatWindowsLaunchShortcutReport,
   repairWindowsLaunchShortcuts
 } from "./editor-windows-launch-targets.mjs";
+import { generateReleaseChecksums } from "./release-checksums.mjs";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,8 +34,19 @@ const zodPackageJson = await readInstalledPackageJson("zod");
 
 await prepareStage();
 await packageWindowsApp();
-const shortcutReport = assertCanonicalWindowsLaunchShortcuts(await repairWindowsLaunchShortcuts({ repoRootPath: repoRoot }));
-console.log(formatWindowsLaunchShortcutReport(shortcutReport));
+const checksumReport = await generateReleaseChecksums({
+  distDirectory: outputDir,
+  executableName: editorAppMetadata.executableName
+});
+console.log(`Wrote release checksums to ${checksumReport.outputPath}`);
+if (process.env.MAGE2_SKIP_SHORTCUT_REPAIR === "1") {
+  console.log("Skipped Windows shortcut repair for this non-interactive package build.");
+} else {
+  const shortcutReport = assertCanonicalWindowsLaunchShortcuts(
+    await repairWindowsLaunchShortcuts({ repoRootPath: repoRoot })
+  );
+  console.log(formatWindowsLaunchShortcutReport(shortcutReport));
+}
 
 async function prepareStage() {
   await rm(stageRoot, { recursive: true, force: true });
@@ -167,6 +179,17 @@ async function packageWindowsApp() {
       npmRebuild: false,
       buildDependenciesFromSource: false,
       compression: "normal",
+      forceCodeSigning: process.env.MAGE2_REQUIRE_CODE_SIGNING === "1",
+      electronFuses: {
+        runAsNode: false,
+        enableCookieEncryption: true,
+        enableNodeOptionsEnvironmentVariable: false,
+        enableNodeCliInspectArguments: false,
+        enableEmbeddedAsarIntegrityValidation: true,
+        onlyLoadAppFromAsar: true,
+        loadBrowserProcessSpecificV8Snapshot: false,
+        grantFileProtocolExtraPrivileges: false
+      },
       win: {
         target: [
           { target: "nsis", arch: ["x64"] },

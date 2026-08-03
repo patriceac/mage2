@@ -1,9 +1,10 @@
 import http from "node:http";
-import { randomUUID } from "node:crypto";
-import { BrowserWindow, ipcMain } from "electron";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { BrowserWindow, ipcMain, type IpcMainEvent } from "electron";
 
 interface StartEditorAutomationServerOptions {
   getWindow: () => BrowserWindow | null;
+  validateSender: (event: IpcMainEvent) => void;
 }
 
 interface AutomationRequest {
@@ -35,23 +36,23 @@ const pendingAutomationRequests = new Map<
 >();
 
 export function startEditorAutomationServer({
-  getWindow
+  getWindow,
+  validateSender
 }: StartEditorAutomationServerOptions): (() => void) | undefined {
   if (!isAutomationEnabled()) {
     return undefined;
   }
 
-  registerAutomationResultHandler();
+  registerAutomationResultHandler(validateSender);
 
   const port = resolveAutomationPort();
-  const token = process.env.MAGE2_EDITOR_AUTOMATION_TOKEN || randomUUID();
+  const token = resolveAutomationToken();
   const server = http.createServer((request, response) => {
     void handleAutomationHttpRequest(request, response, token, getWindow);
   });
 
   server.listen(port, "127.0.0.1", () => {
     console.log(`MAGE2 automation bridge listening on http://127.0.0.1:${port}`);
-    console.log(`MAGE2 automation token: ${token}`);
   });
 
   return () => {
@@ -68,13 +69,31 @@ function resolveAutomationPort(): number {
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : DEFAULT_AUTOMATION_PORT;
 }
 
-function registerAutomationResultHandler(): void {
+function resolveAutomationToken(): string {
+  const token = process.env.MAGE2_EDITOR_AUTOMATION_TOKEN?.trim();
+  if (!token || token.length < 24) {
+    throw new Error(
+      "MAGE2_EDITOR_AUTOMATION_TOKEN must be explicitly set to at least 24 characters when automation is enabled."
+    );
+  }
+  return token;
+}
+
+function registerAutomationResultHandler(validateSender: (event: IpcMainEvent) => void): void {
   if (hasRegisteredAutomationResultHandler) {
     return;
   }
 
   hasRegisteredAutomationResultHandler = true;
-  ipcMain.on(AUTOMATION_RESULT_CHANNEL, (_event, response: AutomationResponse) => {
+  ipcMain.on(AUTOMATION_RESULT_CHANNEL, (event, response: AutomationResponse) => {
+    try {
+      validateSender(event);
+    } catch {
+      return;
+    }
+    if (!isAutomationResponse(response)) {
+      return;
+    }
     const pending = pendingAutomationRequests.get(response.id);
     if (!pending) {
       return;
@@ -99,18 +118,42 @@ async function handleAutomationHttpRequest(
   getWindow: () => BrowserWindow | null
 ): Promise<void> {
   try {
+    if (request.headers.origin) {
+      writeJson(response, 403, { ok: false, error: "Browser-origin automation requests are not accepted." });
+      return;
+    }
+
     if (request.method === "GET" && request.url === "/health") {
       writeJson(response, 200, { ok: true });
       return;
     }
 
-    if (request.method !== "POST" || !["/command", "/automation/command"].includes(request.url ?? "")) {
+    if (
+      request.method !== "POST" ||
+      !["/command", "/automation/command", "/automation/screenshot"].includes(request.url ?? "")
+    ) {
       writeJson(response, 404, { ok: false, error: "Not found." });
       return;
     }
 
-    if (request.headers["x-mage2-automation-token"] !== token) {
+    if (!tokensMatch(request.headers["x-mage2-automation-token"], token)) {
       writeJson(response, 401, { ok: false, error: "Invalid automation token." });
+      return;
+    }
+
+    if (request.url === "/automation/screenshot") {
+      const window = getWindow();
+      if (!window || window.isDestroyed()) {
+        throw new Error("No editor window is available for automation.");
+      }
+      const screenshot = await window.webContents.capturePage();
+      const png = screenshot.toPNG();
+      response.writeHead(200, {
+        "content-type": "image/png",
+        "cache-control": "no-store",
+        "content-length": String(png.byteLength)
+      });
+      response.end(png);
       return;
     }
 
@@ -120,6 +163,23 @@ async function handleAutomationHttpRequest(
   } catch (error) {
     writeJson(response, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+function tokensMatch(candidate: string | string[] | undefined, expected: string): boolean {
+  if (typeof candidate !== "string") {
+    return false;
+  }
+  const candidateBytes = Buffer.from(candidate, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+  return candidateBytes.length === expectedBytes.length && timingSafeEqual(candidateBytes, expectedBytes);
+}
+
+function isAutomationResponse(value: unknown): value is AutomationResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const response = value as Record<string, unknown>;
+  return typeof response.id === "string" && typeof response.ok === "boolean";
 }
 
 function dispatchAutomationCommand(getWindow: () => BrowserWindow | null, command: unknown): Promise<unknown> {

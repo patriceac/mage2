@@ -1,20 +1,32 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { EDITOR_DEVELOPMENT_CSP, EDITOR_PRODUCTION_CSP } from "./csp.js";
 
 const normalizeModuleId = (id: string) => id.replaceAll("\\", "/");
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: "./",
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "mage2-editor-csp",
+      transformIndexHtml(html) {
+        return html.replace(
+          "__MAGE2_EDITOR_CSP__",
+          command === "serve" ? EDITOR_DEVELOPMENT_CSP : EDITOR_PRODUCTION_CSP
+        );
+      }
+    }
+  ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@mage2/schema": path.resolve(__dirname, "../../packages/schema/src/index.ts"),
-      "@mage2/player": path.resolve(__dirname, "../../packages/player/src/index.ts"),
-      "@mage2/player-ui/styles.css": path.resolve(__dirname, "../../packages/player-ui/src/styles.css"),
-      "@mage2/player-ui": path.resolve(__dirname, "../../packages/player-ui/src/index.ts"),
-      "@mage2/media": path.resolve(__dirname, "../../packages/media/src/index.ts")
+      "@": path.resolve(import.meta.dirname, "src"),
+      "@mage2/schema": path.resolve(import.meta.dirname, "../../packages/schema/src/index.ts"),
+      "@mage2/player": path.resolve(import.meta.dirname, "../../packages/player/src/index.ts"),
+      "@mage2/player-ui/styles.css": path.resolve(import.meta.dirname, "../../packages/player-ui/src/styles.css"),
+      "@mage2/player-ui": path.resolve(import.meta.dirname, "../../packages/player-ui/src/index.ts"),
+      "@mage2/media": path.resolve(import.meta.dirname, "../../packages/media/src/index.ts")
     }
   },
   server: {
@@ -51,4 +63,4 @@ export default defineConfig({
       }
     }
   }
-});
+}));

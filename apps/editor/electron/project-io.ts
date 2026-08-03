@@ -124,6 +124,7 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     const migratedProject = (await needsStarterResponseMigration(filePaths.dialogues))
       ? await saveProjectTransaction(boundary, project)
       : project;
+    await assertProjectAssetPathsContained(boundary, migratedProject);
     return ensureProjectAssetPreviews(boundary, migratedProject);
   });
 }
@@ -220,6 +221,7 @@ async function saveProjectTransaction(
 ): Promise<ProjectBundle> {
   const projectDir = boundary.requestedRoot;
   const normalized = parseProjectBundle(project);
+  await assertProjectAssetPathsContained(boundary, normalized);
   const filePaths = resolveProjectFilePaths(projectDir);
   const transactionPaths = resolveProjectTransactionPaths(projectDir);
   const values: Record<ProjectFileKey, unknown> = {
@@ -949,6 +951,36 @@ async function assertOptionalContainedDirectory(
   const directoryEntry = await inspectContainedPath(boundary, directoryPath, true);
   if (directoryEntry && !directoryEntry.isDirectory()) {
     throw new Error(`A project transaction directory is invalid: ${directoryPath}`);
+  }
+}
+
+async function assertProjectAssetPathsContained(
+  boundary: ProjectPhysicalBoundary,
+  project: ProjectBundle
+): Promise<void> {
+  for (const assetRoot of project.manifest.assetRoots) {
+    const rootEntry = await inspectContainedPath(boundary, assetRoot, true);
+    if (rootEntry && !rootEntry.isDirectory()) {
+      throw new Error(`A project asset root is not a directory: ${assetRoot}`);
+    }
+  }
+
+  for (const asset of project.assets.assets) {
+    for (const variant of Object.values(asset.variants)) {
+      const sourceEntry = await inspectContainedPath(boundary, variant.sourcePath, true);
+      if (sourceEntry && !sourceEntry.isFile()) {
+        throw new Error(`A project asset source is not a regular file: ${variant.sourcePath}`);
+      }
+      for (const generatedPath of [variant.proxyPath, variant.posterPath]) {
+        if (!generatedPath) {
+          continue;
+        }
+        const generatedEntry = await inspectContainedPath(boundary, generatedPath, true);
+        if (generatedEntry && !generatedEntry.isFile()) {
+          throw new Error(`A generated project asset is not a regular file: ${generatedPath}`);
+        }
+      }
+    }
   }
 }
 

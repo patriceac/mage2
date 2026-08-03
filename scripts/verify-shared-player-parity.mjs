@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron, chromium } from "playwright";
@@ -176,14 +177,10 @@ try {
 }
 
 async function exportAndVerifyPackagedEditor() {
-  const editorApp = await electron.launch({
-    executablePath: editorExecutablePath,
-    cwd: path.dirname(editorExecutablePath),
-    args: ["--project", projectDirectory, "--tab", "playtest"]
-  });
+  const editorApp = await launchPackagedEditorOverCdp();
 
   try {
-    const page = await editorApp.firstWindow();
+    const { page } = editorApp;
     await page.waitForLoadState("domcontentloaded");
     await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
     const localeSelect = page.locator(".playtest-panel__toolbar-field--locale select");
@@ -230,13 +227,112 @@ async function exportAndVerifyPackagedEditor() {
 
     return {
       exportStatus,
-      processId: await editorApp.evaluate(async () => process.pid),
+      processId: editorApp.process.pid,
       itemEventAuthoring,
       ...flow
     };
   } finally {
-    await editorApp.close().catch(() => {});
+    await closePackagedEditorOverCdp(editorApp);
   }
+}
+
+async function launchPackagedEditorOverCdp() {
+  const debuggingPort = await reserveLoopbackPort();
+  const process = spawn(
+    editorExecutablePath,
+    [
+      `--remote-debugging-address=127.0.0.1`,
+      `--remote-debugging-port=${debuggingPort}`,
+      "--project",
+      projectDirectory,
+      "--tab",
+      "playtest"
+    ],
+    {
+      cwd: path.dirname(editorExecutablePath),
+      stdio: "ignore",
+      windowsHide: true
+    }
+  );
+
+  let browser;
+  try {
+    browser = await connectToCdp(`http://127.0.0.1:${debuggingPort}`, process);
+    const page = await waitForPackagedEditorPage(browser, process);
+    return { browser, page, process };
+  } catch (error) {
+    await browser?.close().catch(() => {});
+    await stopSpawnedProcess(process);
+    throw error;
+  }
+}
+
+async function closePackagedEditorOverCdp(editorApp) {
+  await editorApp.browser.close().catch(() => {});
+  await stopSpawnedProcess(editorApp.process);
+}
+
+async function connectToCdp(endpoint, process) {
+  const deadline = Date.now() + 30_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (process.exitCode !== null) {
+      throw new Error(`Packaged editor exited before its DevTools endpoint was ready (code ${process.exitCode}).`);
+    }
+    try {
+      return await chromium.connectOverCDP(endpoint);
+    } catch (error) {
+      lastError = error;
+      await delay(150);
+    }
+  }
+  throw new Error(`Timed out waiting for the packaged editor DevTools endpoint at ${endpoint}.`, { cause: lastError });
+}
+
+async function waitForPackagedEditorPage(browser, process) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (process.exitCode !== null) {
+      throw new Error(`Packaged editor exited before opening its renderer (code ${process.exitCode}).`);
+    }
+    const page = browser
+      .contexts()
+      .flatMap((context) => context.pages())
+      .find((candidate) => candidate.url().startsWith("mage2-app://bundle/"));
+    if (page) {
+      return page;
+    }
+    await delay(150);
+  }
+  throw new Error("Timed out waiting for the packaged editor renderer page.");
+}
+
+async function reserveLoopbackPort() {
+  const reservation = net.createServer();
+  await new Promise((resolve, reject) => {
+    reservation.once("error", reject);
+    reservation.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = reservation.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Could not reserve a loopback DevTools port.");
+    }
+    return address.port;
+  } finally {
+    await new Promise((resolve, reject) => reservation.close((error) => (error ? reject(error) : resolve())));
+  }
+}
+
+async function stopSpawnedProcess(process) {
+  if (process.exitCode !== null) {
+    return;
+  }
+  process.kill();
+  await Promise.race([
+    new Promise((resolve) => process.once("exit", resolve)),
+    delay(5_000)
+  ]);
 }
 
 async function verifyPackagedEditorItemEvents(page) {
@@ -1171,6 +1267,10 @@ async function openFreshRuntime(page, url) {
 
 async function settle(page) {
   await page.waitForTimeout(90);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function launchChrome() {
