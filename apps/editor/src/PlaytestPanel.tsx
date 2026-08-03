@@ -25,6 +25,18 @@ import {
   resolveSceneAudioSyncState,
   shouldSyncPlayheadMs
 } from "./media-playhead";
+import {
+  PLAYTEST_SAVE_SLOT_IDS,
+  createEmptyPlaytestSaveSlotInspection,
+  createPlaytestSaveEnvelope,
+  formatPlaytestSaveTimestamp,
+  getPlaytestSaveSlotStorageKey,
+  readPlaytestSaveSlot,
+  resolvePlaytestSaveStatusLabel,
+  type PlaytestSaveSlotId,
+  type PlaytestSaveSlotInspection,
+  type PlaytestSaveStorage
+} from "./playtest-save-slots";
 import { useEditorStore } from "./store";
 
 interface PlaytestPanelProps {
@@ -32,8 +44,12 @@ interface PlaytestPanelProps {
   onExit?: () => void;
 }
 
-const STORAGE_KEY = "mage2-editor-playtest-save";
 const LOCALE_STORAGE_KEY = "mage2-editor-playtest-locale";
+
+interface PlaytestSaveFeedback {
+  tone: "success" | "error";
+  message: string;
+}
 
 export function resolvePlaytestInventorySummary(
   items: Array<Pick<InventoryItem, "name" | "textId">>,
@@ -369,6 +385,10 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [inventoryItemImageUrls, setInventoryItemImageUrls] = useState<Record<string, string>>({});
   const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
+  const [saveSlotInspections, setSaveSlotInspections] = useState<PlaytestSaveSlotInspection[]>(() =>
+    PLAYTEST_SAVE_SLOT_IDS.map(createEmptyPlaytestSaveSlotInspection)
+  );
+  const [saveFeedback, setSaveFeedback] = useState<PlaytestSaveFeedback>();
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
   const sceneAudioAnimationFrameRef = useRef<number | undefined>(undefined);
@@ -395,6 +415,11 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setPlayheadMs(0);
     selectPlaytestInventoryItem(undefined);
     setInventoryHint(undefined);
+  }, [project]);
+
+  useEffect(() => {
+    refreshPlaytestSaveSlots();
+    setSaveFeedback(undefined);
   }, [project]);
 
   useEffect(() => {
@@ -460,6 +485,95 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setInventoryHint(undefined);
     setLastActivatedHotspotId(undefined);
     return nextSnapshot;
+  }
+
+  function refreshPlaytestSaveSlots() {
+    const storage = resolveBrowserPlaytestSaveStorage();
+    setSaveSlotInspections(PLAYTEST_SAVE_SLOT_IDS.map((slotId) => readPlaytestSaveSlot(storage, project, slotId)));
+  }
+
+  function replaceSaveSlotInspection(nextInspection: PlaytestSaveSlotInspection) {
+    setSaveSlotInspections((currentInspections) =>
+      currentInspections.map((inspection) =>
+        inspection.slotId === nextInspection.slotId ? nextInspection : inspection
+      )
+    );
+  }
+
+  function savePlaytestSlot(slotId: PlaytestSaveSlotId) {
+    const storage = resolveBrowserPlaytestSaveStorage();
+    if (!storage) {
+      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be saved because local storage is unavailable.` });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+      return;
+    }
+
+    try {
+      const nextSave = controller.save();
+      nextSave.playheadMs = playheadMs;
+      const envelope = createPlaytestSaveEnvelope(project, nextSave);
+      storage.setItem(getPlaytestSaveSlotStorageKey(slotId), JSON.stringify(envelope));
+      const inspection = readPlaytestSaveSlot(storage, project, slotId);
+      replaceSaveSlotInspection(inspection);
+      setSaveFeedback({
+        tone: "success",
+        message: `Saved Slot ${slotId} at ${formatPlaytestSaveTimestamp(envelope.savedAt)}.`
+      });
+    } catch (error) {
+      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be saved: ${resolvePlaytestSaveError(error)}` });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+    }
+  }
+
+  function loadPlaytestSlot(slotId: PlaytestSaveSlotId) {
+    const storage = resolveBrowserPlaytestSaveStorage();
+    const inspection = readPlaytestSaveSlot(storage, project, slotId);
+    replaceSaveSlotInspection(inspection);
+    if (inspection.status !== "ready" || !inspection.envelope) {
+      setSaveFeedback({
+        tone: "error",
+        message: `Slot ${slotId} cannot be loaded. ${inspection.message}`
+      });
+      return;
+    }
+
+    try {
+      const nextController = createPlayerController(project, inspection.envelope.state);
+      const nextSnapshot = nextController.getSnapshot();
+      sceneAudioPlaybackIntentRef.current = true;
+      sceneAudioDrivenPlayheadMsRef.current = undefined;
+      setController(nextController);
+      setSnapshot(nextSnapshot);
+      setSelectedAssetId(nextSnapshot.scene.backgroundAssetId);
+      setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
+      setPlaybackResetKey((value) => value + 1);
+      selectPlaytestInventoryItem(undefined);
+      setInventoryHint(undefined);
+      setLastActivatedHotspotId(undefined);
+      setSaveFeedback({
+        tone: "success",
+        message: `Loaded Slot ${slotId} from ${formatPlaytestSaveTimestamp(inspection.envelope.savedAt)}.`
+      });
+    } catch (error) {
+      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be loaded safely: ${resolvePlaytestSaveError(error)}` });
+    }
+  }
+
+  function clearPlaytestSlot(slotId: PlaytestSaveSlotId) {
+    const storage = resolveBrowserPlaytestSaveStorage();
+    if (!storage) {
+      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be cleared because local storage is unavailable.` });
+      return;
+    }
+
+    try {
+      storage.removeItem(getPlaytestSaveSlotStorageKey(slotId));
+      replaceSaveSlotInspection(createEmptyPlaytestSaveSlotInspection(slotId));
+      setSaveFeedback({ tone: "success", message: `Cleared Slot ${slotId}.` });
+    } catch (error) {
+      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be cleared: ${resolvePlaytestSaveError(error)}` });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+    }
   }
 
   function selectPlaytestInventoryItem(itemId: string | undefined, cursorPoint?: InventoryCursorPoint) {
@@ -1080,44 +1194,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               ))}
             </DropdownSelect>
           </label>
-          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--action">
-            <button
-              type="button"
-              className="playtest-panel__toolbar-button"
-              title="Store the current runtime state in the editor's local playtest save slot."
-              onClick={() => {
-                const nextSave = controller.save();
-                nextSave.playheadMs = playheadMs;
-                const serialized = JSON.stringify(nextSave);
-                localStorage.setItem(STORAGE_KEY, serialized);
-              }}
-            >
-              Save Slot
-            </button>
-          </div>
-          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--action">
-            <button
-              type="button"
-              className="playtest-panel__toolbar-button"
-              title="Restore the last runtime state saved in the local playtest slot."
-              onClick={() => {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (!raw) {
-                  return;
-                }
-
-                const nextController = createPlayerController(project, JSON.parse(raw));
-                setController(nextController);
-                const nextSnapshot = nextController.getSnapshot();
-                setSnapshot(nextSnapshot);
-                setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
-                selectPlaytestInventoryItem(undefined);
-                setInventoryHint(undefined);
-              }}
-            >
-              Load Slot
-            </button>
-          </div>
           <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--session" aria-label="Playtest session controls">
             <button
               type="button"
@@ -1146,6 +1222,86 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             </label>
           </div>
         </div>
+
+        <section className="playtest-save-slots" aria-labelledby="playtest-save-slots-title">
+          <header className="playtest-save-slots__header">
+            <div>
+              <h3 id="playtest-save-slots-title">Save slots</h3>
+              <p>Stored on this computer and checked against the open project before loading.</p>
+            </div>
+            {saveFeedback ? (
+              <div
+                className={`playtest-save-slots__feedback playtest-save-slots__feedback--${saveFeedback.tone}`}
+                role={saveFeedback.tone === "error" ? "alert" : "status"}
+                aria-live={saveFeedback.tone === "error" ? "assertive" : "polite"}
+                data-playtest-save-feedback={saveFeedback.tone}
+              >
+                {saveFeedback.message}
+              </div>
+            ) : null}
+          </header>
+          <div className="playtest-save-slots__grid">
+            {saveSlotInspections.map((slot) => {
+              const statusLabel = resolvePlaytestSaveStatusLabel(slot.status);
+              const canLoad = slot.status === "ready";
+              const canClear = slot.status !== "empty" && slot.status !== "unavailable";
+              const canSave = slot.status !== "unavailable";
+
+              return (
+                <article
+                  key={slot.slotId}
+                  className={`playtest-save-slot playtest-save-slot--${slot.status}`}
+                  data-playtest-save-slot={slot.slotId}
+                  data-playtest-save-slot-status={slot.status}
+                >
+                  <div className="playtest-save-slot__summary">
+                    <strong>Slot {slot.slotId}</strong>
+                    <span className={`playtest-save-slot__status playtest-save-slot__status--${slot.status}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <p className="playtest-save-slot__timestamp">
+                    {slot.savedAt ? formatPlaytestSaveTimestamp(slot.savedAt) : slot.status === "empty" ? "Available" : "Not loadable"}
+                  </p>
+                  <p className="playtest-save-slot__detail" title={slot.message}>{slot.message}</p>
+                  <div className="playtest-save-slot__actions">
+                    <button
+                      type="button"
+                      className="playtest-save-slot__save"
+                      disabled={!canSave}
+                      data-playtest-save-action="save"
+                      onClick={() => savePlaytestSlot(slot.slotId)}
+                      title={canSave ? `Save the current run to Slot ${slot.slotId}.` : slot.message}
+                    >
+                      {slot.status === "empty" ? "Save" : "Overwrite"}
+                    </button>
+                    <button
+                      type="button"
+                      className="playtest-save-slot__load"
+                      disabled={!canLoad}
+                      data-playtest-save-action="load"
+                      onClick={() => loadPlaytestSlot(slot.slotId)}
+                      title={canLoad ? `Load Slot ${slot.slotId}.` : slot.message}
+                    >
+                      Load
+                    </button>
+                    {canClear ? (
+                      <button
+                        type="button"
+                        className="playtest-save-slot__clear"
+                        data-playtest-save-action="clear"
+                        onClick={() => clearPlaytestSlot(slot.slotId)}
+                        title={`Clear Slot ${slot.slotId}.`}
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
 
         <div className="playtest-stage">
           <MediaSurface
@@ -1246,6 +1402,22 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </aside>
     </div>
   );
+}
+
+function resolveBrowserPlaytestSaveStorage(): PlaytestSaveStorage | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolvePlaytestSaveError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function resolveInventoryItemLabel(itemId: string, items: InventoryItem[], strings: Record<string, string>): string {

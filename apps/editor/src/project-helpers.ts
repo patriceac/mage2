@@ -18,6 +18,7 @@ import {
 } from "@mage2/schema";
 import { MIN_HOTSPOT_SIZE, roundHotspotCoordinate } from "./hotspot-geometry";
 import {
+  collectOwnedGeneratedProjectTextIdsForInventoryItem,
   collectOwnedGeneratedProjectTextIdsForHotspot,
   collectOwnedGeneratedProjectTextIdsForScene,
   getGeneratedDialogueChoiceTextId,
@@ -78,6 +79,31 @@ export interface RemoveSceneFromProjectResult {
   blockedReason?: "scene-not-found" | "replacement-scene-not-found";
   strategy: RemoveSceneStrategy;
   referenceSummary: SceneReferenceSummary;
+  removedTextIds: string[];
+}
+
+export interface InventoryItemReferenceSummary {
+  hotspotItemReferenceCount: number;
+  placementReferenceCount: number;
+  requiredItemReferenceCount: number;
+  inventoryConditionCount: number;
+  inventoryEffectCount: number;
+}
+
+export type RemoveInventoryItemStrategy =
+  | {
+      mode: "cleanup";
+    }
+  | {
+      mode: "rewire";
+      replacementItemId: string;
+    };
+
+export interface RemoveInventoryItemFromProjectResult {
+  deleted: boolean;
+  blockedReason?: "item-not-found" | "replacement-item-not-found";
+  strategy: RemoveInventoryItemStrategy;
+  referenceSummary: InventoryItemReferenceSummary;
   removedTextIds: string[];
 }
 
@@ -323,6 +349,133 @@ export function countSceneReferences(summary: SceneReferenceSummary): number {
     summary.sceneVisitedConditionCount +
     summary.goToSceneEffectCount
   );
+}
+
+export function collectInventoryItemReferenceSummary(
+  project: ProjectBundle,
+  itemId: string
+): InventoryItemReferenceSummary {
+  const summary: InventoryItemReferenceSummary = {
+    hotspotItemReferenceCount: 0,
+    placementReferenceCount: 0,
+    requiredItemReferenceCount: 0,
+    inventoryConditionCount: 0,
+    inventoryEffectCount: 0
+  };
+
+  for (const scene of project.scenes.items) {
+    summary.inventoryEffectCount += countInventoryItemEffects(scene.onEnterEffects, itemId);
+    summary.inventoryEffectCount += countInventoryItemEffects(scene.onExitEffects, itemId);
+
+    for (const hotspot of scene.hotspots) {
+      if (hotspot.inventoryItemId === itemId) {
+        summary.hotspotItemReferenceCount += 1;
+      }
+      if (hotspot.placedInventoryItemId === itemId) {
+        summary.placementReferenceCount += 1;
+      }
+      summary.requiredItemReferenceCount += hotspot.requiredItemIds.filter((entry) => entry === itemId).length;
+      summary.inventoryConditionCount += countInventoryItemConditions(hotspot.conditions, itemId);
+      summary.inventoryEffectCount += countInventoryItemEffects(hotspot.effects, itemId);
+    }
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      summary.inventoryEffectCount += countInventoryItemEffects(node.effects, itemId);
+      for (const choice of node.choices) {
+        summary.inventoryConditionCount += countInventoryItemConditions(choice.conditions, itemId);
+        summary.inventoryEffectCount += countInventoryItemEffects(choice.effects, itemId);
+      }
+    }
+  }
+
+  return summary;
+}
+
+export function countInventoryItemReferences(summary: InventoryItemReferenceSummary): number {
+  return (
+    summary.hotspotItemReferenceCount +
+    summary.placementReferenceCount +
+    summary.requiredItemReferenceCount +
+    summary.inventoryConditionCount +
+    summary.inventoryEffectCount
+  );
+}
+
+export function removeInventoryItemFromProject(
+  project: ProjectBundle,
+  itemId: string,
+  strategy: RemoveInventoryItemStrategy
+): RemoveInventoryItemFromProjectResult {
+  const referenceSummary = collectInventoryItemReferenceSummary(project, itemId);
+  const item = project.inventory.items.find((entry) => entry.id === itemId);
+
+  if (!item) {
+    return {
+      deleted: false,
+      blockedReason: "item-not-found",
+      strategy,
+      referenceSummary,
+      removedTextIds: []
+    };
+  }
+
+  const replacementItem =
+    strategy.mode === "rewire"
+      ? project.inventory.items.find((entry) => entry.id === strategy.replacementItemId && entry.id !== itemId)
+      : undefined;
+  if (strategy.mode === "rewire" && !replacementItem) {
+    return {
+      deleted: false,
+      blockedReason: "replacement-item-not-found",
+      strategy,
+      referenceSummary,
+      removedTextIds: []
+    };
+  }
+
+  const ownedGeneratedTextIds = collectOwnedGeneratedProjectTextIdsForInventoryItem(item);
+  project.inventory.items = project.inventory.items.filter((entry) => entry.id !== itemId);
+
+  for (const scene of project.scenes.items) {
+    scene.onEnterEffects = rewriteInventoryItemEffects(scene.onEnterEffects, itemId, strategy);
+    scene.onExitEffects = rewriteInventoryItemEffects(scene.onExitEffects, itemId, strategy);
+
+    for (const hotspot of scene.hotspots) {
+      const removedPlacement = hotspot.placedInventoryItemId === itemId;
+      if (hotspot.inventoryItemId === itemId) {
+        hotspot.inventoryItemId = strategy.mode === "rewire" ? strategy.replacementItemId : undefined;
+      }
+      if (removedPlacement) {
+        hotspot.placedInventoryItemId = strategy.mode === "rewire" ? strategy.replacementItemId : undefined;
+        if (strategy.mode === "cleanup") {
+          hotspot.placedInventoryGeometry = undefined;
+        }
+      }
+
+      hotspot.requiredItemIds = rewriteInventoryItemIds(hotspot.requiredItemIds, itemId, strategy);
+      hotspot.conditions = rewriteInventoryItemConditions(hotspot.conditions, itemId, strategy);
+      hotspot.effects = rewriteInventoryItemEffects(hotspot.effects, itemId, strategy);
+    }
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      node.effects = rewriteInventoryItemEffects(node.effects, itemId, strategy);
+      for (const choice of node.choices) {
+        choice.conditions = rewriteInventoryItemConditions(choice.conditions, itemId, strategy);
+        choice.effects = rewriteInventoryItemEffects(choice.effects, itemId, strategy);
+      }
+    }
+  }
+
+  return {
+    deleted: true,
+    strategy,
+    referenceSummary,
+    removedTextIds: pruneOwnedGeneratedProjectTextEntries(project, ownedGeneratedTextIds)
+  };
 }
 
 export function removeSceneFromProject(
@@ -691,6 +844,74 @@ function rewriteSceneEffects(effects: Effect[], deletedSceneId: string, strategy
           {
             ...effect,
             sceneId: strategy.replacementSceneId
+          }
+        ];
+  });
+}
+
+function countInventoryItemConditions(conditions: Condition[], itemId: string): number {
+  return conditions.filter((condition) => condition.type === "inventoryHas" && condition.itemId === itemId).length;
+}
+
+function countInventoryItemEffects(effects: Effect[], itemId: string): number {
+  return effects.filter(
+    (effect) => (effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId
+  ).length;
+}
+
+function rewriteInventoryItemIds(
+  itemIds: string[],
+  deletedItemId: string,
+  strategy: RemoveInventoryItemStrategy
+): string[] {
+  const rewrittenIds = itemIds.flatMap((itemId) => {
+    if (itemId !== deletedItemId) {
+      return [itemId];
+    }
+
+    return strategy.mode === "cleanup" ? [] : [strategy.replacementItemId];
+  });
+
+  return [...new Set(rewrittenIds)];
+}
+
+function rewriteInventoryItemConditions(
+  conditions: Condition[],
+  deletedItemId: string,
+  strategy: RemoveInventoryItemStrategy
+): Condition[] {
+  return conditions.flatMap((condition) => {
+    if (condition.type !== "inventoryHas" || condition.itemId !== deletedItemId) {
+      return [condition];
+    }
+
+    return strategy.mode === "cleanup"
+      ? []
+      : [
+          {
+            ...condition,
+            itemId: strategy.replacementItemId
+          }
+        ];
+  });
+}
+
+function rewriteInventoryItemEffects(
+  effects: Effect[],
+  deletedItemId: string,
+  strategy: RemoveInventoryItemStrategy
+): Effect[] {
+  return effects.flatMap((effect) => {
+    if ((effect.type !== "addItem" && effect.type !== "removeItem") || effect.itemId !== deletedItemId) {
+      return [effect];
+    }
+
+    return strategy.mode === "cleanup"
+      ? []
+      : [
+          {
+            ...effect,
+            itemId: strategy.replacementItemId
           }
         ];
   });

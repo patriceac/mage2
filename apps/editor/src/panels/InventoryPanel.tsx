@@ -12,7 +12,15 @@ import { INVENTORY_IMAGE_EXTENSIONS, isInventoryImageImportPath } from "../asset
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
 import { setEditorLocalizedText } from "../localized-project";
-import { addAssetRoots, addInventoryItem, isInventoryImageAsset } from "../project-helpers";
+import {
+  addAssetRoots,
+  addInventoryItem,
+  collectInventoryItemReferenceSummary,
+  countInventoryItemReferences,
+  isInventoryImageAsset,
+  removeInventoryItemFromProject,
+  type RemoveInventoryItemFromProjectResult
+} from "../project-helpers";
 import { AssetPreview } from "../previews";
 import { useEditorStore } from "../store";
 
@@ -167,6 +175,57 @@ export function InventoryPanel({
       setSelectedInventoryItemId(item.id);
     });
     setStatusMessage(`Duplicated ${selectedItem.name}. Save the project to keep this change.`);
+  }
+
+  async function deleteSelectedInventoryItem() {
+    if (!selectedItem) {
+      return;
+    }
+
+    const referenceSummary = collectInventoryItemReferenceSummary(project, selectedItem.id);
+    const dialogResult = await dialogs.deleteInventoryItem({
+      project,
+      itemId: selectedItem.id,
+      referenceSummary
+    });
+    if (dialogResult.action === "cancel") {
+      return;
+    }
+
+    const selectedIndex = project.inventory.items.findIndex((item) => item.id === selectedItem.id);
+    const nextSelectedItemId =
+      project.inventory.items[selectedIndex + 1]?.id ?? project.inventory.items[selectedIndex - 1]?.id;
+    let deletion: RemoveInventoryItemFromProjectResult | undefined;
+    mutateProject((draft) => {
+      deletion = removeInventoryItemFromProject(
+        draft,
+        selectedItem.id,
+        dialogResult.action === "rewire"
+          ? { mode: "rewire", replacementItemId: dialogResult.replacementItemId }
+          : { mode: "cleanup" }
+      );
+    });
+
+    if (!deletion?.deleted) {
+      setStatusMessage(
+        deletion?.blockedReason === "replacement-item-not-found"
+          ? `Could not delete ${selectedItem.name} because the replacement item is no longer available.`
+          : `Could not delete ${selectedItem.name} because it is no longer in the project.`
+      );
+      return;
+    }
+
+    setSelectedInventoryItemId(nextSelectedItemId);
+    const referenceCount = countInventoryItemReferences(referenceSummary);
+    const replacementItemName =
+      dialogResult.action === "rewire"
+        ? project.inventory.items.find((item) => item.id === dialogResult.replacementItemId)?.name
+        : undefined;
+    setStatusMessage(
+      dialogResult.action === "rewire" && replacementItemName
+        ? `Deleted ${selectedItem.name} and rewired ${formatCount(referenceCount, "reference")} to ${replacementItemName}. Save the project to keep this change.`
+        : `Deleted ${selectedItem.name}${referenceCount > 0 ? ` and cleaned ${formatCount(referenceCount, "reference")}` : ""}. Save the project to keep this change.`
+    );
   }
 
   async function importInventoryImageFromFilePath(itemId: string, itemName: string, filePath: string) {
@@ -337,8 +396,10 @@ export function InventoryPanel({
           <button
             type="button"
             className="inventory-tool-button inventory-tool-button--icon inventory-tool-button--danger"
-            title="Delete is not available while scene references may exist."
-            disabled
+            title={selectedItem ? `Delete ${selectedItem.name} with reference cleanup or rewiring options.` : "Select an item to delete."}
+            aria-label={selectedItem ? `Delete ${selectedItem.name}` : "Delete inventory item"}
+            disabled={!selectedItem}
+            onClick={() => void deleteSelectedInventoryItem()}
           >
             <InventoryPanelIcon kind="delete" />
           </button>
