@@ -37,6 +37,7 @@ const sceneIdByMediaAlt = {
   "Lantern Room Ready": "scene_lantern_ready",
   "Lantern Room Lit": "scene_lantern_lit"
 };
+let sceneAudioAssetIdBySceneId = {};
 
 const gameplaySteps = [
   { label: "01-opening-dock", sceneId: "scene_dock" },
@@ -219,6 +220,7 @@ async function exportAndVerifyPackagedEditor() {
       throw new Error(`Packaged editor export failed: ${normalizeText(await exportDialog.innerText())}`);
     }
     const exportStatus = normalizeText(await exportStatusLocator.innerText());
+    await refreshExportedSceneAudioExpectations();
 
     await page.evaluate(() => window.__mage2PlaytestAutomation?.reset());
     const adapter = createEditorAdapter(page);
@@ -340,6 +342,7 @@ async function assertExportContainsSharedRenderer() {
   assert(stylesheet.includes(".mage2-player__dialogue"), "Exported CSS is missing the shared player renderer.");
   assert(!stylesheet.includes(".runtime-dialogue"), "Exported CSS still contains the removed runtime dialogue renderer.");
   assert(script.includes("mage2-player__hotspot-button"), "Exported JS is missing shared hotspot rendering.");
+  assert(script.includes("mage2-player__scene-audio"), "Exported JS is missing shared scene-audio rendering.");
   assert(!script.includes("runtime-inventory__item"), "Exported JS still contains duplicate runtime inventory rendering.");
 }
 
@@ -349,6 +352,7 @@ async function runSharedPlayerFlow(page, host, adapter) {
 
   await adapter.reset();
   await adapter.assertScene("scene_dock");
+  checks.sceneAudioPlayback = await assertSharedSceneAudioPlayback(page, host, "scene_dock");
   captures.push(await captureSurface(page, host, gameplaySteps[0].label, await adapter.getState()));
 
   await adapter.activate(gameplaySteps[1].activate);
@@ -527,6 +531,21 @@ async function captureSurface(page, host, label, state) {
       (image) => image.complete && image.naturalWidth > 0
     )
   );
+  const expectedSceneAudioAssetId = sceneAudioAssetIdBySceneId[state.sceneId];
+  if (expectedSceneAudioAssetId) {
+    await page.waitForFunction(
+      ({ assetId, sceneId }) => {
+        const audio = document.querySelector(".mage2-player__scene-audio");
+        return (
+          audio instanceof HTMLAudioElement &&
+          audio.dataset.sceneAudioAssetId === assetId &&
+          audio.dataset.sceneAudioSceneKey === sceneId
+        );
+      },
+      { assetId: expectedSceneAudioAssetId, sceneId: state.sceneId },
+      { timeout: 10_000 }
+    );
+  }
   await settle(page);
 
   const snapshot = await surface.evaluate((root) => {
@@ -565,6 +584,7 @@ async function captureSurface(page, host, label, state) {
     const dialogue = root.querySelector(".mage2-player__dialogue");
     const inventory = root.querySelector(".mage2-player__inventory");
     const inventoryDrawer = root.querySelector(".mage2-player__inventory-drawer");
+    const sceneAudio = document.querySelector(".mage2-player__scene-audio");
     const sceneSurface = root.querySelector(
       ".mage2-player__scene-surface, .mage2-player__visual-plane"
     );
@@ -663,6 +683,17 @@ async function captureSurface(page, host, label, state) {
             }))
           }
         : undefined,
+      sceneAudio:
+        sceneAudio instanceof HTMLAudioElement
+          ? {
+              assetId: sceneAudio.dataset.sceneAudioAssetId,
+              sceneKey: sceneAudio.dataset.sceneAudioSceneKey,
+              enabled: sceneAudio.dataset.sceneAudioEnabled,
+              loop: sceneAudio.dataset.sceneAudioLoop,
+              delayMs: sceneAudio.dataset.sceneAudioDelayMs,
+              durationMs: sceneAudio.dataset.sceneAudioDurationMs
+            }
+          : undefined,
       visibility: {
         dialogue: dialogue
           ? {
@@ -782,8 +813,76 @@ function resolveParitySignature(snapshot) {
     media: snapshot.media,
     hotspots: snapshot.hotspots,
     dialogue: snapshot.dialogue,
-    inventory: snapshot.inventory
+    inventory: snapshot.inventory,
+    sceneAudio: snapshot.sceneAudio
   };
+}
+
+async function assertSharedSceneAudioPlayback(page, host, sceneId) {
+  const expectedAssetId = sceneAudioAssetIdBySceneId[sceneId];
+  assert(expectedAssetId, `No exported scene-audio asset is configured for ${sceneId}.`);
+
+  await page.waitForFunction(
+    ({ assetId, expectedSceneId }) => {
+      const audio = document.querySelector(".mage2-player__scene-audio");
+      return (
+        audio instanceof HTMLAudioElement &&
+        audio.dataset.sceneAudioAssetId === assetId &&
+        audio.dataset.sceneAudioSceneKey === expectedSceneId &&
+        audio.dataset.sceneAudioEnabled === "true" &&
+        audio.readyState >= HTMLMediaElement.HAVE_METADATA
+      );
+    },
+    { assetId: expectedAssetId, expectedSceneId: sceneId },
+    { timeout: 30_000 }
+  );
+
+  const audio = page.locator(".mage2-player__scene-audio");
+  await page.locator(".mage2-player__scene-surface").click({ position: { x: 2, y: 2 }, force: true });
+  const before = await audio.evaluate(async (element) => {
+    await element.play();
+    return {
+      currentTime: element.currentTime,
+      duration: element.duration,
+      readyState: element.readyState
+    };
+  });
+  await page.waitForTimeout(240);
+  const after = await audio.evaluate((element) => ({
+    currentTime: element.currentTime,
+    duration: element.duration,
+    paused: element.paused,
+    readyState: element.readyState
+  }));
+  const loopedDuringSample =
+    Number.isFinite(after.duration) &&
+    before.currentTime >= after.duration - 0.25 &&
+    after.currentTime < before.currentTime;
+
+  assert(!after.paused, `${host} scene audio did not remain playing.`);
+  assert(
+    after.currentTime >= before.currentTime + 0.03 || loopedDuringSample,
+    `${host} scene audio clock did not advance.`
+  );
+
+  return {
+    assetId: expectedAssetId,
+    sceneId,
+    readyState: after.readyState,
+    playbackAdvanced: true
+  };
+}
+
+async function refreshExportedSceneAudioExpectations() {
+  const exportedManifest = JSON.parse(await readFile(path.join(buildDirectory, "build-manifest.json"), "utf8"));
+  const exportedContent = JSON.parse(
+    await readFile(path.join(buildDirectory, exportedManifest.contentPath), "utf8")
+  );
+  sceneAudioAssetIdBySceneId = Object.fromEntries(
+    exportedContent.scenes
+      .filter((scene) => scene.sceneAudioAssetId)
+      .map((scene) => [scene.id, scene.sceneAudioAssetId])
+  );
 }
 
 async function runRuntimeHostChecks(activeBrowser, url) {

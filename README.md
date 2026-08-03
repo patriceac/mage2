@@ -10,7 +10,7 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 - `apps/runtime-web`: Static React runtime that loads an exported build and plays scenes, hotspots, dialogue, and save data.
 - `packages/schema`: Zod-backed project schemas, migrations, starter data, export helpers, and validation rules.
 - `packages/player`: Runtime state machine for scene traversal, hotspots, dialogue, inventory, and saves.
-- `packages/player-ui`: Host-neutral scene, hotspot, dialogue, inventory, and placed-object renderer shared by editor Playtest and exported players.
+- `packages/player-ui`: Host-neutral scene, scene-audio/playhead, hotspot, dialogue, inventory, and placed-object presentation shared by editor Playtest and exported players.
 - `packages/media`: Media import and export helpers used by the editor build pipeline.
 
 ## Features
