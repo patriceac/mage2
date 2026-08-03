@@ -138,6 +138,10 @@ describe("runtime localization", () => {
     expect(resolveRuntimeSystemCopy("fr").saveGame).toBe("Sauvegarder");
     expect(resolveRuntimeSystemCopy("fr-CA").saveGame).toBe("Sauvegarder");
     expect(resolveRuntimeSystemCopy("de-DE").saveGame).toBe("Save game");
+    expect(resolveRuntimeSystemCopy("fr").restartGame).toBe("Nouvelle partie");
+    expect(resolveRuntimeSystemCopy("de-DE").restartGame).toBe("New game");
+    expect(resolveRuntimeSystemCopy("fr").quit).toBe("Quitter");
+    expect(resolveRuntimeSystemCopy("de-DE").quit).toBe("Quit");
     expect(resolveRuntimeSystemCopy("fr").startupErrorTitle).toBe("Impossible de lancer ce jeu");
     expect(resolveRuntimeSystemCopy("de-DE").startupErrorTitle).toBe("Unable to start this game");
   });

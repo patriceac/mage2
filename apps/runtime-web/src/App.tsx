@@ -86,6 +86,7 @@ interface RuntimeSystemCopy {
   noValidSave: string;
   placedObject: string;
   playhead: string;
+  quit: string;
   rawSave: string;
   restartGame: string;
   saveGame: string;
@@ -103,12 +104,12 @@ const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
     confirmLoad: "Load",
     confirmLoadBody: "Current progress will be replaced.",
     confirmLoadTitle: "Load saved game?",
-    confirmRestart: "Restart",
+    confirmRestart: "New game",
     confirmRestartBody: "Saved progress on this device will be deleted.",
-    confirmRestartTitle: "Restart the game?",
+    confirmRestartTitle: "Start a new game?",
     debugMode: "Debug mode",
     gameLoaded: "Saved game loaded.",
-    gameRestarted: "Game restarted.",
+    gameRestarted: "New game started.",
     gameSaved: "Game saved.",
     language: "Language",
     loadGame: "Load game",
@@ -118,8 +119,9 @@ const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
     noValidSave: "No valid saved game is available.",
     placedObject: "This object is placed here.",
     playhead: "Playhead",
+    quit: "Quit",
     rawSave: "Raw save state",
-    restartGame: "Restart game",
+    restartGame: "New game",
     saveGame: "Save game",
     saveRecovered: "The saved game could not be read. A new game was started.",
     showHotspots: "Show hotspots",
@@ -133,12 +135,12 @@ const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
     confirmLoad: "Charger",
     confirmLoadBody: "La progression actuelle sera remplacée.",
     confirmLoadTitle: "Charger la sauvegarde ?",
-    confirmRestart: "Recommencer",
+    confirmRestart: "Nouvelle partie",
     confirmRestartBody: "La sauvegarde de cet appareil sera supprimée.",
-    confirmRestartTitle: "Recommencer la partie ?",
+    confirmRestartTitle: "Commencer une nouvelle partie ?",
     debugMode: "Mode debug",
     gameLoaded: "Sauvegarde chargée.",
-    gameRestarted: "Partie recommencée.",
+    gameRestarted: "Nouvelle partie commencée.",
     gameSaved: "Partie sauvegardée.",
     language: "Langue",
     loadGame: "Charger la partie",
@@ -148,8 +150,9 @@ const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
     noValidSave: "Aucune sauvegarde valide n'est disponible.",
     placedObject: "Cet objet est placé ici.",
     playhead: "Tête de lecture",
+    quit: "Quitter",
     rawSave: "État brut de la sauvegarde",
-    restartGame: "Recommencer la partie",
+    restartGame: "Nouvelle partie",
     saveGame: "Sauvegarder",
     saveRecovered: "La sauvegarde était illisible. Une nouvelle partie a été lancée.",
     showHotspots: "Afficher les zones",
@@ -353,6 +356,7 @@ export function App() {
     ? resolveRuntimeLocaleStrings(content.strings, locale, content.manifest.defaultLanguage)
     : {};
   const systemCopy = resolveRuntimeSystemCopy(locale);
+  const canQuitRuntime = typeof window !== "undefined" && typeof window.mage2Runtime?.quit === "function";
   const playerCopy = resolveRuntimePlayerCopy(locale);
   const runtimeProject = useMemo(() => (content ? createRuntimeProject(content) : undefined), [content]);
   const currentAsset =
@@ -782,6 +786,17 @@ export function App() {
                 >
                   {systemCopy.restartGame}
                 </button>
+                {canQuitRuntime ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.mage2Runtime?.quit();
+                    }}
+                  >
+                    {systemCopy.quit}
+                  </button>
+                ) : null}
               </div>
             </section>
           </div>

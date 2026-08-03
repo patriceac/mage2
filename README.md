@@ -151,7 +151,7 @@ Treat `build/index.html` as the entry point and publish the complete `build` dir
 
 Renderer sharing does not change these serving requirements. The `?debug=1` query is an explicit developer/support mode and should not be used in a normal published player URL.
 
-The player menu provides **Language**, **Save game**, **Load game**, and **Restart game** in both web and Electron exports. **Load game** is unavailable until the project has a valid local save; loading replaces current progress, while restarting deletes this project's saved progress on the current device and starts a new run. Editor Playtest's **Save Slot**, **Load Slot**, and **Reset Run** remain separate authoring controls with different semantics.
+The player menu provides **Language**, **Save game**, **Load game**, and **New game** in both web and Electron exports, plus **Quit** in the standalone Electron player. **Load game** is unavailable until the project has a valid local save; loading replaces current progress, while starting a new game deletes this project's saved progress on the current device and starts a new run. Editor Playtest's **Save Slot**, **Load Slot**, and **Reset Run** remain separate authoring controls with different semantics.
 
 For a local test on Windows, open a terminal in the exported `build` directory and run:
 

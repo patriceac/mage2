@@ -1032,8 +1032,8 @@ async function runRuntimeHostChecks(activeBrowser, url) {
   assert.equal(await page.locator(".mage2-player__inventory-count").innerText(), "1");
 
   await openRuntimeMenu(page);
-  await page.getByRole("button", { name: "Restart game", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Restart", exact: true }).click();
+  await page.getByRole("button", { name: "New game", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "New game", exact: true }).click();
   await page.locator('.mage2-player__media[alt="Dock at Blue Hour"]').waitFor({ state: "visible" });
   assert.equal(await page.locator(".mage2-player__inventory-count").innerText(), "0");
 
@@ -1120,8 +1120,8 @@ async function verifyElectronPersistence() {
     await page.screenshot({ path: path.join(outputDirectory, "electron-after-relaunch.png") });
 
     await openRuntimeMenu(page);
-    await page.getByRole("button", { name: "Restart game", exact: true }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Restart", exact: true }).click();
+    await page.getByRole("button", { name: "New game", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "New game", exact: true }).click();
     await page.locator('.mage2-player__media[alt="Dock at Blue Hour"]').waitFor({ state: "visible" });
     return {
       stableUrl: firstUrl,

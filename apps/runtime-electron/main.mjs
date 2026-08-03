@@ -1,21 +1,27 @@
 import path from "node:path";
-import { app, BrowserWindow, Menu } from "electron";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import { readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
 
 let playerServer;
+const runtimeShellDirectory = path.dirname(fileURLToPath(import.meta.url));
+const playerWindows = new Set();
+const RUNTIME_QUIT_CHANNEL = "mage2-runtime:quit";
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  ipcMain.on(RUNTIME_QUIT_CHANNEL, (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!senderWindow || !playerWindows.has(senderWindow)) {
+      return;
+    }
+
+    app.quit();
+  });
+
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(
-      Menu.buildFromTemplate([
-        {
-          label: "&File",
-          submenu: [{ label: "&Quit", role: "quit" }]
-        }
-      ])
-    );
+    Menu.setApplicationMenu(null);
     const playerDirectory = resolvePlayerDirectory();
     const buildIdentity = await readPlayerBuildIdentity(playerDirectory);
     playerServer = await startPlayerServer(playerDirectory, resolvePlayerPort(buildIdentity.projectId));
@@ -53,12 +59,15 @@ async function createPlayerWindow(playerUrl) {
     autoHideMenuBar: true,
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
+      preload: path.join(runtimeShellDirectory, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
     }
   });
 
+  playerWindows.add(window);
+  window.once("closed", () => playerWindows.delete(window));
   window.once("ready-to-show", () => window.show());
   await window.loadURL(playerUrl);
 }
