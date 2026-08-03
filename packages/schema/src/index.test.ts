@@ -10,6 +10,7 @@ import {
   resolveRelativeHotspotContentBox,
   resolveRelativeHotspotFrame,
   resolveRelativeHotspotVisualBox,
+  toExportProjectData,
   validateProject
 } from "./index";
 
@@ -169,9 +170,42 @@ describe("project defaults", () => {
       strings: { schemaVersion: 5, byLocale: { en: {} } }
     });
 
-    expect(parsed.manifest.schemaVersion).toBe(8);
+    expect(parsed.manifest.schemaVersion).toBe(9);
     expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
     expect(parsed.scenes.items[0]?.hotspots[0]?.timingMode).toBe("fixed");
+  });
+
+  it("migrates legacy locale copies to conservative translation states", () => {
+    const legacy = createDefaultProjectBundle("Legacy localization");
+    const sourceTextId = legacy.scenes.items[0]!.hotspots[0]!.commentTextId!;
+    legacy.manifest.supportedLocales = ["en", "fr"];
+    legacy.strings.byLocale.en["text.greeting"] = "Hello";
+    legacy.strings.byLocale.fr = {
+      [sourceTextId]: legacy.strings.byLocale.en[sourceTextId],
+      "text.greeting": "Bonjour"
+    };
+    delete (legacy.strings as Partial<typeof legacy.strings>).translationStateByLocale;
+
+    const parsed = parseProjectBundle(legacy);
+
+    expect(parsed.strings.translationStateByLocale.fr[sourceTextId]).toBe("inherited");
+    expect(parsed.strings.translationStateByLocale.fr["text.greeting"]).toBe("translated");
+    expect(parsed.strings.translationStateByLocale.en).toEqual({});
+  });
+
+  it("preserves explicit reviewed states and omits workflow metadata from runtime exports", () => {
+    const project = createDefaultProjectBundle("Reviewed localization");
+    const textId = project.scenes.items[0]!.hotspots[0]!.commentTextId!;
+    project.manifest.supportedLocales = ["en", "fr"];
+    project.strings.byLocale.fr = { [textId]: project.strings.byLocale.en[textId] };
+    project.strings.translationStateByLocale.fr = { [textId]: "reviewed" };
+
+    const parsed = parseProjectBundle(project);
+    const exported = toExportProjectData(parsed);
+
+    expect(parsed.strings.translationStateByLocale.fr[textId]).toBe("reviewed");
+    expect(exported.strings.fr[textId]).toBe(project.strings.byLocale.en[textId]);
+    expect(exported.strings).not.toHaveProperty("translationStateByLocale");
   });
 
   it("round-trips inventory-backed hotspot links", () => {

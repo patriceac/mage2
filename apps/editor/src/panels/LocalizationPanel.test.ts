@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
+import { addProjectLocale } from "../localized-project";
 import type { LocalizationSection } from "../store";
 import { LocalizationPanel, normalizeLocaleInput } from "./LocalizationPanel";
 
@@ -74,7 +75,8 @@ function extractSourceSection(source: string, startMarker: string, endMarker: st
 
 function renderLocalizationPanel(
   section: LocalizationSection,
-  configureProject?: (project: ReturnType<typeof createDefaultProjectBundle>) => void
+  configureProject?: (project: ReturnType<typeof createDefaultProjectBundle>) => void,
+  locale?: string
 ) {
   const project = createDefaultProjectBundle("Localization filter");
   configureProject?.(project);
@@ -83,7 +85,7 @@ function renderLocalizationPanel(
     ...mockedStore.state,
     activeTab: "localization",
     localizationSection: section,
-    localizationLocale: project.manifest.defaultLanguage,
+    localizationLocale: locale ?? project.manifest.defaultLanguage,
     selectedLocationId: project.locations.items[0]?.id,
     selectedSceneId: project.scenes.items[0]?.id,
     selectedHotspotId: undefined,
@@ -114,8 +116,9 @@ describe("LocalizationPanel internal subtabs", () => {
 
     expect(markup).toContain("Locale Health");
     expect(markup).toContain("Work Queue");
-    expect(markup).toContain("Strings missing");
-    expect(markup).toContain("Empty strings");
+    expect(markup).toContain("Source authored");
+    expect(markup).toContain("Source strings missing");
+    expect(markup).toContain("Empty source strings");
     expect(markup).toContain("Media missing");
     expect(markup).toContain("Usage and Coverage");
     expect(markup).not.toContain("View Overview");
@@ -128,6 +131,8 @@ describe("LocalizationPanel internal subtabs", () => {
     expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain('placeholder="Search text id, asset, or source text..."');
     expect(markup).toContain("Usage Locations");
+    expect(markup).toContain("Source text");
+    expect(markup).not.toContain("localization-translation-arrow");
   });
 
   it("keeps project text surfaces in strings", () => {
@@ -198,6 +203,69 @@ describe("LocalizationPanel internal subtabs", () => {
     );
 
     expect(mediaDetailPanelBlock.match(/fit="contain"/g)).toHaveLength(2);
+  });
+
+  it("shows inherited target copies as incomplete workflow items", () => {
+    const markup = renderLocalizationPanel(
+      "strings",
+      (project) => addProjectLocale(project, "fr"),
+      "fr"
+    );
+
+    expect(markup).toContain("Translation complete");
+    expect(markup).toContain("Inherited copies");
+    expect(markup).toContain("Inherited (1)");
+    expect(markup).toContain("Only Translated and Reviewed count toward completion");
+    expect(markup).toContain("Mark Translated");
+    expect(markup).toContain("Mark Reviewed");
+    expect(markup).not.toContain(">Ready<");
+    expect(markup).toContain("Complete: 0 (0%)");
+  });
+
+  it("uses one default media surface and compares source to target only for non-default locales", () => {
+    const configureProject = (project: ReturnType<typeof createDefaultProjectBundle>) => {
+      addProjectLocale(project, "fr");
+      project.assets.assets.push({
+        id: "asset_background",
+        kind: "image",
+        name: "background.png",
+        category: "background",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\background.png",
+            importedAt: new Date().toISOString()
+          }
+        }
+      });
+    };
+
+    const defaultMarkup = renderLocalizationPanel("media", configureProject);
+    const targetMarkup = renderLocalizationPanel("media", configureProject, "fr");
+
+    expect(defaultMarkup).toContain("Default media (en)");
+    expect(defaultMarkup).not.toContain("Target (en)");
+    expect(targetMarkup).toContain("Source (en)");
+    expect(targetMarkup).toContain("Target (fr)");
+    expect(targetMarkup).toContain("fr variant missing");
+  });
+
+  it("confirms before changing the project default locale", () => {
+    const handler = extractSourceSection(
+      localizationPanelSource,
+      "async function handleSetDefaultLocale",
+      "async function handleImportVariant"
+    );
+
+    expect(handler).toContain("dialogs.confirm");
+    expect(handler).toContain("Change Project Default");
+    expect(handler.indexOf("if (!confirmed)")).toBeLessThan(handler.indexOf("setProjectDefaultLocale"));
+  });
+
+  it("renders the locale-health separator without mojibake", () => {
+    const markup = renderLocalizationPanel("overview");
+
+    expect(markup).toContain("Locale Health - en (English)");
+    expect(markup).not.toContain("â€”");
   });
 });
 

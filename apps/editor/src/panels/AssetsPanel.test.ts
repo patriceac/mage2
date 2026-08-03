@@ -117,6 +117,49 @@ describe("AssetsPanel workbench UI", () => {
     expect(markup).toContain("Review Missing Variants");
   });
 
+  it("labels localized variants against the manifest default language", () => {
+    const project = createDefaultProjectBundle("Default media locale");
+    project.manifest.defaultLanguage = "fr";
+    project.manifest.supportedLocales = ["en", "fr"];
+    const asset: Asset = {
+      id: "asset_localized",
+      kind: "image",
+      name: "localized.png",
+      category: "background",
+      variants: {
+        en: {
+          sourcePath: "D:\\project\\assets\\localized-en.png",
+          importedAt: "2026-03-20T00:00:00.000Z"
+        },
+        fr: {
+          sourcePath: "D:\\project\\assets\\localized-fr.png",
+          importedAt: "2026-03-20T00:00:00.000Z"
+        }
+      }
+    };
+    project.assets.assets = [asset];
+    useEditorStore.setState({ activeTab: "assets", selectedAssetId: asset.id });
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        DialogProvider,
+        null,
+        React.createElement(AssetsPanel, {
+          project,
+          setSavedProject: () => {},
+          setStatusMessage: () => {},
+          setBusyLabel: () => {}
+        })
+      )
+    );
+    const englishRow = markup.slice(markup.indexOf("<tr><td>en"), markup.indexOf("</tr>", markup.indexOf("<tr><td>en")));
+    const frenchRow = markup.slice(markup.indexOf("<tr><td>fr"), markup.indexOf("</tr>", markup.indexOf("<tr><td>fr")));
+
+    expect(englishRow).not.toContain("Project default");
+    expect(frenchRow).toContain("Project default");
+    expect(markup).toContain("Project default locale: fr");
+  });
+
   it("uses the fixed-frame contain preview treatment for inventory assets", () => {
     expect(resolveAssetCardPreviewPresentation("inventory")).toEqual({
       fit: "contain"

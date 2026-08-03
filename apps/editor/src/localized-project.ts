@@ -1,12 +1,15 @@
 import {
+  ensureLocaleStringTranslationStates,
   ensureLocaleStringValues,
   getLocaleStringValues,
   getLocalizedText,
+  getStringTranslationState,
   normalizeSupportedLocales,
   resolveAssetVariant,
   type Asset,
   type AssetVariant,
-  type ProjectBundle
+  type ProjectBundle,
+  type StringTranslationState
 } from "@mage2/schema";
 
 export function getSupportedProjectLocales(project: ProjectBundle): string[] {
@@ -22,20 +25,54 @@ export function getEditorLocalizedText(project: ProjectBundle, locale: string, t
 }
 
 export function setEditorLocalizedText(project: ProjectBundle, locale: string, textId: string, value: string): void {
+  if (locale === project.manifest.defaultLanguage) {
+    const inheritedLocales = getSupportedProjectLocales(project).filter(
+      (entry) => entry !== locale && getStringTranslationState(project, entry, textId) === "inherited"
+    );
+    ensureLocaleStringValues(project, locale)[textId] = value;
+
+    for (const inheritedLocale of inheritedLocales) {
+      ensureLocaleStringValues(project, inheritedLocale)[textId] = value;
+      ensureLocaleStringTranslationStates(project, inheritedLocale)[textId] = "inherited";
+    }
+    return;
+  }
+
   ensureLocaleStringValues(project, locale)[textId] = value;
+  ensureLocaleStringTranslationStates(project, locale)[textId] = "draft";
 }
 
 export function deleteEditorLocalizedText(project: ProjectBundle, locale: string, textId: string): void {
   delete ensureLocaleStringValues(project, locale)[textId];
+  delete ensureLocaleStringTranslationStates(project, locale)[textId];
 }
 
 export function seedProjectLocale(project: ProjectBundle, locale: string): void {
   const defaultStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
-  project.strings.byLocale[locale] = { ...defaultStrings, ...(project.strings.byLocale[locale] ?? {}) };
+  const existingStrings = project.strings.byLocale[locale] ?? {};
+  const existingStates = project.strings.translationStateByLocale[locale] ?? {};
+  const seededStrings = { ...defaultStrings, ...existingStrings };
+  const seededStates: Record<string, StringTranslationState> = {};
+
+  for (const [textId, value] of Object.entries(seededStrings)) {
+    seededStates[textId] =
+      existingStates[textId] ??
+      (Object.prototype.hasOwnProperty.call(existingStrings, textId) && value !== defaultStrings[textId]
+        ? "draft"
+        : "inherited");
+  }
+
+  project.strings.byLocale[locale] = seededStrings;
+  project.strings.translationStateByLocale[locale] = seededStates;
 }
 
 export function removeProjectLocale(project: ProjectBundle, locale: string): void {
+  if (locale === project.manifest.defaultLanguage) {
+    return;
+  }
+
   delete project.strings.byLocale[locale];
+  delete project.strings.translationStateByLocale[locale];
 
   for (const asset of project.assets.assets) {
     delete asset.variants[locale];
@@ -48,8 +85,30 @@ export function removeProjectLocale(project: ProjectBundle, locale: string): voi
 }
 
 export function setProjectDefaultLocale(project: ProjectBundle, locale: string): void {
+  if (locale === project.manifest.defaultLanguage) {
+    return;
+  }
+
+  project.strings.byLocale[locale] ??= {};
   project.manifest.defaultLanguage = locale;
   project.manifest.supportedLocales = normalizeSupportedLocales(locale, project.manifest.supportedLocales);
+
+  const sourceStrings = project.strings.byLocale[locale];
+  for (const supportedLocale of project.manifest.supportedLocales) {
+    if (supportedLocale === locale) {
+      project.strings.translationStateByLocale[supportedLocale] = {};
+      continue;
+    }
+
+    const values = project.strings.byLocale[supportedLocale] ?? {};
+    project.strings.byLocale[supportedLocale] = values;
+    project.strings.translationStateByLocale[supportedLocale] = Object.fromEntries(
+      Object.entries(values).map(([textId, value]) => [
+        textId,
+        value === sourceStrings[textId] ? "inherited" : "draft"
+      ])
+    );
+  }
 }
 
 export function addProjectLocale(project: ProjectBundle, locale: string): void {
@@ -58,6 +117,29 @@ export function addProjectLocale(project: ProjectBundle, locale: string): void {
     locale
   ]);
   seedProjectLocale(project, locale);
+}
+
+export function setEditorStringTranslationState(
+  project: ProjectBundle,
+  locale: string,
+  textId: string,
+  state: StringTranslationState
+): void {
+  if (locale === project.manifest.defaultLanguage) {
+    return;
+  }
+
+  if (state === "inherited") {
+    const sourceStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
+    if (!Object.prototype.hasOwnProperty.call(sourceStrings, textId)) {
+      return;
+    }
+    ensureLocaleStringValues(project, locale)[textId] = sourceStrings[textId] ?? "";
+  } else if (!Object.prototype.hasOwnProperty.call(ensureLocaleStringValues(project, locale), textId)) {
+    return;
+  }
+
+  ensureLocaleStringTranslationStates(project, locale)[textId] = state;
 }
 
 export function getLocalizedAssetVariant(asset: Asset | undefined, locale: string): AssetVariant | undefined {

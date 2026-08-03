@@ -240,7 +240,11 @@ export function App() {
           scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
           dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
           inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-          strings: { schemaVersion: parsedContent.schemaVersion, byLocale: parsedContent.strings }
+          strings: {
+            schemaVersion: parsedContent.schemaVersion,
+            byLocale: parsedContent.strings,
+            translationStateByLocale: {}
+          }
         };
         const normalizedSaveState = storedSave
           ? parseSaveState({
@@ -868,7 +872,11 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+                  strings: {
+                    schemaVersion: content.schemaVersion,
+                    byLocale: content.strings,
+                    translationStateByLocale: {}
+                  }
                 };
                 const nextSaveState = parseSaveState({
                   ...createInitialSaveState(loadedProject),
@@ -898,7 +906,11 @@ export function App() {
                   scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
                   dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
                   inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+                  strings: {
+                    schemaVersion: content.schemaVersion,
+                    byLocale: content.strings,
+                    translationStateByLocale: {}
+                  }
                 });
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
