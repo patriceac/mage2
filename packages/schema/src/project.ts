@@ -7,6 +7,7 @@ import {
   type Hotspot,
   type ProjectBundle,
   type SaveState,
+  type StringTranslationState,
   BuildManifestSchema,
   CURRENT_SCHEMA_VERSION,
   ProjectBundleSchema,
@@ -136,7 +137,10 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     },
     strings: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      byLocale
+      byLocale,
+      translationStateByLocale: {
+        [defaultLanguage]: {}
+      }
     }
   };
 }
@@ -175,7 +179,10 @@ function normalizeProjectBundleInput(input: unknown): unknown {
 
   for (const locale of manifest.supportedLocales) {
     strings.byLocale[locale] ??= {};
+    strings.translationStateByLocale[locale] ??= {};
   }
+
+  backfillStringTranslationStates(strings, defaultLanguage);
 
   return {
     ...rawBundle,
@@ -398,6 +405,7 @@ function normalizeAssetVariant(input: Record<string, unknown>): AssetVariant {
 
 function normalizeStrings(input: unknown, defaultLanguage: string) {
   const rawStrings = isRecord(input) ? input : {};
+  const translationStateByLocale = normalizeTranslationStateLocales(rawStrings.translationStateByLocale);
 
   if (isRecord(rawStrings.byLocale)) {
     return {
@@ -408,7 +416,8 @@ function normalizeStrings(input: unknown, defaultLanguage: string) {
           locale,
           normalizeStringRecord(values)
         ])
-      )
+      ),
+      translationStateByLocale
     };
   }
 
@@ -417,7 +426,8 @@ function normalizeStrings(input: unknown, defaultLanguage: string) {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     byLocale: {
       [defaultLanguage]: normalizeStringRecord(rawStrings.values)
-    }
+    },
+    translationStateByLocale
   };
 }
 
@@ -458,6 +468,59 @@ function normalizeDialogues(
     responseGroups: [...rawGroups, ...starterGroups],
     starterResponsesVersion: STARTER_RESPONSE_LIBRARY_VERSION
   };
+}
+
+function normalizeTranslationStateLocales(input: unknown): Record<string, Record<string, StringTranslationState>> {
+  if (!isRecord(input)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(input).map(([locale, values]) => [locale, normalizeTranslationStateRecord(values)])
+  );
+}
+
+function normalizeTranslationStateRecord(input: unknown): Record<string, StringTranslationState> {
+  if (!isRecord(input)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(input).filter((entry): entry is [string, StringTranslationState] =>
+      entry[1] === "inherited" ||
+      entry[1] === "draft" ||
+      entry[1] === "translated" ||
+      entry[1] === "reviewed"
+    )
+  );
+}
+
+function backfillStringTranslationStates(
+  strings: {
+    byLocale: Record<string, Record<string, string>>;
+    translationStateByLocale: Record<string, Record<string, StringTranslationState>>;
+  },
+  defaultLanguage: string
+): void {
+  const sourceValues = strings.byLocale[defaultLanguage] ?? {};
+
+  for (const [locale, values] of Object.entries(strings.byLocale)) {
+    if (locale === defaultLanguage) {
+      strings.translationStateByLocale[locale] = {};
+      continue;
+    }
+
+    const existingStates = strings.translationStateByLocale[locale] ?? {};
+    const nextStates: Record<string, StringTranslationState> = {};
+
+    for (const [textId, value] of Object.entries(values)) {
+      nextStates[textId] =
+        existingStates[textId] ??
+        (value === sourceValues[textId] ? "inherited" : value.trim().length > 0 ? "translated" : "draft");
+    }
+
+    strings.translationStateByLocale[locale] = nextStates;
+  }
 }
 
 function normalizeStringRecord(input: unknown): Record<string, string> {

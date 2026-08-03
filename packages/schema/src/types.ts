@@ -207,6 +207,8 @@ export const AssetVariantSchema = z.object({
   importedAt: z.string().min(1)
 });
 
+export const StringTranslationStateSchema = z.enum(["inherited", "draft", "translated", "reviewed"]);
+
 export const AssetSchema = z.object({
   id: z.string().min(1),
   kind: AssetKindSchema,
@@ -298,7 +300,10 @@ export const InventoryFileSchema = z.object({
 
 export const StringTableSchema = z.object({
   schemaVersion: z.number().int().positive(),
-  byLocale: z.record(z.string(), z.record(z.string(), z.string())).default({})
+  byLocale: z.record(z.string(), z.record(z.string(), z.string())).default({}),
+  translationStateByLocale: z
+    .record(z.string(), z.record(z.string(), StringTranslationStateSchema))
+    .default({})
 });
 
 export const ProjectBundleSchema = z.object({
@@ -331,6 +336,7 @@ export type ResponseGroup = z.infer<typeof ResponseGroupSchema>;
 export type InventoryItem = z.infer<typeof InventoryItemSchema>;
 export type AssetVariant = z.infer<typeof AssetVariantSchema>;
 export type Asset = z.infer<typeof AssetSchema>;
+export type StringTranslationState = z.infer<typeof StringTranslationStateSchema>;
 export type ProjectManifest = z.infer<typeof ProjectManifestSchema>;
 export type SaveState = z.infer<typeof SaveStateSchema>;
 export type ProjectContentIdentity = z.infer<typeof ProjectContentIdentitySchema>;

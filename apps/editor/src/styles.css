@@ -10594,7 +10594,7 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-health-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.62rem;
 }
 
@@ -10618,6 +10618,16 @@ button.recent-project__icon-button:hover {
 .app-shell--editor-workbench .localization-health-card--empty {
   border-color: rgba(246, 193, 87, 0.48);
   background: linear-gradient(90deg, rgba(246, 193, 87, 0.16), rgba(246, 193, 87, 0.055));
+}
+
+.app-shell--editor-workbench .localization-health-card--inherited {
+  border-color: rgba(74, 184, 255, 0.4);
+  background: linear-gradient(90deg, rgba(29, 154, 230, 0.16), rgba(29, 154, 230, 0.045));
+}
+
+.app-shell--editor-workbench .localization-health-card--draft {
+  border-color: rgba(246, 193, 87, 0.42);
+  background: linear-gradient(90deg, rgba(246, 193, 87, 0.13), rgba(246, 193, 87, 0.04));
 }
 
 .app-shell--editor-workbench .localization-health-card--orphaned {
@@ -10651,6 +10661,16 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-health-card--empty strong,
 .app-shell--editor-workbench .localization-health-card--empty .localization-health-card__icon {
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-health-card--inherited strong,
+.app-shell--editor-workbench .localization-health-card--inherited .localization-health-card__icon {
+  color: #7fd2ff;
+}
+
+.app-shell--editor-workbench .localization-health-card--draft strong,
+.app-shell--editor-workbench .localization-health-card--draft .localization-health-card__icon {
   color: var(--localization-amber);
 }
 
@@ -10820,7 +10840,18 @@ button.recent-project__icon-button:hover {
   color: var(--localization-amber);
 }
 
-.app-shell--editor-workbench .localization-queue-group--ready h4 {
+.app-shell--editor-workbench .localization-queue-group--inherited h4,
+.app-shell--editor-workbench .localization-queue-group--source h4 {
+  color: #7fd2ff;
+}
+
+.app-shell--editor-workbench .localization-queue-group--draft h4 {
+  color: var(--localization-amber);
+}
+
+.app-shell--editor-workbench .localization-queue-group--translated h4,
+.app-shell--editor-workbench .localization-queue-group--reviewed h4,
+.app-shell--editor-workbench .localization-queue-group--present h4 {
   color: var(--localization-green);
 }
 
@@ -10904,9 +10935,22 @@ button.recent-project__icon-button:hover {
   font-size: 0.78rem;
 }
 
-.app-shell--editor-workbench .localization-status--ready {
+.app-shell--editor-workbench .localization-status--translated,
+.app-shell--editor-workbench .localization-status--reviewed,
+.app-shell--editor-workbench .localization-status--present {
   background: var(--localization-green-soft);
   color: #8be7a5;
+}
+
+.app-shell--editor-workbench .localization-status--inherited,
+.app-shell--editor-workbench .localization-status--source {
+  background: var(--localization-blue-soft);
+  color: #83d4ff;
+}
+
+.app-shell--editor-workbench .localization-status--draft {
+  background: var(--localization-amber-soft);
+  color: var(--localization-amber);
 }
 
 .app-shell--editor-workbench .localization-status--missing {
@@ -10953,10 +10997,11 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-detail-panel {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, auto);
+  grid-template-rows: auto auto auto auto minmax(0, auto);
   align-content: start;
   gap: 0;
   min-width: 0;
+  overflow-y: auto;
   padding: 0;
   border-right: 1px solid var(--localization-border);
 }
@@ -11050,6 +11095,19 @@ button.recent-project__icon-button:hover {
   border-bottom: 1px solid rgba(108, 128, 145, 0.19);
 }
 
+.app-shell--editor-workbench .localization-source-editor {
+  display: grid;
+  gap: 0.62rem;
+  padding: 1rem 0.95rem 0.88rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-source-editor__note {
+  margin: 0;
+  color: var(--localization-muted);
+  font-size: 0.74rem;
+}
+
 .app-shell--editor-workbench .localization-text-field {
   display: grid;
   gap: 0.42rem;
@@ -11084,6 +11142,12 @@ button.recent-project__icon-button:hover {
   background: rgba(11, 18, 24, 0.74);
 }
 
+.app-shell--editor-workbench .localization-text-field--source-editable textarea {
+  border-color: rgba(74, 184, 255, 0.52);
+  background: rgba(10, 20, 28, 0.88);
+  box-shadow: 0 0 0 1px rgba(74, 184, 255, 0.1);
+}
+
 .app-shell--editor-workbench .localization-text-field--target textarea {
   border-color: rgba(74, 184, 255, 0.66);
   box-shadow: 0 0 0 1px rgba(74, 184, 255, 0.12);
@@ -11094,6 +11158,45 @@ button.recent-project__icon-button:hover {
   place-items: center;
   width: 1.7rem;
   color: #9fb0be;
+}
+
+.app-shell--editor-workbench .localization-workflow-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem 0.95rem;
+  border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+  background: rgba(255, 255, 255, 0.014);
+}
+
+.app-shell--editor-workbench .localization-workflow-state > div:first-child {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.app-shell--editor-workbench .localization-workflow-state > div:first-child span {
+  color: var(--localization-muted);
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-workflow-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+}
+
+.app-shell--editor-workbench .localization-state-button {
+  min-height: 1.8rem;
+  padding: 0.24rem 0.52rem;
+  font-size: 0.72rem;
+}
+
+.app-shell--editor-workbench .localization-state-button--active {
+  border-color: rgba(74, 184, 255, 0.72);
+  background: rgba(29, 154, 230, 0.18);
+  color: #d9f2ff;
 }
 
 .app-shell--editor-workbench .localization-detail-block {
@@ -11175,6 +11278,10 @@ button.recent-project__icon-button:hover {
   gap: 0.72rem;
   padding: 1rem 0.95rem;
   border-bottom: 1px solid rgba(108, 128, 145, 0.19);
+}
+
+.app-shell--editor-workbench .localization-media-variant-grid--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .app-shell--editor-workbench .localization-media-variant-grid section {
@@ -11273,8 +11380,19 @@ button.recent-project__icon-button:hover {
   color: var(--localization-amber);
 }
 
-.app-shell--editor-workbench .localization-next-step--ready {
+.app-shell--editor-workbench .localization-next-step--translated,
+.app-shell--editor-workbench .localization-next-step--reviewed,
+.app-shell--editor-workbench .localization-next-step--present {
   color: var(--localization-green);
+}
+
+.app-shell--editor-workbench .localization-next-step--inherited,
+.app-shell--editor-workbench .localization-next-step--source {
+  color: var(--localization-blue);
+}
+
+.app-shell--editor-workbench .localization-next-step--draft {
+  color: var(--localization-amber);
 }
 
 .app-shell--editor-workbench .localization-coverage-table {
@@ -11378,6 +11496,15 @@ button.recent-project__icon-button:hover {
 
   .app-shell--editor-workbench .localization-detail-panel {
     border-right: 0;
+  }
+
+  .app-shell--editor-workbench .localization-workflow-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-shell--editor-workbench .localization-workflow-state__actions {
+    justify-content: flex-start;
   }
 }
 

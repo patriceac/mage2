@@ -6,9 +6,10 @@ import type {
   Location,
   ProjectBundle,
   Scene,
+  StringTranslationState,
   ValidationIssue
 } from "@mage2/schema";
-import { getLocaleStringValues } from "@mage2/schema";
+import { getLocaleStringValues, getStringTranslationState, resolveProjectLocale } from "@mage2/schema";
 import type { EditorNavigationTarget } from "./navigation-target";
 
 export type ProjectTextUsageKind =
@@ -37,6 +38,8 @@ export interface ProjectTextEntry {
   textId: string;
   value: string;
   status: ProjectTextEntryStatus;
+  isSourceLocale: boolean;
+  translationState?: StringTranslationState;
   usages: ProjectTextUsage[];
 }
 
@@ -183,6 +186,8 @@ export function collectProjectTextEntries(project: ProjectBundle, locale: string
 
   const excludedTextIds = collectExcludedProjectTextIds(project);
   const localizedStrings = getLocaleStringValues(project, locale);
+  const resolvedLocale = resolveProjectLocale(project, locale);
+  const isSourceLocale = resolvedLocale === project.manifest.defaultLanguage;
   const storedTextIds = Object.keys(localizedStrings).filter(
     (textId) => !excludedTextIds.has(textId) && !matchesExcludedLegacyProjectTextPattern(textId)
   );
@@ -199,6 +204,8 @@ export function collectProjectTextEntries(project: ProjectBundle, locale: string
         textId,
         value: exists ? localizedStrings[textId] : "",
         status,
+        isSourceLocale,
+        translationState: exists ? getStringTranslationState(project, resolvedLocale, textId) : undefined,
         usages: entryUsages
       };
     })
@@ -348,6 +355,7 @@ export function deleteOrphanedProjectTextEntries(project: ProjectBundle, locale:
     }
 
     delete localizedStrings[textId];
+    delete project.strings.translationStateByLocale[locale]?.[textId];
     deletedTextIds.push(textId);
   }
 
@@ -364,12 +372,13 @@ export function pruneOwnedGeneratedProjectTextEntries(project: ProjectBundle, te
     }
 
     let deleted = false;
-    for (const localizedStrings of Object.values(project.strings.byLocale)) {
+    for (const [locale, localizedStrings] of Object.entries(project.strings.byLocale)) {
       if (!Object.prototype.hasOwnProperty.call(localizedStrings, textId)) {
         continue;
       }
 
       delete localizedStrings[textId];
+      delete project.strings.translationStateByLocale[locale]?.[textId];
       deleted = true;
     }
 

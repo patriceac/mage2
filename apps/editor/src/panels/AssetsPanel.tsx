@@ -520,6 +520,7 @@ export function AssetsPanel({
         <AssetInspector
           activeLocale={activeLocale}
           assetRow={selectedRow}
+          defaultLocale={project.manifest.defaultLanguage}
           locales={supportedLocales}
           onReplaceSelectedAsset={() => void handleReplaceSelectedAsset()}
           onRevealSelectedAsset={() => void handleRevealSelectedAsset()}
@@ -807,6 +808,7 @@ function AssetBrowserRow({
 function AssetInspector({
   activeLocale,
   assetRow,
+  defaultLocale,
   locales,
   onReplaceSelectedAsset,
   onRevealSelectedAsset,
@@ -814,6 +816,7 @@ function AssetInspector({
 }: {
   activeLocale: string;
   assetRow?: AssetRowModel;
+  defaultLocale: string;
   locales: string[];
   onReplaceSelectedAsset: () => void;
   onRevealSelectedAsset: () => void;
@@ -908,7 +911,7 @@ function AssetInspector({
           <tbody>
             {locales.map((locale) => {
               const variant = resolveAssetVariant(asset, locale);
-              const isDefault = locale === activeLocale;
+              const isDefault = locale === defaultLocale;
               return (
                 <tr key={locale}>
                   <td>

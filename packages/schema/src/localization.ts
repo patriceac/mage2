@@ -1,4 +1,11 @@
-import type { Asset, AssetCategory, AssetKind, AssetVariant, ProjectBundle } from "./types";
+import type {
+  Asset,
+  AssetCategory,
+  AssetKind,
+  AssetVariant,
+  ProjectBundle,
+  StringTranslationState
+} from "./types";
 
 export function normalizeSupportedLocales(defaultLanguage: string, supportedLocales: readonly string[] = []): string[] {
   const normalized = [defaultLanguage, ...supportedLocales]
@@ -52,6 +59,50 @@ export function hasLocalizedText(
   textId: string
 ): boolean {
   return Object.prototype.hasOwnProperty.call(getLocaleStringValues(project, locale), textId);
+}
+
+export function ensureLocaleStringTranslationStates(
+  project: Pick<ProjectBundle, "manifest" | "strings">,
+  locale: string
+): Record<string, StringTranslationState> {
+  const resolvedLocale = resolveProjectLocale(project as Pick<ProjectBundle, "manifest">, locale);
+  const states = project.strings.translationStateByLocale[resolvedLocale];
+  if (states) {
+    return states;
+  }
+
+  const nextStates: Record<string, StringTranslationState> = {};
+  project.strings.translationStateByLocale[resolvedLocale] = nextStates;
+  return nextStates;
+}
+
+export function getStringTranslationState(
+  project: Pick<ProjectBundle, "manifest" | "strings">,
+  locale: string,
+  textId: string
+): StringTranslationState | undefined {
+  const resolvedLocale = resolveProjectLocale(project as Pick<ProjectBundle, "manifest">, locale);
+  if (resolvedLocale === project.manifest.defaultLanguage) {
+    return undefined;
+  }
+
+  const explicitState = project.strings.translationStateByLocale[resolvedLocale]?.[textId];
+  if (explicitState) {
+    return explicitState;
+  }
+
+  const values = getLocaleStringValues(project, resolvedLocale);
+  if (!Object.prototype.hasOwnProperty.call(values, textId)) {
+    return undefined;
+  }
+
+  const value = values[textId] ?? "";
+  const sourceValue = getLocaleStringValues(project, project.manifest.defaultLanguage)[textId];
+  if (value === sourceValue) {
+    return "inherited";
+  }
+
+  return value.trim().length > 0 ? "translated" : "draft";
 }
 
 export function resolveAssetVariant(asset: Pick<Asset, "variants">, locale: string): AssetVariant | undefined {
