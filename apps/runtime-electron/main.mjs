@@ -8,7 +8,14 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: "&File",
+          submenu: [{ label: "&Quit", role: "quit" }]
+        }
+      ])
+    );
     const playerDirectory = resolvePlayerDirectory();
     const buildIdentity = await readPlayerBuildIdentity(playerDirectory);
     playerServer = await startPlayerServer(playerDirectory, resolvePlayerPort(buildIdentity.projectId));
@@ -36,6 +43,8 @@ if (!app.requestSingleInstanceLock()) {
 async function createPlayerWindow(playerUrl) {
   const iconPath = resolveIconPath();
   const window = new BrowserWindow({
+    show: false,
+    fullscreen: true,
     width: 1280,
     height: 800,
     minWidth: 320,
