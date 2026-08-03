@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SAVE_ENVELOPE_VERSION = 1;
+export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio", "foreground", "response"]);
@@ -242,6 +244,19 @@ export const SaveStateSchema = z.object({
   playheadMs: z.number().nonnegative().default(0)
 });
 
+export const ProjectContentIdentitySchema = z.object({
+  projectId: z.string().min(1),
+  contentId: z.string().min(1)
+});
+
+export const SaveEnvelopeSchema = z.object({
+  format: z.literal(SAVE_ENVELOPE_FORMAT),
+  version: z.number().int().positive(),
+  identity: ProjectContentIdentitySchema,
+  savedAt: z.string().min(1),
+  state: SaveStateSchema
+});
+
 export const BuildManifestSchema = z.object({
   projectId: z.string().min(1),
   projectName: z.string().min(1),
@@ -318,6 +333,8 @@ export type AssetVariant = z.infer<typeof AssetVariantSchema>;
 export type Asset = z.infer<typeof AssetSchema>;
 export type ProjectManifest = z.infer<typeof ProjectManifestSchema>;
 export type SaveState = z.infer<typeof SaveStateSchema>;
+export type ProjectContentIdentity = z.infer<typeof ProjectContentIdentitySchema>;
+export type SaveEnvelope = z.infer<typeof SaveEnvelopeSchema>;
 export type BuildManifest = z.infer<typeof BuildManifestSchema>;
 export type AssetManifest = z.infer<typeof AssetManifestSchema>;
 export type LocationFile = z.infer<typeof LocationFileSchema>;

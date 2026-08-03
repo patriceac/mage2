@@ -98,6 +98,18 @@ describe("player controller", () => {
     expect(resolution.mediaAssetId).toBe("asset_interaction_clip");
   });
 
+  it("falls back to a fresh state when a caller supplies a stale save directly", () => {
+    const project = createDefaultProjectBundle();
+    const staleState = {
+      ...createInitialSaveState(project),
+      currentSceneId: "scene_removed"
+    };
+
+    const controller = createPlayerController(project, staleState);
+
+    expect(controller.getSnapshot().saveState).toEqual(createInitialSaveState(project));
+  });
+
   it("lets default hotspot timing follow scene duration changes", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({

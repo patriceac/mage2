@@ -11,9 +11,11 @@ import {
   type ActivePlayerResponse
 } from "@mage2/player";
 import {
+  createSaveEnvelope,
+  loadSaveForProject,
   normalizeSupportedLocales,
+  parseProjectBundle,
   resolveAssetVariant,
-  parseSaveState,
   type Asset,
   type BuildManifest,
   type ExportProjectData,
@@ -44,6 +46,27 @@ export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "ma
 
 export function isRuntimeDebugMode(search: string): boolean {
   return new URLSearchParams(search).get("debug") === "1";
+}
+
+export function createRuntimeProject(content: ExportProjectData): ProjectBundle {
+  return parseProjectBundle({
+    manifest: content.manifest,
+    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+    locations: { schemaVersion: content.schemaVersion, items: content.locations },
+    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+    dialogues: {
+      schemaVersion: content.schemaVersion,
+      items: content.dialogues,
+      responseGroups: content.responseGroups ?? [],
+      starterResponsesVersion: content.starterResponsesVersion ?? 0
+    },
+    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+    strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+  });
+}
+
+export function resolveRuntimeSaveStorageKey(projectId: string): string {
+  return `mage2-runtime-save:${projectId}`;
 }
 
 interface RuntimeSystemCopy {
@@ -201,91 +224,22 @@ export interface RuntimeSessionRestoration {
   controller: ReturnType<typeof createPlayerController>;
   saveState: SaveState;
   recovered: boolean;
+  loadResult: ReturnType<typeof loadSaveForProject>;
 }
 
 export function restoreRuntimeSession(
   content: ExportProjectData,
   storedSave: string | null
 ): RuntimeSessionRestoration {
-  const project = toRuntimeProjectBundle(content);
-  const createCleanSession = (recovered: boolean): RuntimeSessionRestoration => {
-    const controller = createPlayerController(project);
-    return {
-      controller,
-      saveState: controller.save(),
-      recovered
-    };
-  };
-
-  if (storedSave === null) {
-    return createCleanSession(false);
-  }
-
-  try {
-    const saveState = parseSaveState(JSON.parse(storedSave) as unknown);
-    if (!isRuntimeSaveSemanticallyValid(project, saveState)) {
-      return createCleanSession(true);
-    }
-
-    const controller = createPlayerController(project, saveState);
-    controller.getSnapshot();
-    return { controller, saveState: controller.save(), recovered: false };
-  } catch {
-    return createCleanSession(true);
-  }
-}
-
-function toRuntimeProjectBundle(content: ExportProjectData): ProjectBundle {
+  const project = createRuntimeProject(content);
+  const loadResult = loadSaveForProject(storedSave, project);
+  const controller = createPlayerController(project, loadResult.saveState);
   return {
-    manifest: content.manifest,
-    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-    locations: { schemaVersion: content.schemaVersion, items: content.locations },
-    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-    dialogues: {
-      schemaVersion: content.schemaVersion,
-      items: content.dialogues,
-      responseGroups: content.responseGroups ?? [],
-      starterResponsesVersion: content.starterResponsesVersion ?? 0
-    },
-    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-    strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+    controller,
+    saveState: controller.save(),
+    recovered: loadResult.shouldQuarantine,
+    loadResult
   };
-}
-
-function isRuntimeSaveSemanticallyValid(project: ProjectBundle, saveState: SaveState): boolean {
-  const scene = project.scenes.items.find((entry) => entry.id === saveState.currentSceneId);
-  const location = project.locations.items.find((entry) => entry.id === saveState.currentLocationId);
-  if (!scene || !location || scene.locationId !== location.id) {
-    return false;
-  }
-
-  const sceneIds = new Set(project.scenes.items.map((entry) => entry.id));
-  if (
-    !saveState.visitedSceneIds.includes(saveState.currentSceneId) ||
-    saveState.visitedSceneIds.some((sceneId) => !sceneIds.has(sceneId))
-  ) {
-    return false;
-  }
-
-  const inventoryItemIds = new Set(project.inventory.items.map((entry) => entry.id));
-  if (saveState.inventory.some((itemId) => !inventoryItemIds.has(itemId))) {
-    return false;
-  }
-
-  const hasDialogueTree = saveState.activeDialogueTreeId !== undefined;
-  const hasDialogueNode = saveState.activeDialogueNodeId !== undefined;
-  if (hasDialogueTree !== hasDialogueNode) {
-    return false;
-  }
-
-  if (saveState.activeDialogueTreeId && saveState.activeDialogueNodeId) {
-    const tree = project.dialogues.items.find((entry) => entry.id === saveState.activeDialogueTreeId);
-    if (!tree?.nodes.some((node) => node.id === saveState.activeDialogueNodeId)) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 export function resolveRuntimeLanguageName(locale: string): string {
@@ -350,23 +304,33 @@ export function App() {
 
         const manifest = parseBuildManifest(await manifestResponse.json());
         const contentResponse = await fetch(`./${manifest.contentPath}`);
+        if (!contentResponse.ok) {
+          throw new Error(`Could not load exported content '${manifest.contentPath}'.`);
+        }
         const parsedContent = (await contentResponse.json()) as ExportProjectData;
+        const loadedProject = createRuntimeProject(parsedContent);
+        if (loadedProject.manifest.projectId !== manifest.projectId) {
+          throw new Error("The build manifest and exported content identify different projects.");
+        }
         const supportedLocales = normalizeSupportedLocales(
-          parsedContent.manifest.defaultLanguage,
-          parsedContent.manifest.supportedLocales
+          loadedProject.manifest.defaultLanguage,
+          loadedProject.manifest.supportedLocales
         );
 
-        const storageKey = `mage2-runtime-save:${manifest.projectId}`;
+        const storageKey = resolveRuntimeSaveStorageKey(manifest.projectId);
         const localeStorageKey = `mage2-runtime-locale:${manifest.projectId}`;
         const storedSave = localStorage.getItem(storageKey);
         const storedLocale = localStorage.getItem(localeStorageKey);
         const nextLocale =
           storedLocale && supportedLocales.includes(storedLocale)
             ? storedLocale
-            : parsedContent.manifest.defaultLanguage;
+            : loadedProject.manifest.defaultLanguage;
         const restoredSession = restoreRuntimeSession(parsedContent, storedSave);
-        if (restoredSession.recovered) {
-          localStorage.removeItem(storageKey);
+        if (storedSave && restoredSession.loadResult.shouldQuarantine) {
+          quarantineRejectedRuntimeSave(storageKey, storedSave, restoredSession.loadResult.status);
+        }
+        if (restoredSession.loadResult.status === "migrated" && restoredSession.loadResult.envelope) {
+          persistRuntimeSave(storageKey, restoredSession.loadResult.envelope);
         }
 
         setBuildManifest(manifest);
@@ -377,8 +341,13 @@ export function App() {
         setPlayheadMs(restoredSession.saveState.playheadMs);
         setInteractionMediaPlayback(undefined);
         setActiveResponse(undefined);
-        setHasValidStoredSave(storedSave !== null && !restoredSession.recovered);
-        setRuntimeNotice(restoredSession.recovered ? resolveRuntimeSystemCopy(nextLocale).saveRecovered : undefined);
+        setHasValidStoredSave(
+          restoredSession.loadResult.status === "compatible" || restoredSession.loadResult.status === "migrated"
+        );
+        setRuntimeNotice(
+          restoredSession.loadResult.message ??
+            (restoredSession.recovered ? resolveRuntimeSystemCopy(nextLocale).saveRecovered : undefined)
+        );
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : String(error));
       }
@@ -387,7 +356,7 @@ export function App() {
     void loadBuild();
   }, []);
 
-  const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
+  const storageKey = buildManifest ? resolveRuntimeSaveStorageKey(buildManifest.projectId) : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
   const supportedLocales =
     content
@@ -399,7 +368,7 @@ export function App() {
     : {};
   const systemCopy = resolveRuntimeSystemCopy(locale);
   const playerCopy = resolveRuntimePlayerCopy(locale);
-  const runtimeProject = useMemo(() => (content ? toRuntimeProjectBundle(content) : undefined), [content]);
+  const runtimeProject = useMemo(() => (content ? createRuntimeProject(content) : undefined), [content]);
   const currentAsset =
     content && snapshot
       ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)
@@ -810,7 +779,7 @@ export function App() {
     );
   }
 
-  if (!buildManifest || !content || !controller || !snapshot) {
+  if (!buildManifest || !content || !runtimeProject || !controller || !snapshot) {
     return (
       <main className="runtime-shell">
         <section className="runtime-card">
@@ -854,9 +823,13 @@ export function App() {
   const saveGame = () => {
     const nextSave = controller.save();
     nextSave.playheadMs = playheadMs;
-    localStorage.setItem(storageKey, JSON.stringify(nextSave));
-    setHasValidStoredSave(true);
-    setRuntimeNotice(systemCopy.gameSaved);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(createSaveEnvelope(runtimeProject, nextSave)));
+      setHasValidStoredSave(true);
+      setRuntimeNotice(systemCopy.gameSaved);
+    } catch {
+      setRuntimeNotice("Progress could not be saved in local storage.");
+    }
     setMenuOpen(false);
   };
 
@@ -871,13 +844,16 @@ export function App() {
 
     const restoredSession = restoreRuntimeSession(content, storedSave);
     applyRestoredSession(restoredSession);
-    if (restoredSession.recovered) {
-      localStorage.removeItem(storageKey);
+    if (restoredSession.loadResult.shouldQuarantine) {
+      quarantineRejectedRuntimeSave(storageKey, storedSave, restoredSession.loadResult.status);
       setHasValidStoredSave(false);
       setRuntimeNotice(systemCopy.saveRecovered);
     } else {
+      if (restoredSession.loadResult.status === "migrated" && restoredSession.loadResult.envelope) {
+        persistRuntimeSave(storageKey, restoredSession.loadResult.envelope);
+      }
       setHasValidStoredSave(true);
-      setRuntimeNotice(systemCopy.gameLoaded);
+      setRuntimeNotice(restoredSession.loadResult.message ?? systemCopy.gameLoaded);
     }
     setConfirmationAction(undefined);
   };
@@ -1138,4 +1114,22 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function persistRuntimeSave(storageKey: string, envelope: unknown): void {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(envelope));
+  } catch {
+    // A migrated save remains usable in memory even when local storage is unavailable.
+  }
+}
+
+function quarantineRejectedRuntimeSave(storageKey: string, raw: string, status: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  try {
+    localStorage.setItem(`${storageKey}:rejected:${status}:${timestamp}`, raw);
+    localStorage.removeItem(storageKey);
+  } catch {
+    // Preserve the active entry when there is not enough storage to keep a copy.
+  }
 }

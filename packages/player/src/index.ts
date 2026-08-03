@@ -15,7 +15,8 @@ import {
   type ResponseSelection,
   type SaveState,
   type Scene,
-  createInitialSaveState
+  createInitialSaveState,
+  validateSaveStateForProject
 } from "@mage2/schema";
 export * from "./media-playhead";
 
@@ -77,10 +78,15 @@ export function createPlayerController(
   initialSaveState?: SaveState,
   options: PlayerControllerOptions = {}
 ): PlayerController {
-  const state = parseSaveState({
+  const requestedState = parseSaveState({
     ...createInitialSaveState(project),
     ...(initialSaveState ?? {})
   });
+  // Player controllers are also used outside the browser save UI. Keep that
+  // boundary fail-safe if a caller supplies a stale state directly.
+  const state = validateSaveStateForProject(requestedState, project)
+    ? createInitialSaveState(project)
+    : requestedState;
   const lastResponseEntryIdByGroup = new Map<string, string>();
   const random = options.random ?? Math.random;
   let responseSequence = 0;

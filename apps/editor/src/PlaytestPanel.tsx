@@ -9,6 +9,8 @@ import {
 } from "@mage2/player-ui";
 import {
   getLocaleStringValues,
+  createSaveEnvelope,
+  loadSaveForProject,
   normalizeSupportedLocales,
   type Asset,
   type InventoryItem,
@@ -34,12 +36,17 @@ interface PlaytestPanelProps {
   onExit?: () => void;
 }
 
-const STORAGE_KEY = "mage2-editor-playtest-save";
+const SAVE_STORAGE_KEY_PREFIX = "mage2-editor-playtest-save";
+const LEGACY_SAVE_STORAGE_KEY = "mage2-editor-playtest-save";
 const LOCALE_STORAGE_KEY = "mage2-editor-playtest-locale";
 const PLAYTEST_INVENTORY_BAG_ICON_SRC = new URL("./assets/playtest-inventory-bag.png", import.meta.url).href;
 
 export function resolvePlaytestPlayerCopy(locale: string) {
   return resolvePlayerSystemCopy(locale);
+}
+
+export function resolvePlaytestSaveStorageKey(projectId: string): string {
+  return `${SAVE_STORAGE_KEY_PREFIX}:${projectId}`;
 }
 
 export function resolvePlaytestInventorySummary(
@@ -101,6 +108,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const selectedInventoryItemIdRef = useRef<string | undefined>(undefined);
   const playerRendererRef = useRef<PlayerSceneRendererHandle>(null);
+  const [saveNotice, setSaveNotice] = useState<string>();
   const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
   const [interactionMediaPlayback, setInteractionMediaPlayback] = useState<{ assetId: string; sequence: number }>();
   const interactionMediaSequenceRef = useRef(0);
@@ -134,6 +142,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setInteractionMediaPlayback(undefined);
     setActiveResponse(undefined);
     selectPlaytestInventoryItem(undefined);
+    setSaveNotice(undefined);
   }, [project]);
 
   useEffect(() => {
@@ -191,6 +200,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setPlayheadMs(0);
     setPlaybackResetKey((value) => value + 1);
     selectPlaytestInventoryItem(undefined);
+    setSaveNotice(undefined);
     setLastActivatedHotspotId(undefined);
     setInteractionMediaPlayback(undefined);
     setActiveResponse(undefined);
@@ -702,8 +712,15 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               onClick={() => {
                 const nextSave = controller.save();
                 nextSave.playheadMs = playheadMs;
-                const serialized = JSON.stringify(nextSave);
-                localStorage.setItem(STORAGE_KEY, serialized);
+                try {
+                  localStorage.setItem(
+                    resolvePlaytestSaveStorageKey(project.manifest.projectId),
+                    JSON.stringify(createSaveEnvelope(project, nextSave))
+                  );
+                  setSaveNotice("Playtest slot saved.");
+                } catch {
+                  setSaveNotice("The playtest slot could not be saved in local storage.");
+                }
               }}
             >
               Save Slot
@@ -715,12 +732,31 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               className="playtest-panel__toolbar-button"
               title="Restore the last runtime state saved in the local playtest slot."
               onClick={() => {
-                const raw = localStorage.getItem(STORAGE_KEY);
+                const storageKey = resolvePlaytestSaveStorageKey(project.manifest.projectId);
+                const scopedSave = localStorage.getItem(storageKey);
+                const raw = scopedSave ?? localStorage.getItem(LEGACY_SAVE_STORAGE_KEY);
                 if (!raw) {
+                  setSaveNotice("No playtest save slot is available for this project.");
                   return;
                 }
 
-                const nextController = createPlayerController(project, JSON.parse(raw));
+                const sourceStorageKey = scopedSave !== null ? storageKey : LEGACY_SAVE_STORAGE_KEY;
+                const result = loadSaveForProject(raw, project);
+                if (result.shouldQuarantine) {
+                  quarantineRejectedSave(sourceStorageKey, raw, result.status);
+                }
+                if (result.status === "migrated" && result.envelope) {
+                  try {
+                    localStorage.setItem(storageKey, JSON.stringify(result.envelope));
+                    if (sourceStorageKey === LEGACY_SAVE_STORAGE_KEY) {
+                      localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY);
+                    }
+                  } catch {
+                    // The migrated state is still safe to use for this session.
+                  }
+                }
+
+                const nextController = createPlayerController(project, result.saveState);
                 setController(nextController);
                 const nextSnapshot = nextController.getSnapshot();
                 setSnapshot(nextSnapshot);
@@ -728,6 +764,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                 setInteractionMediaPlayback(undefined);
                 selectPlaytestInventoryItem(undefined);
                 setActiveResponse(undefined);
+                const notice = result.message ?? "Playtest slot loaded.";
+                setSaveNotice(notice);
               }}
             >
               Load Slot
@@ -761,6 +799,12 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             </label>
           </div>
         </div>
+
+        {saveNotice ? (
+          <p className="playtest-panel__save-status" role="status">
+            {saveNotice}
+          </p>
+        ) : null}
 
         <div className="playtest-stage">
           <PlayerSceneRenderer
@@ -844,4 +888,13 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </aside>
     </div>
   );
+}
+function quarantineRejectedSave(storageKey: string, raw: string, status: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  try {
+    localStorage.setItem(`${storageKey}:rejected:${status}:${timestamp}`, raw);
+    localStorage.removeItem(storageKey);
+  } catch {
+    // Keeping an unreadable value is preferable to discarding it if storage is full.
+  }
 }

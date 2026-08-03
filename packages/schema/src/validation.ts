@@ -57,12 +57,38 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   const assetIds = new Set(project.assets.assets.map((asset) => asset.id));
   const assetsById = new Map(project.assets.assets.map((asset) => [asset.id, asset]));
   const locationIds = new Set(project.locations.items.map((location) => location.id));
+  const locationsById = new Map(project.locations.items.map((location) => [location.id, location]));
   const sceneIds = new Set(project.scenes.items.map((scene) => scene.id));
+  const scenesById = new Map(project.scenes.items.map((scene) => [scene.id, scene]));
   const dialogueIds = new Set(project.dialogues.items.map((dialogue) => dialogue.id));
   const inventoryIds = new Set(project.inventory.items.map((item) => item.id));
   const supportedLocales = normalizeSupportedLocales(
     project.manifest.defaultLanguage,
     project.manifest.supportedLocales
+  );
+
+  validateDuplicateEntityIds(project.assets.assets, "asset", "DUPLICATE_ASSET_ID", issues);
+  validateDuplicateEntityIds(project.locations.items, "location", "DUPLICATE_LOCATION_ID", issues);
+  validateDuplicateEntityIds(project.scenes.items, "scene", "DUPLICATE_SCENE_ID", issues);
+  validateDuplicateEntityIds(project.dialogues.items, "dialogue tree", "DUPLICATE_DIALOGUE_ID", issues);
+  validateDuplicateEntityIds(project.inventory.items, "inventory item", "DUPLICATE_INVENTORY_ITEM_ID", issues);
+  validateDuplicateEntityIds(
+    project.scenes.items.flatMap((scene) => scene.hotspots),
+    "hotspot",
+    "DUPLICATE_HOTSPOT_ID",
+    issues
+  );
+  validateDuplicateEntityIds(
+    project.dialogues.items.flatMap((dialogue) => dialogue.nodes),
+    "dialogue node",
+    "DUPLICATE_DIALOGUE_NODE_ID",
+    issues
+  );
+  validateDuplicateEntityIds(
+    project.dialogues.items.flatMap((dialogue) => dialogue.nodes.flatMap((node) => node.choices)),
+    "dialogue choice",
+    "DUPLICATE_DIALOGUE_CHOICE_ID",
+    issues
   );
 
   if (!locationIds.has(project.manifest.startLocationId)) {
@@ -81,7 +107,16 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     });
   }
 
+  const sceneLocationOwners = new Map<string, Set<string>>();
   for (const location of project.locations.items) {
+    validateDuplicateReferenceIds(
+      location.sceneIds,
+      "LOCATION_SCENE_DUPLICATE",
+      `Location '${location.id}' lists the same scene more than once.`,
+      location.id,
+      issues
+    );
+
     for (const sceneId of location.sceneIds) {
       if (!sceneIds.has(sceneId)) {
         issues.push({
@@ -90,11 +125,68 @@ export function validateProject(project: ProjectBundle): ValidationReport {
           message: `Location '${location.id}' references missing scene '${sceneId}'.`,
           entityId: location.id
         });
+        continue;
+      }
+
+      const owners = sceneLocationOwners.get(sceneId) ?? new Set<string>();
+      owners.add(location.id);
+      sceneLocationOwners.set(sceneId, owners);
+
+      const scene = scenesById.get(sceneId);
+      if (scene && scene.locationId !== location.id) {
+        issues.push({
+          level: "error",
+          code: "LOCATION_SCENE_OWNERSHIP_MISMATCH",
+          message: `Location '${location.id}' lists scene '${sceneId}', but the scene belongs to location '${scene.locationId}'.`,
+          entityId: location.id
+        });
       }
     }
   }
 
+  const startLocation = locationsById.get(project.manifest.startLocationId);
+  const startScene = scenesById.get(project.manifest.startSceneId);
+  if (startLocation && startScene) {
+    if (startScene.locationId !== startLocation.id) {
+      issues.push({
+        level: "error",
+        code: "START_SCENE_LOCATION_MISMATCH",
+        message: `Start scene '${startScene.id}' belongs to location '${startScene.locationId}', not start location '${startLocation.id}'.`,
+        entityId: startScene.id
+      });
+    }
+
+    if (!startLocation.sceneIds.includes(startScene.id)) {
+      issues.push({
+        level: "error",
+        code: "START_SCENE_NOT_OWNED_BY_START_LOCATION",
+        message: `Start location '${startLocation.id}' does not list start scene '${startScene.id}'.`,
+        entityId: startLocation.id
+      });
+    }
+  }
+
   for (const scene of project.scenes.items) {
+    const ownerIds = sceneLocationOwners.get(scene.id);
+    const ownerLocation = locationsById.get(scene.locationId);
+    if (ownerLocation && !ownerLocation.sceneIds.includes(scene.id)) {
+      issues.push({
+        level: "error",
+        code: "SCENE_LOCATION_OWNERSHIP_MISSING",
+        message: `Scene '${scene.id}' belongs to location '${scene.locationId}', but that location does not list the scene.`,
+        entityId: scene.id
+      });
+    }
+
+    if (ownerIds && ownerIds.size > 1) {
+      issues.push({
+        level: "error",
+        code: "SCENE_LOCATION_MULTIPLE_OWNERS",
+        message: `Scene '${scene.id}' is listed by multiple locations (${[...ownerIds].join(", ")}).`,
+        entityId: scene.id
+      });
+    }
+
     validateScene(project, scene, supportedLocales, assetIds, assetsById, locationIds, sceneIds, dialogueIds, inventoryIds, issues);
   }
 
@@ -127,14 +219,14 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     }
   }
 
-  const startScene = project.scenes.items.find((entry) => entry.id === project.manifest.startSceneId);
+  const reachabilityStartScene = project.scenes.items.find((entry) => entry.id === project.manifest.startSceneId);
 
   for (const scene of project.scenes.items) {
     if (!reachableScenes.has(scene.id)) {
       issues.push({
         level: "warning",
         code: "SCENE_UNREACHABLE",
-        message: `Scene '${scene.name}' is unreachable from '${startScene?.name ?? project.manifest.startSceneId}'.`,
+        message: `Scene '${scene.name}' is unreachable from '${reachabilityStartScene?.name ?? project.manifest.startSceneId}'.`,
         entityId: scene.id
       });
     }
@@ -144,6 +236,47 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     valid: issues.every((issue) => issue.level !== "error"),
     issues
   };
+}
+
+function validateDuplicateEntityIds<T extends { id: string }>(
+  entities: readonly T[],
+  entityLabel: string,
+  code: string,
+  issues: ValidationIssue[]
+): void {
+  const seen = new Set<string>();
+  for (const entity of entities) {
+    if (!seen.has(entity.id)) {
+      seen.add(entity.id);
+      continue;
+    }
+
+    issues.push({
+      level: "error",
+      code,
+      message: `Duplicate ${entityLabel} id '${entity.id}'.`,
+      entityId: entity.id
+    });
+  }
+}
+
+function validateDuplicateReferenceIds(
+  ids: readonly string[],
+  code: string,
+  message: string,
+  entityId: string,
+  issues: ValidationIssue[]
+): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      continue;
+    }
+
+    issues.push({ level: "error", code, message, entityId });
+    return;
+  }
 }
 
 function validateScene(
@@ -160,6 +293,24 @@ function validateScene(
 ): void {
   let backgroundAssetKind: ProjectBundle["assets"]["assets"][number]["kind"] | undefined;
   const { backgroundAssetId } = scene;
+
+  validateDuplicateReferenceIds(
+    scene.dialogueTreeIds,
+    "SCENE_DIALOGUE_DUPLICATE",
+    `Scene '${scene.id}' lists the same dialogue tree more than once.`,
+    scene.id,
+    issues
+  );
+  for (const dialogueTreeId of scene.dialogueTreeIds) {
+    if (!dialogueIds.has(dialogueTreeId)) {
+      issues.push({
+        level: "error",
+        code: "SCENE_DIALOGUE_MISSING",
+        message: `Scene '${scene.id}' references missing dialogue tree '${dialogueTreeId}'.`,
+        entityId: scene.id
+      });
+    }
+  }
 
   if (!locationIds.has(scene.locationId)) {
     issues.push({
@@ -364,6 +515,45 @@ function validateScene(
         entityId: hotspot.id
       });
     }
+
+    if (hotspot.placedInventoryItemId && !inventoryIds.has(hotspot.placedInventoryItemId)) {
+      issues.push({
+        level: "error",
+        code: "HOTSPOT_PLACED_INVENTORY_ITEM_MISSING",
+        message: `Hotspot '${hotspot.id}' references missing placed inventory item '${hotspot.placedInventoryItemId}'.`,
+        entityId: hotspot.id
+      });
+    }
+
+    if (
+      hotspot.inventoryItemId &&
+      hotspot.placedInventoryItemId &&
+      hotspot.inventoryItemId !== hotspot.placedInventoryItemId
+    ) {
+      issues.push({
+        level: "error",
+        code: "HOTSPOT_INVENTORY_REFERENCE_AMBIGUOUS",
+        message: `Hotspot '${hotspot.id}' references different inventory items for pickup and placement.`,
+        entityId: hotspot.id
+      });
+    }
+
+    if (hotspot.placedInventoryGeometry && !hotspot.placedInventoryItemId && !hotspot.inventoryItemId) {
+      issues.push({
+        level: "error",
+        code: "HOTSPOT_PLACED_GEOMETRY_ORPHANED",
+        message: `Hotspot '${hotspot.id}' has placed-inventory geometry but no inventory item reference.`,
+        entityId: hotspot.id
+      });
+    }
+
+    validateDuplicateReferenceIds(
+      hotspot.requiredItemIds,
+      "HOTSPOT_REQUIRED_ITEM_DUPLICATE",
+      `Hotspot '${hotspot.id}' requires the same inventory item more than once.`,
+      hotspot.id,
+      issues
+    );
 
     for (const itemId of hotspot.requiredItemIds) {
       if (!inventoryIds.has(itemId)) {
