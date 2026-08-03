@@ -48,14 +48,25 @@ export interface ActivePlayerResponse {
   sourceGroupId?: string;
 }
 
-export interface PlayerControllerOptions {
-  random?: () => number;
-}
-
 export type HotspotInteractionEventType = "click" | "otherItem";
 
+export type PlayerRuntimeIssueCode = "scene-transition-cycle" | "effect-budget-exceeded";
+
+export interface PlayerRuntimeIssue {
+  code: PlayerRuntimeIssueCode;
+  message: string;
+  scenePath: string[];
+  effectsExecuted: number;
+  effectBudget: number;
+}
+
+export interface PlayerControllerOptions {
+  random?: () => number;
+  effectBudget?: number;
+}
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
+  getRuntimeIssues(): PlayerRuntimeIssue[];
   getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
   enterScene(sceneId: string): void;
   selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution;
@@ -72,6 +83,16 @@ export interface PlayerController {
 }
 
 export const DEFAULT_SCENE_TIMELINE_DURATION_MS = 30000;
+export const DEFAULT_EFFECT_BUDGET = 256;
+
+interface EffectExecutionContext {
+  effectBudget: number;
+  effectsExecuted: number;
+  halted: boolean;
+  isDrainingTransitions: boolean;
+  pendingSceneIds: string[];
+  transitionPath?: string[];
+}
 
 export function createPlayerController(
   project: ProjectBundle,
@@ -90,6 +111,9 @@ export function createPlayerController(
   const lastResponseEntryIdByGroup = new Map<string, string>();
   const random = options.random ?? Math.random;
   let responseSequence = 0;
+  const effectBudget = resolveEffectBudget(options.effectBudget);
+  const runtimeIssues: PlayerRuntimeIssue[] = [];
+  let activeExecutionContext: EffectExecutionContext | undefined;
 
   function getScene(sceneId = state.currentSceneId): Scene {
     const scene = project.scenes.items.find((entry) => entry.id === sceneId);
@@ -164,10 +188,83 @@ export function createPlayerController(
     state.activeDialogueNodeId = nodeId;
   }
 
-  function applyEffects(effects: Effect[]): HotspotResolution {
+  function runPlayerAction<T>(action: (context: EffectExecutionContext) => T): T {
+    if (activeExecutionContext) {
+      return action(activeExecutionContext);
+    }
+
+    const context: EffectExecutionContext = {
+      effectBudget,
+      effectsExecuted: 0,
+      halted: false,
+      isDrainingTransitions: false,
+      pendingSceneIds: []
+    };
+    activeExecutionContext = context;
+
+    try {
+      return action(context);
+    } finally {
+      context.pendingSceneIds.length = 0;
+      activeExecutionContext = undefined;
+    }
+  }
+
+  function haltExecution(
+    context: EffectExecutionContext,
+    code: PlayerRuntimeIssueCode,
+    message: string,
+    scenePath = context.transitionPath ?? [state.currentSceneId]
+  ): void {
+    if (context.halted) {
+      return;
+    }
+
+    context.halted = true;
+    context.pendingSceneIds.length = 0;
+    runtimeIssues.push({
+      code,
+      message,
+      scenePath: [...scenePath],
+      effectsExecuted: context.effectsExecuted,
+      effectBudget: context.effectBudget
+    });
+  }
+
+  function ensureEffectCapacity(context: EffectExecutionContext, requiredEffectCount: number): boolean {
+    if (context.halted) {
+      return false;
+    }
+
+    if (context.effectsExecuted + requiredEffectCount <= context.effectBudget) {
+      return true;
+    }
+
+    haltExecution(
+      context,
+      "effect-budget-exceeded",
+      `Effect budget of ${context.effectBudget} exceeded after ${context.effectsExecuted} effects.`
+    );
+    return false;
+  }
+
+  function consumeEffectBudget(context: EffectExecutionContext): boolean {
+    if (!ensureEffectCapacity(context, 1)) {
+      return false;
+    }
+
+    context.effectsExecuted += 1;
+    return true;
+  }
+
+  function applyEffects(effects: Effect[], context: EffectExecutionContext): HotspotResolution {
     const resolution: HotspotResolution = {};
 
     for (const effect of effects) {
+      if (!consumeEffectBudget(context)) {
+        break;
+      }
+
       switch (effect.type) {
         case "setFlag":
           state.flags[effect.flag] = effect.value;
@@ -179,82 +276,162 @@ export function createPlayerController(
           state.inventory = removeSingleInventoryItem(state.inventory, effect.itemId);
           break;
         case "goToScene":
-          enterScene(effect.sceneId);
+          requestSceneTransition(effect.sceneId, context);
           resolution.transitionedToSceneId = effect.sceneId;
           break;
         case "playDialogue":
-          startDialogue(effect.dialogueTreeId);
+          startDialogueWithinAction(effect.dialogueTreeId, context);
           resolution.startedDialogueTreeId = effect.dialogueTreeId;
           break;
+      }
+
+      if (context.halted) {
+        break;
       }
     }
 
     return resolution;
   }
 
-  function enterScene(sceneId: string): void {
-    const currentScene = getScene();
-    if (currentScene.id !== sceneId) {
-      applyEffects(currentScene.onExitEffects);
+  function requestSceneTransition(sceneId: string, context: EffectExecutionContext): void {
+    getScene(sceneId);
+
+    // A request to the scene active when the effect runs is a no-op. In
+    // particular, self-transitions in onExit/onEnter never rerun either hook.
+    if (sceneId === state.currentSceneId || context.halted) {
+      return;
     }
 
-    const nextScene = getScene(sceneId);
-    state.currentSceneId = nextScene.id;
-    state.currentLocationId = nextScene.locationId;
-    state.playheadMs = 0;
-
-    if (!state.visitedSceneIds.includes(nextScene.id)) {
-      state.visitedSceneIds.push(nextScene.id);
-    }
-
-    setActiveDialogue(undefined, undefined);
-    applyEffects(nextScene.onEnterEffects);
+    context.pendingSceneIds.push(sceneId);
+    drainSceneTransitions(context);
   }
 
-  function applyNodeEntry(tree: DialogueTree, nodeId: string): void {
+  function drainSceneTransitions(context: EffectExecutionContext): void {
+    if (context.isDrainingTransitions || context.halted) {
+      return;
+    }
+
+    context.isDrainingTransitions = true;
+    const previousTransitionPath = context.transitionPath;
+    const transitionPath = [state.currentSceneId];
+    context.transitionPath = transitionPath;
+
+    try {
+      while (context.pendingSceneIds.length > 0 && !context.halted) {
+        const nextSceneId = context.pendingSceneIds.shift()!;
+        if (nextSceneId === state.currentSceneId) {
+          continue;
+        }
+
+        if (transitionPath.includes(nextSceneId)) {
+          const cyclePath = [...transitionPath, nextSceneId];
+          haltExecution(
+            context,
+            "scene-transition-cycle",
+            `Scene transition cycle blocked: ${cyclePath.join(" -> ")}.`,
+            cyclePath
+          );
+          break;
+        }
+
+        const currentScene = getScene();
+        const nextScene = getScene(nextSceneId);
+        if (!ensureEffectCapacity(
+          context,
+          currentScene.onExitEffects.length + nextScene.onEnterEffects.length
+        )) {
+          break;
+        }
+
+        applyEffects(currentScene.onExitEffects, context);
+        if (context.halted || !ensureEffectCapacity(context, nextScene.onEnterEffects.length)) {
+          break;
+        }
+
+        state.currentSceneId = nextScene.id;
+        state.currentLocationId = nextScene.locationId;
+        state.playheadMs = 0;
+
+        if (!state.visitedSceneIds.includes(nextScene.id)) {
+          state.visitedSceneIds.push(nextScene.id);
+        }
+
+        setActiveDialogue(undefined, undefined);
+        transitionPath.push(nextScene.id);
+        applyEffects(nextScene.onEnterEffects, context);
+      }
+    } finally {
+      context.isDrainingTransitions = false;
+      context.transitionPath = previousTransitionPath;
+      if (context.halted) {
+        context.pendingSceneIds.length = 0;
+      }
+    }
+  }
+
+  function enterScene(sceneId: string): void {
+    runPlayerAction((context) => {
+      requestSceneTransition(sceneId, context);
+    });
+  }
+
+  function applyNodeEntry(tree: DialogueTree, nodeId: string, context: EffectExecutionContext): void {
     const node = getDialogueNode(tree, nodeId);
     setActiveDialogue(tree.id, node.id);
-    applyEffects(node.effects);
+    applyEffects(node.effects, context);
+  }
+
+  function startDialogueWithinAction(dialogueTreeId: string, context: EffectExecutionContext): void {
+    const tree = getDialogue(dialogueTreeId);
+    applyNodeEntry(tree, tree.startNodeId, context);
   }
 
   function startDialogue(dialogueTreeId: string): void {
-    const tree = getDialogue(dialogueTreeId);
-    applyNodeEntry(tree, tree.startNodeId);
+    runPlayerAction((context) => {
+      startDialogueWithinAction(dialogueTreeId, context);
+    });
   }
 
   function continueDialogue(): void {
-    const activeDialogue = resolveActiveDialogue();
-    if (!activeDialogue || activeDialogue.node.choices.length > 0) {
-      return;
-    }
+    runPlayerAction((context) => {
+      const activeDialogue = resolveActiveDialogue();
+      if (!activeDialogue || activeDialogue.node.choices.length > 0) {
+        return;
+      }
 
-    if (!activeDialogue.node.nextNodeId) {
-      setActiveDialogue(undefined, undefined);
-      return;
-    }
+      if (!activeDialogue.node.nextNodeId) {
+        setActiveDialogue(undefined, undefined);
+        return;
+      }
 
-    applyNodeEntry(activeDialogue.tree, activeDialogue.node.nextNodeId);
+      applyNodeEntry(activeDialogue.tree, activeDialogue.node.nextNodeId, context);
+    });
   }
 
   function chooseDialogueChoice(choiceId: string): void {
-    const activeDialogue = resolveActiveDialogue();
-    if (!activeDialogue) {
-      return;
-    }
+    runPlayerAction((context) => {
+      const activeDialogue = resolveActiveDialogue();
+      if (!activeDialogue) {
+        return;
+      }
 
-    const choice = activeDialogue.choices.find((entry) => entry.id === choiceId);
-    if (!choice) {
-      return;
-    }
+      const choice = activeDialogue.choices.find((entry) => entry.id === choiceId);
+      if (!choice) {
+        return;
+      }
 
-    applyEffects(choice.effects);
+      applyEffects(choice.effects, context);
+      if (context.halted) {
+        return;
+      }
 
-    if (!choice.nextNodeId) {
-      setActiveDialogue(undefined, undefined);
-      return;
-    }
+      if (!choice.nextNodeId) {
+        setActiveDialogue(undefined, undefined);
+        return;
+      }
 
-    applyNodeEntry(activeDialogue.tree, choice.nextNodeId);
+      applyNodeEntry(activeDialogue.tree, choice.nextNodeId, context);
+    });
   }
 
   function getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[] {
@@ -269,14 +446,16 @@ export function createPlayerController(
   }
 
   function selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution {
-    const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
-    if (!hotspot) {
-      return {};
-    }
+    return runPlayerAction((context) => {
+      const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
+      if (!hotspot) {
+        return {};
+      }
 
-    const resolution = applyHotspotEvent(hotspot);
-    resolution.mediaAssetId = hotspot.mediaAssetId;
-    return resolution;
+      const resolution = applyHotspotEvent(hotspot, context);
+      resolution.mediaAssetId = hotspot.mediaAssetId;
+      return resolution;
+    });
   }
 
   function selectHotspotEvent(
@@ -285,21 +464,35 @@ export function createPlayerController(
     timeMs: number,
     sceneTimelineDurationMs?: number
   ): HotspotResolution {
-    const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
-    const event = eventType === "click" ? hotspot?.clickEvent : hotspot?.otherItemEvent;
-    return event ? applyHotspotEvent(event) : {};
+    return runPlayerAction((context) => {
+      const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
+      const event = eventType === "click" ? hotspot?.clickEvent : hotspot?.otherItemEvent;
+      return event ? applyHotspotEvent(event, context) : {};
+    });
   }
 
-  function applyHotspotEvent(event: HotspotEvent): HotspotResolution {
-    const resolution = applyEffects(event.effects);
+  function applyHotspotEvent(event: HotspotEvent, context: EffectExecutionContext): HotspotResolution {
+    const resolution = applyEffects(event.effects, context);
+    if (context.halted) {
+      return resolution;
+    }
+
     if (event.dialogueTreeId && !resolution.startedDialogueTreeId) {
-      startDialogue(event.dialogueTreeId);
+      startDialogueWithinAction(event.dialogueTreeId, context);
       resolution.startedDialogueTreeId = event.dialogueTreeId;
     }
 
+    if (context.halted) {
+      return resolution;
+    }
+
     if (event.targetSceneId && !resolution.transitionedToSceneId) {
-      enterScene(event.targetSceneId);
+      requestSceneTransition(event.targetSceneId, context);
       resolution.transitionedToSceneId = event.targetSceneId;
+    }
+
+    if (context.halted) {
+      return resolution;
     }
 
     if (event.response && !resolution.startedDialogueTreeId) {
@@ -360,6 +553,7 @@ export function createPlayerController(
 
   return {
     getSnapshot,
+    getRuntimeIssues: () => structuredClone(runtimeIssues),
     getVisibleHotspots,
     enterScene,
     selectHotspot,
@@ -369,6 +563,18 @@ export function createPlayerController(
     chooseDialogueChoice,
     save: () => structuredClone(state)
   };
+}
+
+function resolveEffectBudget(effectBudget: number | undefined): number {
+  if (effectBudget === undefined) {
+    return DEFAULT_EFFECT_BUDGET;
+  }
+
+  if (!Number.isInteger(effectBudget) || effectBudget <= 0) {
+    throw new Error("Player effect budget must be a positive integer.");
+  }
+
+  return effectBudget;
 }
 
 function removeSingleInventoryItem(inventory: string[], itemIdToRemove: string): string[] {
