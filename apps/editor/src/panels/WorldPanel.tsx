@@ -49,12 +49,19 @@ export interface WorldLocationEdge {
   id: string;
   source: string;
   target: string;
+  transitionCount: number;
+}
+
+interface WorldLocationTransitionCounts {
+  incoming: number;
+  outgoing: number;
+  total: number;
 }
 
 type WorldPanelIconKind =
   | "castle"
   | "coast"
-  | "connection"
+  | "dialogue"
   | "crystal"
   | "emptyScene"
   | "filter"
@@ -64,22 +71,21 @@ type WorldPanelIconKind =
   | "grid"
   | "item"
   | "jump"
-  | "links"
+  | "flag"
   | "locationAdd"
   | "mapPin"
   | "menu"
   | "mine"
   | "mountain"
-  | "npc"
+  | "speaker"
   | "pan"
-  | "quest"
   | "scene"
   | "sceneAdd"
   | "search"
   | "select"
   | "settlement"
   | "trash"
-  | "variable"
+  | "transition"
   | "zoomIn"
   | "zoomOut";
 
@@ -91,13 +97,13 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   const setSelectedSceneId = useEditorStore((state) => state.setSelectedSceneId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const [locationSearch, setLocationSearch] = useState("");
-  const [showConnectedOnly, setShowConnectedOnly] = useState(false);
+  const [showWithTransitionsOnly, setShowWithTransitionsOnly] = useState(false);
   const [showLocationSettings, setShowLocationSettings] = useState(false);
   const locationSettingsId = useId();
   const locationSettingsRef = useRef<HTMLDivElement>(null);
   const currentLocation = project.locations.items.find((entry) => entry.id === selectedLocationId) ?? project.locations.items[0];
   const locationEdges = resolveWorldLocationEdges(project);
-  const locationConnectionCounts = resolveLocationConnectionCounts(locationEdges);
+  const locationTransitionCounts = resolveLocationTransitionCounts(locationEdges);
   const currentLocationScenes = currentLocation ? resolveLocationScenes(project, currentLocation) : [];
   const currentLocationSceneIdSet = useMemo(() => new Set(currentLocation?.sceneIds ?? []), [currentLocation?.sceneIds]);
   const currentLocationFirstScene = currentLocationScenes[0];
@@ -122,11 +128,12 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
         ? "Add another scene before deleting the start location."
         : "Delete this location and its scenes.";
   const currentLocationSummary = currentLocation
-    ? resolveLocationSummary(project, currentLocation, locationConnectionCounts.get(currentLocation.id) ?? 0)
+    ? resolveLocationSummary(project, currentLocation, resolveTransitionCounts(locationTransitionCounts, currentLocation.id))
     : undefined;
   const visibleLocations = project.locations.items.filter((location) => {
     const matchesSearch = location.name.toLowerCase().includes(locationSearch.trim().toLowerCase());
-    const matchesFilter = !showConnectedOnly || (locationConnectionCounts.get(location.id) ?? 0) > 0;
+    const matchesFilter =
+      !showWithTransitionsOnly || resolveTransitionCounts(locationTransitionCounts, location.id).total > 0;
     return matchesSearch && matchesFilter;
   });
 
@@ -278,7 +285,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
         <aside className="world-panel__location-rail" aria-label="Locations">
           <div className="world-panel__rail-header">
             <h3>Locations</h3>
-            <button type="button" className="world-panel__compact-action" title="Create a location on the world map." onClick={createLocation}>
+            <button type="button" className="world-panel__compact-action" title="Create a location in the world overview." onClick={createLocation}>
               <WorldPanelIcon kind="locationAdd" />
               <span>Add Location</span>
             </button>
@@ -296,11 +303,11 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
             </label>
             <button
               type="button"
-              className={showConnectedOnly ? "world-panel__icon-action world-panel__icon-action--active" : "world-panel__icon-action"}
-              aria-label="Show connected locations only"
-              aria-pressed={showConnectedOnly}
-              title="Show connected locations only."
-              onClick={() => setShowConnectedOnly((value) => !value)}
+              className={showWithTransitionsOnly ? "world-panel__icon-action world-panel__icon-action--active" : "world-panel__icon-action"}
+              aria-label="Show locations with world transitions only"
+              aria-pressed={showWithTransitionsOnly}
+              title="Show locations with cross-location scene transitions only."
+              onClick={() => setShowWithTransitionsOnly((value) => !value)}
             >
               <WorldPanelIcon kind="filter" />
             </button>
@@ -354,7 +361,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
           edges={locationEdges}
           selectedLocationId={currentLocation?.id}
           startLocationId={project.manifest.startLocationId}
-          connectionCounts={locationConnectionCounts}
+          transitionCounts={locationTransitionCounts}
           onCreateLocation={createLocation}
           onMoveLocation={moveLocation}
           onSelectLocation={setSelectedLocationId}
@@ -473,13 +480,21 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               {currentLocationSummary
                 ? [
                     { icon: "scene" as const, label: "Scenes", value: currentLocationSummary.scenes },
-                    { icon: "quest" as const, label: "Quests", value: currentLocationSummary.quests },
-                    { icon: "connection" as const, label: "Connections", value: currentLocationSummary.connections },
-                    { icon: "npc" as const, label: "NPCs", value: currentLocationSummary.npcs },
-                    { icon: "variable" as const, label: "Variables", value: currentLocationSummary.variables },
-                    { icon: "item" as const, label: "Items", value: currentLocationSummary.items }
+                    { icon: "dialogue" as const, label: "Dialogues", value: currentLocationSummary.dialogues },
+                    { icon: "speaker" as const, label: "Speakers", value: currentLocationSummary.speakers },
+                    { icon: "flag" as const, label: "Flags", value: currentLocationSummary.flags },
+                    { icon: "item" as const, label: "Items", value: currentLocationSummary.items },
+                    {
+                      icon: "transition" as const,
+                      label: "World transitions",
+                      value: currentLocationSummary.transitions,
+                      title: `${formatCount(currentLocationSummary.outgoingTransitions, "outgoing world transition")}; ${formatCount(
+                        currentLocationSummary.incomingTransitions,
+                        "incoming world transition"
+                      )}.`
+                    }
                   ].map((stat) => (
-                    <div key={stat.label}>
+                    <div key={stat.label} title={stat.title}>
                       <WorldPanelIcon kind={stat.icon} />
                       <span>{stat.label}</span>
                       <strong>{stat.value}</strong>
@@ -536,12 +551,12 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                         <span className="world-panel__scene-meta">
                           {scene.id === project.manifest.startSceneId ? <span>Start scene</span> : null}
                           <span>
-                            <WorldPanelIcon kind="npc" />
-                            NPCs {sceneSummary.npcs}
+                            <WorldPanelIcon kind="speaker" />
+                            Speakers {sceneSummary.speakers}
                           </span>
                           <span>
-                            <WorldPanelIcon kind="quest" />
-                            Quests {sceneSummary.quests}
+                            <WorldPanelIcon kind="dialogue" />
+                            Dialogues {sceneSummary.dialogues}
                           </span>
                         </span>
                       </span>
@@ -591,11 +606,15 @@ export function resolveWorldLocationEdges(project: ProjectBundle): WorldLocation
       }
 
       const edgeId = `${sourceLocation.id}-${targetLocation.id}`;
-      if (!locationEdges.some((edge) => edge.id === edgeId)) {
+      const existingEdge = locationEdges.find((edge) => edge.id === edgeId);
+      if (existingEdge) {
+        existingEdge.transitionCount += 1;
+      } else {
         locationEdges.push({
           id: edgeId,
           source: sourceLocation.id,
-          target: targetLocation.id
+          target: targetLocation.id,
+          transitionCount: 1
         });
       }
     }
@@ -604,19 +623,49 @@ export function resolveWorldLocationEdges(project: ProjectBundle): WorldLocation
   return locationEdges;
 }
 
-function resolveLocationConnectionCounts(locationEdges: WorldLocationEdge[]) {
-  const counts = new Map<string, number>();
+function resolveLocationTransitionCounts(locationEdges: WorldLocationEdge[]) {
+  const counts = new Map<string, WorldLocationTransitionCounts>();
 
   for (const edge of locationEdges) {
-    counts.set(edge.source, (counts.get(edge.source) ?? 0) + 1);
-    counts.set(edge.target, (counts.get(edge.target) ?? 0) + 1);
+    const sourceCounts = resolveTransitionCounts(counts, edge.source);
+    const targetCounts = resolveTransitionCounts(counts, edge.target);
+    counts.set(edge.source, {
+      ...sourceCounts,
+      outgoing: sourceCounts.outgoing + edge.transitionCount,
+      total: sourceCounts.total + edge.transitionCount
+    });
+    counts.set(edge.target, {
+      ...targetCounts,
+      incoming: targetCounts.incoming + edge.transitionCount,
+      total: targetCounts.total + edge.transitionCount
+    });
   }
 
   return counts;
 }
 
+function resolveTransitionCounts(
+  counts: Map<string, WorldLocationTransitionCounts>,
+  locationId: string
+): WorldLocationTransitionCounts {
+  return counts.get(locationId) ?? { incoming: 0, outgoing: 0, total: 0 };
+}
+
 function formatCount(count: number, singular: string) {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
+}
+
+function formatTransitionDirectionCounts(counts: WorldLocationTransitionCounts) {
+  const directions: string[] = [];
+
+  if (counts.outgoing > 0) {
+    directions.push(`${counts.outgoing} out`);
+  }
+  if (counts.incoming > 0) {
+    directions.push(`${counts.incoming} in`);
+  }
+
+  return directions.join(" · ");
 }
 
 function formatIndex(index: number) {
@@ -682,37 +731,43 @@ function findFirstSceneOutsideLocation(project: ProjectBundle, locationId: strin
   return undefined;
 }
 
-function resolveLocationSummary(project: ProjectBundle, location: Location, connections: number) {
+function resolveLocationSummary(
+  project: ProjectBundle,
+  location: Location,
+  transitionCounts: WorldLocationTransitionCounts
+) {
   const refs = createStoryRefs();
-  const npcNames = new Set<string>();
+  const speakerNames = new Set<string>();
   const scenes = resolveLocationScenes(project, location);
 
   for (const scene of scenes) {
     collectSceneReferences(scene, refs);
   }
 
-  collectDialogueReferences(project, refs, npcNames);
+  collectDialogueReferences(project, refs, speakerNames);
 
   return {
     scenes: scenes.length,
-    connections,
-    quests: refs.dialogueIds.size,
-    npcs: npcNames.size,
-    variables: refs.variableIds.size,
-    items: refs.itemIds.size
+    dialogues: refs.dialogueIds.size,
+    speakers: speakerNames.size,
+    flags: refs.flagIds.size,
+    items: refs.itemIds.size,
+    transitions: transitionCounts.total,
+    incomingTransitions: transitionCounts.incoming,
+    outgoingTransitions: transitionCounts.outgoing
   };
 }
 
 function resolveSceneSummary(project: ProjectBundle, scene: Scene) {
   const refs = createStoryRefs();
-  const npcNames = new Set<string>();
+  const speakerNames = new Set<string>();
 
   collectSceneReferences(scene, refs);
-  collectDialogueReferences(project, refs, npcNames);
+  collectDialogueReferences(project, refs, speakerNames);
 
   return {
-    quests: refs.dialogueIds.size,
-    npcs: npcNames.size
+    dialogues: refs.dialogueIds.size,
+    speakers: speakerNames.size
   };
 }
 
@@ -725,7 +780,7 @@ function resolveLocationScenes(project: ProjectBundle, location: Location) {
 function createStoryRefs() {
   return {
     dialogueIds: new Set<string>(),
-    variableIds: new Set<string>(),
+    flagIds: new Set<string>(),
     itemIds: new Set<string>()
   };
 }
@@ -760,7 +815,7 @@ function collectSceneReferences(scene: Scene, refs: ReturnType<typeof createStor
   }
 }
 
-function collectDialogueReferences(project: ProjectBundle, refs: ReturnType<typeof createStoryRefs>, npcNames: Set<string>) {
+function collectDialogueReferences(project: ProjectBundle, refs: ReturnType<typeof createStoryRefs>, speakerNames: Set<string>) {
   for (const dialogueId of refs.dialogueIds) {
     const dialogue = project.dialogues.items.find((entry) => entry.id === dialogueId);
     if (!dialogue) {
@@ -768,7 +823,7 @@ function collectDialogueReferences(project: ProjectBundle, refs: ReturnType<type
     }
 
     for (const node of dialogue.nodes) {
-      npcNames.add(node.speaker);
+      speakerNames.add(node.speaker);
       collectEffectReferences(node.effects, refs);
 
       for (const choice of node.choices) {
@@ -782,7 +837,7 @@ function collectDialogueReferences(project: ProjectBundle, refs: ReturnType<type
 function collectConditionReferences(conditions: Condition[], refs: ReturnType<typeof createStoryRefs>) {
   for (const condition of conditions) {
     if (condition.type === "flagEquals") {
-      refs.variableIds.add(condition.flag);
+      refs.flagIds.add(condition.flag);
     }
 
     if (condition.type === "inventoryHas") {
@@ -794,7 +849,7 @@ function collectConditionReferences(conditions: Condition[], refs: ReturnType<ty
 function collectEffectReferences(effects: Effect[], refs: ReturnType<typeof createStoryRefs>) {
   for (const effect of effects) {
     if (effect.type === "setFlag") {
-      refs.variableIds.add(effect.flag);
+      refs.flagIds.add(effect.flag);
     }
 
     if (effect.type === "addItem" || effect.type === "removeItem") {
@@ -812,7 +867,7 @@ function WorldLocationMap({
   edges,
   selectedLocationId,
   startLocationId,
-  connectionCounts,
+  transitionCounts,
   onCreateLocation,
   onMoveLocation,
   onSelectLocation
@@ -821,7 +876,7 @@ function WorldLocationMap({
   edges: WorldLocationEdge[];
   selectedLocationId?: string;
   startLocationId: string;
-  connectionCounts: Map<string, number>;
+  transitionCounts: Map<string, WorldLocationTransitionCounts>;
   onCreateLocation: () => void;
   onMoveLocation: (locationId: string, position: { x: number; y: number }) => void;
   onSelectLocation: (locationId: string) => void;
@@ -833,11 +888,15 @@ function WorldLocationMap({
   const [mapTool, setMapTool] = useState<"select" | "pan">("select");
   const [mapSearch, setMapSearch] = useState("");
   const [showGrid, setShowGrid] = useState(true);
-  const [showLinks, setShowLinks] = useState(true);
+  const [showTransitions, setShowTransitions] = useState(true);
   const [showSceneCounts, setShowSceneCounts] = useState(true);
   const [showMapOptions, setShowMapOptions] = useState(false);
   const [interaction, setInteraction] = useState<MapInteraction>(null);
   const [dragPreview, setDragPreview] = useState<Record<string, { x: number; y: number }>>({});
+  const worldTransitionCount = useMemo(
+    () => edges.reduce((total, edge) => total + edge.transitionCount, 0),
+    [edges]
+  );
   const renderedLocations = useMemo(
     () =>
       locations.map((location) => ({
@@ -1033,19 +1092,19 @@ function WorldLocationMap({
       <div className="panel__toolbar world-panel__map-toolbar">
         <div className="world-panel__map-toolbar-main">
           <div className="world-panel__toolbar-title">
-            <h3>Location Map</h3>
+            <h3>World Overview</h3>
             <span>
-              {formatCount(locations.length, "location")} / {formatCount(edges.length, "link")}
+              {formatCount(locations.length, "location")} · {formatCount(worldTransitionCount, "cross-location transition")}
             </span>
           </div>
 
-          <div className="world-panel__map-tools" role="toolbar" aria-label="Location map tools">
+          <div className="world-panel__map-tools" role="toolbar" aria-label="World overview tools">
             <button
               type="button"
               className={mapTool === "select" ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
               aria-label="Select map tool"
               aria-pressed={mapTool === "select"}
-              title="Select and move locations"
+              title="Select and arrange locations"
               onClick={() => setMapTool("select")}
             >
               <WorldPanelIcon kind="select" />
@@ -1084,13 +1143,13 @@ function WorldLocationMap({
             </button>
             <button
               type="button"
-              className={showLinks ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
-              aria-label="Toggle location links"
-              aria-pressed={showLinks}
-              title="Toggle location links"
-              onClick={() => setShowLinks((value) => !value)}
+              className={showTransitions ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
+              aria-label="Toggle cross-location scene transitions"
+              aria-pressed={showTransitions}
+              title="Show or hide cross-location scene transitions"
+              onClick={() => setShowTransitions((value) => !value)}
             >
-              <WorldPanelIcon kind="links" />
+              <WorldPanelIcon kind="transition" />
             </button>
           </div>
         </div>
@@ -1127,8 +1186,12 @@ function WorldLocationMap({
                 <span>Grid</span>
               </label>
               <label>
-                <input type="checkbox" checked={showLinks} onChange={(event) => setShowLinks(event.target.checked)} />
-                <span>Links</span>
+                <input
+                  type="checkbox"
+                  checked={showTransitions}
+                  onChange={(event) => setShowTransitions(event.target.checked)}
+                />
+                <span>World transitions</span>
               </label>
               <label>
                 <input type="checkbox" checked={showSceneCounts} onChange={(event) => setShowSceneCounts(event.target.checked)} />
@@ -1145,7 +1208,7 @@ function WorldLocationMap({
           interaction?.type === "pan" ? " world-panel__map-stage--panning" : ""
         }`}
         role="application"
-        aria-label="World location map"
+        aria-label="World overview of locations and cross-location scene transitions"
         onPointerDown={handleStagePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endInteraction}
@@ -1162,28 +1225,82 @@ function WorldLocationMap({
             }}
           >
             <svg
-              className="world-panel__map-links"
+              className="world-panel__map-transitions"
               viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
               width={canvasSize.width}
               height={canvasSize.height}
-              aria-hidden="true"
+              role="img"
+              aria-label="Read-only cross-location scene transitions between locations"
             >
-              {showLinks ? edges.map((edge) => {
+              <defs>
+                <marker
+                  id="world-transition-arrow"
+                  className="world-panel__map-arrow"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="4"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path d="M 0 0 L 8 4 L 0 8 Z" />
+                </marker>
+                <marker
+                  id="world-transition-arrow-selected"
+                  className="world-panel__map-arrow world-panel__map-arrow--selected"
+                  viewBox="0 0 8 8"
+                  refX="7"
+                  refY="4"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path d="M 0 0 L 8 4 L 0 8 Z" />
+                </marker>
+              </defs>
+              {showTransitions ? edges.map((edge) => {
                 const geometry = resolveMapEdgeGeometry(edge, locationPositions);
                 if (!geometry) {
                   return null;
                 }
 
                 const isSelected = edge.source === selectedLocationId || edge.target === selectedLocationId;
+                const hasReverseRoute = edges.some(
+                  (candidate) => candidate.source === edge.target && candidate.target === edge.source
+                );
+                const path = resolveMapEdgePath(geometry, hasReverseRoute);
+                const sourceName = locations.find((location) => location.id === edge.source)?.name ?? edge.source;
+                const targetName = locations.find((location) => location.id === edge.target)?.name ?? edge.target;
 
                 return (
                   <g
                     key={edge.id}
-                    className={isSelected ? "world-panel__map-edge world-panel__map-edge--selected" : "world-panel__map-edge"}
+                    className={
+                      isSelected
+                        ? "world-panel__map-transition world-panel__map-transition--selected"
+                        : "world-panel__map-transition"
+                    }
                   >
-                    <path d={`M ${geometry.source.x} ${geometry.source.y} L ${geometry.target.x} ${geometry.target.y}`} />
-                    <circle className="world-panel__map-edge-terminal" cx={geometry.source.x} cy={geometry.source.y} r="7" />
-                    <circle className="world-panel__map-edge-terminal" cx={geometry.target.x} cy={geometry.target.y} r="7" />
+                    <title>{`${sourceName} to ${targetName}: ${formatCount(edge.transitionCount, "cross-location scene transition")}`}</title>
+                    <path
+                      d={path.d}
+                      markerEnd={
+                        isSelected
+                          ? "url(#world-transition-arrow-selected)"
+                          : "url(#world-transition-arrow)"
+                      }
+                    />
+                    {edge.transitionCount > 1 ? (
+                      <g
+                        className="world-panel__map-transition-count"
+                        transform={`translate(${path.label.x} ${path.label.y})`}
+                      >
+                        <circle r="11" />
+                        <text textAnchor="middle" dy="0.34em">
+                          {edge.transitionCount}
+                        </text>
+                      </g>
+                    ) : null}
                   </g>
                 );
               }) : null}
@@ -1198,7 +1315,7 @@ function WorldLocationMap({
                   className={isSelected ? "world-panel__map-node world-panel__map-node--selected" : "world-panel__map-node"}
                   style={{ left: position.x, top: position.y } as CSSProperties}
                   aria-pressed={isSelected}
-                  title={`Select ${location.name}.`}
+                  title={`Select ${location.name}. Drag to arrange its map position.`}
                   onPointerDown={(event) => handleNodePointerDown(event, location)}
                   onClick={() => onSelectLocation(location.id)}
                 >
@@ -1208,16 +1325,19 @@ function WorldLocationMap({
                     {showSceneCounts ? <span>{formatCount(location.sceneIds.length, "scene")}</span> : null}
                   </span>
                   {location.id === startLocationId ? <span className="world-panel__start-badge">Start</span> : null}
-                  {connectionCounts.get(location.id) ? (
-                    <span className="world-panel__map-node-links">{formatCount(connectionCounts.get(location.id) ?? 0, "link")}</span>
-                  ) : null}
-                  {isSelected ? (
-                    <>
-                      <span className="world-panel__map-node-port world-panel__map-node-port--top" />
-                      <span className="world-panel__map-node-port world-panel__map-node-port--right" />
-                      <span className="world-panel__map-node-port world-panel__map-node-port--bottom" />
-                      <span className="world-panel__map-node-port world-panel__map-node-port--left" />
-                    </>
+                  {resolveTransitionCounts(transitionCounts, location.id).total > 0 ? (
+                    <span
+                      className="world-panel__map-node-transitions"
+                      title={`${formatCount(
+                        resolveTransitionCounts(transitionCounts, location.id).outgoing,
+                        "outgoing world transition"
+                      )}; ${formatCount(
+                        resolveTransitionCounts(transitionCounts, location.id).incoming,
+                        "incoming world transition"
+                      )}.`}
+                    >
+                      {formatTransitionDirectionCounts(resolveTransitionCounts(transitionCounts, location.id))}
+                    </span>
                   ) : null}
                 </button>
               );
@@ -1233,6 +1353,15 @@ function WorldLocationMap({
             </button>
           </div>
         )}
+        {locations.length > 0 ? (
+          <div className="world-panel__topology-note" aria-label="Cross-location scene transition behavior">
+            <WorldPanelIcon kind="transition" />
+            <span>
+              <strong>Cross-location scene transitions</strong>
+              <small>Read-only · derived from hotspot targets and scene effects authored in Scenes</small>
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1345,6 +1474,39 @@ function resolveMapEdgeGeometry(edge: WorldLocationEdge, positions: Map<string, 
   };
 }
 
+function resolveMapEdgePath(
+  geometry: NonNullable<ReturnType<typeof resolveMapEdgeGeometry>>,
+  hasReverseRoute: boolean
+) {
+  const midpoint = {
+    x: (geometry.source.x + geometry.target.x) / 2,
+    y: (geometry.source.y + geometry.target.y) / 2
+  };
+
+  if (!hasReverseRoute) {
+    return {
+      d: `M ${geometry.source.x} ${geometry.source.y} L ${geometry.target.x} ${geometry.target.y}`,
+      label: midpoint
+    };
+  }
+
+  const deltaX = geometry.target.x - geometry.source.x;
+  const deltaY = geometry.target.y - geometry.source.y;
+  const length = Math.max(Math.hypot(deltaX, deltaY), 1);
+  const control = {
+    x: midpoint.x + (-deltaY / length) * 30,
+    y: midpoint.y + (deltaX / length) * 30
+  };
+
+  return {
+    d: `M ${geometry.source.x} ${geometry.source.y} Q ${control.x} ${control.y} ${geometry.target.x} ${geometry.target.y}`,
+    label: {
+      x: (geometry.source.x + control.x * 2 + geometry.target.x) / 4,
+      y: (geometry.source.y + control.y * 2 + geometry.target.y) / 4
+    }
+  };
+}
+
 function clampScale(scale: number) {
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, scale));
 }
@@ -1437,13 +1599,12 @@ function WorldPanelIcon({
     );
   }
 
-  if (kind === "links") {
+  if (kind === "transition") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="6.7" cy="12" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <circle cx="17.3" cy="7.4" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <circle cx="17.3" cy="16.6" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <path d="m8.9 11 6.2-2.7M8.9 13l6.2 2.7" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.55" />
+        <circle cx="5.8" cy="12" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <circle cx="18.2" cy="12" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M8.4 12h6.2m-2.2-2.2 2.2 2.2-2.2 2.2" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.65" />
       </svg>
     );
   }
@@ -1570,16 +1731,16 @@ function WorldPanelIcon({
     );
   }
 
-  if (kind === "quest") {
+  if (kind === "dialogue") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M7.2 4.8h7.2l2.4 2.4v12H7.2v-14.4Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.65" />
-        <path d="M14.4 4.8v2.4h2.4M9.7 11.2h4.6M9.7 14.6h3.2" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.45" />
+        <path d="M5.2 5.2h13.6v10H9.1l-3.9 3v-13Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.65" />
+        <path d="M8.2 9.1h7.6M8.2 12h5.2" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.45" />
       </svg>
     );
   }
 
-  if (kind === "npc") {
+  if (kind === "speaker") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="8.4" r="3" fill="none" stroke="currentColor" strokeWidth="1.65" />
@@ -1589,11 +1750,10 @@ function WorldPanelIcon({
     );
   }
 
-  if (kind === "variable") {
+  if (kind === "flag") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5.2 7.2h13.6M5.2 12h13.6M5.2 16.8h13.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" />
-        <path d="M9 5.2v4M15 10v4M11.5 14.8v4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.25" />
+        <path d="M7 20V4.2M7 5.2h9.5l-1.8 3 1.8 3H7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
       </svg>
     );
   }
@@ -1603,16 +1763,6 @@ function WorldPanelIcon({
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M7 8.7 12 5l5 3.7v6.6L12 19l-5-3.7V8.7Z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.65" />
         <path d="m7.3 9 4.7 3.4L16.7 9M12 12.4V19" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.35" />
-      </svg>
-    );
-  }
-
-  if (kind === "connection") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M7.4 12.6c3.2-4.1 6-4.8 9.2-1.1" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-        <circle cx="5.6" cy="14.2" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        <circle cx="18.4" cy="9.8" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.7" />
       </svg>
     );
   }
