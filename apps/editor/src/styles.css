@@ -1157,6 +1157,13 @@ label > .checkbox-list {
   color: #dce7ef;
 }
 
+.playtest-panel__save-status {
+  margin: 0.45rem 0 -0.2rem;
+  color: #c7d7e5;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
 .playtest-panel__toolbar-toggle {
   min-height: 3rem;
 }

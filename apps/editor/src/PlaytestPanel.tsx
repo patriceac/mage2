@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { createPlayerController, resolveSceneTimelineDurationMs, type ActiveDialogueState } from "@mage2/player";
 import {
   getLocaleStringValues,
+  createSaveEnvelope,
+  loadSaveForProject,
   normalizeSupportedLocales,
   resolveHotspotInventoryAction,
   resolvePlacedInventoryHotspotInstance,
@@ -32,8 +34,13 @@ interface PlaytestPanelProps {
   onExit?: () => void;
 }
 
-const STORAGE_KEY = "mage2-editor-playtest-save";
+const SAVE_STORAGE_KEY_PREFIX = "mage2-editor-playtest-save";
+const LEGACY_SAVE_STORAGE_KEY = "mage2-editor-playtest-save";
 const LOCALE_STORAGE_KEY = "mage2-editor-playtest-locale";
+
+export function resolvePlaytestSaveStorageKey(projectId: string): string {
+  return `${SAVE_STORAGE_KEY_PREFIX}:${projectId}`;
+}
 
 export function resolvePlaytestInventorySummary(
   items: Array<Pick<InventoryItem, "name" | "textId">>,
@@ -363,6 +370,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const selectedInventoryItemIdRef = useRef<string | undefined>(undefined);
   const [inventoryHint, setInventoryHint] = useState<string>();
+  const [saveNotice, setSaveNotice] = useState<string>();
   const [isInventoryDrawerExpanded, setIsInventoryDrawerExpanded] = useState(false);
   const [inventoryCursorPoint, setInventoryCursorPoint] = useState<InventoryCursorPoint>();
   const [inventoryCursorPreviewUrl, setInventoryCursorPreviewUrl] = useState<string>();
@@ -395,6 +403,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setPlayheadMs(0);
     selectPlaytestInventoryItem(undefined);
     setInventoryHint(undefined);
+    setSaveNotice(undefined);
   }, [project]);
 
   useEffect(() => {
@@ -458,6 +467,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setPlaybackResetKey((value) => value + 1);
     selectPlaytestInventoryItem(undefined);
     setInventoryHint(undefined);
+    setSaveNotice(undefined);
     setLastActivatedHotspotId(undefined);
     return nextSnapshot;
   }
@@ -1088,8 +1098,17 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               onClick={() => {
                 const nextSave = controller.save();
                 nextSave.playheadMs = playheadMs;
-                const serialized = JSON.stringify(nextSave);
-                localStorage.setItem(STORAGE_KEY, serialized);
+                try {
+                  localStorage.setItem(
+                    resolvePlaytestSaveStorageKey(project.manifest.projectId),
+                    JSON.stringify(createSaveEnvelope(project, nextSave))
+                  );
+                  setInventoryHint("Playtest slot saved.");
+                  setSaveNotice("Playtest slot saved.");
+                } catch {
+                  setInventoryHint("The playtest slot could not be saved in local storage.");
+                  setSaveNotice("The playtest slot could not be saved in local storage.");
+                }
               }}
             >
               Save Slot
@@ -1101,18 +1120,40 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               className="playtest-panel__toolbar-button"
               title="Restore the last runtime state saved in the local playtest slot."
               onClick={() => {
-                const raw = localStorage.getItem(STORAGE_KEY);
+                const storageKey = resolvePlaytestSaveStorageKey(project.manifest.projectId);
+                const scopedSave = localStorage.getItem(storageKey);
+                const raw = scopedSave ?? localStorage.getItem(LEGACY_SAVE_STORAGE_KEY);
                 if (!raw) {
+                  setInventoryHint("No playtest save slot is available for this project.");
+                  setSaveNotice("No playtest save slot is available for this project.");
                   return;
                 }
 
-                const nextController = createPlayerController(project, JSON.parse(raw));
+                const sourceStorageKey = scopedSave !== null ? storageKey : LEGACY_SAVE_STORAGE_KEY;
+                const result = loadSaveForProject(raw, project);
+                if (result.shouldQuarantine) {
+                  quarantineRejectedSave(sourceStorageKey, raw, result.status);
+                }
+                if (result.status === "migrated" && result.envelope) {
+                  try {
+                    localStorage.setItem(storageKey, JSON.stringify(result.envelope));
+                    if (sourceStorageKey === LEGACY_SAVE_STORAGE_KEY) {
+                      localStorage.removeItem(LEGACY_SAVE_STORAGE_KEY);
+                    }
+                  } catch {
+                    // The migrated state is still safe to use for this session.
+                  }
+                }
+
+                const nextController = createPlayerController(project, result.saveState);
                 setController(nextController);
                 const nextSnapshot = nextController.getSnapshot();
                 setSnapshot(nextSnapshot);
                 setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
                 selectPlaytestInventoryItem(undefined);
-                setInventoryHint(undefined);
+                const notice = result.message ?? "Playtest slot loaded.";
+                setInventoryHint(notice);
+                setSaveNotice(notice);
               }}
             >
               Load Slot
@@ -1146,6 +1187,12 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             </label>
           </div>
         </div>
+
+        {saveNotice ? (
+          <p className="playtest-panel__save-status" role="status">
+            {saveNotice}
+          </p>
+        ) : null}
 
         <div className="playtest-stage">
           <MediaSurface
@@ -1246,6 +1293,16 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </aside>
     </div>
   );
+}
+
+function quarantineRejectedSave(storageKey: string, raw: string, status: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  try {
+    localStorage.setItem(`${storageKey}:rejected:${status}:${timestamp}`, raw);
+    localStorage.removeItem(storageKey);
+  } catch {
+    // Keeping an unreadable value is preferable to discarding it if storage is full.
+  }
 }
 
 function resolveInventoryItemLabel(itemId: string, items: InventoryItem[], strings: Record<string, string>): string {

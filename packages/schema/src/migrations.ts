@@ -1,0 +1,253 @@
+import { CURRENT_SCHEMA_VERSION } from "./types";
+
+/**
+ * MAGE2 deliberately supports only formats that have an explicit migration
+ * path. Keeping this boundary narrow is safer than guessing at pre-release
+ * formats whose semantics are unknown.
+ */
+export const MIN_SUPPORTED_SCHEMA_VERSION = 4;
+
+const PROJECT_FILE_KEYS = [
+  "manifest",
+  "assets",
+  "locations",
+  "scenes",
+  "dialogues",
+  "inventory",
+  "strings"
+] as const;
+
+type ProjectFileKey = (typeof PROJECT_FILE_KEYS)[number];
+type UnknownRecord = Record<string, unknown>;
+
+export class ProjectSchemaVersionError extends Error {
+  readonly code: "PROJECT_SCHEMA_INVALID" | "PROJECT_SCHEMA_UNSUPPORTED" | "PROJECT_SCHEMA_FUTURE" | "PROJECT_SCHEMA_MIXED";
+
+  constructor(
+    code: ProjectSchemaVersionError["code"],
+    message: string
+  ) {
+    super(message);
+    this.name = "ProjectSchemaVersionError";
+    this.code = code;
+  }
+}
+
+export interface ProjectSchemaMigration {
+  fromVersion: number;
+  toVersion: number;
+  migrate(bundle: UnknownRecord): UnknownRecord;
+}
+
+export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
+  { fromVersion: 4, toVersion: 5, migrate: migrateV4ToV5 },
+  { fromVersion: 5, toVersion: 6, migrate: migrateV5ToV6 },
+  { fromVersion: 6, toVersion: 7, migrate: migrateV6ToV7 },
+  { fromVersion: 7, toVersion: 8, migrate: migrateV7ToV8 }
+];
+
+/** Returns the ordered transformations required to reach the current format. */
+export function getProjectMigrationPath(sourceVersion: number): readonly ProjectSchemaMigration[] {
+  if (!Number.isInteger(sourceVersion) || sourceVersion <= 0) {
+    throw new ProjectSchemaVersionError(
+      "PROJECT_SCHEMA_INVALID",
+      "Project schemaVersion must be a positive integer."
+    );
+  }
+
+  if (sourceVersion > CURRENT_SCHEMA_VERSION) {
+    throw new ProjectSchemaVersionError(
+      "PROJECT_SCHEMA_FUTURE",
+      `Project schema version ${sourceVersion} is newer than this MAGE2 build supports (${CURRENT_SCHEMA_VERSION}). The project was not changed.`
+    );
+  }
+
+  if (sourceVersion < MIN_SUPPORTED_SCHEMA_VERSION) {
+    throw new ProjectSchemaVersionError(
+      "PROJECT_SCHEMA_UNSUPPORTED",
+      `Project schema version ${sourceVersion} is too old for this MAGE2 build. Supported project versions are ${MIN_SUPPORTED_SCHEMA_VERSION} through ${CURRENT_SCHEMA_VERSION}.`
+    );
+  }
+
+  const migrations: ProjectSchemaMigration[] = [];
+  let version = sourceVersion;
+  while (version < CURRENT_SCHEMA_VERSION) {
+    const migration = PROJECT_SCHEMA_MIGRATIONS.find((candidate) => candidate.fromVersion === version);
+    if (!migration || migration.toVersion <= version) {
+      throw new ProjectSchemaVersionError(
+        "PROJECT_SCHEMA_UNSUPPORTED",
+        `MAGE2 has no safe migration from project schema version ${version}.`
+      );
+    }
+
+    migrations.push(migration);
+    version = migration.toVersion;
+  }
+
+  return migrations;
+}
+
+/**
+ * Gates every file before any normalisation happens. In particular, future
+ * data is rejected before Zod can strip fields it does not know about.
+ */
+export function migrateProjectBundle(input: unknown): UnknownRecord {
+  const bundle = requireRecord(input, "Project bundle must be an object.");
+  const sourceVersion = readProjectSchemaVersion(bundle);
+
+  return getProjectMigrationPath(sourceVersion).reduce(
+    (current, migration) => migration.migrate(current),
+    bundle
+  );
+}
+
+export function readProjectSchemaVersion(input: unknown): number {
+  const bundle = requireRecord(input, "Project bundle must be an object.");
+  const versions = PROJECT_FILE_KEYS.map((fileKey) => {
+    const file = requireRecord(bundle[fileKey], `Project file '${fileKey}' must be an object.`);
+    const version = file.schemaVersion;
+    if (typeof version !== "number" || !Number.isInteger(version) || version <= 0) {
+      throw new ProjectSchemaVersionError(
+        "PROJECT_SCHEMA_INVALID",
+        `Project file '${fileKey}' must declare a positive integer schemaVersion.`
+      );
+    }
+    return { fileKey, version };
+  });
+
+  const sourceVersion = versions[0]!.version;
+  const mismatched = versions.filter((entry) => entry.version !== sourceVersion);
+  if (mismatched.length > 0) {
+    const details = versions.map((entry) => `${entry.fileKey}=${entry.version}`).join(", ");
+    throw new ProjectSchemaVersionError(
+      "PROJECT_SCHEMA_MIXED",
+      `Project files use mixed schema versions (${details}). MAGE2 will not guess how to combine them.`
+    );
+  }
+
+  return sourceVersion;
+}
+
+function migrateV4ToV5(bundle: UnknownRecord): UnknownRecord {
+  const manifest = requireRecord(bundle.manifest, "Project manifest must be an object.");
+  const strings = requireRecord(bundle.strings, "Project strings must be an object.");
+  const defaultLanguage = typeof manifest.defaultLanguage === "string" && manifest.defaultLanguage.trim() ? manifest.defaultLanguage : "en";
+  const migratedStrings =
+    !isRecord(strings.byLocale) && isRecord(strings.values)
+      ? { ...strings, byLocale: { [defaultLanguage]: strings.values } }
+      : strings;
+
+  return withSchemaVersion(bundle, 5, { strings: migratedStrings });
+}
+
+function migrateV5ToV6(bundle: UnknownRecord): UnknownRecord {
+  const scenes = requireRecord(bundle.scenes, "Project scenes must be an object.");
+  const items = Array.isArray(scenes.items) ? scenes.items : [];
+  const migratedScenes = {
+    ...scenes,
+    items: items.map((scene) => {
+      if (!isRecord(scene) || !Array.isArray(scene.hotspots)) {
+        return scene;
+      }
+
+      return {
+        ...scene,
+        hotspots: scene.hotspots.map((hotspot) =>
+          isRecord(hotspot) && hotspot.timingMode === undefined
+            ? { ...hotspot, timingMode: "fixed" }
+            : hotspot
+        )
+      };
+    })
+  };
+
+  return withSchemaVersion(bundle, 6, { scenes: migratedScenes });
+}
+
+function migrateV6ToV7(bundle: UnknownRecord): UnknownRecord {
+  const manifest = requireRecord(bundle.manifest, "Project manifest must be an object.");
+  const assets = requireRecord(bundle.assets, "Project assets must be an object.");
+  const defaultLanguage = typeof manifest.defaultLanguage === "string" && manifest.defaultLanguage.trim() ? manifest.defaultLanguage : "en";
+  const items = Array.isArray(assets.assets) ? assets.assets : [];
+  const migratedAssets = {
+    ...assets,
+    assets: items.map((asset) => {
+      if (!isRecord(asset) || isRecord(asset.variants) || typeof asset.sourcePath !== "string" || !asset.sourcePath) {
+        return asset;
+      }
+
+      return {
+        ...asset,
+        variants: {
+          [defaultLanguage]: {
+            sourcePath: asset.sourcePath,
+            ...(typeof asset.importSourcePath === "string" ? { importSourcePath: asset.importSourcePath } : {}),
+            ...(typeof asset.importedAt === "string" ? { importedAt: asset.importedAt } : {})
+          }
+        }
+      };
+    })
+  };
+
+  return withSchemaVersion(bundle, 7, { assets: migratedAssets });
+}
+
+function migrateV7ToV8(bundle: UnknownRecord): UnknownRecord {
+  const assets = requireRecord(bundle.assets, "Project assets must be an object.");
+  const scenes = requireRecord(bundle.scenes, "Project scenes must be an object.");
+  const migratedAssets = {
+    ...assets,
+    assets: (Array.isArray(assets.assets) ? assets.assets : []).map((asset) => {
+      if (!isRecord(asset) || asset.category !== undefined) {
+        return asset;
+      }
+
+      if (asset.kind === "image" || asset.kind === "video") {
+        return { ...asset, category: "background" };
+      }
+      if (asset.kind === "audio") {
+        return { ...asset, category: "sceneAudio" };
+      }
+      return asset;
+    })
+  };
+  const migratedScenes = {
+    ...scenes,
+    items: (Array.isArray(scenes.items) ? scenes.items : []).map((scene) =>
+      isRecord(scene)
+        ? {
+            ...scene,
+            ...(typeof scene.sceneAudioLoop === "boolean" ? {} : { sceneAudioLoop: true }),
+            ...(typeof scene.sceneAudioDelayMs === "number" ? {} : { sceneAudioDelayMs: 0 }),
+            ...(typeof scene.backgroundVideoLoop === "boolean" ? {} : { backgroundVideoLoop: false })
+          }
+        : scene
+    )
+  };
+
+  return withSchemaVersion(bundle, 8, { assets: migratedAssets, scenes: migratedScenes });
+}
+
+function withSchemaVersion(
+  bundle: UnknownRecord,
+  schemaVersion: number,
+  updates: Partial<Record<ProjectFileKey, UnknownRecord>> = {}
+): UnknownRecord {
+  const nextBundle: UnknownRecord = { ...bundle };
+  for (const fileKey of PROJECT_FILE_KEYS) {
+    const current = updates[fileKey] ?? requireRecord(bundle[fileKey], `Project file '${fileKey}' must be an object.`);
+    nextBundle[fileKey] = { ...current, schemaVersion };
+  }
+  return nextBundle;
+}
+
+function requireRecord(value: unknown, message: string): UnknownRecord {
+  if (!isRecord(value)) {
+    throw new ProjectSchemaVersionError("PROJECT_SCHEMA_INVALID", message);
+  }
+  return value;
+}
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}

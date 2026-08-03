@@ -12,7 +12,8 @@ import {
   type ProjectBundle,
   type SaveState,
   type Scene,
-  createInitialSaveState
+  createInitialSaveState,
+  validateSaveStateForProject
 } from "@mage2/schema";
 export * from "./media-playhead";
 
@@ -53,10 +54,15 @@ export function createPlayerController(
   project: ProjectBundle,
   initialSaveState?: SaveState
 ): PlayerController {
-  const state = parseSaveState({
+  const requestedState = parseSaveState({
     ...createInitialSaveState(project),
     ...(initialSaveState ?? {})
   });
+  // Player controllers are also used outside the browser save UI. Keep that
+  // boundary fail-safe if a caller supplies a stale state directly.
+  const state = validateSaveStateForProject(requestedState, project)
+    ? createInitialSaveState(project)
+    : requestedState;
 
   function getScene(sceneId = state.currentSceneId): Scene {
     const scene = project.scenes.items.find((entry) => entry.id === sceneId);

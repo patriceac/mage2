@@ -14,6 +14,7 @@ import {
 } from "./types";
 import { createRectangleHotspotPolygon } from "./hotspots";
 import { normalizeSupportedLocales } from "./localization";
+import { migrateProjectBundle } from "./migrations";
 
 export function parseProjectBundle(input: unknown): ProjectBundle {
   return ProjectBundleSchema.parse(normalizeProjectBundleInput(input));
@@ -155,11 +156,7 @@ export function toExportProjectData(project: ProjectBundle): ExportProjectData {
 }
 
 function normalizeProjectBundleInput(input: unknown): unknown {
-  if (!input || typeof input !== "object") {
-    return input;
-  }
-
-  const rawBundle = input as Record<string, unknown>;
+  const rawBundle = migrateProjectBundle(input);
   const manifest = normalizeManifest(rawBundle.manifest);
   const defaultLanguage = manifest.defaultLanguage;
   const strings = normalizeStrings(rawBundle.strings, defaultLanguage);

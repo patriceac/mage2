@@ -13,11 +13,12 @@ import {
   shouldSyncPlayheadMs
 } from "@mage2/player";
 import {
-  createInitialSaveState,
+  createSaveEnvelope,
+  loadSaveForProject,
   normalizeSupportedLocales,
+  parseProjectBundle,
   resolveAssetCategory,
   resolveAssetVariant,
-  parseSaveState,
   resolveHotspotBounds,
   resolveHotspotClipPath,
   resolveHotspotInventoryAction,
@@ -33,6 +34,7 @@ import {
   type Hotspot,
   type HotspotSurfaceSize,
   type InventoryItem,
+  type ProjectBundle,
   parseBuildManifest
 } from "@mage2/schema";
 import {
@@ -47,6 +49,22 @@ export function resolveRuntimeHeaderContent(content: Pick<ExportProjectData, "ma
   return {
     projectName: content.manifest.projectName
   };
+}
+
+export function createRuntimeProject(content: ExportProjectData): ProjectBundle {
+  return parseProjectBundle({
+    manifest: content.manifest,
+    assets: { schemaVersion: content.schemaVersion, assets: content.assets },
+    locations: { schemaVersion: content.schemaVersion, items: content.locations },
+    scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
+    dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
+    inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
+    strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
+  });
+}
+
+export function resolveRuntimeSaveStorageKey(projectId: string): string {
+  return `mage2-runtime-save:${projectId}`;
 }
 
 export function resolveRuntimeInventoryItems(
@@ -182,6 +200,7 @@ export function resolveInventoryCursorPreviewFrameStyle(
 export function App() {
   const [buildManifest, setBuildManifest] = useState<BuildManifest>();
   const [content, setContent] = useState<ExportProjectData>();
+  const [runtimeProject, setRuntimeProject] = useState<ProjectBundle>();
   const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
   const [activeLocale, setActiveLocale] = useState<string>();
   const [playheadMs, setPlayheadMs] = useState(0);
@@ -219,55 +238,53 @@ export function App() {
 
         const manifest = parseBuildManifest(await manifestResponse.json());
         const contentResponse = await fetch(`./${manifest.contentPath}`);
+        if (!contentResponse.ok) {
+          throw new Error(`Could not load exported content '${manifest.contentPath}'.`);
+        }
         const parsedContent = (await contentResponse.json()) as ExportProjectData;
+        const loadedProject = createRuntimeProject(parsedContent);
+        if (loadedProject.manifest.projectId !== manifest.projectId) {
+          throw new Error("The build manifest and exported content identify different projects.");
+        }
         const supportedLocales = normalizeSupportedLocales(
-          parsedContent.manifest.defaultLanguage,
-          parsedContent.manifest.supportedLocales
+          loadedProject.manifest.defaultLanguage,
+          loadedProject.manifest.supportedLocales
         );
 
-        const storageKey = `mage2-runtime-save:${manifest.projectId}`;
+        const storageKey = resolveRuntimeSaveStorageKey(manifest.projectId);
         const localeStorageKey = `mage2-runtime-locale:${manifest.projectId}`;
         const storedSave = localStorage.getItem(storageKey);
         const storedLocale = localStorage.getItem(localeStorageKey);
         const nextLocale =
           storedLocale && supportedLocales.includes(storedLocale)
             ? storedLocale
-            : parsedContent.manifest.defaultLanguage;
-        const loadedProject = {
-          manifest: parsedContent.manifest,
-          assets: { schemaVersion: parsedContent.schemaVersion, assets: parsedContent.assets },
-          locations: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.locations },
-          scenes: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.scenes },
-          dialogues: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.dialogues },
-          inventory: { schemaVersion: parsedContent.schemaVersion, items: parsedContent.inventoryItems },
-          strings: { schemaVersion: parsedContent.schemaVersion, byLocale: parsedContent.strings }
-        };
-        const normalizedSaveState = storedSave
-          ? parseSaveState({
-              ...createInitialSaveState(loadedProject),
-              ...(JSON.parse(storedSave) as object)
-            })
-          : undefined;
-        const nextController = createPlayerController(
-          loadedProject,
-          normalizedSaveState
-        );
+            : loadedProject.manifest.defaultLanguage;
+        const saveResult = loadSaveForProject(storedSave, loadedProject);
+        if (storedSave && saveResult.shouldQuarantine) {
+          quarantineRejectedRuntimeSave(storageKey, storedSave, saveResult.status);
+        }
+        if (saveResult.status === "migrated" && saveResult.envelope) {
+          persistRuntimeSave(storageKey, saveResult.envelope);
+        }
+        const nextController = createPlayerController(loadedProject, saveResult.saveState);
 
         setBuildManifest(manifest);
         setContent(parsedContent);
+        setRuntimeProject(loadedProject);
         setController(nextController);
         setActiveLocale(nextLocale);
         setSnapshot(nextController.getSnapshot());
-        setPlayheadMs(normalizedSaveState?.playheadMs ?? 0);
+        setPlayheadMs(saveResult.saveState.playheadMs ?? 0);
+        setRuntimeNotice(saveResult.message);
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : String(error));
       }
     }
 
     void loadBuild();
-  }, [Boolean(buildManifest && content && controller && snapshot)]);
+  }, [Boolean(buildManifest && content && runtimeProject && controller && snapshot)]);
 
-  const storageKey = buildManifest ? `mage2-runtime-save:${buildManifest.projectId}` : "";
+  const storageKey = buildManifest ? resolveRuntimeSaveStorageKey(buildManifest.projectId) : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
   const supportedLocales =
     content
@@ -822,7 +839,7 @@ export function App() {
     );
   }
 
-  if (!buildManifest || !content || !controller || !snapshot) {
+  if (!buildManifest || !content || !runtimeProject || !controller || !snapshot) {
     return (
       <main className="runtime-shell">
         <section className="runtime-card">
@@ -848,7 +865,12 @@ export function App() {
               onClick={() => {
                 const nextSave = controller.save();
                 nextSave.playheadMs = playheadMs;
-                localStorage.setItem(storageKey, JSON.stringify(nextSave));
+                try {
+                  localStorage.setItem(storageKey, JSON.stringify(createSaveEnvelope(runtimeProject, nextSave)));
+                  setRuntimeNotice("Progress saved.");
+                } catch {
+                  setRuntimeNotice("Progress could not be saved in local storage.");
+                }
               }}
             >
               Save
@@ -858,31 +880,23 @@ export function App() {
               onClick={() => {
                 const storedSave = localStorage.getItem(storageKey);
                 if (!storedSave) {
+                  setRuntimeNotice("No saved progress is available for this project.");
                   return;
                 }
 
-                const loadedProject = {
-                  manifest: content.manifest,
-                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
-                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
-                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
-                };
-                const nextSaveState = parseSaveState({
-                  ...createInitialSaveState(loadedProject),
-                  ...(JSON.parse(storedSave) as object)
-                });
-                const nextController = createPlayerController(
-                  loadedProject,
-                  nextSaveState
-                );
+                const saveResult = loadSaveForProject(storedSave, runtimeProject);
+                if (saveResult.shouldQuarantine) {
+                  quarantineRejectedRuntimeSave(storageKey, storedSave, saveResult.status);
+                }
+                if (saveResult.status === "migrated" && saveResult.envelope) {
+                  persistRuntimeSave(storageKey, saveResult.envelope);
+                }
+                const nextController = createPlayerController(runtimeProject, saveResult.saveState);
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
-                setPlayheadMs(nextSaveState.playheadMs ?? 0);
+                setPlayheadMs(saveResult.saveState.playheadMs ?? 0);
                 setSelectedInventoryItemId(undefined);
-                setRuntimeNotice(undefined);
+                setRuntimeNotice(saveResult.message ?? "Progress loaded.");
               }}
             >
               Load
@@ -891,15 +905,7 @@ export function App() {
               type="button"
               onClick={() => {
                 localStorage.removeItem(storageKey);
-                const nextController = createPlayerController({
-                  manifest: content.manifest,
-                  assets: { schemaVersion: content.schemaVersion, assets: content.assets },
-                  locations: { schemaVersion: content.schemaVersion, items: content.locations },
-                  scenes: { schemaVersion: content.schemaVersion, items: content.scenes },
-                  dialogues: { schemaVersion: content.schemaVersion, items: content.dialogues },
-                  inventory: { schemaVersion: content.schemaVersion, items: content.inventoryItems },
-                  strings: { schemaVersion: content.schemaVersion, byLocale: content.strings }
-                });
+                const nextController = createPlayerController(runtimeProject);
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
                 setPlayheadMs(0);
@@ -1296,6 +1302,24 @@ function normalizeHotspotText(value: string | undefined): string {
 function resolveRuntimeHotspotTitle(hotspot: Hotspot, strings: Record<string, string>): string {
   const comment = hotspot.commentTextId ? normalizeHotspotText(strings[hotspot.commentTextId]) : "";
   return hotspot.name || comment || hotspot.id;
+}
+
+function persistRuntimeSave(storageKey: string, envelope: unknown): void {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(envelope));
+  } catch {
+    // A migrated save remains usable in memory even when local storage is unavailable.
+  }
+}
+
+function quarantineRejectedRuntimeSave(storageKey: string, raw: string, status: string): void {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  try {
+    localStorage.setItem(`${storageKey}:rejected:${status}:${timestamp}`, raw);
+    localStorage.removeItem(storageKey);
+  } catch {
+    // Preserve the active entry when there is not enough storage to keep a copy.
+  }
 }
 
 function InventoryCursorPreview({
