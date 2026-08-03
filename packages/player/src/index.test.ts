@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, createInitialSaveState } from "@mage2/schema";
+import {
+  createDefaultProjectBundle,
+  type Hotspot,
+  type ProjectBundle,
+  type Scene
+} from "@mage2/schema";
 import {
   createPlayerController,
   getSceneAudioPlayheadMs,
@@ -250,6 +255,212 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).not.toContain("hotspot_burn_candle");
   });
 
+  it("treats onExit and onEnter self-transitions as no-ops", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const targetScene = addTestScene(project, "scene_target");
+    sourceScene.onExitEffects = [
+      { type: "goToScene", sceneId: sourceScene.id },
+      { type: "setFlag", flag: "sourceExited", value: true }
+    ];
+    targetScene.onEnterEffects = [
+      { type: "goToScene", sceneId: targetScene.id },
+      { type: "setFlag", flag: "targetEntered", value: true }
+    ];
+
+    const controller = createPlayerController(project);
+
+    expect(() => controller.enterScene(targetScene.id)).not.toThrow();
+    expect(controller.getSnapshot().scene.id).toBe(targetScene.id);
+    expect(controller.getSnapshot().flags).toMatchObject({
+      sourceExited: true,
+      targetEntered: true
+    });
+    expect(controller.getRuntimeIssues()).toEqual([]);
+  });
+
+  it("queues exit-effect transitions in authored order until the current transition completes", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const intermediateScene = addTestScene(project, "scene_intermediate");
+    const queuedScene = addTestScene(project, "scene_queued");
+    const finalScene = addTestScene(project, "scene_final");
+    sourceScene.onExitEffects = [
+      { type: "goToScene", sceneId: queuedScene.id },
+      { type: "goToScene", sceneId: finalScene.id }
+    ];
+    intermediateScene.onEnterEffects = [{ type: "setFlag", flag: "intermediateEntered", value: true }];
+    intermediateScene.onExitEffects = [{ type: "setFlag", flag: "intermediateExited", value: true }];
+    queuedScene.onEnterEffects = [{ type: "setFlag", flag: "queuedEntered", value: true }];
+    queuedScene.onExitEffects = [{ type: "setFlag", flag: "queuedExited", value: true }];
+    finalScene.onEnterEffects = [{ type: "setFlag", flag: "finalEntered", value: true }];
+
+    const controller = createPlayerController(project);
+
+    expect(() => controller.enterScene(intermediateScene.id)).not.toThrow();
+    expect(controller.getSnapshot().scene.id).toBe(finalScene.id);
+    expect(controller.getSnapshot().flags).toMatchObject({
+      intermediateEntered: true,
+      intermediateExited: true,
+      queuedEntered: true,
+      queuedExited: true,
+      finalEntered: true
+    });
+    expect(controller.save().visitedSceneIds).toEqual([
+      sourceScene.id,
+      intermediateScene.id,
+      queuedScene.id,
+      finalScene.id
+    ]);
+    expect(controller.getRuntimeIssues()).toEqual([]);
+  });
+
+  it("blocks cross-scene enter-effect cycles at the last reached scene", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const sceneB = addTestScene(project, "scene_b");
+    const sceneC = addTestScene(project, "scene_c");
+    sceneB.onEnterEffects = [{ type: "goToScene", sceneId: sceneC.id }];
+    sceneC.onEnterEffects = [{ type: "goToScene", sceneId: sceneB.id }];
+
+    const controller = createPlayerController(project);
+
+    expect(() => controller.enterScene(sceneB.id)).not.toThrow();
+    expect(controller.getSnapshot().scene.id).toBe(sceneC.id);
+    expect(controller.getRuntimeIssues()).toEqual([
+      {
+        code: "scene-transition-cycle",
+        message: `Scene transition cycle blocked: ${sourceScene.id} -> ${sceneB.id} -> ${sceneC.id} -> ${sceneB.id}.`,
+        scenePath: [sourceScene.id, sceneB.id, sceneC.id, sceneB.id],
+        effectsExecuted: 2,
+        effectBudget: 256
+      }
+    ]);
+  });
+
+  it("honors multiple scene effects in authored order", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const sceneB = addTestScene(project, "scene_b");
+    const sceneC = addTestScene(project, "scene_c");
+    const hotspot = createTestHotspot("hotspot_multi_transition");
+    hotspot.effects = [
+      { type: "goToScene", sceneId: sceneB.id },
+      { type: "setFlag", flag: "betweenTransitions", value: true },
+      { type: "goToScene", sceneId: sceneC.id }
+    ];
+    sourceScene.hotspots = [hotspot];
+    sourceScene.onExitEffects = [{ type: "addItem", itemId: "marker_source_exit" }];
+    sceneB.onEnterEffects = [{ type: "addItem", itemId: "marker_b_enter" }];
+    sceneB.onExitEffects = [{ type: "addItem", itemId: "marker_b_exit" }];
+    sceneC.onEnterEffects = [{ type: "addItem", itemId: "marker_c_enter" }];
+
+    const controller = createPlayerController(project);
+    const resolution = controller.selectHotspot(hotspot.id, 1000);
+
+    expect(resolution.transitionedToSceneId).toBe(sceneC.id);
+    expect(controller.getSnapshot().scene.id).toBe(sceneC.id);
+    expect(controller.getSnapshot().flags.betweenTransitions).toBe(true);
+    expect(controller.save().inventory).toEqual([
+      "marker_c_enter",
+      "marker_b_exit",
+      "marker_b_enter",
+      "marker_source_exit"
+    ]);
+    expect(controller.getRuntimeIssues()).toEqual([]);
+  });
+
+  it("supports hotspot and dialogue transitions across ordinary backtracking", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const sceneB = addTestScene(project, "scene_b");
+    const sceneC = addTestScene(project, "scene_c");
+    const toSceneBHotspot = createTestHotspot("hotspot_to_b");
+    toSceneBHotspot.targetSceneId = sceneB.id;
+    sourceScene.hotspots = [toSceneBHotspot];
+
+    const dialogueHotspot = createTestHotspot("hotspot_dialogue");
+    dialogueHotspot.dialogueTreeId = "dialogue_route";
+    sceneB.hotspots = [dialogueHotspot];
+    sceneB.dialogueTreeIds = ["dialogue_route"];
+    project.dialogues.items.push({
+      id: "dialogue_route",
+      name: "Route",
+      startNodeId: "node_route",
+      nodes: [
+        {
+          id: "node_route",
+          speaker: "Guide",
+          textId: "text.route",
+          effects: [],
+          choices: [
+            {
+              id: "choice_to_c",
+              textId: "text.route.to_c",
+              conditions: [{ type: "always" }],
+              effects: [{ type: "goToScene", sceneId: sceneC.id }]
+            }
+          ]
+        }
+      ]
+    });
+
+    const backHotspot = createTestHotspot("hotspot_back_to_start");
+    backHotspot.targetSceneId = sourceScene.id;
+    sceneC.hotspots = [backHotspot];
+
+    const controller = createPlayerController(project);
+
+    expect(controller.selectHotspot(toSceneBHotspot.id, 1000)).toEqual({
+      transitionedToSceneId: sceneB.id
+    });
+    expect(controller.getSnapshot().scene.id).toBe(sceneB.id);
+    expect(controller.selectHotspot(dialogueHotspot.id, 1000)).toEqual({
+      startedDialogueTreeId: "dialogue_route"
+    });
+    expect(controller.getSnapshot().activeDialogue?.tree.id).toBe("dialogue_route");
+
+    controller.chooseDialogueChoice("choice_to_c");
+    expect(controller.getSnapshot().scene.id).toBe(sceneC.id);
+    expect(controller.getSnapshot().activeDialogue).toBeUndefined();
+
+    controller.selectHotspot(backHotspot.id, 1000);
+    expect(controller.getSnapshot().scene.id).toBe(sourceScene.id);
+    expect(controller.save().visitedSceneIds).toEqual([sourceScene.id, sceneB.id, sceneC.id]);
+    expect(controller.getRuntimeIssues()).toEqual([]);
+  });
+
+  it("bounds recursively triggered effects within one player action", () => {
+    const project = createDefaultProjectBundle();
+    project.dialogues.items.push({
+      id: "dialogue_recursive",
+      name: "Recursive dialogue",
+      startNodeId: "node_recursive",
+      nodes: [
+        {
+          id: "node_recursive",
+          speaker: "Narrator",
+          textId: "text.recursive",
+          effects: [{ type: "playDialogue", dialogueTreeId: "dialogue_recursive" }],
+          choices: []
+        }
+      ]
+    });
+    const controller = createPlayerController(project, undefined, { effectBudget: 4 });
+
+    expect(() => controller.startDialogue("dialogue_recursive")).not.toThrow();
+    expect(controller.getSnapshot().activeDialogue?.tree.id).toBe("dialogue_recursive");
+    expect(controller.getRuntimeIssues()).toEqual([
+      {
+        code: "effect-budget-exceeded",
+        message: "Effect budget of 4 exceeded after 4 effects.",
+        scenePath: [project.manifest.startSceneId],
+        effectsExecuted: 4,
+        effectBudget: 4
+      }
+    ]);
+  });
+
   it("resolves scene playback duration from active media range", () => {
     expect(resolveSceneTimelineDurationMs(undefined, 4000, 9000)).toBe(13000);
     expect(resolveSceneTimelineDurationMs(18000, 12000, 22000)).toBe(34000);
@@ -324,3 +535,40 @@ describe("player controller", () => {
     });
   });
 });
+
+function addTestScene(project: ProjectBundle, sceneId: string): Scene {
+  const location = project.locations.items[0]!;
+  const scene: Scene = {
+    id: sceneId,
+    locationId: location.id,
+    name: sceneId,
+    sceneAudioLoop: true,
+    sceneAudioDelayMs: 0,
+    backgroundVideoLoop: false,
+    hotspots: [],
+    dialogueTreeIds: [],
+    onEnterEffects: [],
+    onExitEffects: []
+  };
+
+  project.scenes.items.push(scene);
+  location.sceneIds.push(scene.id);
+  return scene;
+}
+
+function createTestHotspot(hotspotId: string): Hotspot {
+  return {
+    id: hotspotId,
+    name: hotspotId,
+    x: 0,
+    y: 0,
+    width: 0.1,
+    height: 0.1,
+    startMs: 0,
+    endMs: 30000,
+    timingMode: "sceneDuration",
+    requiredItemIds: [],
+    conditions: [{ type: "always" }],
+    effects: []
+  };
+}
