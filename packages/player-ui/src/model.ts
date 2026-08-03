@@ -219,6 +219,17 @@ export function resolvePlayerInventorySlotSelection(
   };
 }
 
+export function resolvePlayerInventoryContextMenuAction(
+  isInventoryDrawerExpanded: boolean,
+  selectedInventoryItemId?: string
+): "close-inventory" | "cancel-selection" | undefined {
+  if (isInventoryDrawerExpanded) {
+    return "close-inventory";
+  }
+
+  return selectedInventoryItemId ? "cancel-selection" : undefined;
+}
+
 export function resolvePlayerDialogueChoiceMarker(index: number): string {
   return index >= 0 && index < 26 ? String.fromCharCode("A".charCodeAt(0) + index) : String(index + 1);
 }

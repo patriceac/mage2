@@ -545,9 +545,9 @@ describe("loadProjectFromDirectory", () => {
       responseGroups: unknown[];
     };
     const persistedScenes = JSON.parse(await readFile(scenesPath, "utf8")) as { items: Array<{ hotspots: unknown[] }> };
-    expect(migrated.dialogues.responseGroups).toHaveLength(4);
-    expect(persistedDialogues.starterResponsesVersion).toBe(1);
-    expect(persistedDialogues.responseGroups).toHaveLength(4);
+    expect(migrated.dialogues.responseGroups).toHaveLength(5);
+    expect(persistedDialogues.starterResponsesVersion).toBe(2);
+    expect(persistedDialogues.responseGroups).toHaveLength(5);
     expect(persistedScenes.items[0]!.hotspots[0]).not.toHaveProperty("response");
 
     await writeFile(dialoguesPath, JSON.stringify({ ...persistedDialogues, responseGroups: [] }, null, 2), "utf8");

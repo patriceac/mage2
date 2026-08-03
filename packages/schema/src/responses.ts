@@ -1,22 +1,34 @@
 import type { ResponseGroup } from "./types";
 
-export const STARTER_RESPONSE_LIBRARY_VERSION = 1;
+export const STARTER_RESPONSE_LIBRARY_VERSION = 2;
 export const STARTER_RESPONSE_LOCALES = ["en", "fr", "es", "zh-Hans", "ja", "ko", "ar"] as const;
 
 type StarterResponseLocale = (typeof STARTER_RESPONSE_LOCALES)[number];
-type StarterResponseGroupKey = "wrongItem" | "missingPrerequisite" | "alreadyCompleted" | "noEffect";
+type StarterResponseGroupKey =
+  | "wrongItem"
+  | "missingPrerequisite"
+  | "alreadyCompleted"
+  | "noEffect"
+  | "nothingUseful";
 
 interface StarterResponseGroupDefinition {
   key: StarterResponseGroupKey;
   id: string;
   name: string;
+  introducedIn: number;
 }
 
 const STARTER_RESPONSE_GROUP_DEFINITIONS: readonly StarterResponseGroupDefinition[] = [
-  { key: "wrongItem", id: "response_group_wrong_item", name: "Wrong item" },
-  { key: "missingPrerequisite", id: "response_group_missing_prerequisite", name: "Missing prerequisite" },
-  { key: "alreadyCompleted", id: "response_group_already_completed", name: "Already completed" },
-  { key: "noEffect", id: "response_group_no_effect", name: "No effect" }
+  { key: "wrongItem", id: "response_group_wrong_item", name: "Wrong item", introducedIn: 1 },
+  {
+    key: "missingPrerequisite",
+    id: "response_group_missing_prerequisite",
+    name: "Missing prerequisite",
+    introducedIn: 1
+  },
+  { key: "alreadyCompleted", id: "response_group_already_completed", name: "Already completed", introducedIn: 1 },
+  { key: "noEffect", id: "response_group_no_effect", name: "No effect", introducedIn: 1 },
+  { key: "nothingUseful", id: "response_group_nothing_useful", name: "Nothing useful", introducedIn: 2 }
 ];
 
 const STARTER_RESPONSE_TRANSLATIONS: Record<
@@ -47,6 +59,12 @@ const STARTER_RESPONSE_TRANSLATIONS: Record<
       "That had no effect.",
       "It doesn't react.",
       "That doesn't seem to change anything."
+    ],
+    nothingUseful: [
+      "Just ordinary clutter.",
+      "Nothing here I can use.",
+      "It’s all odds and ends.",
+      "There’s nothing of interest here."
     ]
   },
   fr: {
@@ -73,6 +91,12 @@ const STARTER_RESPONSE_TRANSLATIONS: Record<
       "Ça n'a eu aucun effet.",
       "Il n'y a aucune réaction.",
       "Ça ne semble rien changer."
+    ],
+    nothingUseful: [
+      "Juste du bazar ordinaire.",
+      "Il n’y a rien ici dont je puisse me servir.",
+      "Ce ne sont que des bricoles.",
+      "Il n’y a rien d’intéressant ici."
     ]
   },
   es: {
@@ -99,31 +123,41 @@ const STARTER_RESPONSE_TRANSLATIONS: Record<
       "Eso no ha tenido ningún efecto.",
       "No reacciona.",
       "Eso no parece cambiar nada."
+    ],
+    nothingUseful: [
+      "Solo trastos corrientes.",
+      "No hay nada aquí que me sirva.",
+      "No son más que cachivaches.",
+      "Aquí no hay nada de interés."
     ]
   },
   "zh-Hans": {
     wrongItem: ["我不能在这里使用它。", "这不是合适的工具。", "这样没用。", "我需要别的东西。"],
     missingPrerequisite: ["我还缺点东西。", "我现在还不能这么做。", "我得先处理别的事。", "得先完成另一个步骤。"],
     alreadyCompleted: ["这已经完成了。", "我已经处理好了。", "这里没什么可做的了。", "我不需要再做一次。"],
-    noEffect: ["什么也没发生。", "这没有任何效果。", "它毫无反应。", "这似乎没有改变任何东西。"]
+    noEffect: ["什么也没发生。", "这没有任何效果。", "它毫无反应。", "这似乎没有改变任何东西。"],
+    nothingUseful: ["只是些普通杂物。", "这里没有我能用的东西。", "都只是些零碎玩意儿。", "这里没什么值得留意的。"]
   },
   ja: {
     wrongItem: ["ここでは使えない。", "これは適切な道具ではない。", "これでは役に立たない。", "別のものが必要だ。"],
     missingPrerequisite: ["何かが足りない。", "まだできない。", "先に別のことを済ませよう。", "その前にやることがある。"],
     alreadyCompleted: ["もう済んでいる。", "これはもう片づけた。", "ここでやることはもうない。", "もう一度やる必要はない。"],
-    noEffect: ["何も起こらない。", "効果はなかった。", "反応がない。", "何も変わらないようだ。"]
+    noEffect: ["何も起こらない。", "効果はなかった。", "反応がない。", "何も変わらないようだ。"],
+    nothingUseful: ["ただのありふれたがらくただ。", "ここには使えそうなものはない。", "どれもただの雑多な品ばかりだ。", "ここに目ぼしいものはない。"]
   },
   ko: {
     wrongItem: ["여기서는 사용할 수 없다.", "이건 맞는 도구가 아니다.", "이걸로는 소용없다.", "다른 게 필요하다."],
     missingPrerequisite: ["뭔가 부족하다.", "아직은 할 수 없다.", "먼저 다른 일을 처리해야 한다.", "그 전에 해야 할 일이 있다."],
     alreadyCompleted: ["이미 끝난 일이다.", "이미 처리했다.", "여기서 더 할 일은 없다.", "다시 할 필요는 없다."],
-    noEffect: ["아무 일도 일어나지 않는다.", "아무 효과가 없었다.", "반응이 없다.", "아무것도 바뀌지 않는 것 같다."]
+    noEffect: ["아무 일도 일어나지 않는다.", "아무 효과가 없었다.", "반응이 없다.", "아무것도 바뀌지 않는 것 같다."],
+    nothingUseful: ["그저 평범한 잡동사니뿐이다.", "여기에는 쓸 만한 것이 없다.", "그저 이런저런 잡동사니들이다.", "여기엔 눈에 띄는 게 없다."]
   },
   ar: {
     wrongItem: ["لا يمكنني استخدام هذا هنا.", "هذه ليست الأداة المناسبة.", "لن يفيد ذلك.", "أحتاج إلى شيء آخر."],
     missingPrerequisite: ["ينقصني شيء ما.", "لا يمكنني فعل ذلك بعد.", "عليّ أن أنهي أمرًا آخر أولًا.", "هناك خطوة أخرى يجب إتمامها أولًا."],
     alreadyCompleted: ["لقد انتهى هذا بالفعل.", "لقد تولّيت هذا الأمر بالفعل.", "لم يعد هناك ما أفعله هنا.", "لا داعي لفعل ذلك مرة أخرى."],
-    noEffect: ["لا يحدث شيء.", "لم يكن لذلك أي تأثير.", "لا توجد أي استجابة.", "لا يبدو أن ذلك يغيّر شيئًا."]
+    noEffect: ["لا يحدث شيء.", "لم يكن لذلك أي تأثير.", "لا توجد أي استجابة.", "لا يبدو أن ذلك يغيّر شيئًا."],
+    nothingUseful: ["مجرد أشياء مبعثرة عادية.", "لا يوجد هنا ما يمكنني استخدامه.", "ليست سوى خردة متفرقة.", "لا شيء مثير للاهتمام هنا."]
   }
 };
 
@@ -133,7 +167,17 @@ export function getStarterResponseTextId(groupKey: StarterResponseGroupKey, inde
 }
 
 export function createStarterResponseGroups(): ResponseGroup[] {
-  return STARTER_RESPONSE_GROUP_DEFINITIONS.map((definition) => ({
+  return createResponseGroups(STARTER_RESPONSE_GROUP_DEFINITIONS);
+}
+
+export function createStarterResponseGroupsIntroducedAfter(version: number): ResponseGroup[] {
+  return createResponseGroups(
+    STARTER_RESPONSE_GROUP_DEFINITIONS.filter((definition) => definition.introducedIn > version)
+  );
+}
+
+function createResponseGroups(definitions: readonly StarterResponseGroupDefinition[]): ResponseGroup[] {
+  return definitions.map((definition) => ({
     id: definition.id,
     name: definition.name,
     entries: STARTER_RESPONSE_TRANSLATIONS.en[definition.key].map((_, index) => ({

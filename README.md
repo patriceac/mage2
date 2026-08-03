@@ -124,12 +124,13 @@ Text feedback is nonblocking and disappears after `2200 ms + 45 ms` per displaye
 
 Audio and video responses reference ordinary project assets. Choose an existing compatible asset or import one directly while editing the response; inline imports are added to the same Assets and Localization workflows as other project media.
 
-New projects include four editable starter groups. Existing projects receive the same unassigned library once on their first open after this feature was introduced, so migration does not change gameplay. Deleting the starter groups later does not recreate them. English starter copy is:
+New projects include five editable starter groups. Existing projects receive the same unassigned library once on their first open after each library update, so migration does not change gameplay. Deleting a starter group later does not recreate it. English starter copy is:
 
 - **Wrong item:** “I can’t use that here.”, “That’s not the right tool.”, “That won’t help.”, “I need something else.”
 - **Missing prerequisite:** “I’m missing something.”, “I can’t do that yet.”, “I should deal with something else first.”, “There’s another step first.”
 - **Already completed:** “That’s already done.”, “I’ve already handled that.”, “There’s nothing more to do here.”, “I don’t need to do that again.”
 - **No effect:** “Nothing happens.”, “That had no effect.”, “It doesn’t react.”, “That doesn’t seem to change anything.”
+- **Nothing useful:** “Just ordinary clutter.”, “Nothing here I can use.”, “It’s all odds and ends.”, “There’s nothing of interest here.”
 
 Equivalent starter strings are stored for English, French, Spanish, Simplified Chinese, Japanese, Korean, and Arabic. The migration does not automatically enable those locales for a project.
 

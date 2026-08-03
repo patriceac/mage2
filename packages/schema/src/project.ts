@@ -16,6 +16,7 @@ import { createRectangleHotspotPolygon } from "./hotspots";
 import { normalizeSupportedLocales } from "./localization";
 import {
   createStarterResponseGroups,
+  createStarterResponseGroupsIntroducedAfter,
   seedStarterResponseStrings,
   STARTER_RESPONSE_LIBRARY_VERSION
 } from "./responses";
@@ -448,7 +449,9 @@ function normalizeDialogues(
       .map((group) => group.id)
       .filter((id): id is string => typeof id === "string")
   );
-  const starterGroups = createStarterResponseGroups().filter((group) => !existingGroupIds.has(group.id));
+  const starterGroups = createStarterResponseGroupsIntroducedAfter(currentStarterVersion).filter(
+    (group) => !existingGroupIds.has(group.id)
+  );
   seedStarterResponseStrings(strings.byLocale);
 
   return {

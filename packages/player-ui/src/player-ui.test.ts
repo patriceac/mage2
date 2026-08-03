@@ -10,6 +10,7 @@ import {
   PlayerSceneRenderer,
   isOpaqueHotspotVisualHit,
   resolvePlayerHotspotInteraction,
+  resolvePlayerInventoryContextMenuAction,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
   resolveResponseTextDurationMs,
@@ -55,6 +56,15 @@ describe("player responses", () => {
     expect(resolvePlayerTextDirection("ar")).toBe("rtl");
     expect(resolvePlayerTextDirection("ar-SA")).toBe("rtl");
     expect(resolvePlayerTextDirection("zh-Hans")).toBe("ltr");
+  });
+});
+
+describe("inventory selection cancellation", () => {
+  it("closes an open drawer before cancelling a selected item", () => {
+    expect(resolvePlayerInventoryContextMenuAction(false)).toBeUndefined();
+    expect(resolvePlayerInventoryContextMenuAction(false, "item_lantern")).toBe("cancel-selection");
+    expect(resolvePlayerInventoryContextMenuAction(true)).toBe("close-inventory");
+    expect(resolvePlayerInventoryContextMenuAction(true, "item_lantern")).toBe("close-inventory");
   });
 });
 
@@ -249,7 +259,33 @@ describe("shared player component contract", () => {
     expect(markup).toContain("A line");
     expect(markup).toContain(">A</span>");
     expect(markup).toContain('title="Pick a response"');
+    expect(markup).not.toContain("mage2-player__dialogue--continue");
     expect(project.manifest.projectName).toBe("Shared dialogue");
+  });
+
+  it("makes a no-choice dialogue panel clickable while retaining its continue button", () => {
+    const tree = {
+      id: "dialogue",
+      name: "Dialogue",
+      startNodeId: "node",
+      nodes: [{ id: "node", speaker: "Guide", textId: "line", effects: [], choices: [] }]
+    };
+    const markup = renderToStaticMarkup(
+      React.createElement(PlayerDialogueBox, {
+        activeDialogue: { tree, node: tree.nodes[0]!, choices: [] },
+        strings: { line: "Click the panel to continue." },
+        copy,
+        onChoice: () => undefined,
+        onContinue: () => undefined
+      })
+    );
+
+    expect(markup).toContain("mage2-player__dialogue--continue");
+    expect(markup).toContain("Click the panel to continue.");
+    expect(markup).toContain("mage2-player__dialogue-continue");
+    expect(markup).toContain('title="Read on"');
+    expect(markup).toContain("Next");
+    expect(markup).toContain("›</span>");
   });
 
   it("keeps the injected bag and zero count visible for an empty inventory", () => {
@@ -330,7 +366,14 @@ describe("shared player component contract", () => {
     const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
     expect(source).not.toMatch(/useEditorStore|electronAPI|localStorage|sessionStorage/);
+    expect(source).toContain("onContextMenu={handleInventoryContextMenu}");
+    expect(source).toContain("resolvePlayerInventoryContextMenuAction(");
+    expect(source).toContain("onClick={canContinueBySurfaceClick ? onContinue : undefined}");
     expect(styles).toContain(".mage2-player__media");
+    expect(styles).toMatch(/\.mage2-player__dialogue--continue\s*\{[^}]*cursor:\s*pointer;/s);
+    expect(styles).toMatch(
+      /\.mage2-player__dialogue-continue\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s
+    );
     expect(styles).toMatch(/\.mage2-player__media\s*\{[^}]*object-fit:\s*cover/s);
     expect(styles).not.toContain("mage2-player__inventory-hint");
     expect(styles).toMatch(

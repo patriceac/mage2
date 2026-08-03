@@ -44,6 +44,7 @@ import {
   resolvePlayerInventoryItemTooltip,
   resolvePlayerInventorySlotSelection,
   resolvePlayerInventoryToggleLabel,
+  resolvePlayerInventoryContextMenuAction,
   resolvePlayerSceneHotspots,
   resolvePlayerStageHudClassName,
   resolvePlayerTextDirection,
@@ -118,9 +119,20 @@ export function PlayerDialogueBox({
 }: PlayerDialogueBoxProps) {
   const speaker = activeDialogue.node.speaker.trim() || copy.narrator;
   const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
+  const canContinueBySurfaceClick = activeDialogue.choices.length === 0;
+  const dialogueClassName = [
+    "mage2-player__dialogue",
+    canContinueBySurfaceClick ? "mage2-player__dialogue--continue" : undefined
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className="mage2-player__dialogue" aria-live="polite">
+    <div
+      className={dialogueClassName}
+      aria-live="polite"
+      onClick={canContinueBySurfaceClick ? onContinue : undefined}
+    >
       <div className="mage2-player__dialogue-speaker-row">
         <h4 className="mage2-player__dialogue-speaker">{speaker}</h4>
       </div>
@@ -151,10 +163,13 @@ export function PlayerDialogueBox({
             type="button"
             className="mage2-player__dialogue-continue"
             title={copy.continueDialogueTitle}
-            onClick={onContinue}
+            onClick={(event) => {
+              event.stopPropagation();
+              onContinue();
+            }}
           >
             {copy.continue}
-            <span aria-hidden="true">&gt;</span>
+            <span aria-hidden="true">›</span>
           </button>
         </div>
       )}
@@ -402,6 +417,27 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       [onSelectedInventoryItemIdChange]
     );
 
+    const handleInventoryContextMenu = useCallback(
+      (event: MouseEvent<HTMLDivElement>) => {
+        const action = resolvePlayerInventoryContextMenuAction(
+          isInventoryDrawerExpanded,
+          selectedInventoryItemId
+        );
+        if (!action) {
+          return;
+        }
+
+        event.preventDefault();
+        if (action === "close-inventory") {
+          setIsInventoryDrawerExpanded(false);
+          return;
+        }
+
+        selectInventoryItem(undefined);
+      },
+      [isInventoryDrawerExpanded, selectInventoryItem, selectedInventoryItemId]
+    );
+
     const activateHotspot = useCallback(
       (hotspotId: string): PlayerHotspotInteraction => {
         if (gameplayPaused) {
@@ -559,6 +595,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
           lang={locale}
           dir={resolvePlayerTextDirection(locale)}
           onClick={isInventoryDrawerExpanded ? () => setIsInventoryDrawerExpanded(false) : undefined}
+          onContextMenu={handleInventoryContextMenu}
         >
           <div className="mage2-player__scene-surface" style={surfaceStyle}>
             {sceneAsset && sceneUrl && (sceneAsset.kind === "image" || sceneAsset.kind === "video") ? (

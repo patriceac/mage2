@@ -361,15 +361,16 @@ async function runSharedPlayerFlow(page, host, adapter) {
   checks.dialogueBlocksSceneInteraction = true;
   checks.dialogueBlockedState = dialogueBlockedState;
 
-  await page.locator(".mage2-player__dialogue-continue").click();
+  await continueDialogueByTextClick(page, host);
   await page.locator(".mage2-player__dialogue-choice").first().waitFor({ state: "visible" });
+  checks.dialogueTextClickContinues = true;
   captures.push(await captureSurface(page, host, gameplaySteps[2].label, await adapter.getState()));
 
   await page.locator(".mage2-player__dialogue-choice").first().click();
   await page.locator(".mage2-player__dialogue-continue").waitFor({ state: "visible" });
   captures.push(await captureSurface(page, host, gameplaySteps[3].label, await adapter.getState()));
 
-  await page.locator(".mage2-player__dialogue-continue").click();
+  await continueDialogueByTextClick(page, host);
   await page.locator(".mage2-player__dialogue").waitFor({ state: "detached" });
   captures.push(await captureSurface(page, host, gameplaySteps[4].label, await adapter.getState()));
 
@@ -402,8 +403,15 @@ async function runSharedPlayerFlow(page, host, adapter) {
   checks.inventoryDrawerUnchangedOnSilentClick = true;
   checks.engineFallbackCopyAbsent = true;
 
+  await assertRightClickClosesInventoryDrawer(page, host);
+  checks.rightClickClosesInventoryDrawer = true;
+
   await selectInventoryItem(page, gameplaySteps[6].selectItem);
   captures.push(await captureSurface(page, host, gameplaySteps[6].label, await adapter.getState()));
+
+  await assertRightClickCancelsInventorySelection(page, host, gameplaySteps[6].selectItem);
+  checks.rightClickCancelsInventorySelection = true;
+  await selectInventoryItem(page, gameplaySteps[6].selectItem);
 
   await adapter.activate(gameplaySteps[7].activate);
   await adapter.assertScene(gameplaySteps[7].sceneId);
@@ -973,6 +981,79 @@ async function selectInventoryItem(page, label) {
   await page.getByRole("button", { name: label, exact: true }).click();
   await page.getByRole("button", { name: label, exact: true }).waitFor({ state: "visible" });
   await settle(page);
+}
+
+async function continueDialogueByTextClick(page, host) {
+  const dialogueText = page.locator(".mage2-player__dialogue-text");
+  const bounds = await dialogueText.boundingBox();
+  assert(bounds, `${host} has no visible dialogue text for the surface-click continuation check.`);
+  await page.mouse.click(
+    bounds.x + Math.min(20, Math.max(1, bounds.width / 2)),
+    bounds.y + Math.min(20, Math.max(1, bounds.height / 2))
+  );
+  await settle(page);
+}
+
+async function assertRightClickCancelsInventorySelection(page, host, label) {
+  assert.equal(
+    await getInventorySlotPressedState(page, label),
+    "true",
+    `${host} did not select '${label}' before its cancellation check.`
+  );
+
+  const sceneSurface = page.locator(".mage2-player__scene-surface");
+  const bounds = await sceneSurface.boundingBox();
+  assert(bounds, `${host} has no visible scene surface for the right-click cancellation check.`);
+  await page.mouse.click(bounds.x + 12, bounds.y + 12, { button: "right" });
+  await settle(page);
+
+  assert.equal(
+    await getInventorySlotPressedState(page, label),
+    "false",
+    `${host} did not clear '${label}' after right-clicking the scene.`
+  );
+  assert.equal(
+    await page.locator(".mage2-player__inventory-toggle").evaluate((element) =>
+      element.classList.contains("mage2-player__inventory-toggle--selected")
+    ),
+    false,
+    `${host} still presents an inventory selection after right-clicking the scene.`
+  );
+  await page.locator(".mage2-player").screenshot({
+    path: path.join(outputDirectory, `${host}-07-key-right-click-cancelled.png`)
+  });
+}
+
+async function assertRightClickClosesInventoryDrawer(page, host) {
+  await openInventoryIfCollapsed(page);
+  const inventoryToggle = page.locator(".mage2-player__inventory-toggle");
+  assert.equal(
+    await inventoryToggle.getAttribute("aria-expanded"),
+    "true",
+    `${host} did not open the inventory before its right-click close check.`
+  );
+
+  const sceneSurface = page.locator(".mage2-player__scene-surface");
+  const bounds = await sceneSurface.boundingBox();
+  assert(bounds, `${host} has no visible scene surface for the inventory close check.`);
+  await page.mouse.click(bounds.x + 12, bounds.y + 12, { button: "right" });
+  await settle(page);
+
+  assert.equal(
+    await inventoryToggle.getAttribute("aria-expanded"),
+    "false",
+    `${host} did not close the inventory after right-clicking the scene.`
+  );
+  await page.locator(".mage2-player").screenshot({
+    path: path.join(outputDirectory, `${host}-06-inventory-right-click-closed.png`)
+  });
+}
+
+async function getInventorySlotPressedState(page, label) {
+  return page.locator(".mage2-player__inventory-slot").evaluateAll((slots, expectedLabel) => {
+    const slot = slots.find((element) => element.getAttribute("aria-label") === expectedLabel);
+    return slot?.getAttribute("aria-pressed");
+  }, label);
 }
 
 async function waitForDialogue(page) {

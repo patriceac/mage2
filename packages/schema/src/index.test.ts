@@ -212,7 +212,8 @@ describe("project defaults", () => {
       "Wrong item",
       "Missing prerequisite",
       "Already completed",
-      "No effect"
+      "No effect",
+      "Nothing useful"
     ]);
     expect(project.dialogues.responseGroups.every((group) => group.entries.length === 4)).toBe(true);
     expect(project.manifest.supportedLocales).toEqual(["en"]);
@@ -222,6 +223,9 @@ describe("project defaults", () => {
     expect(project.strings.byLocale.ja?.["text.response.starter.already_completed.1"]).toBe("もう済んでいる。");
     expect(project.strings.byLocale.ko?.["text.response.starter.missing_prerequisite.1"]).toBe("뭔가 부족하다.");
     expect(project.strings.byLocale.ar?.["text.response.starter.no_effect.1"]).toBe("لا يحدث شيء.");
+    expect(project.strings.byLocale.en?.["text.response.starter.nothing_useful.4"]).toBe(
+      "There’s nothing of interest here."
+    );
   });
 
   it("migrates existing projects once without assigning fallback behavior", () => {
@@ -233,13 +237,33 @@ describe("project defaults", () => {
     project.scenes.items[0]!.hotspots[0]!.response = undefined;
 
     const migrated = parseProjectBundle(project);
-    expect(migrated.dialogues.responseGroups).toHaveLength(4);
-    expect(migrated.dialogues.starterResponsesVersion).toBe(1);
+    expect(migrated.dialogues.responseGroups).toHaveLength(5);
+    expect(migrated.dialogues.starterResponsesVersion).toBe(2);
     expect(migrated.scenes.items[0]!.hotspots[0]!.response).toBeUndefined();
 
     migrated.dialogues.responseGroups = [];
     const reopened = parseProjectBundle(migrated);
     expect(reopened.dialogues.responseGroups).toEqual([]);
+  });
+
+  it("adds only newly introduced starter groups when upgrading an existing response library", () => {
+    const project = createDefaultProjectBundle();
+    project.dialogues.starterResponsesVersion = 1;
+    project.dialogues.responseGroups = project.dialogues.responseGroups.filter(
+      (group) => group.id !== "response_group_no_effect" && group.id !== "response_group_nothing_useful"
+    );
+    for (const strings of Object.values(project.strings.byLocale)) {
+      for (const textId of Object.keys(strings)) {
+        if (textId.startsWith("text.response.starter.nothing_useful.")) delete strings[textId];
+      }
+    }
+
+    const upgraded = parseProjectBundle(project);
+
+    expect(upgraded.dialogues.starterResponsesVersion).toBe(2);
+    expect(upgraded.dialogues.responseGroups.map((group) => group.id)).toContain("response_group_nothing_useful");
+    expect(upgraded.dialogues.responseGroups.map((group) => group.id)).not.toContain("response_group_no_effect");
+    expect(upgraded.strings.byLocale.fr?.["text.response.starter.nothing_useful.1"]).toBe("Juste du bazar ordinaire.");
   });
 
   it("exports the response library and validates assigned response media", () => {
@@ -262,7 +286,7 @@ describe("project defaults", () => {
 
     const exported = toExportProjectData(project);
     expect(exported.responseGroups?.at(-1)?.id).toBe("response_group_audio");
-    expect(exported.starterResponsesVersion).toBe(1);
+    expect(exported.starterResponsesVersion).toBe(2);
     expect(validateProject(project).issues.some((issue) => issue.code.startsWith("RESPONSE_"))).toBe(false);
 
     project.dialogues.responseGroups.at(-1)!.entries[0] = {
