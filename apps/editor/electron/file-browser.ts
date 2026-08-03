@@ -6,7 +6,7 @@ import { app } from "electron";
 export interface FileBrowserLocation {
   label: string;
   path: string;
-  kind: "favorite" | "drive" | "root";
+  kind: "favorite";
 }
 
 export interface FileBrowserEntry {
@@ -25,7 +25,6 @@ export interface FileBrowserDirectoryListing {
 }
 
 const FAVORITE_LOCATIONS = [
-  { key: "home", label: "Home" },
   { key: "desktop", label: "Desktop" },
   { key: "documents", label: "Documents" },
   { key: "downloads", label: "Downloads" }
@@ -60,27 +59,6 @@ export async function getFileBrowserLocations(): Promise<FileBrowserLocation[]> 
     }
   }
 
-  if (process.platform === "win32") {
-    for (let code = 65; code <= 90; code += 1) {
-      const driveRoot = `${String.fromCharCode(code)}:\\`;
-      if (!existsSync(driveRoot)) {
-        continue;
-      }
-
-      addLocation({
-        label: `${driveRoot.slice(0, 2)} drive`,
-        path: driveRoot,
-        kind: "drive"
-      });
-    }
-  } else {
-    addLocation({
-      label: "Root",
-      path: "/",
-      kind: "root"
-    });
-  }
-
   return locations;
 }
 
@@ -97,7 +75,7 @@ export async function listDirectoryContents(inputPath: string): Promise<FileBrow
       directoryEntries.map(async (entry): Promise<FileBrowserEntry | undefined> => {
         const entryPath = path.join(directoryPath, entry.name);
 
-        if (!entry.isDirectory() && !entry.isFile() && !entry.isSymbolicLink()) {
+        if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) {
           return undefined;
         }
 

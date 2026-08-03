@@ -43,3 +43,44 @@ jobs:
 
       - name: Build workspace
         run: npm run build
+
+  windows-packaged-editor:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Enforce release audit threshold
+        run: npm run audit:release
+
+      - name: Package and exercise canonical Windows editor
+        run: npm run verify:editor:windows-ci
+
+      - name: Upload packaged Windows artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mage2-windows-editor
+          path: output/packaging/editor-win/dist/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload packaged editor evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mage2-windows-editor-evidence
+          path: output/playwright/windows-ci/
+          if-no-files-found: warn
+          retention-days: 14

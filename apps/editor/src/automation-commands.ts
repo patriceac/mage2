@@ -13,6 +13,10 @@ export interface EditorAutomationHotspotGeometry {
 export type EditorAutomationCommand =
   | { command: "ping" }
   | { command: "getState" }
+  | { command: "security.getState" }
+  | { command: "createProject"; projectDir: string; projectName: string }
+  | { command: "saveProject" }
+  | { command: "exportProject" }
   | { command: "listHotspots"; sceneId?: string }
   | { command: "listInventoryItems" }
   | { command: "openProject"; projectDir: string; tab?: EditorTab }
@@ -94,6 +98,9 @@ export function parseEditorAutomationCommand(input: unknown): EditorAutomationCo
   switch (command) {
     case "ping":
     case "getState":
+    case "security.getState":
+    case "saveProject":
+    case "exportProject":
     case "listInventoryItems":
     case "enterPlaytest":
     case "playtest.getState":
@@ -101,6 +108,12 @@ export function parseEditorAutomationCommand(input: unknown): EditorAutomationCo
     case "editor.undo":
     case "editor.redo":
       return { command };
+    case "createProject":
+      return {
+        command,
+        projectDir: requireString(candidate.projectDir, "projectDir"),
+        projectName: requireString(candidate.projectName, "projectName")
+      };
     case "listHotspots":
       return {
         command,

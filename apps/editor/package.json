@@ -13,7 +13,7 @@
     "@mage2/media": "0.1.0",
     "@mage2/player": "0.1.0",
     "@mage2/schema": "0.1.0",
-    "electron": "^37.4.0",
+    "electron": "^43.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "zustand": "^5.0.8"

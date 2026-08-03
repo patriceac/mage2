@@ -24,7 +24,7 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 
 ### Prerequisites
 
-- Node.js 20+ recommended
+- Node.js 24 recommended (22.12 or newer required)
 - npm
 
 ### Install
@@ -75,13 +75,21 @@ npm run package:editor:win
 That command writes the packaged artifacts to `output/packaging/editor-win/dist/`, including a `win-unpacked` app folder and an NSIS installer.
 It also refreshes the known Windows shortcuts so Desktop, Start Menu, and any existing taskbar pin continue to resolve to the canonical packaged executable.
 
-To verify that the packaged app, desktop shortcut, and taskbar/start menu aliases all resolve to the same executable, use:
+To run the canonical packaged-app release smoke gate, use:
 
 ```bash
 npm run verify:editor:windows-launch
 ```
 
-That Windows-only smoke gate repackages the editor, repairs and validates the known shortcuts, launches the packaged app with Playwright, opens a recent project, switches to `Scenes`, and writes a screenshot plus a JSON report under `output/playwright/`.
+That command is a compatibility alias for the self-contained Windows release verification below. It packages and launches the canonical EXE directly, creates and exports a representative project, checks the renderer security boundary and Electron fuses, and writes a screenshot plus a JSON report under `output/playwright/windows-ci/`.
+
+For a clean, self-contained release smoke flow that creates and exports its own representative project, use:
+
+```bash
+npm run verify:editor:windows-ci
+```
+
+The release process, SHA-256 checksums, and Authenticode expectations are documented in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Development notes
 
@@ -104,6 +112,8 @@ Using **Export Runtime** in the editor:
 
 The export folder is the reserved `build` directory inside the selected project. Custom output paths are refused so project data cannot redirect replacement into an arbitrary folder. MAGE2 replaces an existing `build` only when its complete file inventory still matches the prior managed export; otherwise it leaves the folder untouched and asks you to review it manually.
 
+Supported static hosts, HTTPS/header requirements, caching rules, and deployment checks are documented in [docs/EXPORT_HOSTING.md](docs/EXPORT_HOSTING.md).
+
 ## CI
 
 GitHub Actions runs the following on pushes and pull requests targeting `main`:
@@ -112,3 +122,4 @@ GitHub Actions runs the following on pushes and pull requests targeting `main`:
 - `npm test`
 - `npm run typecheck`
 - `npm run build`
+- a Windows job that audits, packages, launches, creates a project, exports it, and uploads the packaged binaries plus screenshot/report evidence

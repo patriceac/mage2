@@ -49,6 +49,7 @@ declare global {
       forgetRecentProject(projectDir: string): Promise<RecentProjectSummary[]>;
       revealPath(targetPath: string): Promise<void>;
       getFileBrowserLocations(): Promise<FileBrowserLocation[]>;
+      authorizeDirectory(): Promise<string | undefined>;
       listDirectory(targetPath: string): Promise<FileBrowserDirectoryListing>;
       createDirectory(parentDirectory: string, directoryName: string): Promise<string>;
       inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection>;

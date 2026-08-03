@@ -34,6 +34,7 @@ const editorApi = {
     ipcRenderer.invoke("mage2:forget-recent-project", projectDir),
   revealPath: (targetPath: string): Promise<void> => ipcRenderer.invoke("mage2:reveal-path", targetPath),
   getFileBrowserLocations: () => ipcRenderer.invoke("mage2:get-file-browser-locations"),
+  authorizeDirectory: (): Promise<string | undefined> => ipcRenderer.invoke("mage2:authorize-directory"),
   listDirectory: (targetPath: string) => ipcRenderer.invoke("mage2:list-directory", targetPath),
   createDirectory: (parentDirectory: string, directoryName: string) =>
     ipcRenderer.invoke("mage2:create-directory", parentDirectory, directoryName),
@@ -78,7 +79,13 @@ const editorApi = {
     ipcRenderer.invoke("mage2:export-project", projectDir, project),
   pathToFileUrl: (inputPath: string): Promise<string> =>
     ipcRenderer.invoke("mage2:path-to-file-url", inputPath),
-  getPathForDroppedFile: (file: File): string => webUtils.getPathForFile(file)
+  getPathForDroppedFile: (file: File): string => {
+    const filePath = webUtils.getPathForFile(file);
+    if (!filePath) {
+      return "";
+    }
+    return (ipcRenderer.sendSync("mage2:grant-dropped-path-sync", filePath) as string | undefined) ?? "";
+  }
 };
 
 const editorAutomation = {

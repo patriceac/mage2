@@ -13,24 +13,31 @@
     "dev:editor": "npm run build:packages && npm run dev --workspace @mage2/editor",
     "dev:runtime": "npm run build:packages && npm run dev --workspace @mage2/runtime-web",
     "package:editor:win": "npm run build:packages && npm run build --workspace @mage2/runtime-web && npm run build --workspace @mage2/editor && node scripts/package-editor-win.mjs",
+    "audit:release": "npm audit --audit-level=high",
+    "release:checksums": "node scripts/release-checksums.mjs",
     "check:sensitive-paths": "node scripts/check-sensitive-paths.mjs",
     "test:sensitive-paths": "node --test scripts/check-sensitive-paths.node-test.mjs",
     "pretest": "npm run check:sensitive-paths",
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspace @mage2/editor && npm run typecheck --workspace @mage2/runtime-web",
-    "verify:editor:windows-launch": "node scripts/verify-editor-windows-launch.mjs"
+    "verify:editor:windows-launch": "npm run verify:editor:windows-ci",
+    "verify:editor:windows-ci": "node scripts/verify-editor-windows-ci.mjs"
   },
   "devDependencies": {
+    "@electron/fuses": "^2.1.3",
     "@types/node": "^24.0.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.0.0",
-    "electron-builder": "^26.0.12",
-    "rimraf": "^6.1.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.8.3",
-    "vite": "^7.1.7",
-    "vitest": "^3.2.4",
-    "wait-on": "^8.0.5"
+    "@vitejs/plugin-react": "^6.0.5",
+    "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
+    "electron-builder": "^26.15.3",
+    "rimraf": "^6.1.3",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10",
+    "wait-on": "^9.1.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

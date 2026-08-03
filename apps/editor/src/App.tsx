@@ -629,9 +629,10 @@ export function App() {
     }
 
     setStatusMessage(`Runtime build exported to ${result.outputDirectory}.`);
+    return result;
   }
 
-  async function handleFileMenuAction(action: () => Promise<void>) {
+  async function handleFileMenuAction(action: () => Promise<unknown>) {
     setIsFileMenuOpen(false);
     await action();
   }
@@ -723,6 +724,45 @@ export function App() {
         return { ok: true, app: "MAGE2 Editor" };
       case "getState":
         return resolveEditorAutomationState(statusMessage);
+      case "security.getState":
+        return resolveRendererSecurityState();
+      case "createProject": {
+        const createdProject = await withBusy("Creating automation project", () =>
+          window.editorApi.createProject(command.projectDir, command.projectName)
+        );
+        if (!createdProject) {
+          throw new Error(`Automation could not create a project at '${command.projectDir}'.`);
+        }
+        setProjectContext(createdProject, command.projectDir);
+        await rememberRecentProjectEntry(command.projectDir, createdProject.manifest.projectName);
+        setStatusMessage(`Created project in ${command.projectDir}`);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      }
+      case "saveProject": {
+        requireCurrentProject(command);
+        const savedProject = await saveCurrentProject();
+        if (!savedProject) {
+          throw new Error("Automation could not save the current project.");
+        }
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(statusMessage);
+      }
+      case "exportProject": {
+        requireCurrentProject(command);
+        const exportResult = await handleExportProject();
+        if (!exportResult) {
+          throw new Error("Automation could not export the current project.");
+        }
+        await waitForAutomationUpdate();
+        return {
+          ...resolveEditorAutomationState(statusMessage),
+          export: {
+            outputDirectory: exportResult.outputDirectory,
+            validationReport: exportResult.validationReport
+          }
+        };
+      }
       case "listHotspots":
         return resolveEditorAutomationHotspots(requireCurrentProject(command), command.sceneId);
       case "listInventoryItems":
@@ -1511,6 +1551,29 @@ function resolveEditorAutomationState(statusMessage: string) {
         }
       : undefined,
     playtest: window.__mage2PlaytestAutomation?.getState()
+  };
+}
+
+async function resolveRendererSecurityState() {
+  const rendererGlobals = globalThis as typeof globalThis & {
+    require?: unknown;
+    process?: unknown;
+  };
+  const openedWindow = window.open("https://example.invalid/", "_blank");
+  openedWindow?.close();
+  const notificationPermission =
+    "Notification" in window ? await Notification.requestPermission() : "unsupported";
+
+  return {
+    rendererUrl: window.location.href,
+    contentSecurityPolicy:
+      document.querySelector<HTMLMetaElement>('meta[http-equiv="Content-Security-Policy"]')?.content ?? null,
+    nodeGlobals: {
+      require: typeof rendererGlobals.require,
+      process: typeof rendererGlobals.process
+    },
+    untrustedWindowCreated: openedWindow !== null,
+    notificationPermission
   };
 }
 
