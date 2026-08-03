@@ -1,12 +1,166 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, toExportProjectData } from "@mage2/schema";
+import { createDefaultProjectBundle, createInitialSaveState, toExportProjectData } from "@mage2/schema";
 import {
-  resolveInventoryCursorPreviewFrameStyle,
+  isRuntimeDebugMode,
   resolveRuntimeHeaderContent,
-  resolveRuntimeHotspotVisuals,
-  resolveRuntimeInventoryItemTooltip,
-  resolveRuntimeInventoryItems
+  resolveRuntimeLocaleStrings,
+  resolveRuntimePlayerCopy,
+  resolveRuntimeSystemCopy,
+  restoreRuntimeSession
 } from "./App";
+
+describe("runtime mode", () => {
+  it("requires the exact debug=1 query opt-in", () => {
+    expect(isRuntimeDebugMode("?debug=1")).toBe(true);
+    expect(isRuntimeDebugMode("?project=demo&debug=1")).toBe(true);
+    expect(isRuntimeDebugMode("")).toBe(false);
+    expect(isRuntimeDebugMode("?debug=true")).toBe(false);
+    expect(isRuntimeDebugMode("?debug=01")).toBe(false);
+    expect(isRuntimeDebugMode("?debug=0")).toBe(false);
+  });
+});
+
+describe("restoreRuntimeSession", () => {
+  it("hydrates exported response groups into the runtime controller", () => {
+    const project = createDefaultProjectBundle("Runtime Responses");
+    const group = project.dialogues.responseGroups[0]!;
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.response = { type: "group", groupId: group.id };
+
+    const restored = restoreRuntimeSession(toExportProjectData(project), null);
+    const response = restored.controller.selectHotspot(hotspot.id, 1000).response;
+
+    expect(group.entries.map((entry) => entry.id)).toContain(response?.entry.id);
+    expect(response?.sourceGroupId).toBe(group.id);
+  });
+
+  it("automatically resumes a valid saved session", () => {
+    const project = createDefaultProjectBundle("Runtime Save");
+    const saveState = createInitialSaveState(project);
+    saveState.flags.lanternLit = true;
+    saveState.playheadMs = 1425;
+
+    const restored = restoreRuntimeSession(toExportProjectData(project), JSON.stringify(saveState));
+
+    expect(restored.recovered).toBe(false);
+    expect(restored.saveState).toMatchObject({
+      currentLocationId: project.manifest.startLocationId,
+      currentSceneId: project.manifest.startSceneId,
+      flags: { lanternLit: true },
+      playheadMs: 1425
+    });
+    expect(restored.controller.getSnapshot().flags).toEqual({ lanternLit: true });
+  });
+
+  it.each([
+    ["malformed JSON", "{not-json"],
+    ["schema-invalid JSON", JSON.stringify({ currentSceneId: "scene_intro" })],
+    [
+      "unknown scene state",
+      JSON.stringify({
+        ...createInitialSaveState(createDefaultProjectBundle("Unknown Scene")),
+        currentSceneId: "scene_missing"
+      })
+    ],
+    [
+      "unknown location state",
+      JSON.stringify({
+        ...createInitialSaveState(createDefaultProjectBundle("Unknown Location")),
+        currentLocationId: "location_missing"
+      })
+    ],
+    [
+      "unknown inventory state",
+      JSON.stringify({
+        ...createInitialSaveState(createDefaultProjectBundle("Unknown Inventory")),
+        inventory: ["item_missing"]
+      })
+    ],
+    [
+      "unknown visited scene state",
+      JSON.stringify({
+        ...createInitialSaveState(createDefaultProjectBundle("Unknown Visit")),
+        visitedSceneIds: ["scene_missing"]
+      })
+    ],
+    [
+      "current scene missing from visit history",
+      JSON.stringify({
+        ...createInitialSaveState(createDefaultProjectBundle("Missing Current Visit")),
+        visitedSceneIds: []
+      })
+    ]
+  ])("recovers %s to a clean initial session", (_caseName, storedSave) => {
+    const project = createDefaultProjectBundle("Runtime Recovery");
+    const restored = restoreRuntimeSession(toExportProjectData(project), storedSave);
+
+    expect(restored.recovered).toBe(true);
+    expect(restored.saveState).toEqual(createInitialSaveState(project));
+    expect(restored.controller.getSnapshot().scene.id).toBe(project.manifest.startSceneId);
+  });
+
+  it("recovers a save whose valid scene and location do not belong together", () => {
+    const project = createDefaultProjectBundle("Runtime Mismatch");
+    project.locations.items.push({
+      id: "location_elsewhere",
+      name: "Elsewhere",
+      x: 0,
+      y: 0,
+      sceneIds: []
+    });
+    const saveState = {
+      ...createInitialSaveState(project),
+      currentLocationId: "location_elsewhere"
+    };
+
+    const restored = restoreRuntimeSession(toExportProjectData(project), JSON.stringify(saveState));
+
+    expect(restored.recovered).toBe(true);
+    expect(restored.saveState).toEqual(createInitialSaveState(project));
+  });
+});
+
+describe("runtime localization", () => {
+  it("resolves system copy by exact locale, base language, then English", () => {
+    expect(resolveRuntimeSystemCopy("fr").saveGame).toBe("Sauvegarder");
+    expect(resolveRuntimeSystemCopy("fr-CA").saveGame).toBe("Sauvegarder");
+    expect(resolveRuntimeSystemCopy("de-DE").saveGame).toBe("Save game");
+    expect(resolveRuntimeSystemCopy("fr").startupErrorTitle).toBe("Impossible de lancer ce jeu");
+    expect(resolveRuntimeSystemCopy("de-DE").startupErrorTitle).toBe("Unable to start this game");
+  });
+
+  it("lays active authored strings over default-locale fallbacks", () => {
+    expect(
+      resolveRuntimeLocaleStrings(
+        {
+          en: { shared: "Default text", overridden: "Default choice" },
+          fr: { overridden: "Choix français" }
+        },
+        "fr",
+        "en"
+      )
+    ).toEqual({
+      shared: "Default text",
+      overridden: "Choix français"
+    });
+  });
+
+  it("adapts localized runtime copy to the shared player renderer", () => {
+    const english = resolveRuntimePlayerCopy("en");
+    const french = resolveRuntimePlayerCopy("fr");
+
+    expect(english.inventoryToggleLabel({ isExpanded: false, itemCount: 1 })).toBe(
+      "Open inventory (1 item)"
+    );
+    expect(english.inventoryToggleLabel({ isExpanded: true, itemCount: 2 })).toBe(
+      "Close inventory (2 items)"
+    );
+    expect(french.inventoryToggleLabel({ isExpanded: false, itemCount: 0 })).toBe(
+      "Ouvrir l’inventaire (0 objets)"
+    );
+    expect(french.continueDialogueTitle).toBe("Continuer le dialogue.");
+  });
+});
 
 describe("resolveRuntimeHeaderContent", () => {
   it("keeps only project identity in the runtime header", () => {
@@ -17,108 +171,4 @@ describe("resolveRuntimeHeaderContent", () => {
     });
   });
 
-  it("maps inventory items to their localized labels and exported image paths", () => {
-    const project = createDefaultProjectBundle("Runtime Inventory");
-    project.assets.assets.push({
-      id: "asset_item",
-      kind: "image",
-      name: "lantern.png",
-      category: "inventory",
-      variants: {
-        en: {
-          sourcePath: "media/asset_item.en.png",
-          importedAt: new Date().toISOString()
-        }
-      }
-    });
-    project.inventory.items.push({
-      id: "item_lantern",
-      name: "Lantern",
-      textId: "text.item_lantern.name",
-      descriptionTextId: "text.item_lantern.description",
-      imageAssetId: "asset_item"
-    });
-    project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
-    project.strings.byLocale.en["text.item_lantern.description"] = "Throws a warm circle of light.";
-
-    const items = resolveRuntimeInventoryItems(
-      project.inventory.items,
-      project.assets.assets,
-      project.manifest.defaultLanguage,
-      project.strings.byLocale.en
-    );
-
-    expect(items).toEqual([
-      {
-        id: "item_lantern",
-        label: "Brass Lantern",
-        description: "Throws a warm circle of light.",
-        imageSrc: "media/asset_item.en.png"
-      }
-    ]);
-  });
-
-  it("uses item name and description for runtime inventory item tooltips", () => {
-    expect(resolveRuntimeInventoryItemTooltip("Brass Lantern", " Throws a warm circle of light. ")).toBe(
-      "Brass Lantern - Throws a warm circle of light."
-    );
-    expect(resolveRuntimeInventoryItemTooltip("Brass Lantern")).toBe("Brass Lantern");
-  });
-
-  it("maps inventory-backed hotspot art without depending on hotspot debug visibility", () => {
-    const project = createDefaultProjectBundle("Runtime Hotspots");
-    project.assets.assets.push({
-      id: "asset_item",
-      kind: "image",
-      name: "lantern.png",
-      category: "inventory",
-      variants: {
-        en: {
-          sourcePath: "media/asset_item.en.png",
-          importedAt: new Date().toISOString()
-        }
-      }
-    });
-    project.inventory.items.push({
-      id: "item_lantern",
-      name: "Lantern",
-      textId: "text.item_lantern.name",
-      imageAssetId: "asset_item"
-    });
-    project.strings.byLocale.en["text.item_lantern.name"] = "Brass Lantern";
-    project.scenes.items[0]!.hotspots[0]!.inventoryItemId = "item_lantern";
-
-    const visuals = resolveRuntimeHotspotVisuals(
-      project.scenes.items[0]!.hotspots,
-      project.inventory.items,
-      project.assets.assets,
-      project.manifest.defaultLanguage,
-      project.strings.byLocale.en
-    );
-
-    expect(visuals).toEqual({
-      [project.scenes.items[0]!.hotspots[0]!.id]: {
-        imageSrc: "media/asset_item.en.png",
-        alt: "Brass Lantern"
-      }
-    });
-  });
-});
-
-describe("resolveInventoryCursorPreviewFrameStyle", () => {
-  it("centers the selected inventory art on the cursor without a frame", () => {
-    const style = resolveInventoryCursorPreviewFrameStyle({ x: 120, y: 80 });
-
-    expect(style).toMatchObject({
-      left: "120px",
-      top: "80px",
-      transform: "translate(-50%, -50%)",
-      width: "48px",
-      height: "48px",
-      pointerEvents: "none"
-    });
-    expect(style).not.toHaveProperty("border");
-    expect(style).not.toHaveProperty("background");
-    expect(style).not.toHaveProperty("padding");
-  });
 });

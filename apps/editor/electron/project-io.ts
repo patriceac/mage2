@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 import { computeFileSha256, generateProxy } from "@mage2/media";
 import {
   createDefaultProjectBundle,
+  STARTER_RESPONSE_LIBRARY_VERSION,
   resolveAssetVariant,
   parseProjectBundle,
   type Asset,
@@ -120,7 +121,10 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     await access(filePaths.manifest);
 
     const project = await readProjectBundle(filePaths);
-    return ensureProjectAssetPreviews(boundary, project);
+    const migratedProject = (await needsStarterResponseMigration(filePaths.dialogues))
+      ? await saveProjectTransaction(boundary, project)
+      : project;
+    return ensureProjectAssetPreviews(boundary, migratedProject);
   });
 }
 
@@ -198,6 +202,16 @@ async function readProjectBundle(
   };
 
   return parseProjectBundle(rawBundle);
+}
+
+async function needsStarterResponseMigration(dialoguesPath: string): Promise<boolean> {
+  const rawDialogues = await readJson(dialoguesPath);
+  if (!rawDialogues || typeof rawDialogues !== "object" || Array.isArray(rawDialogues)) {
+    return true;
+  }
+
+  const version = (rawDialogues as Record<string, unknown>).starterResponsesVersion;
+  return typeof version !== "number" || version < STARTER_RESPONSE_LIBRARY_VERSION;
 }
 
 async function saveProjectTransaction(

@@ -1,0 +1,904 @@
+.mage2-player,
+.mage2-player * {
+  box-sizing: border-box;
+}
+
+.mage2-player {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: var(--mage2-player-media-aspect, 16 / 9);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
+  color: #f7fafc;
+  font: inherit;
+}
+
+.mage2-player__scene-surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
+}
+
+.mage2-player__media,
+.mage2-player__placeholder,
+.mage2-player__hotspots,
+.mage2-player__scene-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.mage2-player__media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mage2-player__placeholder {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  color: #90a2b2;
+  text-align: center;
+}
+
+.mage2-player__response-layer {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.mage2-player__response-layer--nonblocking {
+  padding: clamp(1rem, 4vw, 2.25rem);
+  padding-bottom: clamp(5.4rem, 14%, 7rem);
+}
+
+.mage2-player__response-text,
+.mage2-player__response-audio,
+.mage2-player__response-unavailable {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.9rem;
+  background: rgba(8, 12, 17, 0.9);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+  animation: mage2-response-enter 180ms ease-out both;
+}
+
+.mage2-player__response-text {
+  width: fit-content;
+  max-width: min(42rem, 88%);
+  margin: 0;
+  padding: 0.72rem 1rem;
+  color: #f6f8fa;
+  font-size: clamp(0.96rem, 2.1vw, 1.12rem);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.mage2-player__response-audio {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.65rem 0.55rem 0.85rem;
+  color: #f6f8fa;
+}
+
+.mage2-player__response-audio button,
+.mage2-player__response-unavailable button,
+.mage2-player__response-video-actions button {
+  min-height: 2.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mage2-player__response-audio button:hover,
+.mage2-player__response-audio button:focus-visible,
+.mage2-player__response-unavailable button:hover,
+.mage2-player__response-unavailable button:focus-visible,
+.mage2-player__response-video-actions button:hover,
+.mage2-player__response-video-actions button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.48);
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.mage2-player__response-quiet-action {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.mage2-player__response-audio-bars {
+  display: inline-flex;
+  height: 1rem;
+  align-items: center;
+  gap: 0.16rem;
+}
+
+.mage2-player__response-audio-bars i {
+  display: block;
+  width: 0.15rem;
+  height: 45%;
+  border-radius: 999px;
+  background: #e9bd72;
+  animation: mage2-response-audio-pulse 720ms ease-in-out infinite alternate;
+}
+
+.mage2-player__response-audio-bars i:nth-child(2) {
+  height: 90%;
+  animation-delay: 120ms;
+}
+
+.mage2-player__response-audio-bars i:nth-child(3) {
+  height: 65%;
+  animation-delay: 240ms;
+}
+
+.mage2-player__response-layer--video {
+  z-index: 100;
+  align-items: stretch;
+  padding: 0;
+  background: #030405;
+  pointer-events: auto;
+  animation: mage2-response-video-enter 160ms ease-out both;
+}
+
+.mage2-player__response-layer--runtime-responsive {
+  position: fixed;
+  inset: 0;
+}
+
+.mage2-player__response-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #030405;
+}
+
+.mage2-player__response-video-actions {
+  position: absolute;
+  z-index: 1;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  display: flex;
+  gap: 0.55rem;
+}
+
+.mage2-player__response-skip {
+  min-width: 5rem;
+  background: rgba(8, 12, 17, 0.76) !important;
+  backdrop-filter: blur(12px);
+}
+
+.mage2-player__response-unavailable {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: auto;
+  padding: 0.8rem 0.9rem 0.8rem 1rem;
+  color: #f6f8fa;
+}
+
+@keyframes mage2-response-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.55rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes mage2-response-video-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mage2-response-audio-pulse {
+  from { transform: scaleY(0.55); opacity: 0.68; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+.mage2-player__hotspots {
+  z-index: 1;
+}
+
+.mage2-player__hotspot {
+  position: absolute;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mage2-player__hotspot-visual-frame,
+.mage2-player__hotspot-button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mage2-player__hotspot-visual-frame {
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mage2-player__hotspot-visual-content {
+  position: absolute;
+  transform-origin: center;
+}
+
+.mage2-player__hotspot-visual {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mage2-player__hotspot-button {
+  appearance: none;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 3px solid transparent;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.mage2-player__hotspot-button--hidden,
+.mage2-player__hotspot-button--hidden:hover,
+.mage2-player__hotspot-button--hidden:focus-visible {
+  border-color: transparent;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mage2-player__hotspot-button--debug {
+  border-color: rgba(186, 230, 253, 0.94);
+  background:
+    linear-gradient(180deg, rgba(10, 45, 61, 0.3), rgba(7, 97, 122, 0.42)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.16) 0,
+      rgba(247, 250, 252, 0.16) 3.5px,
+      transparent 3.5px,
+      transparent 7px
+    ),
+    rgba(125, 211, 252, 0.24);
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.24),
+    0 0 0 1px rgba(56, 189, 248, 0.26),
+    0 0 0 6px rgba(14, 165, 233, 0.12),
+    0 18px 36px rgba(8, 47, 73, 0.26);
+}
+
+.mage2-player__hotspot-button--debug:hover,
+.mage2-player__hotspot-button--debug:focus-visible {
+  border-color: rgba(240, 249, 255, 0.98);
+  background:
+    linear-gradient(180deg, rgba(12, 54, 72, 0.4), rgba(14, 116, 144, 0.52)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(247, 250, 252, 0.2) 0,
+      rgba(247, 250, 252, 0.2) 3.5px,
+      transparent 3.5px,
+      transparent 7px
+    ),
+    rgba(125, 211, 252, 0.32);
+  outline: 2px solid rgba(186, 230, 253, 0.98);
+  box-shadow:
+    inset 0 0 0 1px rgba(247, 250, 252, 0.28),
+    0 0 0 1px rgba(125, 211, 252, 0.34),
+    0 0 0 6px rgba(125, 211, 252, 0.16),
+    0 20px 40px rgba(8, 47, 73, 0.28);
+}
+
+.mage2-player__hotspot-button--debug.mage2-player__hotspot-button--pointer-inactive:hover {
+  border-color: rgba(186, 230, 253, 0.94);
+  outline: none;
+}
+
+.mage2-player__hotspot-beacon {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.4rem;
+  height: 1.4rem;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(255, 252, 248, 0.98);
+  border-radius: 999px;
+  background: radial-gradient(circle, #fff 0%, rgba(186, 230, 253, 0.96) 44%, rgba(8, 47, 73, 0.98) 100%);
+  box-shadow:
+    0 0 0 3px rgba(186, 230, 253, 0.26),
+    0 0 18px rgba(125, 211, 252, 0.5),
+    0 0 32px rgba(14, 165, 233, 0.22);
+  pointer-events: none;
+}
+
+.mage2-player__hotspot-button--debug .mage2-player__hotspot-beacon {
+  display: block;
+}
+
+.mage2-player__scene-overlay {
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: clamp(0.75rem, 2.4vw, 1.35rem);
+  pointer-events: none;
+}
+
+.mage2-player__hud {
+  display: flex;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(0.5rem, 1.3vw, 0.8rem);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.mage2-player__hud--inventory-open {
+  pointer-events: auto;
+}
+
+.mage2-player__dialogue,
+.mage2-player__inventory-anchor {
+  pointer-events: auto;
+}
+
+.mage2-player__inventory-anchor {
+  align-self: flex-start;
+  width: auto;
+  max-width: min(100%, 35rem);
+  min-width: 0;
+}
+
+.mage2-player__hud--dialogue .mage2-player__inventory-anchor {
+  max-width: min(100%, 31rem);
+}
+
+.mage2-player__inventory {
+  --mage2-player-inventory-slot-size: clamp(4.1rem, 4.75vw, 5.05rem);
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  width: max-content;
+  max-width: 100%;
+}
+
+.mage2-player__inventory-toggle {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  min-height: 3.2rem;
+  padding: 0;
+  border: 1px solid rgba(246, 193, 119, 0.3);
+  border-radius: 8px;
+  background: rgba(11, 16, 20, 0.74);
+  color: #f6c177;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 12px 28px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(10px);
+  font: inherit;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.mage2-player__inventory-toggle:hover,
+.mage2-player__inventory-toggle:focus-visible,
+.mage2-player__inventory--expanded .mage2-player__inventory-toggle {
+  border-color: rgba(246, 193, 119, 0.62);
+  outline: 0;
+  background: rgba(16, 22, 26, 0.84);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.075),
+    0 0 0 3px rgba(246, 193, 119, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.26);
+  transform: translateY(-1px);
+}
+
+.mage2-player__inventory-toggle--selected {
+  border-color: rgba(246, 193, 119, 0.76);
+}
+
+.mage2-player__inventory-bag {
+  width: 2.62rem;
+  height: 2.62rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.22rem 0.28rem rgba(0, 0, 0, 0.42));
+  pointer-events: none;
+  user-select: none;
+}
+
+.mage2-player__inventory-count {
+  position: absolute;
+  top: -0.32rem;
+  right: -0.34rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.22rem;
+  height: 1.22rem;
+  padding-inline: 0.28rem;
+  border: 1px solid rgba(11, 16, 20, 0.86);
+  border-radius: 999px;
+  background: #f6c177;
+  color: #111820;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.28);
+}
+
+.mage2-player__inventory-drawer {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.34rem;
+  width: max-content;
+  max-width: min(35rem, calc(100vw - 8rem));
+  padding: 0.3rem 0.45rem;
+  overflow: visible;
+  border: 1px solid rgba(246, 193, 119, 0.16);
+  border-radius: 8px;
+  background: rgba(11, 16, 20, 0.72);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-0.2rem) scale(0.98);
+  transform-origin: left bottom;
+  visibility: hidden;
+  backdrop-filter: blur(10px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.mage2-player__inventory--expanded .mage2-player__inventory-drawer {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+  visibility: visible;
+}
+
+.mage2-player__inventory-slots {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.04rem 0.05rem 0.14rem;
+  scrollbar-width: thin;
+}
+
+.mage2-player__inventory-slot {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 var(--mage2-player-inventory-slot-size);
+  min-width: 0;
+  min-height: var(--mage2-player-inventory-slot-size);
+  padding: 0.22rem;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #f7fafc;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: none;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.mage2-player__inventory-slot:hover,
+.mage2-player__inventory-slot:focus-visible {
+  filter: drop-shadow(0 0 14px rgba(125, 211, 252, 0.42));
+  transform: translateY(-1px);
+}
+
+.mage2-player__inventory-slot--selected {
+  filter: drop-shadow(0 0 16px rgba(246, 193, 119, 0.46));
+}
+
+.mage2-player__inventory-slot--selected::after {
+  content: "";
+  position: absolute;
+  inset-inline: 22%;
+  bottom: 0.12rem;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(246, 193, 119, 0.76);
+  box-shadow: 0 0 10px rgba(246, 193, 119, 0.5);
+  pointer-events: none;
+}
+
+.mage2-player__inventory-slot-well {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.mage2-player__inventory-slot-well img {
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.46));
+  user-select: none;
+}
+
+.mage2-player__inventory-slot-well > span {
+  color: #f6c177;
+  font-size: 1.65rem;
+  font-weight: 800;
+}
+
+.mage2-player__inventory-empty {
+  display: grid;
+  place-items: center;
+  min-height: 2.35rem;
+  padding: 0.32rem 0.4rem;
+  border: 1px dashed rgba(246, 193, 119, 0.22);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: #dce7ef;
+  text-align: center;
+}
+
+.mage2-player__inventory-empty strong {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mage2-player__dialogue {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, auto) auto;
+  gap: 0.85rem;
+  width: min(46rem, 100%);
+  max-height: min(62%, calc(100% - 1rem));
+  padding: 1.05rem 1.15rem 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(246, 193, 119, 0.36);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(17, 24, 31, 0.94), rgba(7, 10, 14, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    0 22px 54px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(12px);
+}
+
+.mage2-player__dialogue--continue {
+  cursor: pointer;
+}
+
+.mage2-player__dialogue::before,
+.mage2-player__dialogue::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.65rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(246, 193, 119, 0.6), transparent);
+  pointer-events: none;
+}
+
+.mage2-player__dialogue::before {
+  top: 0.35rem;
+}
+
+.mage2-player__dialogue::after {
+  bottom: 0.35rem;
+  opacity: 0.7;
+}
+
+.mage2-player__dialogue-speaker-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.mage2-player__dialogue-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  min-height: 1.85rem;
+  margin: 0;
+  padding: 0.32rem 0.7rem 0.36rem;
+  overflow: hidden;
+  border: 1px solid rgba(246, 193, 119, 0.45);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(38, 31, 21, 0.94), rgba(16, 17, 19, 0.9));
+  color: #f6c177;
+  font-size: 0.92rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mage2-player__dialogue-speaker::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.48rem;
+  height: 0.48rem;
+  border: 1px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.8;
+}
+
+.mage2-player__dialogue-text {
+  max-height: 6rem;
+  margin: 0;
+  overflow: auto;
+  color: #f7fafc;
+  font-size: 1.08rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.mage2-player__dialogue-choices {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.mage2-player__dialogue-choice {
+  appearance: none;
+  border: 1px solid rgba(246, 193, 119, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)), rgba(8, 12, 16, 0.78);
+  color: #f7fafc;
+  cursor: pointer;
+  font: inherit;
+  white-space: normal;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.mage2-player__dialogue-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+}
+
+.mage2-player__dialogue-choice:hover,
+.mage2-player__dialogue-choice:focus-visible {
+  border-color: rgba(125, 211, 252, 0.78);
+  outline: 0;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.16), rgba(125, 211, 252, 0.06)), rgba(8, 13, 18, 0.88);
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.16), 0 10px 24px rgba(0, 0, 0, 0.24);
+  transform: translateY(-1px);
+}
+
+.mage2-player__dialogue-choice-marker {
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid rgba(246, 193, 119, 0.36);
+  border-radius: 6px;
+  background: rgba(246, 193, 119, 0.1);
+  color: #f6c177;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.mage2-player__dialogue-choice-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
+.mage2-player__dialogue-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mage2-player__dialogue-continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  appearance: none;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: rgba(246, 193, 119, 0.78);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  min-height: 2.35rem;
+  padding: 0.5rem 0;
+  text-align: center;
+  transition: color 120ms ease, text-shadow 120ms ease;
+}
+
+.mage2-player__dialogue-continue:hover {
+  color: #f6c177;
+  text-shadow: 0 0 18px rgba(246, 193, 119, 0.32);
+}
+
+.mage2-player__dialogue-continue:focus-visible {
+  color: #f6c177;
+  outline: 2px solid rgba(246, 193, 119, 0.76);
+  outline-offset: 0.25rem;
+}
+
+@media (max-width: 780px) {
+  .mage2-player__scene-overlay {
+    padding: 0.55rem;
+  }
+
+  .mage2-player__hud {
+    gap: 0.45rem;
+  }
+
+  .mage2-player__inventory-anchor {
+    max-width: min(100%, 24rem);
+  }
+
+  .mage2-player__inventory {
+    --mage2-player-inventory-slot-size: 3.8rem;
+  }
+
+  .mage2-player__inventory-toggle {
+    width: 3rem;
+    height: 3rem;
+    min-height: 3rem;
+  }
+
+  .mage2-player__inventory-bag {
+    width: 2.45rem;
+    height: 2.45rem;
+  }
+
+  .mage2-player__inventory-drawer {
+    left: 0;
+    bottom: calc(100% + 0.48rem);
+    max-width: min(24rem, calc(100vw - 1.5rem));
+    padding: 0.4rem;
+    transform: translateY(0.2rem) scale(0.98);
+  }
+
+  .mage2-player__inventory--expanded .mage2-player__inventory-drawer {
+    transform: translateY(0) scale(1);
+  }
+
+  .mage2-player__dialogue {
+    width: 100%;
+    max-height: 66%;
+    gap: 0.65rem;
+    padding: 0.85rem;
+  }
+
+  .mage2-player__dialogue-speaker {
+    min-height: 1.7rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.82rem;
+  }
+
+  .mage2-player__dialogue-text {
+    max-height: 4.75rem;
+    font-size: 0.98rem;
+  }
+
+  .mage2-player__dialogue-choice {
+    min-height: 2.35rem;
+    padding: 0.48rem 0.6rem;
+  }
+}
+
+@media (max-width: 780px) and (orientation: portrait) {
+  .mage2-player--runtime-responsive {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding-top: var(--mage2-player-runtime-top-inset, 4rem);
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__scene-surface {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: var(--mage2-player-media-aspect, 16 / 9);
+    border-radius: 0;
+    box-shadow: 0 1.25rem 4.5rem rgba(0, 0, 0, 0.42);
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__hud-plane {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    align-items: stretch;
+    width: 100%;
+    min-height: 0;
+    margin-top: -0.75rem;
+    padding: 0 0.7rem max(0.7rem, env(safe-area-inset-bottom));
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__hud {
+    min-height: 0;
+    justify-content: flex-start;
+    gap: 0.7rem;
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__dialogue {
+    flex: 0 1 auto;
+    width: 100%;
+    max-height: min(22rem, calc(100% - 4.4rem));
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__dialogue-text {
+    max-height: min(8rem, 22dvh);
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__dialogue-choices {
+    max-height: min(12rem, 30dvh);
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__inventory-anchor {
+    margin-top: auto;
+  }
+
+  .mage2-player--runtime-responsive .mage2-player__inventory-drawer {
+    max-height: min(13rem, 34dvh);
+    overflow: auto;
+  }
+}

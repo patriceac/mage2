@@ -10,6 +10,7 @@ import { createProjectRevision } from "./project-helpers";
 
 export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
 export type LocalizationSection = "overview" | "strings" | "media";
+export type DialogueSection = "dialogues" | "responses";
 export interface ProjectUpdateOptions {
   skipHistory?: boolean;
 }
@@ -35,12 +36,15 @@ interface EditorState {
   selectedDialogueId?: string;
   selectedHotspotId?: string;
   selectedDialogueNodeId?: string;
+  selectedResponseGroupId?: string;
+  selectedResponseEntryId?: string;
   selectedInventoryItemId?: string;
   selectedAssetId?: string;
   selectedTextId?: string;
   localizationLocale?: string;
   playtestLocale?: string;
   localizationSection: LocalizationSection;
+  dialogueSection: DialogueSection;
   playheadMs: number;
   setProjectContext: (project: ProjectBundle, projectDir: string) => void;
   updateProject: (project: ProjectBundle, options?: ProjectUpdateOptions) => void;
@@ -55,12 +59,15 @@ interface EditorState {
   setSelectedDialogueId: (selectedDialogueId?: string) => void;
   setSelectedHotspotId: (selectedHotspotId?: string) => void;
   setSelectedDialogueNodeId: (selectedDialogueNodeId?: string) => void;
+  setSelectedResponseGroupId: (selectedResponseGroupId?: string) => void;
+  setSelectedResponseEntryId: (selectedResponseEntryId?: string) => void;
   setSelectedInventoryItemId: (selectedInventoryItemId?: string) => void;
   setSelectedAssetId: (selectedAssetId?: string) => void;
   setSelectedTextId: (selectedTextId?: string) => void;
   setLocalizationLocale: (localizationLocale?: string) => void;
   setPlaytestLocale: (playtestLocale?: string) => void;
   setLocalizationSection: (localizationSection: LocalizationSection) => void;
+  setDialogueSection: (dialogueSection: DialogueSection) => void;
   setPlayheadMs: (playheadMs: number) => void;
 }
 
@@ -72,6 +79,8 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
     selectedDialogueId: state?.selectedDialogueId ?? project.dialogues.items[0]?.id,
     selectedHotspotId: state?.selectedHotspotId,
     selectedDialogueNodeId: state?.selectedDialogueNodeId,
+    selectedResponseGroupId: state?.selectedResponseGroupId ?? project.dialogues.responseGroups[0]?.id,
+    selectedResponseEntryId: state?.selectedResponseEntryId,
     selectedInventoryItemId: state?.selectedInventoryItemId,
     selectedAssetId: state?.selectedAssetId ?? project.assets.assets[0]?.id,
     selectedTextId: state?.selectedTextId,
@@ -83,7 +92,8 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
       state?.playtestLocale && supportedLocales.includes(state.playtestLocale)
         ? state.playtestLocale
         : project.manifest.defaultLanguage,
-    localizationSection: state?.localizationSection ?? "overview"
+    localizationSection: state?.localizationSection ?? "overview",
+    dialogueSection: state?.dialogueSection ?? "dialogues"
   };
 }
 
@@ -250,6 +260,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   canRedo: false,
   activeTab: "world",
   localizationSection: "overview",
+  dialogueSection: "dialogues",
   playheadMs: 0,
   setProjectContext: (project, projectDir) => {
     const normalizedProject = normalizeProjectInventoryPlacement(project);
@@ -370,12 +381,15 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedDialogueId: undefined,
       selectedHotspotId: undefined,
       selectedDialogueNodeId: undefined,
+      selectedResponseGroupId: undefined,
+      selectedResponseEntryId: undefined,
       selectedInventoryItemId: undefined,
       selectedAssetId: undefined,
       selectedTextId: undefined,
       localizationLocale: undefined,
       playtestLocale: undefined,
       localizationSection: "overview",
+      dialogueSection: "dialogues",
       playheadMs: 0
     }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -384,11 +398,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelectedDialogueId: (selectedDialogueId) => set({ selectedDialogueId }),
   setSelectedHotspotId: (selectedHotspotId) => set({ selectedHotspotId }),
   setSelectedDialogueNodeId: (selectedDialogueNodeId) => set({ selectedDialogueNodeId }),
+  setSelectedResponseGroupId: (selectedResponseGroupId) => set({ selectedResponseGroupId }),
+  setSelectedResponseEntryId: (selectedResponseEntryId) => set({ selectedResponseEntryId }),
   setSelectedInventoryItemId: (selectedInventoryItemId) => set({ selectedInventoryItemId }),
   setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
   setSelectedTextId: (selectedTextId) => set({ selectedTextId }),
   setLocalizationLocale: (localizationLocale) => set({ localizationLocale }),
   setPlaytestLocale: (playtestLocale) => set({ playtestLocale }),
   setLocalizationSection: (localizationSection) => set({ localizationSection }),
+  setDialogueSection: (dialogueSection) => set({ dialogueSection }),
   setPlayheadMs: (playheadMs) => set({ playheadMs })
 }));

@@ -1,4 +1,4 @@
-import type { Condition, Effect, Hotspot } from "./types";
+import type { Condition, Effect, Hotspot, HotspotEvent } from "./types";
 
 export type HotspotInventoryActionType = "none" | "pickupItem" | "placeItem";
 
@@ -14,6 +14,12 @@ export interface PlacedInventoryHotspotInstance {
   dropTargetHotspotId: string;
   sourceHotspotId?: string;
   hotspot: Hotspot;
+}
+
+export function hasHotspotEvent(
+  event: Pick<HotspotEvent, "targetSceneId" | "dialogueTreeId" | "response" | "effects"> | undefined
+): boolean {
+  return Boolean(event && (event.targetSceneId || event.dialogueTreeId || event.response || event.effects.length > 0));
 }
 
 export function buildHotspotPickupFlag(hotspotId: string): string {

@@ -2,28 +2,94 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const sharedStyles = readFileSync(
+  new URL("../../../packages/player-ui/src/styles.css", import.meta.url),
+  "utf8"
+);
+const runtimeEntry = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
+const runtimeApp = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 
-describe("runtime hotspot visibility styles", () => {
-  it("keeps debug hotspots readable against busy scene art", () => {
-    expect(styles).toContain(".runtime-hotspot {");
-    expect(styles).toContain("border: 2px solid rgba(186, 230, 253, 0.94);");
-    expect(styles).toContain("0 0 0 4px rgba(14, 165, 233, 0.14),");
-    expect(styles).toContain("0 16px 34px rgba(8, 47, 73, 0.24);");
+describe("runtime player layout styles", () => {
+  it("uses a dynamic full viewport without document scrolling", () => {
+    expect(styles).toMatch(
+      /body\s*\{[\s\S]*?overflow: hidden;[\s\S]*?overscroll-behavior: none;/
+    );
+    expect(styles).toMatch(
+      /\.runtime-shell\s*\{[\s\S]*?height: 100dvh;[\s\S]*?overflow: hidden;/
+    );
+    expect(styles).toMatch(
+      /\.runtime-stage\s*\{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?overflow: hidden;/
+    );
   });
 
-  it("uses the shared slim switch dimensions for hotspot visibility", () => {
-    expect(styles).toContain("--switch-track-width: 2.2rem;");
-    expect(styles).toContain("--switch-track-height: 1.12rem;");
-    expect(styles).toContain("--switch-thumb-size: 0.74rem;");
+  it("loads the shared Playtest renderer styles instead of a runtime scene implementation", () => {
+    expect(runtimeEntry).toContain('import "@mage2/player-ui/styles.css";');
+    expect(styles).toContain(".runtime-player-renderer {");
+    expect(styles).not.toContain(".runtime-media__asset");
+    expect(styles).not.toContain(".runtime-dialogue");
+    expect(styles).not.toContain(".runtime-inventory__item");
+    expect(sharedStyles).toMatch(
+      /\.mage2-player__media\s*\{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?object-fit: cover;/
+    );
+  });
+
+  it("turns player menus and confirmations into mobile bottom sheets", () => {
+    expect(styles).toMatch(/@media \(max-width: 640px\)/);
     expect(styles).toMatch(
-      /\.runtime-hotspot-visibility-toggle input\s*\{[\s\S]*?width: var\(--switch-track-width\);[\s\S]*?height: var\(--switch-track-height\);[\s\S]*?min-height: var\(--switch-track-height\);[\s\S]*?padding: 0;/
+      /@media \(max-width: 640px\)[\s\S]*?\.runtime-menu-panel,[\s\S]*?\.runtime-confirmation\s*\{[\s\S]*?top: auto;[\s\S]*?bottom: 0;[\s\S]*?width: 100%;[\s\S]*?border-radius: 22px 22px 0 0;/
+    );
+  });
+
+  it("opts the standalone host into the shared portrait renderer without changing its scene plane", () => {
+    expect(runtimeApp).toContain('presentation="runtime-responsive"');
+    expect(styles).toMatch(
+      /\.runtime-player-renderer\s*\{[\s\S]*?--mage2-player-runtime-top-inset: calc\(var\(--runtime-safe-top\) \+ 3\.45rem\);/
     );
     expect(styles).toMatch(
-      /\.runtime-hotspot-visibility-toggle input::before\s*\{[\s\S]*?width: var\(--switch-thumb-size\);[\s\S]*?height: var\(--switch-thumb-size\);/
+      /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*?\.runtime-player-renderer\s*\{[\s\S]*?width: 100%;[\s\S]*?height: 100%;/
     );
+    expect(sharedStyles).toContain(".mage2-player__scene-surface {");
+    expect(sharedStyles).toContain(".mage2-player--runtime-responsive .mage2-player__hud-plane {");
+  });
+
+  it("lets shared response video cover the runtime while embedded Playtest stays bounded", () => {
+    expect(sharedStyles).toMatch(
+      /\.mage2-player__response-layer--runtime-responsive\s*\{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/
+    );
+    expect(sharedStyles).toContain(".mage2-player__response-layer--video {");
+    expect(runtimeApp).toContain("runtime-player-renderer--response-video");
     expect(styles).toMatch(
-      /\.runtime-hotspot-visibility-toggle input:checked\s*\{[\s\S]*?border-color: #f6c177;[\s\S]*?background: #f6c177;[\s\S]*?box-shadow: inset 0 1px 3px rgba\(0, 0, 0, 0\.24\);/
+      /\.runtime-player-renderer--response-video\s*\{[\s\S]*?z-index: 80;[\s\S]*?overflow: visible;[\s\S]*?animation: none;[\s\S]*?transform: none;/
     );
-    expect(styles).toContain("transform: translate(var(--switch-thumb-travel), -50%);");
+  });
+
+  it("keeps technical startup diagnostics behind explicit debug mode", () => {
+    expect(runtimeApp).not.toContain("<h1>MAGE2 Runtime</h1>");
+    expect(runtimeApp).toContain(
+      'debugMode ? <pre className="runtime-error-details">{errorMessage}</pre> : null'
+    );
+    expect(styles).toContain(".runtime-error-details {");
+  });
+});
+
+describe("runtime hotspot and debug styles", () => {
+  it("keeps runtime host button chrome out of every shared renderer control", () => {
+    expect(styles).toContain(
+      ".runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):hover:not(:disabled) {"
+    );
+    expect(styles).not.toMatch(/(^|\n)button:hover:not\(:disabled\)\s*\{/u);
+  });
+
+  it("keeps debug hotspots readable when explicitly enabled", () => {
+    expect(sharedStyles).toContain(".mage2-player__hotspot-button--debug {");
+    expect(sharedStyles).toContain("border-color: rgba(186, 230, 253, 0.94);");
+    expect(styles).toContain(".runtime-debug-panel {");
+  });
+
+  it("removes every border and shadow state from hidden player hotspots", () => {
+    expect(sharedStyles).toMatch(
+      /\.mage2-player__hotspot-button--hidden,[\s\S]*?\.mage2-player__hotspot-button--hidden:hover,[\s\S]*?\.mage2-player__hotspot-button--hidden:focus-visible\s*\{[\s\S]*?border-color: transparent;[\s\S]*?outline: none;[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/
+    );
+    expect(sharedStyles).not.toContain(".mage2-player__hotspot-button--hidden:focus-visible::after");
   });
 });

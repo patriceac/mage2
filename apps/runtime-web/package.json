@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mage2/player": "0.1.0",
+    "@mage2/player-ui": "0.1.0",
     "@mage2/schema": "0.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

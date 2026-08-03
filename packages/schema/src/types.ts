@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
-export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio", "foreground"]);
+export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio", "foreground", "response"]);
 export const LocationIconSchema = z.enum(["mapPin", "settlement", "forest", "castle", "mine", "coast", "crystal", "mountain"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
@@ -47,6 +47,24 @@ export const EffectSchema = z.discriminatedUnion("type", [
   })
 ]);
 
+export const ResponseSelectionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("entry"),
+    entryId: z.string().min(1)
+  }),
+  z.object({
+    type: z.literal("group"),
+    groupId: z.string().min(1)
+  })
+]);
+
+export const HotspotEventSchema = z.object({
+  targetSceneId: z.string().min(1).optional(),
+  dialogueTreeId: z.string().min(1).optional(),
+  response: ResponseSelectionSchema.optional(),
+  effects: z.array(EffectSchema).default([])
+});
+
 export const HotspotPointSchema = z.object({
   x: z.number().min(0).max(1),
   y: z.number().min(0).max(1)
@@ -83,6 +101,9 @@ export const HotspotSchema = z.object({
   targetSceneId: z.string().optional(),
   dialogueTreeId: z.string().optional(),
   mediaAssetId: z.string().min(1).optional(),
+  response: ResponseSelectionSchema.optional(),
+  clickEvent: HotspotEventSchema.optional(),
+  otherItemEvent: HotspotEventSchema.optional(),
   requiredItemIds: z.array(z.string()).default([]),
   conditions: z.array(ConditionSchema).default([]),
   placedInventoryGeometry: PlacedInventoryGeometrySchema.optional(),
@@ -137,6 +158,30 @@ export const DialogueTreeSchema = z.object({
   name: z.string().min(1),
   startNodeId: z.string().min(1),
   nodes: z.array(DialogueNodeSchema)
+});
+
+export const ResponseEntrySchema = z.discriminatedUnion("kind", [
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("text"),
+    textId: z.string().min(1)
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("audio"),
+    assetId: z.string().min(1).optional()
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("video"),
+    assetId: z.string().min(1).optional()
+  })
+]);
+
+export const ResponseGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  entries: z.array(ResponseEntrySchema).default([])
 });
 
 export const InventoryItemSchema = z.object({
@@ -226,7 +271,9 @@ export const SceneFileSchema = z.object({
 
 export const DialogueFileSchema = z.object({
   schemaVersion: z.number().int().positive(),
-  items: z.array(DialogueTreeSchema).default([])
+  items: z.array(DialogueTreeSchema).default([]),
+  responseGroups: z.array(ResponseGroupSchema).default([]),
+  starterResponsesVersion: z.number().int().nonnegative().default(0)
 });
 
 export const InventoryFileSchema = z.object({
@@ -254,14 +301,18 @@ export type AssetCategory = z.infer<typeof AssetCategorySchema>;
 export type LocationIcon = z.infer<typeof LocationIconSchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
 export type Effect = z.infer<typeof EffectSchema>;
+export type ResponseSelection = z.infer<typeof ResponseSelectionSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
 export type HotspotTimingMode = z.infer<typeof HotspotTimingModeSchema>;
 export type Hotspot = z.infer<typeof HotspotSchema>;
+export type HotspotEvent = z.infer<typeof HotspotEventSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Location = z.infer<typeof LocationSchema>;
 export type DialogueChoice = z.infer<typeof DialogueChoiceSchema>;
 export type DialogueNode = z.infer<typeof DialogueNodeSchema>;
 export type DialogueTree = z.infer<typeof DialogueTreeSchema>;
+export type ResponseEntry = z.infer<typeof ResponseEntrySchema>;
+export type ResponseGroup = z.infer<typeof ResponseGroupSchema>;
 export type InventoryItem = z.infer<typeof InventoryItemSchema>;
 export type AssetVariant = z.infer<typeof AssetVariantSchema>;
 export type Asset = z.infer<typeof AssetSchema>;
@@ -296,6 +347,8 @@ export interface ExportProjectData {
   locations: Location[];
   scenes: Scene[];
   dialogues: DialogueTree[];
+  responseGroups?: ResponseGroup[];
+  starterResponsesVersion?: number;
   inventoryItems: InventoryItem[];
   strings: Record<string, Record<string, string>>;
 }

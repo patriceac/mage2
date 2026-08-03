@@ -13,6 +13,28 @@ function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle
 }
 
 describe("collectProjectTextEntries", () => {
+  it("treats starter and custom response text as authored Dialogue content", () => {
+    const project = createDefaultProjectBundle("Response text");
+    const responseEntry = project.dialogues.responseGroups[0]!.entries[0]!;
+    if (responseEntry.kind !== "text") {
+      throw new Error("Expected starter text response.");
+    }
+
+    const entry = collectProjectTextEntries(project, project.manifest.defaultLanguage)
+      .find((candidate) => candidate.textId === responseEntry.textId);
+
+    expect(entry?.status).toBe("referenced");
+    expect(entry?.usages[0]).toMatchObject({
+      kind: "responseText",
+      navigation: {
+        tab: "dialogue",
+        dialogueSection: "responses",
+        responseGroupId: project.dialogues.responseGroups[0]!.id,
+        responseEntryId: responseEntry.id
+      }
+    });
+  });
+
   it("marks referenced text that already exists in the stored values", () => {
     const project = createDefaultProjectBundle("Referenced text");
     const entries = collectProjectTextEntries(project, project.manifest.defaultLanguage);

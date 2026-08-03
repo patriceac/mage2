@@ -12,6 +12,7 @@ import type {
 import {
   createRectangleHotspotPolygon,
   ensureLocaleStringValues,
+  hasHotspotEvent,
   normalizeSupportedLocales,
   resolveAssetCategory,
   resolveHotspotBounds
@@ -52,11 +53,17 @@ export interface AssetReferenceSummary {
     itemId: string;
     itemName: string;
   }>;
+  responseEntries: Array<{
+    groupId: string;
+    groupName: string;
+    entryId: string;
+    kind: "audio" | "video";
+  }>;
 }
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
 }
@@ -106,7 +113,7 @@ export interface RemoveHotspotFromProjectResult {
   removedTextIds: string[];
 }
 
-export type EditorAssetCategory = "background" | "inventory" | "sceneAudio" | "foreground";
+export type EditorAssetCategory = "background" | "inventory" | "sceneAudio" | "foreground" | "response";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -162,6 +169,7 @@ export function collectAssetReferenceSummary(
   const hotspotMediaAssignments: AssetReferenceSummary["hotspotMediaAssignments"] = [];
   const dialogueMediaAssignments: AssetReferenceSummary["dialogueMediaAssignments"] = [];
   const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
+  const responseEntries: AssetReferenceSummary["responseEntries"] = [];
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
@@ -212,12 +220,26 @@ export function collectAssetReferenceSummary(
     }
   }
 
+  for (const group of project.dialogues.responseGroups) {
+    for (const entry of group.entries) {
+      if (entry.kind !== "text" && entry.assetId === assetId) {
+        responseEntries.push({
+          groupId: group.id,
+          groupName: group.name,
+          entryId: entry.id,
+          kind: entry.kind
+        });
+      }
+    }
+  }
+
   return {
     sceneBackgrounds,
     sceneAudioAssignments,
     hotspotMediaAssignments,
     dialogueMediaAssignments,
-    inventoryImages
+    inventoryImages,
+    responseEntries
   };
 }
 
@@ -227,7 +249,8 @@ export function countAssetReferences(summary: AssetReferenceSummary): number {
     summary.sceneAudioAssignments.length +
     summary.hotspotMediaAssignments.length +
     summary.dialogueMediaAssignments.length +
-    summary.inventoryImages.length
+    summary.inventoryImages.length +
+    summary.responseEntries.length
   );
 }
 
@@ -253,6 +276,15 @@ export function evaluateAssetDeletion(
     return {
       canDelete: false,
       blockedReason: "inventory-image-in-use",
+      fallbackAssetId,
+      referenceSummary
+    };
+  }
+
+  if (referenceSummary.responseEntries.length > 0) {
+    return {
+      canDelete: false,
+      blockedReason: "response-media-in-use",
       fallbackAssetId,
       referenceSummary
     };
@@ -353,6 +385,13 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
         summary.hotspotTargetReferenceCount += 1;
       }
 
+      for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
+        if (event?.targetSceneId === sceneId) {
+          summary.hotspotTargetReferenceCount += 1;
+        }
+        summary.goToSceneEffectCount += countGoToSceneEffects(event?.effects ?? [], sceneId);
+      }
+
       summary.sceneVisitedConditionCount += countSceneVisitedConditions(hotspot.conditions, sceneId);
       summary.goToSceneEffectCount += countGoToSceneEffects(hotspot.effects, sceneId);
     }
@@ -435,9 +474,22 @@ export function removeSceneFromProject(
       if (hotspot.targetSceneId === sceneId) {
         hotspot.targetSceneId = strategy.mode === "rewire" ? strategy.replacementSceneId : undefined;
       }
-
       hotspot.conditions = rewriteSceneConditions(hotspot.conditions, sceneId, strategy);
       hotspot.effects = rewriteSceneEffects(hotspot.effects, sceneId, strategy);
+
+      for (const key of ["clickEvent", "otherItemEvent"] as const) {
+        const event = hotspot[key];
+        if (!event) {
+          continue;
+        }
+        if (event.targetSceneId === sceneId) {
+          event.targetSceneId = strategy.mode === "rewire" ? strategy.replacementSceneId : undefined;
+        }
+        event.effects = rewriteSceneEffects(event.effects, sceneId, strategy);
+        if (!hasHotspotEvent(event)) {
+          delete hotspot[key];
+        }
+      }
     }
 
     candidateScene.onEnterEffects = rewriteSceneEffects(candidateScene.onEnterEffects, sceneId, strategy);
@@ -676,6 +728,8 @@ export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
       return "sceneAudio";
     case "foreground":
       return "foreground";
+    case "response":
+      return "response";
     default:
       return "background";
   }
@@ -695,6 +749,10 @@ export function isForegroundMediaAsset(asset: Asset): boolean {
 
 export function isInventoryImageAsset(asset: Asset): boolean {
   return resolveAssetCategory(asset) === "inventory" && asset.kind === "image";
+}
+
+export function isResponseMediaAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "response" && (asset.kind === "audio" || asset.kind === "video");
 }
 
 export function resolveFirstBackgroundAssetId(assets: Asset[]): string | undefined {

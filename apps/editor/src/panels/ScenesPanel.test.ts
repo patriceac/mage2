@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { createDefaultProjectBundle, resolveHotspotInventoryAction, type ProjectBundle } from "@mage2/schema";
+import { createDefaultProjectBundle, resolveHotspotInventoryAction, type HotspotEvent, type ProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
 import {
   ScenesPanel,
@@ -32,7 +32,10 @@ import {
   shouldApplyHotspotInspectorOpenRequest,
   shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleHotspotTransformShortcut,
-  shouldDismissScenesFloatingWindowsOnEscape
+  shouldDismissScenesFloatingWindowsOnEscape,
+  applyHotspotFeedbackValue,
+  resolveHotspotFeedbackValue,
+  updateOptionalHotspotEvent
 } from "./ScenesPanel";
 import { addInventoryItem } from "../project-helpers";
 
@@ -68,6 +71,24 @@ vi.mock("../store", () => {
   useEditorStore.getState = () => mockedStore.state as never;
 
   return { useEditorStore };
+});
+
+describe("hotspot player feedback", () => {
+  it("maps the single friendly selector to responses, dialogues, and silence", () => {
+    const event: HotspotEvent = { effects: [] };
+
+    applyHotspotFeedbackValue(event, "group:response_group_wrong_item");
+    expect(event).toMatchObject({ response: { type: "group", groupId: "response_group_wrong_item" } });
+    expect(resolveHotspotFeedbackValue(event)).toBe("group:response_group_wrong_item");
+
+    applyHotspotFeedbackValue(event, "dialogue:dialogue_intro");
+    expect(event).toMatchObject({ dialogueTreeId: "dialogue_intro" });
+    expect(event).not.toHaveProperty("response");
+
+    applyHotspotFeedbackValue(event, "");
+    expect(event).not.toHaveProperty("dialogueTreeId");
+    expect(event).not.toHaveProperty("response");
+  });
 });
 
 function renderScenesPanel(
@@ -747,14 +768,18 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("Pick up item");
     expect(markup).toContain("Place item here");
     expect(markup).toContain(">Item</span>");
-    expect(markup).toContain(">Start Dialogue</span>");
-    expect(markup).toContain("Create a dialogue in the Dialogue tab, then choose it here.");
+    expect(markup).toContain(">Player feedback</span>");
+    expect(markup).toContain("None (silent)");
+    expect(markup).toContain("Random from a response group");
     expect(markup).toContain('class="scenes-floating-inspector__sections"');
     expect(markup).toContain(">Identity</summary>");
     expect(markup).toContain(">Action</summary>");
     expect(markup).toContain(">Geometry</summary>");
     expect(markup).toContain(">Timing</summary>");
-    expect(markup).toContain(">Navigation</summary>");
+    expect(markup).toContain(">On click</summary>");
+    expect(markup).not.toContain(">Otherwise</summary>");
+    expect(markup).not.toContain(">Any other item</summary>");
+    expect(markup).toContain("Effects JSON");
     expect(markup).toContain(">Advanced</summary>");
     expect(markup).not.toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
@@ -792,11 +817,80 @@ describe("ScenesPanel scene audio UI", () => {
       }
     );
 
-    expect(markup).toContain(">Start Dialogue</span>");
-    expect(markup).toContain("No dialogue");
+    expect(markup).toContain(">Player feedback</span>");
+    expect(markup).toContain("None (silent)");
     expect(markup).toContain("Intro Dialogue");
-    expect(markup).not.toContain("Create a dialogue in the Dialogue tab");
-    expect(markup).toContain("Advanced Effects JSON");
+    expect(markup).toContain("One specific response");
+    expect(markup).toContain("Effects JSON");
+    expect(markup).not.toContain("Advanced Effects JSON");
+  });
+
+  it("shows distinct click, matching-item, and other-item events for a placement hotspot", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        project.dialogues.items.push({
+          id: "dialogue_locked",
+          name: "Locked Cabinet",
+          startNodeId: "node_locked",
+          nodes: [
+            {
+              id: "node_locked",
+              speaker: "Narrator",
+              textId: "text.node_locked.line",
+              choices: [],
+              effects: []
+            }
+          ]
+        });
+        const item = addInventoryItem(project);
+        item.name = "Brass Key";
+        project.strings.byLocale.en[item.textId] = "Brass Key";
+        const hotspot = project.scenes.items[0].hotspots[0]!;
+        applyHotspotInventoryAction(hotspot, "placeItem", item.id);
+        hotspot.clickEvent = {
+          dialogueTreeId: "dialogue_locked",
+          effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+        };
+        hotspot.otherItemEvent = {
+          effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+        };
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0].hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain(">On click</summary>");
+    expect(markup).toContain(">Use Brass Key</summary>");
+    expect(markup).toContain(">Any other item</summary>");
+    expect(markup).not.toContain(">Otherwise</summary>");
+    expect(markup).toContain("Locked Cabinet");
+    expect(markup).toContain("cabinet.examined");
+    expect(markup).toContain("cabinet.wrongItem");
+  });
+
+  it("infers optional interaction events from their contents and removes them when empty", () => {
+    const hotspot = createDefaultProjectBundle().scenes.items[0]!.hotspots[0]!;
+
+    updateOptionalHotspotEvent(hotspot, "clickEvent", (event) => {
+      event.dialogueTreeId = "dialogue_locked";
+    });
+    expect(hotspot.clickEvent).toEqual({ dialogueTreeId: "dialogue_locked", effects: [] });
+
+    updateOptionalHotspotEvent(hotspot, "clickEvent", (event) => {
+      event.dialogueTreeId = undefined;
+    });
+    expect(hotspot).not.toHaveProperty("clickEvent");
+
+    updateOptionalHotspotEvent(hotspot, "otherItemEvent", (event) => {
+      event.effects = [{ type: "setFlag", flag: "cabinet.examined", value: true }];
+    });
+    expect(hotspot.otherItemEvent?.effects).toHaveLength(1);
+
+    updateOptionalHotspotEvent(hotspot, "otherItemEvent", (event) => {
+      event.effects = [];
+    });
+    expect(hotspot).not.toHaveProperty("otherItemEvent");
   });
 
   it("shows scene-duration timing for selected default hotspots", () => {

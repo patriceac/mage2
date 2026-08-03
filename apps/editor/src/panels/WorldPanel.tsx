@@ -742,6 +742,11 @@ function collectSceneReferences(scene: Scene, refs: ReturnType<typeof createStor
     if (hotspot.dialogueTreeId) {
       refs.dialogueIds.add(hotspot.dialogueTreeId);
     }
+    for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
+      if (event?.dialogueTreeId) {
+        refs.dialogueIds.add(event.dialogueTreeId);
+      }
+    }
 
     if (hotspot.inventoryItemId) {
       refs.itemIds.add(hotspot.inventoryItemId);
@@ -757,6 +762,8 @@ function collectSceneReferences(scene: Scene, refs: ReturnType<typeof createStor
 
     collectConditionReferences(hotspot.conditions, refs);
     collectEffectReferences(hotspot.effects, refs);
+    collectEffectReferences(hotspot.clickEvent?.effects ?? [], refs);
+    collectEffectReferences(hotspot.otherItemEvent?.effects ?? [], refs);
   }
 }
 

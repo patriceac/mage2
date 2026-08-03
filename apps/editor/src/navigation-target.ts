@@ -1,4 +1,4 @@
-import type { EditorTab, LocalizationSection } from "./store";
+import type { DialogueSection, EditorTab, LocalizationSection } from "./store";
 
 export interface EditorNavigationTarget {
   label: string;
@@ -8,6 +8,9 @@ export interface EditorNavigationTarget {
   hotspotId?: string;
   dialogueId?: string;
   dialogueNodeId?: string;
+  dialogueSection?: DialogueSection;
+  responseGroupId?: string;
+  responseEntryId?: string;
   inventoryItemId?: string;
   assetId?: string;
   textId?: string;

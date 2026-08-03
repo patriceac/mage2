@@ -63,7 +63,8 @@ export function resolveAssetCategory(asset: Pick<Asset, "category" | "kind">): A
     asset.category === "background" ||
     asset.category === "inventory" ||
     asset.category === "sceneAudio" ||
-    asset.category === "foreground"
+    asset.category === "foreground" ||
+    asset.category === "response"
   ) {
     return asset.category;
   }

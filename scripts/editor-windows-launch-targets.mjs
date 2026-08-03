@@ -194,14 +194,25 @@ export function formatWindowsLaunchShortcutReport(report) {
 }
 
 export async function closeRunningCanonicalEditorProcesses({ repoRootPath = repoRoot } = {}) {
-  assertWindowsPlatform();
   const canonicalExePath = getCanonicalPackagedEditorExePath(repoRootPath);
+  const result = await closeRunningWindowsProcessesAtPath(canonicalExePath);
+
+  return {
+    canonicalExePath,
+    closedProcesses: result.closedProcesses
+  };
+}
+
+export async function closeRunningWindowsProcessesAtPath(executablePath) {
+  assertWindowsPlatform();
+  const resolvedExecutablePath = path.resolve(executablePath);
+  const targetExecutableFileName = path.basename(resolvedExecutablePath);
   const result = await runPowerShellJson(`
 $ErrorActionPreference = 'Stop'
-$canonicalExePath = ${quotePowerShellLiteral(canonicalExePath)}
+$targetExePath = ${quotePowerShellLiteral(resolvedExecutablePath)}
 $processes = @(
-  Get-CimInstance Win32_Process -Filter "Name = '${escapePowerShellDoubleQuotedText(executableFileName)}'" |
-    Where-Object { $_.ExecutablePath -and $_.ExecutablePath.Trim().ToLowerInvariant() -eq $canonicalExePath.Trim().ToLowerInvariant() } |
+  Get-CimInstance Win32_Process -Filter "Name = '${escapePowerShellDoubleQuotedText(targetExecutableFileName)}'" |
+    Where-Object { $_.ExecutablePath -and $_.ExecutablePath.Trim().ToLowerInvariant() -eq $targetExePath.Trim().ToLowerInvariant() } |
     ForEach-Object {
       $processInfo = [pscustomobject]@{
         processId = $_.ProcessId
@@ -221,7 +232,7 @@ $processes = @(
   `);
 
   return {
-    canonicalExePath,
+    executablePath: resolvedExecutablePath,
     closedProcesses: ensureArray(result?.items)
   };
 }

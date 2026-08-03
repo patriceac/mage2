@@ -15,6 +15,7 @@ export type ProjectTextUsageKind =
   | "hotspotComment"
   | "dialogueLine"
   | "dialogueChoice"
+  | "responseText"
   | "inventoryName"
   | "inventoryDescription";
 
@@ -112,6 +113,27 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
           }
         });
       }
+    }
+  }
+
+  for (const group of project.dialogues.responseGroups) {
+    for (const entry of group.entries) {
+      if (entry.kind !== "text") {
+        continue;
+      }
+      usages.push({
+        textId: entry.textId,
+        kind: "responseText",
+        ownerId: entry.id,
+        ownerLabel: group.name,
+        navigation: {
+          label: group.name,
+          tab: "dialogue",
+          dialogueSection: "responses",
+          responseGroupId: group.id,
+          responseEntryId: entry.id
+        }
+      });
     }
   }
 
@@ -225,6 +247,7 @@ export function resolveProjectTextArea(kind: ProjectTextUsageKind): ProjectTextA
       return "scenes";
     case "dialogueLine":
     case "dialogueChoice":
+    case "responseText":
       return "dialogue";
     case "inventoryName":
     case "inventoryDescription":
@@ -251,6 +274,8 @@ export function formatProjectTextUsageKind(kind: ProjectTextUsageKind): string {
       return "Dialogue Line";
     case "dialogueChoice":
       return "Dialogue Choice";
+    case "responseText":
+      return "Response Text";
     case "inventoryName":
       return "Inventory Name";
     case "inventoryDescription":
@@ -494,6 +519,14 @@ function collectAllProjectTextReferenceCounts(project: ProjectBundle): Map<strin
 
       for (const choice of node.choices) {
         register(choice.textId);
+      }
+    }
+  }
+
+  for (const group of project.dialogues.responseGroups) {
+    for (const entry of group.entries) {
+      if (entry.kind === "text") {
+        register(entry.textId);
       }
     }
   }
