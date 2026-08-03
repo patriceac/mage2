@@ -25,6 +25,11 @@ const enabledControlsThatMustHaveBehavior: ButtonExpectation[] = [
     label: "Localization text-id copy",
     file: "panels/LocalizationPanel.tsx",
     matcher: (block) => block.includes("localization-icon-button") && block.includes("Selected text id")
+  },
+  {
+    label: "Inventory reference-aware delete",
+    file: "panels/InventoryPanel.tsx",
+    matcher: (block) => block.includes("deleteSelectedInventoryItem")
   }
 ];
 
@@ -38,11 +43,6 @@ const disabledPlaceholderControls: ButtonExpectation[] = [
     label: "Assets export manifest",
     file: "panels/AssetsPanel.tsx",
     matcher: (block) => block.includes("Export Asset Manifest...")
-  },
-  {
-    label: "Inventory delete placeholder",
-    file: "panels/InventoryPanel.tsx",
-    matcher: (block) => block.includes("Delete is not available while scene references may exist.")
   }
 ];
 
@@ -122,6 +122,23 @@ describe("editor control wiring guardrails", () => {
     expect(revealBlock, "Assets Reveal in Folder should still render").toBeDefined();
     expect(hasUserAction(revealBlock!.source), `Reveal in Folder at panels/AssetsPanel.tsx:${revealBlock!.line} should stay wired`).toBe(true);
     expect(hasWiringIssueMarker(revealBlock!.source), `Reveal in Folder at panels/AssetsPanel.tsx:${revealBlock!.line} should not be marked red`).toBe(false);
+  });
+
+  it("keeps Inventory deletion wired through reference-aware cleanup or rewiring", () => {
+    const source = readSource("panels/InventoryPanel.tsx");
+    const expectation = enabledControlsThatMustHaveBehavior.find(
+      (entry) => entry.label === "Inventory reference-aware delete"
+    );
+    expect(expectation).toBeDefined();
+
+    const block = findButtonBlock(expectation!);
+    expect(block, "Inventory delete button should render").toBeDefined();
+    expect(hasUserAction(block!.source)).toBe(true);
+    expect(block!.source).toContain("deleteSelectedInventoryItem");
+    expect(source).toContain("dialogs.deleteInventoryItem");
+    expect(source).toContain("collectInventoryItemReferenceSummary");
+    expect(source).toContain("removeInventoryItemFromProject");
+    expect(source).not.toContain("Delete is not available while scene references may exist.");
   });
 
   it("keeps the Inventory browser free of the unused filter placeholder", () => {

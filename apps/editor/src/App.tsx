@@ -28,7 +28,9 @@ import { LocalizationPanel } from "./panels/LocalizationPanel";
 import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
+import { FirstProjectChecklist } from "./FirstProjectChecklist";
 import { useDialogs } from "./dialogs";
+import { resolveFirstProjectChecklist } from "./first-project-checklist";
 import {
   getIssueHint,
   resolveIssueEntityLabel,
@@ -116,6 +118,7 @@ export function App() {
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [hotspotInspectorOpenRequest, setHotspotInspectorOpenRequest] = useState(0);
+  const [dismissedFirstProjectGuideId, setDismissedFirstProjectGuideId] = useState<string>();
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
   const [initialLaunchOptions] = useState(() => getInitialLaunchOptions());
   const fileMenuId = useId();
@@ -1166,7 +1169,15 @@ export function App() {
   const validationReport = validateProject(project);
   const visibleValidationIssues = resolveVisibleIssuesForTab(project, validationReport.issues, activeTab);
   const hasProjectIssues = validationReport.issues.length > 0;
-  const shouldShowIssuesSidebar = showValidationDetails || visibleValidationIssues.length > 0;
+  const firstProjectChecklist = resolveFirstProjectChecklist(
+    project,
+    validationReport.valid,
+    validationReport.issues.length
+  );
+  const shouldShowFirstProjectChecklist =
+    firstProjectChecklist.shouldShow && dismissedFirstProjectGuideId !== project.manifest.projectId;
+  const shouldShowIssuesSidebar =
+    showValidationDetails || visibleValidationIssues.length > 0 || shouldShowFirstProjectChecklist;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
@@ -1193,6 +1204,39 @@ export function App() {
   const shellClassName = isSceneEditorSurface
     ? "app-shell app-shell--project app-shell--editor-workbench app-shell--scene-editor"
     : "app-shell app-shell--project app-shell--editor-workbench";
+  const openProject = project;
+
+  function openFirstProjectScene(openHotspotInspector: boolean) {
+    const scene = firstProjectChecklist.sceneId
+      ? openProject.scenes.items.find((entry) => entry.id === firstProjectChecklist.sceneId)
+      : openProject.scenes.items[0];
+    if (!scene) {
+      setStatusMessage("Create an opening scene before continuing project setup.");
+      setActiveTab("world");
+      return;
+    }
+
+    setSelectedLocationId(scene.locationId);
+    setSelectedSceneId(scene.id);
+    setSelectedHotspotId(openHotspotInspector ? firstProjectChecklist.hotspotId : undefined);
+    setActiveTab("scenes");
+    if (openHotspotInspector) {
+      if (firstProjectChecklist.hotspotId) {
+        setHotspotInspectorOpenRequest((request) => request + 1);
+        setStatusMessage("Opened the starter hotspot. Choose what should happen when the player activates it.");
+      } else {
+        setStatusMessage("Create a hotspot, then give it a transition, dialogue, pickup, or placement behavior.");
+      }
+    } else {
+      setStatusMessage("Opened the starter scene. Replace its background in Scene media.");
+    }
+  }
+
+  function reviewFirstProjectValidation() {
+    setActiveTab("world");
+    setShowValidationDetails(true);
+    setStatusMessage("Review the project issues and follow each issue link to finish setup.");
+  }
 
   return (
     <div className={shellClassName}>
@@ -1420,6 +1464,20 @@ export function App() {
                   </p>
                 </div>
               </div>
+
+              {shouldShowFirstProjectChecklist ? (
+                <FirstProjectChecklist
+                  state={firstProjectChecklist}
+                  onOpenSceneMedia={() => openFirstProjectScene(false)}
+                  onOpenInteraction={() => openFirstProjectScene(true)}
+                  onReviewValidation={reviewFirstProjectValidation}
+                  onOpenPlaytest={() => {
+                    setActiveTab("playtest");
+                    setStatusMessage("Opened Playtest. Exercise the first scene and its interaction before exporting.");
+                  }}
+                  onDismiss={() => setDismissedFirstProjectGuideId(project.manifest.projectId)}
+                />
+              ) : null}
 
               {visibleValidationIssues.length > 0 ? (
                 <div className="validation-list">

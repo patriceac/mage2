@@ -102,6 +102,13 @@ interface ScenesPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
+type SceneOperationFeedbackTone = "success" | "warning" | "error";
+
+interface SceneOperationFeedback {
+  message: string;
+  tone: SceneOperationFeedbackTone;
+}
+
 const INVENTORY_ITEM_DRAG_TYPE = "application/x-mage2-inventory-item";
 const INVENTORY_ITEM_DRAG_SIZE_TYPE = "application/x-mage2-inventory-preview-size";
 const INVENTORY_DRAG_PREVIEW_SCALE = 2 / 3;
@@ -275,6 +282,7 @@ export function ScenesPanel({
   const [activeInventoryPickerItemId, setActiveInventoryPickerItemId] = useState<string>();
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
+  const [sceneOperationFeedback, setSceneOperationFeedback] = useState<SceneOperationFeedback>();
   const [canvasTool, setCanvasTool] = useState<MediaSurfaceViewportTool>("select");
   const [cornerFirstHotspotHandles, setCornerFirstHotspotHandles] = useState<boolean>(() =>
     loadCornerFirstHotspotHandlesPreference()
@@ -343,9 +351,18 @@ export function ScenesPanel({
     isHotspotInspectorOpen
   );
 
+  function reportSceneOperation(message: string, tone: SceneOperationFeedbackTone) {
+    setSceneOperationFeedback({ message, tone });
+    setStatusMessage(message);
+  }
+
   useEffect(() => {
     latestPlayheadMsRef.current = playheadMs;
   }, [playheadMs]);
+
+  useEffect(() => {
+    setSceneOperationFeedback(undefined);
+  }, [currentSceneId]);
 
   useEffect(() => {
     saveCornerFirstHotspotHandlesPreference(cornerFirstHotspotHandles);
@@ -1074,7 +1091,7 @@ export function ScenesPanel({
     }
 
     if (currentScene.sceneAudioAssetId && isVideoImportPath(filePath)) {
-      setStatusMessage(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE);
+      reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
       return;
     }
 
@@ -1098,7 +1115,7 @@ export function ScenesPanel({
           : undefined;
         if (duplicateAsset) {
           if (!canAssignSceneBackgroundAsset(currentScene, duplicateAsset.kind)) {
-            setStatusMessage(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE);
+            reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
             return;
           }
 
@@ -1109,23 +1126,27 @@ export function ScenesPanel({
             }
           });
           useEditorStore.getState().setSelectedAssetId(duplicateAsset.id);
-          setStatusMessage(
-            `Assigned existing ${duplicateAsset.name} as the background for ${currentScene.name}. Save the project to keep this change.`
+          reportSceneOperation(
+            `Assigned existing ${duplicateAsset.name} as the background for ${currentScene.name}. Save the project to keep this change.`,
+            "success"
           );
           return;
         }
 
         if (duplicateFilePaths.length > 0) {
-          setStatusMessage("That file already exists as a background asset. Choose it from the background picker.");
+          reportSceneOperation(
+            "That file already exists as a background asset. Choose it from the background picker.",
+            "warning"
+          );
         } else {
-          setStatusMessage("No new background asset was created.");
+          reportSceneOperation("No new background asset was created.", "warning");
         }
         return;
       }
 
       const importedAsset = importedAssets[0]!;
       if (!canAssignSceneBackgroundAsset(currentScene, importedAsset.kind)) {
-        setStatusMessage(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE);
+        reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
         return;
       }
 
@@ -1138,12 +1159,13 @@ export function ScenesPanel({
         }
       });
       useEditorStore.getState().setSelectedAssetId(importedAsset.id);
-      setStatusMessage(
-        `Imported ${importedAsset.name} and assigned it as the background for ${currentScene.name}. Save the project to keep this change.`
+      reportSceneOperation(
+        `Imported ${importedAsset.name} and assigned it as the background for ${currentScene.name}. Save the project to keep this change.`,
+        "success"
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Background import failed: ${message}`);
+      reportSceneOperation(`Background import failed: ${message}`, "error");
     } finally {
       setBusyLabel(undefined);
     }
@@ -1177,7 +1199,7 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
       return;
     }
 
@@ -1208,16 +1230,20 @@ export function ScenesPanel({
             }
           });
           useEditorStore.getState().setSelectedAssetId(duplicateAsset.id);
-          setStatusMessage(
-            `Assigned existing ${duplicateAsset.name} as the scene audio for ${currentScene.name}. Save the project to keep this change.`
+          reportSceneOperation(
+            `Assigned existing ${duplicateAsset.name} as the scene audio for ${currentScene.name}. Save the project to keep this change.`,
+            "success"
           );
           return;
         }
 
         if (duplicateFilePaths.length > 0) {
-          setStatusMessage("That file already exists as a scene audio asset. Choose it from the scene audio picker.");
+          reportSceneOperation(
+            "That file already exists as a scene audio asset. Choose it from the scene audio picker.",
+            "warning"
+          );
         } else {
-          setStatusMessage("No new scene audio asset was created.");
+          reportSceneOperation("No new scene audio asset was created.", "warning");
         }
         return;
       }
@@ -1233,12 +1259,13 @@ export function ScenesPanel({
         }
       });
       useEditorStore.getState().setSelectedAssetId(importedAsset.id);
-      setStatusMessage(
-        `Imported ${importedAsset.name} and assigned it as the scene audio for ${currentScene.name}. Save the project to keep this change.`
+      reportSceneOperation(
+        `Imported ${importedAsset.name} and assigned it as the scene audio for ${currentScene.name}. Save the project to keep this change.`,
+        "success"
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Scene audio import failed: ${message}`);
+      reportSceneOperation(`Scene audio import failed: ${message}`, "error");
     } finally {
       setBusyLabel(undefined);
     }
@@ -1250,7 +1277,7 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
       return;
     }
 
@@ -1438,7 +1465,7 @@ export function ScenesPanel({
           : backgroundImportAcceptsVideo
             ? "Drop an image or video file onto the scene preview to replace the background."
             : "Drop an image file onto the scene preview to replace the background.";
-      setStatusMessage(message);
+      reportSceneOperation(message, "error");
       return;
     }
 
@@ -1566,13 +1593,13 @@ export function ScenesPanel({
     setIsSceneAudioDropActive(false);
 
     if (!sceneSupportsAudio) {
-      setStatusMessage("Scene audio is only available when the scene uses an image background.");
+      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
       return;
     }
 
     if (resolveSceneAudioDataTransferAcceptance(event.dataTransfer) === "reject") {
       event.dataTransfer.dropEffect = "none";
-      setStatusMessage(SCENE_AUDIO_DROP_REJECTION_MESSAGE);
+      reportSceneOperation(SCENE_AUDIO_DROP_REJECTION_MESSAGE, "error");
       return;
     }
 
@@ -1582,7 +1609,7 @@ export function ScenesPanel({
     const filePath = droppedFilePaths.find(isSceneAudioImportPath);
 
     if (!filePath) {
-      setStatusMessage(SCENE_AUDIO_DROP_REJECTION_MESSAGE);
+      reportSceneOperation(SCENE_AUDIO_DROP_REJECTION_MESSAGE, "error");
       return;
     }
 
@@ -1591,9 +1618,12 @@ export function ScenesPanel({
 
   function deleteHotspot(hotspotId: string | undefined) {
     if (!currentSceneId || !hotspotId) {
+      reportSceneOperation("Select a hotspot or placed inventory item before deleting it.", "error");
       return;
     }
 
+    const hotspotName = currentScene.hotspots.find((entry) => entry.id === hotspotId)?.name ?? "selected scene object";
+    let deleted = false;
     mutateProject((draft) => {
       const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
       if (!scene) {
@@ -1604,12 +1634,20 @@ export function ScenesPanel({
       if (!deletion.deleted) {
         return;
       }
+      deleted = true;
 
       const nextHotspots = scene.hotspots;
       if (selectedHotspotId === hotspotId) {
         selectHotspot(nextHotspots[0]?.id, "preserve");
       }
     });
+
+    reportSceneOperation(
+      deleted
+        ? `Deleted ${hotspotName} from ${currentScene.name}. Save the project to keep this change.`
+        : `Could not delete ${hotspotName} because it is no longer in this scene.`,
+      deleted ? "success" : "error"
+    );
   }
 
   function selectHotspot(
@@ -1740,13 +1778,13 @@ export function ScenesPanel({
     inspectorSelectionMode: HotspotInspectorSelectionMode = "open"
   ) {
     if (!currentSceneId) {
-      setStatusMessage("Select a scene before placing an inventory item.");
+      reportSceneOperation("Select a scene before placing an inventory item.", "error");
       return;
     }
 
     const option = linkedInventoryOptions.find((entry) => entry.itemId === itemId);
     if (!option?.eligible) {
-      setStatusMessage("Add artwork to an item to make it available here.");
+      reportSceneOperation("Add artwork to an item to make it available here.", "error");
       return;
     }
 
@@ -1795,12 +1833,16 @@ export function ScenesPanel({
     });
 
     if (!createdHotspotId) {
-      setStatusMessage("Could not place that inventory item in this scene.");
+      reportSceneOperation("Could not place that inventory item in this scene.", "error");
       return;
     }
 
     setIsInventoryPickerOpen(false);
     selectHotspot(createdHotspotId, inspectorSelectionMode);
+    reportSceneOperation(
+      `Placed ${option.label} in ${currentScene.name}. Save the project to keep this change.`,
+      "success"
+    );
   }
 
   function mutateSelectedHotspot(mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) {
@@ -2058,7 +2100,7 @@ export function ScenesPanel({
   async function handleDeleteScene(sceneId = currentScene.id) {
     const targetScene = project.scenes.items.find((scene) => scene.id === sceneId);
     if (!targetScene) {
-      setStatusMessage("Could not delete scene because it is no longer present in the project.");
+      reportSceneOperation("Could not delete scene because it is no longer present in the project.", "error");
       return;
     }
 
@@ -2081,7 +2123,7 @@ export function ScenesPanel({
     );
 
     if (!deletion.deleted) {
-      setStatusMessage(resolveDeleteSceneBlockedMessage(targetScene.name, deletion.blockedReason));
+      reportSceneOperation(resolveDeleteSceneBlockedMessage(targetScene.name, deletion.blockedReason), "error");
       return;
     }
 
@@ -2100,14 +2142,15 @@ export function ScenesPanel({
     setSelectedHotspotId(undefined);
     setSelectedSceneId(nextSelectedSceneId);
     updateProject(nextProject);
-    setStatusMessage(
+    reportSceneOperation(
       resolveDeleteSceneStatusMessage(
         targetScene.name,
         deletion,
         replacementSceneName,
         validationReport.valid,
         validationReport.issues.length
-      )
+      ),
+      validationReport.valid ? "success" : "warning"
     );
   }
 
@@ -2506,6 +2549,27 @@ export function ScenesPanel({
               </div>
             </div>
 
+            {sceneOperationFeedback ? (
+              <div
+                className={`scenes-panel__operation-feedback scenes-panel__operation-feedback--${sceneOperationFeedback.tone}`}
+                role={sceneOperationFeedback.tone === "error" ? "alert" : "status"}
+                aria-live={sceneOperationFeedback.tone === "error" ? "assertive" : "polite"}
+                data-scene-operation-feedback={sceneOperationFeedback.tone}
+              >
+                <span className="scenes-panel__operation-feedback-mark" aria-hidden="true" />
+                <span>{sceneOperationFeedback.message}</span>
+                <button
+                  type="button"
+                  className="scenes-panel__operation-feedback-dismiss"
+                  aria-label="Dismiss scene message"
+                  title="Dismiss this scene message."
+                  onClick={() => setSceneOperationFeedback(undefined)}
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              </div>
+            ) : null}
+
             <div
               className={[
                 "scenes-panel__background-dropzone",
@@ -2601,7 +2665,7 @@ export function ScenesPanel({
                           ? draft.assets.assets.find((entry) => entry.id === backgroundAssetId)
                           : undefined;
                         if (!applySceneBackgroundAsset(scene, backgroundAssetId, backgroundAsset?.kind)) {
-                          setStatusMessage(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE);
+                          reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
                         }
                       }
                     });
@@ -2661,7 +2725,10 @@ export function ScenesPanel({
                       }
 
                       if (!sceneSupportsAudio && event.target.value) {
-                        setStatusMessage("Scene audio is only available when the scene uses an image background.");
+                        reportSceneOperation(
+                          "Scene audio is only available when the scene uses an image background.",
+                          "error"
+                        );
                         return;
                       }
 

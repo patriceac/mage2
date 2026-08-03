@@ -1,9 +1,11 @@
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode
@@ -11,7 +13,12 @@ import {
 import type { ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "./DropdownSelect";
 import { resolveFileUrl } from "./file-url-cache";
-import { countSceneReferences, type SceneReferenceSummary } from "./project-helpers";
+import {
+  countInventoryItemReferences,
+  countSceneReferences,
+  type InventoryItemReferenceSummary,
+  type SceneReferenceSummary
+} from "./project-helpers";
 import { ScenePreviewCard } from "./previews";
 
 interface FileBrowserLocation {
@@ -126,6 +133,24 @@ export type DeleteSceneDialogResult =
       replacementSceneId: string;
     };
 
+export interface DeleteInventoryItemDialogOptions {
+  project: ProjectBundle;
+  itemId: string;
+  referenceSummary: InventoryItemReferenceSummary;
+}
+
+export type DeleteInventoryItemDialogResult =
+  | {
+      action: "cancel";
+    }
+  | {
+      action: "cleanup";
+    }
+  | {
+      action: "rewire";
+      replacementItemId: string;
+    };
+
 interface DialogContextValue {
   alert: (options: AlertDialogOptions) => Promise<void>;
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
@@ -134,6 +159,7 @@ interface DialogContextValue {
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
   deleteScene: (options: DeleteSceneDialogOptions) => Promise<DeleteSceneDialogResult>;
+  deleteInventoryItem: (options: DeleteInventoryItemDialogOptions) => Promise<DeleteInventoryItemDialogResult>;
 }
 
 type DialogRequest =
@@ -171,6 +197,11 @@ type DialogRequest =
       kind: "delete-scene";
       options: DeleteSceneDialogOptions;
       resolve: (value: DeleteSceneDialogResult) => void;
+    }
+  | {
+      kind: "delete-inventory-item";
+      options: DeleteInventoryItemDialogOptions;
+      resolve: (value: DeleteInventoryItemDialogResult) => void;
     };
 
 const DialogContext = createContext<DialogContextValue | undefined>(undefined);
@@ -178,40 +209,71 @@ const DialogContext = createContext<DialogContextValue | undefined>(undefined);
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [dialogQueue, setDialogQueue] = useState<DialogRequest[]>([]);
   const activeDialog = dialogQueue[0];
+  const dialogReturnFocusRef = useRef<HTMLElement | undefined>(undefined);
+
+  const enqueueDialog = useCallback((request: DialogRequest) => {
+    const returnFocusElement = resolveDialogReturnFocusElement();
+    setDialogQueue((currentQueue) => {
+      if (currentQueue.length === 0) {
+        dialogReturnFocusRef.current = returnFocusElement;
+      }
+      return [...currentQueue, request];
+    });
+  }, []);
 
   const dialogApi = useMemo<DialogContextValue>(
     () => ({
       alert: (options) =>
         new Promise<void>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "alert", options, resolve }]);
+          enqueueDialog({ kind: "alert", options, resolve });
         }),
       confirm: (options) =>
         new Promise<boolean>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "confirm", options, resolve }]);
+          enqueueDialog({ kind: "confirm", options, resolve });
         }),
       promptText: (options) =>
         new Promise<string | undefined>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "prompt-text", options, resolve }]);
+          enqueueDialog({ kind: "prompt-text", options, resolve });
         }),
       confirmCloseProject: (projectName) =>
         new Promise<"save" | "discard" | "cancel">((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "close-project", projectName, resolve }]);
+          enqueueDialog({ kind: "close-project", projectName, resolve });
         }),
       chooseDirectory: (options) =>
         new Promise<string | undefined>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "directory", options, resolve }]);
+          enqueueDialog({ kind: "directory", options, resolve });
         }),
       pickFiles: (options) =>
         new Promise<string[]>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "files", options, resolve }]);
+          enqueueDialog({ kind: "files", options, resolve });
         }),
       deleteScene: (options) =>
         new Promise<DeleteSceneDialogResult>((resolve) => {
-          setDialogQueue((currentQueue) => [...currentQueue, { kind: "delete-scene", options, resolve }]);
+          enqueueDialog({ kind: "delete-scene", options, resolve });
+        }),
+      deleteInventoryItem: (options) =>
+        new Promise<DeleteInventoryItemDialogResult>((resolve) => {
+          enqueueDialog({ kind: "delete-inventory-item", options, resolve });
         })
     }),
-    []
+    [enqueueDialog]
   );
+
+  useEffect(() => {
+    if (activeDialog || !dialogReturnFocusRef.current) {
+      return;
+    }
+
+    const returnFocusElement = dialogReturnFocusRef.current;
+    dialogReturnFocusRef.current = undefined;
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (returnFocusElement.isConnected && !returnFocusElement.closest("[inert]")) {
+        returnFocusElement.focus({ preventScroll: true });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [activeDialog]);
 
   const dismissActiveDialog = () => {
     setDialogQueue((currentQueue) => currentQueue.slice(1));
@@ -219,7 +281,14 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   return (
     <DialogContext.Provider value={dialogApi}>
-      {children}
+      <div
+        className="dialog-background"
+        data-dialog-background
+        inert={activeDialog ? true : undefined}
+        aria-hidden={activeDialog ? true : undefined}
+      >
+        {children}
+      </div>
       {activeDialog?.kind === "alert" ? (
         <AlertDialog
           options={activeDialog.options}
@@ -289,6 +358,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           }}
         />
       ) : null}
+      {activeDialog?.kind === "delete-inventory-item" ? (
+        <DeleteInventoryItemDialog
+          options={activeDialog.options}
+          onResolve={(value) => {
+            activeDialog.resolve(value);
+            dismissActiveDialog();
+          }}
+        />
+      ) : null}
     </DialogContext.Provider>
   );
 }
@@ -304,6 +382,22 @@ export function useDialogs(): DialogContextValue {
 
 export function shouldToggleFileSelectionOnClick(clickDetail: number): boolean {
   return clickDetail <= 1;
+}
+
+export function resolveDialogFocusLoopIndex(
+  currentIndex: number,
+  focusableCount: number,
+  backward: boolean
+): number {
+  if (focusableCount <= 0) {
+    return -1;
+  }
+  if (currentIndex < 0) {
+    return backward ? focusableCount - 1 : 0;
+  }
+
+  const direction = backward ? -1 : 1;
+  return (currentIndex + direction + focusableCount) % focusableCount;
 }
 
 function FileBrowserIcon({ name }: { name: FileBrowserIconName }) {
@@ -951,6 +1045,149 @@ function DeleteSceneDialog({
   );
 }
 
+function DeleteInventoryItemDialog({
+  options,
+  onResolve
+}: {
+  options: DeleteInventoryItemDialogOptions;
+  onResolve: (value: DeleteInventoryItemDialogResult) => void;
+}) {
+  const deletedItem = options.project.inventory.items.find((item) => item.id === options.itemId);
+  const replacementCandidates = options.project.inventory.items.filter((item) => item.id !== options.itemId);
+  const referenceCount = countInventoryItemReferences(options.referenceSummary);
+  const hasReferences = referenceCount > 0;
+  const [mode, setMode] = useState<"cleanup" | "rewire">("cleanup");
+  const [replacementItemId, setReplacementItemId] = useState("");
+  const replacementItem = replacementCandidates.find((item) => item.id === replacementItemId);
+  const canRewire = hasReferences && replacementCandidates.length > 0;
+  const confirmDisabled = !deletedItem || (mode === "rewire" && !replacementItem);
+  const referenceRows = resolveInventoryItemReferenceRows(options.referenceSummary);
+  const summaryMessage =
+    mode === "rewire"
+      ? replacementItem
+        ? `All ${referenceCount} references will point to ${replacementItem.name}.`
+        : "Choose a replacement item to finish rewiring."
+      : hasReferences
+        ? `All ${referenceCount} references will be removed with the item.`
+        : "No project references need cleanup.";
+  const confirmLabel = mode === "rewire" ? "Replace and Delete" : hasReferences ? "Delete and Clean" : "Delete Item";
+
+  return (
+    <DialogFrame
+      title={deletedItem ? `Delete ${deletedItem.name}?` : "Delete Inventory Item"}
+      description={
+        hasReferences
+          ? "Choose whether to remove this item's references or redirect them to another item before deletion."
+          : "This item is not referenced by any scene or dialogue content."
+      }
+      wide
+      tone="danger"
+      onCancel={() => onResolve({ action: "cancel" })}
+      footer={
+        <div className="dialog-actions dialog-actions--spread">
+          <div className="dialog-selection-summary">{summaryMessage}</div>
+          <div className="dialog-button-row">
+            <button type="button" className="button-secondary" onClick={() => onResolve({ action: "cancel" })} autoFocus>
+              Keep Item
+            </button>
+            <button
+              type="button"
+              className="button-danger"
+              disabled={confirmDisabled}
+              onClick={() =>
+                onResolve(
+                  mode === "rewire" && replacementItem
+                    ? { action: "rewire", replacementItemId: replacementItem.id }
+                    : { action: "cleanup" }
+                )
+              }
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="dialog-stack inventory-delete-dialog">
+        <div className="dialog-callout dialog-callout--danger">
+          <strong>Permanent item deletion</strong>
+          <p>The item's image asset stays in Assets, but generated name and description text may be removed.</p>
+        </div>
+
+        {hasReferences ? (
+          <section className="scene-delete-dialog__section">
+            <div className="scene-delete-dialog__choice-grid">
+              <button
+                type="button"
+                className={mode === "cleanup" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
+                onClick={() => setMode("cleanup")}
+              >
+                <strong>Clean References</strong>
+                <span>Remove item requirements, conditions, effects, pickup links, and placement links.</span>
+              </button>
+              <button
+                type="button"
+                className={mode === "rewire" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
+                disabled={!canRewire}
+                onClick={() => setMode("rewire")}
+              >
+                <strong>Rewire References</strong>
+                <span>
+                  {canRewire
+                    ? "Redirect every item reference to another inventory item."
+                    : "Create another item first if references should be rewired instead of removed."}
+                </span>
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {mode === "rewire" && hasReferences ? (
+          <label>
+            <span className="field-label--inset">Replacement Item</span>
+            <DropdownSelect value={replacementItemId} onChange={(event) => setReplacementItemId(event.target.value)}>
+              <option value="">Select a replacement item</option>
+              {replacementCandidates.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </DropdownSelect>
+          </label>
+        ) : null}
+
+        <div className="dialog-callout">
+          <strong>{hasReferences ? "References found" : "No references found"}</strong>
+          {referenceRows.length > 0 ? (
+            <ul className="dialog-detail-list">
+              {referenceRows.map((row) => (
+                <li key={row}>{row}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>This item can be deleted without changing scene or dialogue wiring.</p>
+          )}
+        </div>
+
+        <div className="dialog-callout">
+          <strong>What happens next</strong>
+          <ul className="dialog-detail-list">
+            <li>The inventory item is removed from the project.</li>
+            <li>
+              {mode === "rewire" && replacementItem
+                ? `Every reference is redirected to ${replacementItem.name}.`
+                : hasReferences
+                  ? "Every authored reference to this item is removed."
+                  : "No authored references need to change."}
+            </li>
+            <li>The image asset remains available in Assets for reuse or separate deletion.</li>
+          </ul>
+        </div>
+      </div>
+    </DialogFrame>
+  );
+}
+
 function FileBrowserDialog({
   mode,
   options,
@@ -1476,6 +1713,57 @@ function FileBrowserDialog({
   );
 }
 
+const DIALOG_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+function resolveDialogReturnFocusElement(): HTMLElement | undefined {
+  if (typeof document === "undefined" || !(document.activeElement instanceof HTMLElement)) {
+    return undefined;
+  }
+
+  const activeElement = document.activeElement;
+  const containingMenu = activeElement.closest<HTMLElement>("[role='menu'][id]");
+  if (containingMenu?.id) {
+    const controllingElement = Array.from(document.querySelectorAll<HTMLElement>("[aria-controls]")).find(
+      (element) => element.getAttribute("aria-controls") === containingMenu.id
+    );
+    if (controllingElement) {
+      return controllingElement;
+    }
+  }
+
+  return activeElement;
+}
+
+function getDialogFocusableElements(shell: HTMLElement): HTMLElement[] {
+  return Array.from(shell.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.closest("[inert]") || element.getAttribute("aria-hidden") === "true") {
+      return false;
+    }
+
+    const style = window.getComputedStyle(element);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+function resolveInitialDialogFocusElement(shell: HTMLElement): HTMLElement | undefined {
+  const focusableElements = getDialogFocusableElements(shell);
+  return (
+    focusableElements.find(
+      (element) => element.hasAttribute("autofocus") || element.dataset.dialogInitialFocus === "true"
+    ) ??
+    focusableElements.find((element) => element.matches("input, select, textarea")) ??
+    focusableElements.find((element) => !element.classList.contains("dialog-close")) ??
+    focusableElements[0]
+  );
+}
+
 function DialogFrame({
   title,
   description,
@@ -1500,28 +1788,72 @@ function DialogFrame({
   const titleId = useId();
   const descriptionId = useId();
   const isFileBrowserShell = shellClassName?.includes("dialog-shell--file-browser") ?? false;
+  const shellRef = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => {
+      const shell = shellRef.current;
+      if (!shell) {
+        return;
+      }
+
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement && shell.contains(activeElement)) {
+        return;
+      }
+
+      const initialFocusElement = resolveInitialDialogFocusElement(shell);
+      (initialFocusElement ?? shell).focus({ preventScroll: true });
+    });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onCancel();
+        event.stopPropagation();
+        onCancelRef.current();
+        return;
       }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const shell = shellRef.current;
+      if (!shell) {
+        return;
+      }
+      const focusableElements = getDialogFocusableElements(shell);
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        shell.focus({ preventScroll: true });
+        return;
+      }
+
+      event.preventDefault();
+      const currentIndex = focusableElements.findIndex((element) => element === document.activeElement);
+      const nextIndex = resolveDialogFocusLoopIndex(currentIndex, focusableElements.length, event.shiftKey);
+      focusableElements[nextIndex]?.focus({ preventScroll: true });
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [onCancel]);
+  }, []);
 
   return (
     <div className="dialog-overlay">
       <div
+        ref={shellRef}
         className={
           wide
             ? `dialog-shell dialog-shell--wide dialog-shell--${tone}${shellClassName ? ` ${shellClassName}` : ""}`
@@ -1531,6 +1863,7 @@ function DialogFrame({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
       >
         <div className="dialog-shell__header">
           <div className="dialog-title-group">
@@ -1585,6 +1918,38 @@ function resolveSceneReferenceRows(summary: SceneReferenceSummary): string[] {
   }
   if (summary.goToSceneEffectCount > 0) {
     rows.push(`${summary.goToSceneEffectCount} go-to-scene effect${summary.goToSceneEffectCount === 1 ? "" : "s"}`);
+  }
+
+  return rows;
+}
+
+function resolveInventoryItemReferenceRows(summary: InventoryItemReferenceSummary): string[] {
+  const rows: string[] = [];
+
+  if (summary.hotspotItemReferenceCount > 0) {
+    rows.push(
+      `${summary.hotspotItemReferenceCount} hotspot item link${summary.hotspotItemReferenceCount === 1 ? "" : "s"}`
+    );
+  }
+  if (summary.placementReferenceCount > 0) {
+    rows.push(
+      `${summary.placementReferenceCount} placement link${summary.placementReferenceCount === 1 ? "" : "s"}`
+    );
+  }
+  if (summary.requiredItemReferenceCount > 0) {
+    rows.push(
+      `${summary.requiredItemReferenceCount} required-item reference${
+        summary.requiredItemReferenceCount === 1 ? "" : "s"
+      }`
+    );
+  }
+  if (summary.inventoryConditionCount > 0) {
+    rows.push(
+      `${summary.inventoryConditionCount} inventory condition${summary.inventoryConditionCount === 1 ? "" : "s"}`
+    );
+  }
+  if (summary.inventoryEffectCount > 0) {
+    rows.push(`${summary.inventoryEffectCount} inventory effect${summary.inventoryEffectCount === 1 ? "" : "s"}`);
   }
 
   return rows;

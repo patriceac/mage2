@@ -51,6 +51,8 @@ describe("InventoryPanel locale behavior", () => {
     expect(markup).toContain("Pickup hotspots");
     expect(markup).toContain("Placement targets");
     expect(markup).toContain("No image assigned");
+    expect(markup).toContain('aria-label="Delete Lantern"');
+    expect(markup).toContain("reference cleanup or rewiring options");
     expect(markup).not.toContain("asset-preview--intrinsic");
     expect(markup).not.toContain("Lanterne");
     expect(markup).not.toContain("Description francaise");

@@ -208,7 +208,6 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-panel__toolbar-field--locale");
     expect(markup).toContain("playtest-panel__toolbar-button");
     expect(markup).toContain("playtest-panel__toolbar-toggle");
-    expect(markup).toContain("playtest-panel__toolbar-field--action");
     expect(markup).toContain("playtest-panel__toolbar-field--session");
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
     expect(markup).toContain('aria-label="Show hotspots in playtest"');
@@ -216,6 +215,10 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-hotspot-visibility-toggle__thumb");
     expect(markup).toContain("Show hotspots");
     expect(markup).toContain("Reset Run");
+    expect(markup).toContain("Save slots");
+    expect(markup.match(/data-playtest-save-slot="/g)).toHaveLength(3);
+    expect(markup.match(/data-playtest-save-slot-status="empty"/g)).toHaveLength(3);
+    expect(markup).toContain("No save stored in this slot.");
     expect(markup).not.toContain("Back to Editor");
   });
 

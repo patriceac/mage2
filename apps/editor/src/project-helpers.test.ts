@@ -9,13 +9,16 @@ import {
   addAssetRoots,
   addHotspot,
   addHotspotAtBestAvailablePosition,
+  collectInventoryItemReferenceSummary,
   collectSceneReferenceSummary,
+  countInventoryItemReferences,
   countSceneReferences,
   collectAssetReferenceSummary,
   createProjectRevision,
   removeHotspotFromProject,
   removeAssetFromProject,
   removeLocationFromProject,
+  removeInventoryItemFromProject,
   removeSceneFromProject
 } from "./project-helpers";
 
@@ -85,6 +88,131 @@ describe("addInventoryItem", () => {
     expect(project.inventory.items.map((item) => item.name)).toEqual(["Item 2", "Item 1"]);
     expect(getDefaultStrings(project)[firstItem.textId]).toBe("Item 1");
     expect(getDefaultStrings(project)[secondItem.textId]).toBe("Item 2");
+  });
+});
+
+describe("removeInventoryItemFromProject", () => {
+  it("cleans every authored reference and prunes generated item text", () => {
+    const project = createDefaultProjectBundle("Inventory cleanup");
+    const deletedItem = addInventoryItem(project);
+    const scene = project.scenes.items[0];
+    const hotspot = scene.hotspots[0];
+
+    hotspot.inventoryItemId = deletedItem.id;
+    hotspot.placedInventoryItemId = deletedItem.id;
+    hotspot.placedInventoryGeometry = { x: 0.2, y: 0.2, width: 0.3, height: 0.3 };
+    hotspot.requiredItemIds = [deletedItem.id];
+    hotspot.conditions = [{ type: "always" }, { type: "inventoryHas", itemId: deletedItem.id }];
+    hotspot.effects = [
+      { type: "addItem", itemId: deletedItem.id },
+      { type: "removeItem", itemId: deletedItem.id },
+      { type: "setFlag", flag: "kept", value: true }
+    ];
+    scene.onEnterEffects = [{ type: "addItem", itemId: deletedItem.id }];
+    project.dialogues.items = [
+      {
+        id: "dialogue_inventory_cleanup",
+        name: "Inventory Cleanup",
+        startNodeId: "node_inventory_cleanup",
+        nodes: [
+          {
+            id: "node_inventory_cleanup",
+            speaker: "Guide",
+            textId: "text.node_inventory_cleanup",
+            effects: [{ type: "removeItem", itemId: deletedItem.id }],
+            choices: [
+              {
+                id: "choice_inventory_cleanup",
+                textId: "text.choice_inventory_cleanup",
+                conditions: [{ type: "inventoryHas", itemId: deletedItem.id }],
+                effects: [{ type: "addItem", itemId: deletedItem.id }]
+              }
+            ]
+          }
+        ]
+      }
+    ];
+
+    const summary = collectInventoryItemReferenceSummary(project, deletedItem.id);
+    expect(summary).toEqual({
+      hotspotItemReferenceCount: 1,
+      placementReferenceCount: 1,
+      requiredItemReferenceCount: 1,
+      inventoryConditionCount: 2,
+      inventoryEffectCount: 5
+    });
+    expect(countInventoryItemReferences(summary)).toBe(10);
+
+    const result = removeInventoryItemFromProject(project, deletedItem.id, { mode: "cleanup" });
+
+    expect(result.deleted).toBe(true);
+    expect(result.removedTextIds).toEqual(expect.arrayContaining([deletedItem.textId, deletedItem.descriptionTextId]));
+    expect(project.inventory.items).toEqual([]);
+    expect(hotspot.inventoryItemId).toBeUndefined();
+    expect(hotspot.placedInventoryItemId).toBeUndefined();
+    expect(hotspot.placedInventoryGeometry).toBeUndefined();
+    expect(hotspot.requiredItemIds).toEqual([]);
+    expect(hotspot.conditions).toEqual([{ type: "always" }]);
+    expect(hotspot.effects).toEqual([{ type: "setFlag", flag: "kept", value: true }]);
+    expect(scene.onEnterEffects).toEqual([]);
+    expect(project.dialogues.items[0].nodes[0].effects).toEqual([]);
+    expect(project.dialogues.items[0].nodes[0].choices[0].conditions).toEqual([]);
+    expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([]);
+    expect(getDefaultStrings(project)[deletedItem.textId]).toBeUndefined();
+    expect(getDefaultStrings(project)[deletedItem.descriptionTextId!]).toBeUndefined();
+  });
+
+  it("rewires all references to another item without duplicating requirements", () => {
+    const project = createDefaultProjectBundle("Inventory rewire");
+    const deletedItem = addInventoryItem(project);
+    const replacementItem = addInventoryItem(project);
+    const scene = project.scenes.items[0];
+    const hotspot = scene.hotspots[0];
+
+    hotspot.inventoryItemId = deletedItem.id;
+    hotspot.placedInventoryItemId = deletedItem.id;
+    hotspot.placedInventoryGeometry = { x: 0.15, y: 0.25, width: 0.2, height: 0.2 };
+    hotspot.requiredItemIds = [deletedItem.id, replacementItem.id];
+    hotspot.conditions = [{ type: "inventoryHas", itemId: deletedItem.id }];
+    hotspot.effects = [
+      { type: "addItem", itemId: deletedItem.id },
+      { type: "removeItem", itemId: deletedItem.id }
+    ];
+    scene.onExitEffects = [{ type: "removeItem", itemId: deletedItem.id }];
+
+    const result = removeInventoryItemFromProject(project, deletedItem.id, {
+      mode: "rewire",
+      replacementItemId: replacementItem.id
+    });
+
+    expect(result.deleted).toBe(true);
+    expect(project.inventory.items.map((item) => item.id)).toEqual([replacementItem.id]);
+    expect(hotspot.inventoryItemId).toBe(replacementItem.id);
+    expect(hotspot.placedInventoryItemId).toBe(replacementItem.id);
+    expect(hotspot.placedInventoryGeometry).toEqual({ x: 0.15, y: 0.25, width: 0.2, height: 0.2 });
+    expect(hotspot.requiredItemIds).toEqual([replacementItem.id]);
+    expect(hotspot.conditions).toEqual([{ type: "inventoryHas", itemId: replacementItem.id }]);
+    expect(hotspot.effects).toEqual([
+      { type: "addItem", itemId: replacementItem.id },
+      { type: "removeItem", itemId: replacementItem.id }
+    ]);
+    expect(scene.onExitEffects).toEqual([{ type: "removeItem", itemId: replacementItem.id }]);
+    expect(countInventoryItemReferences(collectInventoryItemReferenceSummary(project, deletedItem.id))).toBe(0);
+  });
+
+  it("does not mutate the project when the replacement item is unavailable", () => {
+    const project = createDefaultProjectBundle("Inventory blocked rewire");
+    const deletedItem = addInventoryItem(project);
+    const revision = createProjectRevision(project);
+
+    const result = removeInventoryItemFromProject(project, deletedItem.id, {
+      mode: "rewire",
+      replacementItemId: "missing-item"
+    });
+
+    expect(result.deleted).toBe(false);
+    expect(result.blockedReason).toBe("replacement-item-not-found");
+    expect(createProjectRevision(project)).toBe(revision);
   });
 });
 
