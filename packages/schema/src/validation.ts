@@ -86,7 +86,7 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   }
 
   for (const dialogue of project.dialogues.items) {
-    validateDialogue(project, dialogue, supportedLocales, sceneIds, inventoryIds, dialogueIds, issues);
+    validateDialogue(project, dialogue, supportedLocales, assetsById, sceneIds, inventoryIds, dialogueIds, issues);
   }
 
   for (const item of project.inventory.items) {
@@ -304,6 +304,18 @@ function validateScene(
       });
     }
 
+    if (hotspot.mediaAssetId) {
+      validateForegroundMediaReference(
+        hotspot.mediaAssetId,
+        `Hotspot '${hotspot.id}'`,
+        hotspot.id,
+        "HOTSPOT_MEDIA",
+        supportedLocales,
+        assetsById,
+        issues
+      );
+    }
+
     if (hotspot.inventoryItemId && !inventoryIds.has(hotspot.inventoryItemId)) {
       issues.push({
         level: "error",
@@ -431,6 +443,7 @@ function validateDialogue(
   project: ProjectBundle,
   dialogue: DialogueTree,
   supportedLocales: string[],
+  assetsById: Map<string, ProjectBundle["assets"]["assets"][number]>,
   sceneIds: Set<string>,
   inventoryIds: Set<string>,
   dialogueIds: Set<string>,
@@ -457,6 +470,18 @@ function validateDialogue(
       node.id,
       issues
     );
+
+    if (node.mediaAssetId) {
+      validateForegroundMediaReference(
+        node.mediaAssetId,
+        `Dialogue node '${node.id}'`,
+        node.id,
+        "DIALOGUE_MEDIA",
+        supportedLocales,
+        assetsById,
+        issues
+      );
+    }
 
     if (node.nextNodeId && !nodeIds.has(node.nextNodeId)) {
       issues.push({
@@ -545,6 +570,59 @@ function validateDialogue(
         entityId: node.id
       });
     }
+  }
+}
+
+function validateForegroundMediaReference(
+  assetId: string,
+  ownerLabel: string,
+  ownerId: string,
+  codePrefix: "HOTSPOT_MEDIA" | "DIALOGUE_MEDIA",
+  supportedLocales: string[],
+  assetsById: Map<string, ProjectBundle["assets"]["assets"][number]>,
+  issues: ValidationIssue[]
+): void {
+  const asset = assetsById.get(assetId);
+  if (!asset) {
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_ASSET_MISSING`,
+      message: `${ownerLabel} references missing foreground media asset '${assetId}'.`,
+      entityId: ownerId
+    });
+    return;
+  }
+
+  if (resolveAssetCategory(asset) !== "foreground") {
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_CATEGORY_INVALID`,
+      message: `${ownerLabel} must reference a foreground media asset, but '${assetId}' is categorized as '${resolveAssetCategory(asset) ?? "legacy"}'.`,
+      entityId: ownerId
+    });
+  }
+
+  if (asset.kind !== "audio" && asset.kind !== "video") {
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_KIND_INVALID`,
+      message: `${ownerLabel} must reference an audio or video asset, but '${assetId}' is '${asset.kind}'.`,
+      entityId: ownerId
+    });
+  }
+
+  for (const locale of supportedLocales) {
+    if (resolveAssetVariant(asset, locale)) {
+      continue;
+    }
+
+    issues.push({
+      level: "error",
+      code: `${codePrefix}_LOCALE_MISSING`,
+      message: `Asset '${asset.id}' is missing a '${locale}' variant for ${ownerLabel.toLowerCase()}.`,
+      entityId: asset.id,
+      locale
+    });
   }
 }
 

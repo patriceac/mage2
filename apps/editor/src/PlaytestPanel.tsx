@@ -12,6 +12,7 @@ import {
   type ProjectBundle
 } from "@mage2/schema";
 import { DropdownSelect } from "./DropdownSelect";
+import { ForegroundMediaPlayer } from "./ForegroundMedia";
 import { MediaSurface } from "./MediaSurface";
 import { resolveFileUrl } from "./file-url-cache";
 import { resolveHotspotVisuals } from "./hotspot-visuals";
@@ -368,6 +369,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [inventoryCursorPreviewUrl, setInventoryCursorPreviewUrl] = useState<string>();
   const [inventoryItemImageUrls, setInventoryItemImageUrls] = useState<Record<string, string>>({});
   const [lastActivatedHotspotId, setLastActivatedHotspotId] = useState<string>();
+  const [interactionMediaPlayback, setInteractionMediaPlayback] = useState<{ assetId: string; sequence: number }>();
+  const interactionMediaSequenceRef = useRef(0);
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
   const sceneAudioRef = useRef<HTMLAudioElement>(null);
   const sceneAudioTimeoutRef = useRef<number | undefined>(undefined);
@@ -393,6 +396,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setController(nextController);
     setSnapshot(nextController.getSnapshot());
     setPlayheadMs(0);
+    setInteractionMediaPlayback(undefined);
     selectPlaytestInventoryItem(undefined);
     setInventoryHint(undefined);
   }, [project]);
@@ -459,6 +463,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     selectPlaytestInventoryItem(undefined);
     setInventoryHint(undefined);
     setLastActivatedHotspotId(undefined);
+    setInteractionMediaPlayback(undefined);
     return nextSnapshot;
   }
 
@@ -504,7 +509,13 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     }
 
     setLastActivatedHotspotId(hotspotId);
-    controller.selectHotspot(hotspotId, playheadMs, sceneTimelineDurationMs);
+    const resolution = controller.selectHotspot(hotspotId, playheadMs, sceneTimelineDurationMs);
+    if (resolution.mediaAssetId) {
+      interactionMediaSequenceRef.current += 1;
+      setInteractionMediaPlayback({ assetId: resolution.mediaAssetId, sequence: interactionMediaSequenceRef.current });
+    } else {
+      setInteractionMediaPlayback(undefined);
+    }
     const nextSnapshot = controller.getSnapshot();
     setSnapshot(nextSnapshot);
     setPlayheadMs(0);
@@ -524,6 +535,22 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
     : undefined;
   const sceneAudioVariant = getLocalizedAssetVariant(sceneAudioAsset, activeLocale);
+  const dialogueMediaAssetId = snapshot.activeDialogue?.node.mediaAssetId;
+  const foregroundMediaAssetId = dialogueMediaAssetId ?? interactionMediaPlayback?.assetId;
+  const foregroundMediaAsset = foregroundMediaAssetId
+    ? project.assets.assets.find((asset) => asset.id === foregroundMediaAssetId)
+    : undefined;
+  const foregroundMediaPlaybackKey = dialogueMediaAssetId
+    ? `dialogue:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${activeLocale}`
+    : interactionMediaPlayback
+      ? `interaction:${interactionMediaPlayback.sequence}:${activeLocale}`
+      : undefined;
+
+  useEffect(() => {
+    if (dialogueMediaAssetId) {
+      setInteractionMediaPlayback(undefined);
+    }
+  }, [dialogueMediaAssetId]);
   const sceneAssetSourcePath = sceneAssetVariant?.proxyPath ?? sceneAssetVariant?.sourcePath;
   const observedVideoDurationMs =
     sceneAsset?.kind === "video" &&
@@ -1111,6 +1138,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                 const nextSnapshot = nextController.getSnapshot();
                 setSnapshot(nextSnapshot);
                 setPlayheadMs(nextSnapshot.saveState.playheadMs ?? 0);
+                setInteractionMediaPlayback(undefined);
                 selectPlaytestInventoryItem(undefined);
                 setInventoryHint(undefined);
               }}
@@ -1180,6 +1208,16 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               activatePlaytestHotspot(hotspotId);
             }}
           >
+            {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
+              <ForegroundMediaPlayer
+                key={foregroundMediaPlaybackKey}
+                asset={foregroundMediaAsset}
+                locale={activeLocale}
+                label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
+                className="foreground-media-player--playtest"
+                onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
+              />
+            ) : null}
             <div
               className={resolvePlaytestStageHudClassName(Boolean(snapshot.activeDialogue), isInventoryDrawerExpanded)}
               onClick={isInventoryDrawerExpanded ? closePlaytestInventoryDrawer : undefined}

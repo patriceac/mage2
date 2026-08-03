@@ -28,6 +28,17 @@ describe("player controller", () => {
     expect(controller.getVisibleHotspots(35000)).toHaveLength(0);
   });
 
+  it("reports foreground media when a hotspot interaction activates", () => {
+    const project = createDefaultProjectBundle();
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.mediaAssetId = "asset_interaction_clip";
+
+    const controller = createPlayerController(project);
+    const resolution = controller.selectHotspot(hotspot.id, 1000);
+
+    expect(resolution.mediaAssetId).toBe("asset_interaction_clip");
+  });
+
   it("lets default hotspot timing follow scene duration changes", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push({

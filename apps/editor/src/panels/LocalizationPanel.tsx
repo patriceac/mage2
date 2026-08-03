@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { getLocaleStringValues, type Asset, type ProjectBundle } from "@mage2/schema";
-import { BACKGROUND_IMPORT_EXTENSIONS, INVENTORY_IMAGE_EXTENSIONS, SCENE_AUDIO_IMPORT_EXTENSIONS } from "../asset-file-types";
+import {
+  BACKGROUND_IMPORT_EXTENSIONS,
+  FOREGROUND_MEDIA_IMPORT_EXTENSIONS,
+  INVENTORY_IMAGE_EXTENSIONS,
+  SCENE_AUDIO_IMPORT_EXTENSIONS
+} from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
 import {
@@ -31,7 +36,7 @@ import {
 import { type LocalizationSection, useEditorStore } from "../store";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
-type MediaAssetFilter = "background" | "inventory" | "sceneAudio";
+type MediaAssetFilter = "background" | "inventory" | "sceneAudio" | "foreground";
 type LocalizationStatusFilter = "all" | LocalizedStringStatus;
 type LocalizedStringStatus = "missing" | "empty" | "ready" | "orphaned";
 type QueueItemStatus = LocalizedStringStatus;
@@ -993,6 +998,7 @@ function MediaQueueList({
           <DropdownSelect value={category} onChange={(event) => onCategoryChange(event.target.value as MediaAssetFilter)}>
             <option value="background">Background</option>
             <option value="sceneAudio">Scene Audio</option>
+            <option value="foreground">Foreground Media</option>
             <option value="inventory">Inventory</option>
           </DropdownSelect>
         </label>
@@ -1737,7 +1743,7 @@ function buildStringCoverageRows(entries: ProjectTextEntry[]): CoverageRow[] {
 function buildMediaCoverageRows(project: ProjectBundle, locale: string): CoverageRow[] {
   const rows: CoverageRow[] = [];
 
-  for (const category of ["background", "sceneAudio", "inventory"] as const) {
+  for (const category of ["background", "sceneAudio", "foreground", "inventory"] as const) {
     const assets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === category);
     rows.push({
       label: formatMediaCategoryLabel(category),
@@ -1780,6 +1786,41 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
           assetId: asset.id
         }
       });
+    }
+
+    for (const hotspot of scene.hotspots) {
+      if (hotspot.mediaAssetId === asset.id) {
+        usages.push({
+          label: hotspot.name,
+          detail: `Interaction media in ${scene.name}`,
+          navigation: {
+            label: hotspot.name,
+            tab: "scenes",
+            locationId: scene.locationId,
+            sceneId: scene.id,
+            hotspotId: hotspot.id,
+            assetId: asset.id
+          }
+        });
+      }
+    }
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      if (node.mediaAssetId === asset.id) {
+        usages.push({
+          label: node.speaker || node.id,
+          detail: `Dialogue media in ${dialogue.name}`,
+          navigation: {
+            label: node.speaker || node.id,
+            tab: "dialogue",
+            dialogueId: dialogue.id,
+            dialogueNodeId: node.id,
+            assetId: asset.id
+          }
+        });
+      }
     }
   }
 
@@ -1846,6 +1887,8 @@ function formatMediaCategoryLabel(category: MediaAssetFilter): string {
       return "Background";
     case "sceneAudio":
       return "Scene Audio";
+    case "foreground":
+      return "Foreground Media";
     case "inventory":
       return "Inventory";
   }
@@ -1857,6 +1900,8 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
       return "No background assets yet. Upload scene media from Scenes before localizing it here.";
     case "sceneAudio":
       return "No scene audio assets yet. Upload scene audio from Scenes before localizing it here.";
+    case "foreground":
+      return "No foreground media yet. Upload audio or video from Dialogue, a hotspot, or Assets before localizing it here.";
     case "inventory":
       return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
   }
@@ -1928,7 +1973,9 @@ function resolveAssetVariantImportExtensions(asset: Asset): string[] {
     case "audio":
       return [...SCENE_AUDIO_IMPORT_EXTENSIONS];
     case "video":
-      return [...BACKGROUND_IMPORT_EXTENSIONS];
+      return classifyEditorAssetCategory(asset) === "foreground"
+        ? [...FOREGROUND_MEDIA_IMPORT_EXTENSIONS]
+        : [...BACKGROUND_IMPORT_EXTENSIONS];
     case "image":
       return classifyEditorAssetCategory(asset) === "inventory"
         ? [...INVENTORY_IMAGE_EXTENSIONS]

@@ -1322,6 +1322,8 @@ export function App() {
                 <DialoguePanel
                   project={project}
                   mutateProject={mutateProject}
+                  setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
                   onOpenScenesHotspot={(sceneId, hotspotId) => {
                     if (sceneId) {
                       const scene = project.scenes.items.find((entry) => entry.id === sceneId);

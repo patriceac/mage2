@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
-export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio"]);
+export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio", "foreground"]);
 export const LocationIconSchema = z.enum(["mapPin", "settlement", "forest", "castle", "mine", "coast", "crystal", "mountain"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
@@ -82,6 +82,7 @@ export const HotspotSchema = z.object({
   timingMode: HotspotTimingModeSchema.default("fixed"),
   targetSceneId: z.string().optional(),
   dialogueTreeId: z.string().optional(),
+  mediaAssetId: z.string().min(1).optional(),
   requiredItemIds: z.array(z.string()).default([]),
   conditions: z.array(ConditionSchema).default([]),
   placedInventoryGeometry: PlacedInventoryGeometrySchema.optional(),
@@ -125,6 +126,7 @@ export const DialogueNodeSchema = z.object({
   id: z.string().min(1),
   speaker: z.string().min(1),
   textId: z.string().min(1),
+  mediaAssetId: z.string().min(1).optional(),
   nextNodeId: z.string().optional(),
   effects: z.array(EffectSchema).default([]),
   choices: z.array(DialogueChoiceSchema).default([])

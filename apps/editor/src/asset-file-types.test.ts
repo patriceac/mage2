@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   MEDIA_DIALOG_FILTER_EXTENSIONS,
+  FOREGROUND_MEDIA_IMPORT_EXTENSIONS,
   SCENE_AUDIO_IMPORT_EXTENSIONS,
   classifyImportAssetPaths,
   isBackgroundImportPath,
+  isForegroundMediaImportPath,
   isImageImportPath,
   isInventoryImageImportPath,
   isSceneAudioImportPath,
@@ -50,6 +52,16 @@ describe("SCENE_AUDIO_IMPORT_EXTENSIONS", () => {
   it("tracks the supported dedicated audio-import file types", () => {
     expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".mp3");
     expect(SCENE_AUDIO_IMPORT_EXTENSIONS).toContain(".wav");
+  });
+});
+
+describe("FOREGROUND_MEDIA_IMPORT_EXTENSIONS", () => {
+  it("accepts audio and video without treating images as triggered foreground media", () => {
+    expect(FOREGROUND_MEDIA_IMPORT_EXTENSIONS).toContain(".mp4");
+    expect(FOREGROUND_MEDIA_IMPORT_EXTENSIONS).toContain(".wav");
+    expect(isForegroundMediaImportPath("C:\\media\\voice.mp3")).toBe(true);
+    expect(isForegroundMediaImportPath("C:\\media\\cut-in.WEBM")).toBe(true);
+    expect(isForegroundMediaImportPath("C:\\media\\portrait.png")).toBe(false);
   });
 });
 

@@ -16,6 +16,7 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 
 - Create or reopen project folders directly from the Electron editor.
 - Author locations, scenes, hotspots, dialogue trees, and inventory data in one workspace.
+- Import localized foreground audio or video for individual dialogue lines and hotspot interactions without replacing scene backgrounds or looping scene audio.
 - Validate projects and jump from issues directly to the affected editor surface.
 - Export a static runtime build that copies the web player and project content into a distributable folder.
 - Reuse shared schema and player logic across the editor and runtime.

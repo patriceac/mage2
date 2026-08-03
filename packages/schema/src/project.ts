@@ -225,7 +225,12 @@ function normalizeAsset(input: unknown, defaultLanguage: string): Asset {
 }
 
 function normalizeAssetCategory(input: Record<string, unknown>): AssetCategory | undefined {
-  if (input.category === "background" || input.category === "inventory" || input.category === "sceneAudio") {
+  if (
+    input.category === "background" ||
+    input.category === "inventory" ||
+    input.category === "sceneAudio" ||
+    input.category === "foreground"
+  ) {
     return input.category;
   }
 

@@ -36,6 +36,18 @@ export interface AssetReferenceSummary {
     sceneId: string;
     sceneName: string;
   }>;
+  hotspotMediaAssignments: Array<{
+    sceneId: string;
+    sceneName: string;
+    hotspotId: string;
+    hotspotName: string;
+  }>;
+  dialogueMediaAssignments: Array<{
+    dialogueId: string;
+    dialogueName: string;
+    nodeId: string;
+    nodeLabel: string;
+  }>;
   inventoryImages: Array<{
     itemId: string;
     itemName: string;
@@ -94,7 +106,7 @@ export interface RemoveHotspotFromProjectResult {
   removedTextIds: string[];
 }
 
-export type EditorAssetCategory = "background" | "inventory" | "sceneAudio";
+export type EditorAssetCategory = "background" | "inventory" | "sceneAudio" | "foreground";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -147,6 +159,8 @@ export function collectAssetReferenceSummary(
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
   const sceneAudioAssignments: AssetReferenceSummary["sceneAudioAssignments"] = [];
+  const hotspotMediaAssignments: AssetReferenceSummary["hotspotMediaAssignments"] = [];
+  const dialogueMediaAssignments: AssetReferenceSummary["dialogueMediaAssignments"] = [];
   const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
 
   for (const scene of project.scenes.items) {
@@ -163,6 +177,30 @@ export function collectAssetReferenceSummary(
         sceneName: scene.name
       });
     }
+
+    for (const hotspot of scene.hotspots) {
+      if (hotspot.mediaAssetId === assetId) {
+        hotspotMediaAssignments.push({
+          sceneId: scene.id,
+          sceneName: scene.name,
+          hotspotId: hotspot.id,
+          hotspotName: hotspot.name
+        });
+      }
+    }
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      if (node.mediaAssetId === assetId) {
+        dialogueMediaAssignments.push({
+          dialogueId: dialogue.id,
+          dialogueName: dialogue.name,
+          nodeId: node.id,
+          nodeLabel: node.speaker || node.id
+        });
+      }
+    }
   }
 
   for (const item of project.inventory.items) {
@@ -177,12 +215,20 @@ export function collectAssetReferenceSummary(
   return {
     sceneBackgrounds,
     sceneAudioAssignments,
+    hotspotMediaAssignments,
+    dialogueMediaAssignments,
     inventoryImages
   };
 }
 
 export function countAssetReferences(summary: AssetReferenceSummary): number {
-  return summary.sceneBackgrounds.length + summary.sceneAudioAssignments.length + summary.inventoryImages.length;
+  return (
+    summary.sceneBackgrounds.length +
+    summary.sceneAudioAssignments.length +
+    summary.hotspotMediaAssignments.length +
+    summary.dialogueMediaAssignments.length +
+    summary.inventoryImages.length
+  );
 }
 
 export function evaluateAssetDeletion(
@@ -253,6 +299,20 @@ export function removeAssetFromProject(
 
     if (scene.sceneAudioAssetId === assetId) {
       scene.sceneAudioAssetId = undefined;
+    }
+
+    for (const hotspot of scene.hotspots) {
+      if (hotspot.mediaAssetId === assetId) {
+        hotspot.mediaAssetId = undefined;
+      }
+    }
+  }
+
+  for (const dialogue of project.dialogues.items) {
+    for (const node of dialogue.nodes) {
+      if (node.mediaAssetId === assetId) {
+        node.mediaAssetId = undefined;
+      }
     }
   }
 
@@ -614,6 +674,8 @@ export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
       return "inventory";
     case "sceneAudio":
       return "sceneAudio";
+    case "foreground":
+      return "foreground";
     default:
       return "background";
   }
@@ -625,6 +687,10 @@ export function isBackgroundAsset(asset: Asset): boolean {
 
 export function isSceneAudioAsset(asset: Asset): boolean {
   return resolveAssetCategory(asset) === "sceneAudio" && asset.kind === "audio";
+}
+
+export function isForegroundMediaAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "foreground" && (asset.kind === "audio" || asset.kind === "video");
 }
 
 export function isInventoryImageAsset(asset: Asset): boolean {

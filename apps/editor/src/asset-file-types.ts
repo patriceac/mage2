@@ -5,6 +5,7 @@ export const VIDEO_IMPORT_EXTENSIONS = [...VIDEO_EXTENSIONS] as const;
 export const IMAGE_IMPORT_EXTENSIONS = [...IMAGE_EXTENSIONS] as const;
 export const BACKGROUND_IMPORT_EXTENSIONS = [...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS] as const;
 export const SCENE_AUDIO_IMPORT_EXTENSIONS = [...AUDIO_EXTENSIONS] as const;
+export const FOREGROUND_MEDIA_IMPORT_EXTENSIONS = [...VIDEO_EXTENSIONS, ...AUDIO_EXTENSIONS] as const;
 export const INVENTORY_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS] as const;
 
 export const SUPPORTED_ASSET_EXTENSIONS = [...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS, ...AUDIO_EXTENSIONS] as const;
@@ -16,6 +17,7 @@ const VIDEO_IMPORT_EXTENSION_SET = new Set<string>(VIDEO_IMPORT_EXTENSIONS);
 const IMAGE_IMPORT_EXTENSION_SET = new Set<string>(IMAGE_IMPORT_EXTENSIONS);
 const BACKGROUND_IMPORT_EXTENSION_SET = new Set<string>(BACKGROUND_IMPORT_EXTENSIONS);
 const SCENE_AUDIO_IMPORT_EXTENSION_SET = new Set<string>(SCENE_AUDIO_IMPORT_EXTENSIONS);
+const FOREGROUND_MEDIA_IMPORT_EXTENSION_SET = new Set<string>(FOREGROUND_MEDIA_IMPORT_EXTENSIONS);
 const INVENTORY_IMAGE_IMPORT_EXTENSION_SET = new Set<string>(INVENTORY_IMAGE_EXTENSIONS);
 
 export function isSupportedAssetPath(filePath: string): boolean {
@@ -36,6 +38,10 @@ export function isImageImportPath(filePath: string): boolean {
 
 export function isSceneAudioImportPath(filePath: string): boolean {
   return SCENE_AUDIO_IMPORT_EXTENSION_SET.has(resolveFileExtension(filePath));
+}
+
+export function isForegroundMediaImportPath(filePath: string): boolean {
+  return FOREGROUND_MEDIA_IMPORT_EXTENSION_SET.has(resolveFileExtension(filePath));
 }
 
 export function isInventoryImageImportPath(filePath: string): boolean {

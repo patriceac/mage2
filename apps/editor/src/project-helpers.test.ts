@@ -4,6 +4,7 @@ import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
   addScene,
+  addDialogueTree,
   addInventoryItem,
   addAssetRoots,
   addHotspot,
@@ -269,6 +270,8 @@ describe("collectAssetReferenceSummary", () => {
     expect(summary).toEqual({
       sceneBackgrounds: [{ sceneId: scene.id, sceneName: scene.name }],
       sceneAudioAssignments: [],
+      hotspotMediaAssignments: [],
+      dialogueMediaAssignments: [],
       inventoryImages: []
     });
   });
@@ -286,7 +289,47 @@ describe("collectAssetReferenceSummary", () => {
     expect(collectAssetReferenceSummary(project, sceneAudioAsset.id)).toEqual({
       sceneBackgrounds: [],
       sceneAudioAssignments: [{ sceneId: scene.id, sceneName: scene.name }],
+      hotspotMediaAssignments: [],
+      dialogueMediaAssignments: [],
       inventoryImages: []
+    });
+  });
+
+  it("reports hotspot and dialogue foreground-media assignments", () => {
+    const project = createDefaultProjectBundle("Foreground media usage");
+    const scene = project.scenes.items[0];
+    const hotspot = scene.hotspots[0];
+    const dialogue = addDialogueTree(project);
+    const node = dialogue.nodes[0];
+    const foregroundAsset = createAsset(
+      "asset_foreground",
+      "voice.mp3",
+      "D:\\media\\voice.mp3",
+      "foreground",
+      "audio"
+    );
+
+    project.assets.assets = [foregroundAsset];
+    hotspot.mediaAssetId = foregroundAsset.id;
+    node.mediaAssetId = foregroundAsset.id;
+
+    expect(collectAssetReferenceSummary(project, foregroundAsset.id)).toMatchObject({
+      hotspotMediaAssignments: [
+        {
+          sceneId: scene.id,
+          sceneName: scene.name,
+          hotspotId: hotspot.id,
+          hotspotName: hotspot.name
+        }
+      ],
+      dialogueMediaAssignments: [
+        {
+          dialogueId: dialogue.id,
+          dialogueName: dialogue.name,
+          nodeId: node.id,
+          nodeLabel: node.speaker
+        }
+      ]
     });
   });
 });
@@ -381,6 +424,28 @@ describe("removeAssetFromProject", () => {
       { sceneId: project.scenes.items[0].id, sceneName: project.scenes.items[0].name }
     ]);
     expect(project.scenes.items[0].sceneAudioAssetId).toBeUndefined();
+  });
+
+  it("clears hotspot and dialogue references when deleting foreground media", () => {
+    const project = createDefaultProjectBundle("Foreground media asset removal");
+    const foregroundAsset = createAsset(
+      "asset_foreground",
+      "cut-in.mp4",
+      "D:\\media\\cut-in.mp4",
+      "foreground",
+      "video"
+    );
+    const hotspot = project.scenes.items[0].hotspots[0];
+    const node = addDialogueTree(project).nodes[0];
+    project.assets.assets = [foregroundAsset];
+    hotspot.mediaAssetId = foregroundAsset.id;
+    node.mediaAssetId = foregroundAsset.id;
+
+    const result = removeAssetFromProject(project, foregroundAsset.id);
+
+    expect(result.deleted).toBe(true);
+    expect(hotspot.mediaAssetId).toBeUndefined();
+    expect(node.mediaAssetId).toBeUndefined();
   });
 
 });
@@ -643,7 +708,7 @@ function createAsset(
   id: string,
   name: string,
   sourcePath: string,
-  category?: "background" | "inventory" | "sceneAudio",
+  category?: Asset["category"],
   kind: Asset["kind"] = "image"
 ): Asset {
   return {

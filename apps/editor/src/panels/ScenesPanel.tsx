@@ -44,6 +44,7 @@ import {
 } from "../media-playhead";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
+  FOREGROUND_MEDIA_IMPORT_EXTENSIONS,
   IMAGE_IMPORT_EXTENSIONS,
   SCENE_AUDIO_IMPORT_EXTENSIONS,
   isBackgroundImportPath,
@@ -62,6 +63,7 @@ import {
   cloneProject,
   collectSceneReferenceSummary,
   isBackgroundAsset,
+  isForegroundMediaAsset,
   isInventoryImageAsset,
   isSceneAudioAsset,
   removeHotspotFromProject,
@@ -233,6 +235,7 @@ export function ScenesPanel({
   const activeLocale = project.manifest.defaultLanguage;
   const availableBackgroundAssets = project.assets.assets.filter(isBackgroundAsset);
   const availableSceneAudioAssets = project.assets.assets.filter(isSceneAudioAsset);
+  const availableForegroundMediaAssets = project.assets.assets.filter(isForegroundMediaAsset);
 
   const currentScene = project.scenes.items.find((entry) => entry.id === selectedSceneId) ?? project.scenes.items[0];
   const currentSceneId = currentScene?.id;
@@ -1261,6 +1264,73 @@ export function ScenesPanel({
     }
 
     await importSceneAudioFromFilePath(filePath);
+  }
+
+  async function importInteractionMediaFromFilePath(hotspotId: string, hotspotName: string, filePath: string) {
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Importing interaction media");
+      const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
+        projectDir,
+        activeLocale,
+        project.assets.assets,
+        [filePath],
+        "foreground"
+      );
+      const assignedAsset =
+        importedAssets[0] ??
+        (duplicateAssets[0]
+          ? project.assets.assets.find((asset) => asset.id === duplicateAssets[0]!.assetId)
+          : undefined);
+
+      if (!assignedAsset) {
+        setStatusMessage(
+          duplicateFilePaths.length > 0
+            ? "That file already exists as foreground media. Choose it from the interaction media picker."
+            : "No new interaction media asset was created."
+        );
+        return;
+      }
+
+      mutateProject((draft) => {
+        if (importedAssets[0]) {
+          addAssetRoots(draft, [assignedAsset]);
+          draft.assets.assets.push(assignedAsset);
+        }
+        const targetScene = draft.scenes.items.find((scene) => scene.hotspots.some((hotspot) => hotspot.id === hotspotId));
+        const targetHotspot = targetScene?.hotspots.find((hotspot) => hotspot.id === hotspotId);
+        if (targetHotspot) {
+          targetHotspot.mediaAssetId = assignedAsset.id;
+        }
+      });
+      useEditorStore.getState().setSelectedAssetId(assignedAsset.id);
+      setStatusMessage(
+        `${importedAssets[0] ? "Imported" : "Assigned existing"} ${assignedAsset.name} as interaction media for ${hotspotName}. Save the project to keep this change.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Interaction media import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
+  async function handleImportInteractionMedia(hotspot: Hotspot) {
+    const filePaths = await dialogs.pickFiles({
+      title: `Import Interaction Media for ${hotspot.name}`,
+      description: "Choose an audio or video file to play once when this hotspot is activated.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: "Use as Interaction Media",
+      allowedExtensions: [...FOREGROUND_MEDIA_IMPORT_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (filePath) {
+      await importInteractionMediaFromFilePath(hotspot.id, hotspot.name, filePath);
+    }
   }
 
   function clearSceneAudio() {
@@ -2874,6 +2944,7 @@ export function ScenesPanel({
           anchorRef={scenesPanelRef}
           activeLocale={activeLocale}
           dialogueOptions={project.dialogues.items}
+          foregroundMediaAssets={availableForegroundMediaAssets}
           localeStrings={localeStrings}
           inventoryItemOptions={linkedInventoryOptions}
           sceneTimelineDurationMs={sceneTimelineDurationMs}
@@ -2885,6 +2956,7 @@ export function ScenesPanel({
           onRotationDegreesChange={updateSelectedHotspotRotationDegrees}
           onPositionChange={setHotspotInspectorPosition}
           onInteractionActiveChange={setIsHotspotInspectorActive}
+          onImportInteractionMedia={(hotspot) => void handleImportInteractionMedia(hotspot)}
           onDismiss={() => setIsHotspotInspectorOpen(false)}
         />
       ) : null}
@@ -3512,6 +3584,7 @@ interface HotspotInspectorWindowProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   activeLocale: string;
   dialogueOptions: ProjectBundle["dialogues"]["items"];
+  foregroundMediaAssets: Asset[];
   inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   position?: FloatingWindowPosition;
@@ -3523,6 +3596,7 @@ interface HotspotInspectorWindowProps {
   onRotationDegreesChange: (rotationDegrees: number) => void;
   onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
   onInteractionActiveChange: (active: boolean) => void;
+  onImportInteractionMedia: (hotspot: Hotspot) => void;
   onDismiss: () => void;
 }
 
@@ -3904,6 +3978,7 @@ function HotspotInspectorWindow({
   anchorRef,
   activeLocale,
   dialogueOptions,
+  foregroundMediaAssets,
   inventoryItemOptions,
   localeStrings,
   position,
@@ -3915,6 +3990,7 @@ function HotspotInspectorWindow({
   onRotationDegreesChange,
   onPositionChange,
   onInteractionActiveChange,
+  onImportInteractionMedia,
   onDismiss
 }: HotspotInspectorWindowProps) {
   const inspectorRef = useRef<HTMLElement>(null);
@@ -4296,6 +4372,35 @@ function HotspotInspectorWindow({
                 <span className="muted">Create a dialogue in the Dialogue tab, then choose it here.</span>
               ) : null}
             </label>
+            </details>
+            <details open className="scenes-floating-inspector__section">
+              <summary className="scenes-floating-inspector__section-title">Interaction Media</summary>
+              <label title="Audio or video that plays once when this hotspot is activated, independently of scene background media.">
+                <span className="field-label--inset">Foreground Media</span>
+                <DropdownSelect
+                  value={selectedHotspot.mediaAssetId ?? ""}
+                  onChange={(event) =>
+                    mutateSelectedHotspot((hotspot) => {
+                      hotspot.mediaAssetId = event.target.value || undefined;
+                    })
+                  }
+                >
+                  <option value="">No interaction media</option>
+                  {selectedHotspot.mediaAssetId &&
+                  !foregroundMediaAssets.some((asset) => asset.id === selectedHotspot.mediaAssetId) ? (
+                    <option value={selectedHotspot.mediaAssetId}>Missing foreground media</option>
+                  ) : null}
+                  {foregroundMediaAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name} ({asset.kind})
+                    </option>
+                  ))}
+                </DropdownSelect>
+              </label>
+              <button type="button" className="button-secondary" onClick={() => onImportInteractionMedia(selectedHotspot)}>
+                Import Audio / Video
+              </button>
+              <span className="muted">Plays once on activation; it does not replace or loop with the scene background.</span>
             </details>
             <details className="scenes-floating-inspector__section scenes-floating-inspector__section--advanced">
               <summary className="scenes-floating-inspector__section-title">Advanced</summary>

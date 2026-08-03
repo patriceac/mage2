@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CURRENT_SCHEMA_VERSION,
   createDefaultProjectBundle,
   createInitialSaveState,
   parseProjectBundle,
@@ -169,7 +170,7 @@ describe("project defaults", () => {
       strings: { schemaVersion: 5, byLocale: { en: {} } }
     });
 
-    expect(parsed.manifest.schemaVersion).toBe(8);
+    expect(parsed.manifest.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(parsed.scenes.items[0]?.hotspots[0]).not.toHaveProperty("inventoryItemId");
     expect(parsed.scenes.items[0]?.hotspots[0]?.timingMode).toBe("fixed");
   });
@@ -200,6 +201,45 @@ describe("project defaults", () => {
     const parsed = parseProjectBundle(project);
 
     expect(parsed.scenes.items[0]?.hotspots[0]?.inventoryItemId).toBe("item_lantern");
+  });
+
+  it("round-trips foreground media attached to hotspots and dialogue lines", () => {
+    const project = createDefaultProjectBundle("Foreground media");
+    project.assets.assets.push({
+      id: "asset_voice",
+      kind: "audio",
+      name: "voice.mp3",
+      category: "foreground",
+      variants: {
+        en: {
+          sourcePath: "voice.mp3",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.scenes.items[0]!.hotspots[0]!.mediaAssetId = "asset_voice";
+    project.dialogues.items.push({
+      id: "dialogue_intro",
+      name: "Intro",
+      startNodeId: "node_intro",
+      nodes: [
+        {
+          id: "node_intro",
+          speaker: "Guide",
+          textId: "text.node_intro",
+          mediaAssetId: "asset_voice",
+          effects: [],
+          choices: []
+        }
+      ]
+    });
+    project.strings.byLocale.en["text.node_intro"] = "Listen.";
+
+    const parsed = parseProjectBundle(project);
+
+    expect(resolveAssetCategory(parsed.assets.assets.find((asset) => asset.id === "asset_voice")!)).toBe("foreground");
+    expect(parsed.scenes.items[0]?.hotspots[0]?.mediaAssetId).toBe("asset_voice");
+    expect(parsed.dialogues.items[0]?.nodes[0]?.mediaAssetId).toBe("asset_voice");
   });
 });
 
@@ -541,6 +581,69 @@ describe("hotspot content placement", () => {
     });
     expect(resolveHotspotClipPath(hotspot)).toBe("polygon(11.1111% 0%, 100% 23.5294%, 88.8889% 100%, 0% 82.3529%)");
     expect(resolveHotspotRotationDegrees(hotspot)).toBeCloseTo(14.04, 2);
+  });
+
+  it("validates localized foreground media for hotspot interactions and dialogue lines", () => {
+    const project = createDefaultProjectBundle("Localized foreground media");
+    project.manifest.supportedLocales = ["en", "fr"];
+    project.assets.assets.push({
+      id: "asset_foreground",
+      kind: "video",
+      name: "cut-in.mp4",
+      category: "foreground",
+      variants: {
+        en: {
+          sourcePath: "cut-in.mp4",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.scenes.items[0]!.hotspots[0]!.mediaAssetId = "asset_foreground";
+    project.dialogues.items.push({
+      id: "dialogue_intro",
+      name: "Intro",
+      startNodeId: "node_intro",
+      nodes: [
+        {
+          id: "node_intro",
+          speaker: "Guide",
+          textId: "text.node_intro",
+          mediaAssetId: "asset_foreground",
+          effects: [],
+          choices: []
+        }
+      ]
+    });
+    project.strings.byLocale.en["text.node_intro"] = "Watch.";
+    project.strings.byLocale.fr = { "text.node_intro": "Regardez." };
+
+    const report = validateProject(project);
+
+    expect(report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "HOTSPOT_MEDIA_LOCALE_MISSING", entityId: "asset_foreground", locale: "fr" }),
+        expect.objectContaining({ code: "DIALOGUE_MEDIA_LOCALE_MISSING", entityId: "asset_foreground", locale: "fr" })
+      ])
+    );
+  });
+
+  it("rejects background-category media attached as foreground content", () => {
+    const project = createDefaultProjectBundle("Invalid foreground category");
+    project.assets.assets.push({
+      id: "asset_background_video",
+      kind: "video",
+      name: "background.mp4",
+      category: "background",
+      variants: {
+        en: {
+          sourcePath: "background.mp4",
+          importedAt: new Date().toISOString()
+        }
+      }
+    });
+    project.scenes.items[0]!.hotspots[0]!.mediaAssetId = "asset_background_video";
+
+    expect(validateProject(project).issues.some((issue) => issue.code === "HOTSPOT_MEDIA_CATEGORY_INVALID")).toBe(true);
   });
 
   it("accepts saved side-center hotspot points", () => {

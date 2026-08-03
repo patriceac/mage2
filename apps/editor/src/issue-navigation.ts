@@ -81,7 +81,12 @@ export function resolveIssueNavigation(
 
     const asset = project.assets.assets.find((entry) => entry.id === entityId);
     if (asset) {
-      if (issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" || issue.code === "SCENE_AUDIO_LOCALE_MISSING") {
+      if (
+        issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" ||
+        issue.code === "SCENE_AUDIO_LOCALE_MISSING" ||
+        issue.code === "HOTSPOT_MEDIA_LOCALE_MISSING" ||
+        issue.code === "DIALOGUE_MEDIA_LOCALE_MISSING"
+      ) {
         return {
           label: asset.name,
           tab: "localization",
@@ -155,6 +160,8 @@ export function resolveIssueNavigation(
       };
     case "SCENE_BACKGROUND_LOCALE_MISSING":
     case "SCENE_AUDIO_LOCALE_MISSING":
+    case "HOTSPOT_MEDIA_LOCALE_MISSING":
+    case "DIALOGUE_MEDIA_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
       return {
         label: "localized media",
@@ -241,6 +248,8 @@ export function getIssueHint(issue: ValidationIssue): string {
       return "Assign a valid inventory image asset in the Inventory tab.";
     case "SCENE_BACKGROUND_LOCALE_MISSING":
     case "SCENE_AUDIO_LOCALE_MISSING":
+    case "HOTSPOT_MEDIA_LOCALE_MISSING":
+    case "DIALOGUE_MEDIA_LOCALE_MISSING":
     case "INVENTORY_IMAGE_LOCALE_MISSING":
       return "Add or replace the missing locale media variant in Localization > Media.";
     case "SCENE_BACKGROUND_MISSING":
@@ -264,6 +273,14 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "HOTSPOT_DIALOGUE_MISSING":
     case "EFFECT_DIALOGUE_MISSING":
       return "Create the dialogue tree in the Dialogue tab or clear the broken reference.";
+    case "HOTSPOT_MEDIA_ASSET_MISSING":
+    case "HOTSPOT_MEDIA_CATEGORY_INVALID":
+    case "HOTSPOT_MEDIA_KIND_INVALID":
+      return "Assign a foreground audio or video asset to the hotspot, or clear the interaction media field.";
+    case "DIALOGUE_MEDIA_ASSET_MISSING":
+    case "DIALOGUE_MEDIA_CATEGORY_INVALID":
+    case "DIALOGUE_MEDIA_KIND_INVALID":
+      return "Assign a foreground audio or video asset to the dialogue line, or clear the line media field.";
     case "SCENE_UNREACHABLE":
       return "Add a path from the start scene or another reachable scene if this content should be playable.";
     default:

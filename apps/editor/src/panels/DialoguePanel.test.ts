@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { addDialogueTree } from "../project-helpers";
+import { DialogProvider } from "../dialogs";
 import { DialoguePanel } from "./DialoguePanel";
 
 const mockedStore = vi.hoisted(() => {
@@ -39,10 +40,16 @@ function renderDialoguePanel(configureProject: (project: ProjectBundle) => void)
   configureProject(project);
 
   return renderToStaticMarkup(
-    React.createElement(DialoguePanel, {
-      project,
-      mutateProject: () => {}
-    })
+    React.createElement(
+      DialogProvider,
+      null,
+      React.createElement(DialoguePanel, {
+        project,
+        mutateProject: () => {},
+        setStatusMessage: () => {},
+        setBusyLabel: () => {}
+      })
+    )
   );
 }
 
@@ -69,6 +76,9 @@ describe("DialoguePanel", () => {
     expect(markup).toContain(">First line</span>");
     expect(markup).toContain(">Who speaks</span>");
     expect(markup).toContain(">What they say</span>");
+    expect(markup).toContain(">Line media</span>");
+    expect(markup).toContain("Import Audio / Video");
+    expect(markup).toContain("it does not replace or loop with the scene background");
     expect(markup).toContain(">After this line</span>");
     expect(markup).toContain(">Player replies</h5>");
     expect(markup).toContain("Add Reply");

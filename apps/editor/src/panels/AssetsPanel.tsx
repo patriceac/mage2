@@ -14,6 +14,7 @@ import {
 } from "@mage2/schema";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
+  FOREGROUND_MEDIA_IMPORT_EXTENSIONS,
   IMAGE_IMPORT_EXTENSIONS,
   INVENTORY_IMAGE_EXTENSIONS,
   isSceneAudioImportPath,
@@ -47,7 +48,7 @@ interface AssetsPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
-type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio";
+type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio" | "foreground";
 type AssetViewMode = "grid" | "list";
 
 interface AssetRowModel {
@@ -69,6 +70,7 @@ const CATEGORY_TABS: Array<{
   { id: "all", label: "All" },
   { id: "background", label: "Backgrounds" },
   { id: "sceneAudio", label: "Scene Audio" },
+  { id: "foreground", label: "Foreground Media" },
   { id: "inventory", label: "Inventory" }
 ];
 
@@ -79,6 +81,7 @@ const ASSET_GROUPS: Array<{
 }> = [
   { id: "background", label: "Backgrounds", icon: "image" },
   { id: "sceneAudio", label: "Scene Audio", icon: "waveform" },
+  { id: "foreground", label: "Foreground Media", icon: "film" },
   { id: "inventory", label: "Inventory", icon: "box" }
 ];
 
@@ -412,6 +415,20 @@ export function AssetsPanel({
     if (usage.kind === "inventory") {
       useEditorStore.getState().setSelectedInventoryItemId(usage.id);
       useEditorStore.getState().setActiveTab("inventory");
+      return;
+    }
+
+    if (usage.kind === "dialogue") {
+      useEditorStore.getState().setSelectedDialogueId(usage.dialogueId);
+      useEditorStore.getState().setSelectedDialogueNodeId(usage.id);
+      useEditorStore.getState().setActiveTab("dialogue");
+      return;
+    }
+
+    if (usage.kind === "hotspot") {
+      useEditorStore.getState().setSelectedSceneId(usage.sceneId);
+      useEditorStore.getState().setSelectedHotspotId(usage.id);
+      useEditorStore.getState().setActiveTab("scenes");
       return;
     }
 
@@ -1030,7 +1047,9 @@ function AssetUsageRail({
 
 interface AssetUsageModel {
   id: string;
-  kind: "scene" | "inventory";
+  kind: "scene" | "inventory" | "hotspot" | "dialogue";
+  sceneId?: string;
+  dialogueId?: string;
   label: string;
   detail: string;
   actionLabel: string;
@@ -1052,6 +1071,22 @@ function buildAssetUsageModels(summary: AssetReferenceSummary): AssetUsageModel[
       detail: "Scene Audio",
       actionLabel: "Open Scene"
     })),
+    ...summary.hotspotMediaAssignments.map((entry) => ({
+      id: entry.hotspotId,
+      kind: "hotspot" as const,
+      sceneId: entry.sceneId,
+      label: entry.hotspotName,
+      detail: `Interaction Media in ${entry.sceneName}`,
+      actionLabel: "Open Hotspot"
+    })),
+    ...summary.dialogueMediaAssignments.map((entry) => ({
+      id: entry.nodeId,
+      kind: "dialogue" as const,
+      dialogueId: entry.dialogueId,
+      label: entry.nodeLabel,
+      detail: `Dialogue Media in ${entry.dialogueName}`,
+      actionLabel: "Open Line"
+    })),
     ...summary.inventoryImages.map((entry) => ({
       id: entry.itemId,
       kind: "inventory" as const,
@@ -1066,6 +1101,7 @@ function calculateCategoryCounts(rows: AssetRowModel[]): Record<AssetCategory, n
   return {
     background: rows.filter((row) => row.category === "background").length,
     sceneAudio: rows.filter((row) => row.category === "sceneAudio").length,
+    foreground: rows.filter((row) => row.category === "foreground").length,
     inventory: rows.filter((row) => row.category === "inventory").length
   };
 }
@@ -1104,6 +1140,8 @@ function resolveImportDialogTitle(filter: AssetLibraryFilter): string {
       return "Import Background Assets";
     case "sceneAudio":
       return "Import Scene Audio Assets";
+    case "foreground":
+      return "Import Foreground Media";
     case "inventory":
       return "Import Inventory Assets";
     case "all":
@@ -1117,6 +1155,8 @@ function resolveImportDialogDescription(filter: AssetLibraryFilter): string {
       return "Choose image or video files to add to the background asset library.";
     case "sceneAudio":
       return "Choose audio files to add to the scene audio asset library.";
+    case "foreground":
+      return "Choose audio or video files that can play from dialogue lines and hotspot interactions.";
     case "inventory":
       return "Choose image files to add to the inventory asset library.";
     case "all":
@@ -1130,6 +1170,8 @@ function resolveImportExtensions(filter: AssetLibraryFilter): readonly string[] 
       return BACKGROUND_IMPORT_EXTENSIONS;
     case "sceneAudio":
       return SCENE_AUDIO_IMPORT_EXTENSIONS;
+    case "foreground":
+      return FOREGROUND_MEDIA_IMPORT_EXTENSIONS;
     case "inventory":
       return INVENTORY_IMAGE_EXTENSIONS;
     case "all":
@@ -1153,11 +1195,12 @@ function groupImportPathsByCategory(filePaths: string[], filter: AssetLibraryFil
   const groupedPaths: Record<AssetCategory, string[]> = {
     background: [],
     sceneAudio: [],
+    foreground: [],
     inventory: []
   };
 
   for (const filePath of filePaths) {
-    if (filter === "background" || filter === "sceneAudio" || filter === "inventory") {
+    if (filter === "background" || filter === "sceneAudio" || filter === "foreground" || filter === "inventory") {
       groupedPaths[filter].push(filePath);
       continue;
     }
@@ -1174,18 +1217,39 @@ function formatAssetCategoryLabel(category: AssetCategory): string {
       return "Background";
     case "sceneAudio":
       return "Scene Audio";
+    case "foreground":
+      return "Foreground Media";
     case "inventory":
       return "Inventory";
   }
 }
 
 function formatUsageCountLabel(summary: AssetReferenceSummary): string {
+  const populatedReferenceKinds = [
+    summary.sceneBackgrounds.length,
+    summary.sceneAudioAssignments.length,
+    summary.hotspotMediaAssignments.length,
+    summary.dialogueMediaAssignments.length,
+    summary.inventoryImages.length
+  ].filter((count) => count > 0).length;
+  if (populatedReferenceKinds > 1) {
+    return countAssetReferences(summary) === 1 ? "reference" : "references";
+  }
+
   if (summary.sceneBackgrounds.length > 0) {
     return `scene${summary.sceneBackgrounds.length === 1 ? "" : "s"}`;
   }
 
   if (summary.sceneAudioAssignments.length > 0) {
     return `scene${summary.sceneAudioAssignments.length === 1 ? "" : "s"}`;
+  }
+
+  if (summary.hotspotMediaAssignments.length > 0) {
+    return `hotspot${summary.hotspotMediaAssignments.length === 1 ? "" : "s"}`;
+  }
+
+  if (summary.dialogueMediaAssignments.length > 0) {
+    return `line${summary.dialogueMediaAssignments.length === 1 ? "" : "s"}`;
   }
 
   if (summary.inventoryImages.length > 0) {
@@ -1299,6 +1363,12 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
   if (summary.sceneAudioAssignments.length > 0) {
     consequences.push("Affected scene audio assignments will be cleared.");
   }
+  if (summary.hotspotMediaAssignments.length > 0) {
+    consequences.push("Affected hotspot interaction media assignments will be cleared.");
+  }
+  if (summary.dialogueMediaAssignments.length > 0) {
+    consequences.push("Affected dialogue line media assignments will be cleared.");
+  }
   consequences.push("Any generated proxy files will be deleted.");
   consequences.push("If this asset was copied into the project's assets folder, that project copy will be deleted.");
   consequences.push("The original import source file on disk will not be deleted.");
@@ -1320,6 +1390,20 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
             <li>
               {`Scene audio assignment${summary.sceneAudioAssignments.length === 1 ? "" : "s"}: ${summary.sceneAudioAssignments
                 .map((entry) => entry.sceneName)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.hotspotMediaAssignments.length > 0 ? (
+            <li>
+              {`Hotspot interaction media: ${summary.hotspotMediaAssignments
+                .map((entry) => `${entry.sceneName} / ${entry.hotspotName}`)
+                .join(", ")}`}
+            </li>
+          ) : null}
+          {summary.dialogueMediaAssignments.length > 0 ? (
+            <li>
+              {`Dialogue line media: ${summary.dialogueMediaAssignments
+                .map((entry) => `${entry.dialogueName} / ${entry.nodeLabel}`)
                 .join(", ")}`}
             </li>
           ) : null}

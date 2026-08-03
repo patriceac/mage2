@@ -161,6 +161,42 @@ export function resolveRuntimePlacedHotspotVisuals(
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
 
+function RuntimeForegroundMediaPlayer({
+  asset,
+  locale,
+  label,
+  onDismiss
+}: {
+  asset: Asset;
+  locale: string;
+  label: string;
+  onDismiss?: () => void;
+}) {
+  const variant = resolveAssetVariant(asset, locale);
+  const sourcePath = variant?.proxyPath ?? variant?.sourcePath;
+
+  return (
+    <section className={`runtime-foreground-media runtime-foreground-media--${asset.kind}`} aria-label={`${label}: ${asset.name}`}>
+      <header>
+        <span>{label}</span>
+        <strong>{asset.name}</strong>
+        {onDismiss ? (
+          <button type="button" onClick={onDismiss} aria-label={`Close ${asset.name}`} title="Close foreground media">
+            &times;
+          </button>
+        ) : null}
+      </header>
+      {sourcePath && asset.kind === "video" ? (
+        <video src={sourcePath} autoPlay controls playsInline preload="auto" />
+      ) : sourcePath && asset.kind === "audio" ? (
+        <audio src={sourcePath} autoPlay controls preload="auto" />
+      ) : (
+        <div>No playable {locale} variant.</div>
+      )}
+    </section>
+  );
+}
+
 export function resolveInventoryCursorPreviewFrameStyle(
   point: { x: number; y: number },
   sizePx = INVENTORY_CURSOR_PREVIEW_SIZE_PX
@@ -191,6 +227,8 @@ export function App() {
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const [inventoryCursorPoint, setInventoryCursorPoint] = useState<{ x: number; y: number }>();
   const [runtimeNotice, setRuntimeNotice] = useState<string>();
+  const [interactionMediaPlayback, setInteractionMediaPlayback] = useState<{ assetId: string; sequence: number }>();
+  const interactionMediaSequenceRef = useRef(0);
   const runtimeVideoRef = useRef<HTMLVideoElement>(null);
   const runtimeAudioRef = useRef<HTMLAudioElement>(null);
   const runtimeOverlayRef = useRef<HTMLDivElement>(null);
@@ -286,6 +324,17 @@ export function App() {
       ? (content.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId) as Asset | undefined)
       : undefined;
   const sceneAudioVariant = sceneAudioAsset ? resolveAssetVariant(sceneAudioAsset, locale) : undefined;
+  const dialogueMediaAssetId = snapshot?.activeDialogue?.node.mediaAssetId;
+  const foregroundMediaAssetId = dialogueMediaAssetId ?? interactionMediaPlayback?.assetId;
+  const foregroundMediaAsset =
+    content && foregroundMediaAssetId
+      ? (content.assets.find((asset) => asset.id === foregroundMediaAssetId) as Asset | undefined)
+      : undefined;
+  const foregroundMediaPlaybackKey = dialogueMediaAssetId
+    ? `dialogue:${snapshot?.activeDialogue?.tree.id}:${snapshot?.activeDialogue?.node.id}:${locale}`
+    : interactionMediaPlayback
+      ? `interaction:${interactionMediaPlayback.sequence}:${locale}`
+      : undefined;
   const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
     currentAssetVariant?.durationMs,
     currentAsset?.kind === "image" ? snapshot?.scene.sceneAudioDelayMs ?? 0 : 0,
@@ -326,6 +375,12 @@ export function App() {
     .map(([hotspotId, visual]) => `${hotspotId}:${visual.imageSrc}`)
     .sort()
     .join("|");
+
+  useEffect(() => {
+    if (dialogueMediaAssetId) {
+      setInteractionMediaPlayback(undefined);
+    }
+  }, [dialogueMediaAssetId]);
 
   useEffect(() => {
     if (selectedInventoryItemId && !runtimeInventoryItems.some((item) => item.id === selectedInventoryItemId)) {
@@ -881,6 +936,7 @@ export function App() {
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
                 setPlayheadMs(nextSaveState.playheadMs ?? 0);
+                setInteractionMediaPlayback(undefined);
                 setSelectedInventoryItemId(undefined);
                 setRuntimeNotice(undefined);
               }}
@@ -903,6 +959,7 @@ export function App() {
                 setController(nextController);
                 setSnapshot(nextController.getSnapshot());
                 setPlayheadMs(0);
+                setInteractionMediaPlayback(undefined);
                 setSelectedInventoryItemId(undefined);
                 setRuntimeNotice(undefined);
               }}
@@ -1005,7 +1062,16 @@ export function App() {
                       return;
                     }
 
-                    controller.selectHotspot(hotspot.id, playheadMs, sceneTimelineDurationMs);
+                    const resolution = controller.selectHotspot(hotspot.id, playheadMs, sceneTimelineDurationMs);
+                    if (resolution.mediaAssetId) {
+                      interactionMediaSequenceRef.current += 1;
+                      setInteractionMediaPlayback({
+                        assetId: resolution.mediaAssetId,
+                        sequence: interactionMediaSequenceRef.current
+                      });
+                    } else {
+                      setInteractionMediaPlayback(undefined);
+                    }
                     setSnapshot(controller.getSnapshot());
                     setPlayheadMs(0);
                     if (inventoryAction.type === "pickupItem" || inventoryAction.type === "placeItem") {
@@ -1032,6 +1098,15 @@ export function App() {
               />
             ))}
           </div>
+          {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
+            <RuntimeForegroundMediaPlayer
+              key={foregroundMediaPlaybackKey}
+              asset={foregroundMediaAsset}
+              locale={locale}
+              label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
+              onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
+            />
+          ) : null}
           <InventoryCursorPreview
             imageSrc={selectedRuntimeInventoryItem?.imageSrc}
             label={selectedRuntimeInventoryItem?.label}

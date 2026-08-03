@@ -1,8 +1,18 @@
 import { useMemo, useState } from "react";
-import { getLocaleStringValues, type DialogueChoice, type DialogueNode, type DialogueTree, type ProjectBundle } from "@mage2/schema";
+import {
+  getLocaleStringValues,
+  type Asset,
+  type DialogueChoice,
+  type DialogueNode,
+  type DialogueTree,
+  type ProjectBundle
+} from "@mage2/schema";
+import { FOREGROUND_MEDIA_IMPORT_EXTENSIONS } from "../asset-file-types";
+import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
-import { addDialogueTree, createId, ensureString } from "../project-helpers";
+import { addAssetRoots, addDialogueTree, createId, ensureString, isForegroundMediaAsset } from "../project-helpers";
 import { setEditorLocalizedText } from "../localized-project";
+import { AssetPreview } from "../previews";
 import {
   collectOwnedGeneratedProjectTextIdsForDialogueChoice,
   collectOwnedGeneratedProjectTextIdsForDialogueNode,
@@ -13,6 +23,8 @@ import { useEditorStore } from "../store";
 interface DialoguePanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  setStatusMessage: (message: string) => void;
+  setBusyLabel: (label?: string) => void;
   onOpenScenesHotspot?: (sceneId?: string, hotspotId?: string) => void;
 }
 
@@ -31,7 +43,14 @@ interface DialogueUsage {
 
 const LINE_LABEL_PREVIEW_LENGTH = 64;
 
-export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: DialoguePanelProps) {
+export function DialoguePanel({
+  project,
+  mutateProject,
+  setStatusMessage,
+  setBusyLabel,
+  onOpenScenesHotspot
+}: DialoguePanelProps) {
+  const dialogs = useDialogs();
   const selectedDialogueId = useEditorStore((state) => state.selectedDialogueId);
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
@@ -39,6 +58,7 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
   const [dialogueFilter, setDialogueFilter] = useState("");
   const activeLocale = project.manifest.defaultLanguage;
   const localeStrings = getLocaleStringValues(project, activeLocale);
+  const foregroundMediaAssets = project.assets.assets.filter(isForegroundMediaAsset);
   const usageByDialogue = useMemo(() => collectDialogueUsage(project), [project]);
   const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
   const currentUsage = currentDialogue ? usageByDialogue.get(currentDialogue.id) ?? [] : [];
@@ -177,6 +197,72 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
     onOpenScenesHotspot?.(usage?.sceneId, usage?.hotspotId);
   };
 
+  const importDialogueMediaFromFilePath = async (dialogueId: string, nodeId: string, filePath: string) => {
+    try {
+      const projectDir = useEditorStore.getState().projectDir;
+      if (!projectDir) {
+        throw new Error("No project directory is currently open.");
+      }
+
+      setBusyLabel("Importing dialogue media");
+      const { importedAssets, duplicateAssets, duplicateFilePaths } = await window.editorApi.importAssets(
+        projectDir,
+        activeLocale,
+        project.assets.assets,
+        [filePath],
+        "foreground"
+      );
+      const assignedAsset =
+        importedAssets[0] ??
+        (duplicateAssets[0]
+          ? project.assets.assets.find((asset) => asset.id === duplicateAssets[0]!.assetId)
+          : undefined);
+
+      if (!assignedAsset) {
+        setStatusMessage(
+          duplicateFilePaths.length > 0
+            ? "That file already exists as foreground media. Choose it from the line media picker."
+            : "No new dialogue media asset was created."
+        );
+        return;
+      }
+
+      mutateProject((draft) => {
+        if (importedAssets[0]) {
+          addAssetRoots(draft, [assignedAsset]);
+          draft.assets.assets.push(assignedAsset);
+        }
+        const target = findNode(draft, dialogueId, nodeId);
+        if (target) {
+          target.mediaAssetId = assignedAsset.id;
+        }
+      });
+      useEditorStore.getState().setSelectedAssetId(assignedAsset.id);
+      setStatusMessage(
+        `${importedAssets[0] ? "Imported" : "Assigned existing"} ${assignedAsset.name} as foreground media for this dialogue line. Save the project to keep this change.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Dialogue media import failed: ${message}`);
+    } finally {
+      setBusyLabel(undefined);
+    }
+  };
+
+  const handleImportDialogueMedia = async (dialogueId: string, node: DialogueNode) => {
+    const filePaths = await dialogs.pickFiles({
+      title: `Import Media for ${node.speaker || "Dialogue Line"}`,
+      description: "Choose an audio or video file to play once when this dialogue line opens.",
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: "Use as Line Media",
+      allowedExtensions: [...FOREGROUND_MEDIA_IMPORT_EXTENSIONS]
+    });
+    const filePath = filePaths[0];
+    if (filePath) {
+      await importDialogueMediaFromFilePath(dialogueId, node.id, filePath);
+    }
+  };
+
   return (
     <div className="panel-grid panel-grid--dialogue dialogue-workspace">
       <aside className="panel dialogue-library" aria-label="Dialogue library">
@@ -300,12 +386,14 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
                     isFirstLine={node.id === currentDialogue.startNodeId}
                     isSelected={node.id === selectedNodeId}
                     localeStrings={localeStrings}
+                    mediaAssets={foregroundMediaAssets}
                     mutateProject={mutateProject}
                     node={node}
                     nodeOptions={nodeOptions}
                     onAddReply={addReply}
                     onDeleteLine={deleteLine}
                     onDeleteReply={deleteReply}
+                    onImportMedia={(targetNode) => void handleImportDialogueMedia(currentDialogue.id, targetNode)}
                     onToggle={() => setSelectedDialogueNodeId(node.id === selectedNodeId ? undefined : node.id)}
                   />
                 ))}
@@ -342,7 +430,13 @@ export function DialoguePanel({ project, mutateProject, onOpenScenesHotspot }: D
                 </div>
               </div>
               {selectedNode ? (
-                <DialoguePreview node={selectedNode} nodeOptions={nodeOptions} strings={localeStrings} />
+                <DialoguePreview
+                  activeLocale={activeLocale}
+                  mediaAsset={foregroundMediaAssets.find((asset) => asset.id === selectedNode.mediaAssetId)}
+                  node={selectedNode}
+                  nodeOptions={nodeOptions}
+                  strings={localeStrings}
+                />
               ) : (
                 <p className="muted">Select a line to preview it.</p>
               )}
@@ -400,12 +494,14 @@ function LineCard({
   isFirstLine,
   isSelected,
   localeStrings,
+  mediaAssets,
   mutateProject,
   node,
   nodeOptions,
   onAddReply,
   onDeleteLine,
   onDeleteReply,
+  onImportMedia,
   onToggle
 }: {
   activeLocale: string;
@@ -414,12 +510,14 @@ function LineCard({
   isFirstLine: boolean;
   isSelected: boolean;
   localeStrings: Record<string, string>;
+  mediaAssets: Asset[];
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
   node: DialogueNode;
   nodeOptions: DialogueNodeOption[];
   onAddReply: (nodeId: string) => void;
   onDeleteLine: (nodeId: string) => void;
   onDeleteReply: (nodeId: string, choiceId: string) => void;
+  onImportMedia: (node: DialogueNode) => void;
   onToggle: () => void;
 }) {
   const lineText = localeStrings[node.textId] ?? "";
@@ -441,6 +539,7 @@ function LineCard({
             <span className="dialogue-line-card__title">{formatDialogueNodeLabel(node, localeStrings)}</span>
             <span className="dialogue-line-card__meta">
               {isFirstLine ? "First line" : "Line"} · {formatChoiceCount(node.choices.length)}
+              {node.mediaAssetId ? " · Media" : ""}
             </span>
           </span>
         </button>
@@ -509,6 +608,39 @@ function LineCard({
               }
             />
           </label>
+
+          <section className="dialogue-line-media" aria-label="Dialogue line media">
+            <div className="dialogue-line-media__controls">
+              <label title="Audio or video that plays once when this line opens, independently of scene background media.">
+                <span className="field-label--inset">Line media</span>
+                <DropdownSelect
+                  value={node.mediaAssetId ?? ""}
+                  onChange={(event) =>
+                    mutateProject((draft) => {
+                      const target = findNode(draft, currentDialogue.id, node.id);
+                      if (target) {
+                        target.mediaAssetId = event.target.value || undefined;
+                      }
+                    })
+                  }
+                >
+                  <option value="">No line media</option>
+                  {node.mediaAssetId && !mediaAssets.some((asset) => asset.id === node.mediaAssetId) ? (
+                    <option value={node.mediaAssetId}>Missing foreground media</option>
+                  ) : null}
+                  {mediaAssets.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name} ({asset.kind})
+                    </option>
+                  ))}
+                </DropdownSelect>
+              </label>
+              <button type="button" className="button-secondary" onClick={() => onImportMedia(node)}>
+                Import Audio / Video
+              </button>
+            </div>
+            <p className="dialogue-field-note">Plays once when this line opens; it does not replace or loop with the scene background.</p>
+          </section>
 
           <section className="dialogue-replies">
             <div className="dialogue-replies__header">
@@ -639,10 +771,14 @@ function ChoiceEditor({
 }
 
 function DialoguePreview({
+  activeLocale,
+  mediaAsset,
   node,
   nodeOptions,
   strings
 }: {
+  activeLocale: string;
+  mediaAsset?: Asset;
   node: DialogueNode;
   nodeOptions: DialogueNodeOption[];
   strings: Record<string, string>;
@@ -652,6 +788,18 @@ function DialoguePreview({
 
   return (
     <div className="dialogue-preview-card">
+      {mediaAsset ? (
+        <div className="dialogue-preview-card__media">
+          <AssetPreview
+            asset={mediaAsset}
+            locale={activeLocale}
+            allowSourceFallback
+            fit="contain"
+            emptyTitle="Line media unavailable"
+            emptyBody="Add the active locale variant in Localization."
+          />
+        </div>
+      ) : null}
       <div className="dialogue-preview-card__bubble">
         <strong>{node.speaker || "Speaker"}</strong>
         <p>{lineText}</p>

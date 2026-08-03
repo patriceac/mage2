@@ -34,6 +34,7 @@ export interface PlayerSnapshot {
 export interface HotspotResolution {
   transitionedToSceneId?: string;
   startedDialogueTreeId?: string;
+  mediaAssetId?: string;
 }
 
 export interface PlayerController {
@@ -242,6 +243,7 @@ export function createPlayerController(
     }
 
     const resolution = applyEffects(hotspot.effects);
+    resolution.mediaAssetId = hotspot.mediaAssetId;
     if (hotspot.dialogueTreeId && !resolution.startedDialogueTreeId) {
       startDialogue(hotspot.dialogueTreeId);
       resolution.startedDialogueTreeId = hotspot.dialogueTreeId;

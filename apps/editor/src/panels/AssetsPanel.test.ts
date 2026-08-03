@@ -117,6 +117,64 @@ describe("AssetsPanel workbench UI", () => {
     expect(markup).toContain("Review Missing Variants");
   });
 
+  it("lists foreground media and summarizes mixed dialogue and hotspot usage", () => {
+    const project = createDefaultProjectBundle("Foreground assets");
+    const asset: Asset = {
+      id: "asset_foreground",
+      kind: "video",
+      name: "reaction.mp4",
+      category: "foreground",
+      variants: {
+        en: {
+          sourcePath: "D:\\project\\assets\\reaction.mp4",
+          importedAt: "2026-08-03T00:00:00.000Z"
+        }
+      }
+    };
+    project.assets.assets = [asset];
+    project.scenes.items[0]!.hotspots[0]!.mediaAssetId = asset.id;
+    project.dialogues.items.push({
+      id: "dialogue_foreground",
+      name: "Foreground dialogue",
+      startNodeId: "node_foreground",
+      nodes: [
+        {
+          id: "node_foreground",
+          speaker: "Guide",
+          textId: "text.node_foreground.line",
+          mediaAssetId: asset.id,
+          effects: [],
+          choices: []
+        }
+      ]
+    });
+
+    useEditorStore.setState({
+      activeTab: "assets",
+      selectedAssetId: asset.id
+    });
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        DialogProvider,
+        null,
+        React.createElement(AssetsPanel, {
+          project,
+          setSavedProject: () => {},
+          setStatusMessage: () => {},
+          setBusyLabel: () => {}
+        })
+      )
+    );
+
+    expect(markup).toContain(">Foreground Media</button>");
+    expect(markup).toContain("Foreground Media (1)");
+    expect(markup).toContain("reaction.mp4");
+    expect(markup).toContain("<strong>2</strong><span>references</span>");
+    expect(markup).toContain("Interaction Media in Opening Scene");
+    expect(markup).toContain("Dialogue Media in Foreground dialogue");
+  });
+
   it("uses the fixed-frame contain preview treatment for inventory assets", () => {
     expect(resolveAssetCardPreviewPresentation("inventory")).toEqual({
       fit: "contain"
@@ -125,6 +183,9 @@ describe("AssetsPanel workbench UI", () => {
       fit: "cover"
     });
     expect(resolveAssetCardPreviewPresentation("sceneAudio")).toEqual({
+      fit: "cover"
+    });
+    expect(resolveAssetCardPreviewPresentation("foreground")).toEqual({
       fit: "cover"
     });
   });
