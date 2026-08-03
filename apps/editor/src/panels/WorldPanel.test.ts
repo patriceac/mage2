@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
-import { addLocation } from "../project-helpers";
+import { addLocation, addScene } from "../project-helpers";
 import { useEditorStore } from "../store";
 import { resolveLocationIconKind, resolveWorldLocationEdges, WorldPanel } from "./WorldPanel";
 
@@ -43,21 +43,28 @@ describe("WorldPanel", () => {
 
     expect(markup).toContain("Locations");
     expect(markup).toContain("Search locations...");
-    expect(markup).toContain("Location Map");
-    expect(markup).toContain("Location map tools");
+    expect(markup).toContain("World Overview");
+    expect(markup).toContain("World overview tools");
     expect(markup).toContain("Search map...");
     expect(markup).toContain("world-panel__map-node");
+    expect(markup).toContain("Cross-location scene transitions");
+    expect(markup).toContain("Read-only · derived from hotspot targets and scene effects authored in Scenes");
     expect(markup).toContain("Location Details");
     expect(markup).toContain(">Name</span>");
     expect(markup).toContain("Location summary");
-    expect(markup).toContain("Quests");
-    expect(markup).toContain("NPCs");
-    expect(markup).toContain("Variables");
+    expect(markup).toContain("Dialogues");
+    expect(markup).toContain("Speakers");
+    expect(markup).toContain("Flags");
+    expect(markup).toContain("World transitions");
     expect(markup).toContain("Opening Scene");
     expect(markup).toContain("Start scene");
     expect(markup).toContain("world-panel__scene-index");
     expect(markup).toContain('title="Open Opening Scene in Scenes."');
-    expect(markup).not.toContain("World Map");
+    expect(markup).not.toContain("Quests");
+    expect(markup).not.toContain("NPCs");
+    expect(markup).not.toContain("Variables");
+    expect(markup).not.toContain("world-panel__map-node-port");
+    expect(markup).not.toContain("world-panel__map-edge-terminal");
     expect(markup).not.toContain("pill-list");
   });
 
@@ -100,21 +107,38 @@ describe("WorldPanel", () => {
     expect(resolveLocationIconKind(location)).toBe("castle");
   });
 
-  it("deduplicates cross-location scene links into world map edges", () => {
+  it("aggregates direct cross-location scene transitions into directional routes", () => {
     const project = createDefaultProjectBundle("World links");
     const targetLocation = addLocation(project);
     const sourceScene = project.scenes.items[0]!;
     const targetScene = project.scenes.items.find((scene) => targetLocation.sceneIds.includes(scene.id))!;
+    const secondSourceScene = addScene(project, sourceScene.locationId);
 
     sourceScene.hotspots[0]!.targetSceneId = targetScene.id;
     sourceScene.onEnterEffects.push({ type: "goToScene", sceneId: targetScene.id });
+    secondSourceScene.onExitEffects.push({ type: "goToScene", sceneId: targetScene.id });
 
     expect(resolveWorldLocationEdges(project)).toEqual([
-      expect.objectContaining({
+      {
         id: "location_intro-" + targetLocation.id,
         source: "location_intro",
-        target: targetLocation.id
-      })
+        target: targetLocation.id,
+        transitionCount: 2
+      }
     ]);
+  });
+
+  it("renders derived transition routes with direction and without connection handles", () => {
+    const markup = renderWorldPanel((project) => {
+      const targetLocation = addLocation(project);
+      const targetScene = project.scenes.items.find((scene) => targetLocation.sceneIds.includes(scene.id))!;
+      project.scenes.items[0]!.hotspots[0]!.targetSceneId = targetScene.id;
+    });
+
+    expect(markup).toContain('marker-end="url(#world-transition-arrow-selected)"');
+    expect(markup).toContain("Read-only cross-location scene transitions between locations");
+    expect(markup).toContain("1 out");
+    expect(markup).not.toContain("map-node-port");
+    expect(markup).not.toContain("map-edge-terminal");
   });
 });

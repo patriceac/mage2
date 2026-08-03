@@ -66,7 +66,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
 
 const TAB_TOOLTIPS: Record<EditorTab, string> = {
   assets: "Review background, scene-audio, and inventory assets after creating them from their owning editor tabs.",
-  world: "Arrange locations on the world map and manage the scenes inside each location.",
+  world: "Arrange locations, review derived cross-location scene transitions, and manage the scenes inside each location.",
   scenes: "Edit scene media, upload background and scene-audio assets, hotspots, and scene-level wiring.",
   dialogue: "Write conversations and reusable text, audio, or video player responses, then assign them from scene hotspots.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",

@@ -4484,14 +4484,22 @@ label > .checkbox-list {
   will-change: transform;
 }
 
-.world-panel__map-links {
+.world-panel__map-transitions {
   position: absolute;
   inset: 0;
   overflow: visible;
   pointer-events: none;
 }
 
-.world-panel__map-edge path {
+.world-panel__map-arrow path {
+  fill: rgba(129, 140, 147, 0.96);
+}
+
+.world-panel__map-arrow--selected path {
+  fill: rgba(39, 198, 236, 1);
+}
+
+.world-panel__map-transition > path {
   fill: none;
   stroke: rgba(129, 140, 147, 0.82);
   stroke-linecap: round;
@@ -4499,21 +4507,32 @@ label > .checkbox-list {
   vector-effect: non-scaling-stroke;
 }
 
-.world-panel__map-edge-terminal {
-  fill: #0d151b;
-  stroke: rgba(144, 155, 163, 0.96);
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.world-panel__map-edge--selected path {
+.world-panel__map-transition--selected > path {
   stroke: rgba(39, 198, 236, 0.98);
   stroke-width: 2.25;
 }
 
-.world-panel__map-edge--selected .world-panel__map-edge-terminal {
+.world-panel__map-transition-count circle {
+  fill: #101920;
+  stroke: rgba(129, 140, 147, 0.9);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.world-panel__map-transition-count text {
+  fill: #dce7ee;
+  font-size: 9px;
+  font-weight: 760;
+  paint-order: stroke;
+}
+
+.world-panel__map-transition--selected .world-panel__map-transition-count circle {
   stroke: rgba(39, 198, 236, 1);
-  filter: drop-shadow(0 0 5px rgba(39, 198, 236, 0.52));
+  filter: drop-shadow(0 0 4px rgba(39, 198, 236, 0.42));
+}
+
+.world-panel__map-transition--selected .world-panel__map-transition-count text {
+  fill: #c7f5ff;
 }
 
 .world-panel__map-node {
@@ -4595,7 +4614,7 @@ label > .checkbox-list {
 }
 
 .world-panel__map-node-copy span,
-.world-panel__map-node-links {
+.world-panel__map-node-transitions {
   overflow: hidden;
   color: #aab7c0;
   font-size: 0.78rem;
@@ -4604,7 +4623,7 @@ label > .checkbox-list {
   white-space: nowrap;
 }
 
-.world-panel__map-node-links {
+.world-panel__map-node-transitions {
   grid-column: 3 / span 1;
   justify-self: end;
   padding: 0.16rem 0.36rem;
@@ -4613,40 +4632,49 @@ label > .checkbox-list {
   color: #bfccd6;
 }
 
-.world-panel__map-node-port {
+.world-panel__topology-note {
   position: absolute;
-  z-index: 4;
-  width: 0.66rem;
-  height: 0.66rem;
-  border: 2px solid #27c6ec;
-  border-radius: 999px;
-  background: #111a22;
-  box-shadow: 0 0 8px rgba(39, 198, 236, 0.55);
+  z-index: 5;
+  left: 0.85rem;
+  bottom: 0.85rem;
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  max-width: min(28rem, calc(100% - 1.7rem));
+  padding: 0.56rem 0.68rem;
+  border-left: 2px solid rgba(39, 198, 236, 0.7);
+  border-radius: 3px;
+  background: rgba(10, 16, 22, 0.88);
+  color: #dce7ee;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
   pointer-events: none;
+  backdrop-filter: blur(8px);
 }
 
-.world-panel__map-node-port--top {
-  top: -0.36rem;
-  left: 50%;
-  transform: translateX(-50%);
+.world-panel__topology-note > svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.08rem;
+  color: #27c6ec;
 }
 
-.world-panel__map-node-port--right {
-  top: 50%;
-  right: -0.36rem;
-  transform: translateY(-50%);
+.world-panel__topology-note > span {
+  display: grid;
+  gap: 0.13rem;
+  min-width: 0;
 }
 
-.world-panel__map-node-port--bottom {
-  bottom: -0.36rem;
-  left: 50%;
-  transform: translateX(-50%);
+.world-panel__topology-note strong {
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.15;
 }
 
-.world-panel__map-node-port--left {
-  top: 50%;
-  left: -0.36rem;
-  transform: translateY(-50%);
+.world-panel__topology-note small {
+  color: #9fb0bc;
+  font-size: 0.68rem;
+  line-height: 1.3;
 }
 
 .world-panel__start-badge {
