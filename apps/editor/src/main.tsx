@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "@mage2/player-ui/styles.css";
 import "./styles.css";
+import "./panels/scenes/scenes.css";
 import { App } from "./App";
 import { DialogProvider } from "./dialogs";
 

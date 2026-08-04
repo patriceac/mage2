@@ -648,9 +648,6 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           paused={gameplayPaused}
           playbackResetKey={playbackResetKey}
           onPlayheadMsChange={setPlayheadMs}
-          controls
-          className="asset-preview__audio"
-          containerClassName="scene-audio-strip"
         />
 
       </section>

@@ -5,38 +5,48 @@ import { createDefaultProjectBundle, resolveHotspotInventoryAction, type Hotspot
 import { DialogProvider } from "../dialogs";
 import {
   ScenesPanel,
-  applySceneBackgroundAsset,
-  canAssignSceneBackgroundAsset,
-  applyHotspotInventoryAction,
-  applyInventoryLinkToHotspot,
-  filterInventoryPlacementOptions,
-  formatCanvasZoomLabel,
-  resolveInventoryPickerKeyboardAction,
   resolveHotspotTransformKeyboardAction,
-  resolveHotspotInventoryActionSummary,
-  resolveLocationSwitcherOptions,
   resolveNextHotspotInspectorOpenState,
-  resolveInventoryPickerToggleResult,
-  resolveSceneActionMenuItems,
-  resolveSceneSwitcherMenuNavigation,
-  resolveSceneSwitcherOptions,
   resolveScenesFloatingWindowVisibility,
-  resolveDroppedInventoryHotspotBounds,
-  resolveInventoryDragPreviewOffset,
-  resolveInventoryPreviewContentSize,
-  resolveCornerFirstHotspotHandlesPreferenceValue,
-  resolveLinkedInventoryOptions,
-  resolveSceneAudioDropAcceptance,
-  loadCornerFirstHotspotHandlesPreference,
-  saveCornerFirstHotspotHandlesPreference,
   shouldApplyHotspotInspectorOpenRequest,
   shouldDismissScenesHotspotSelectionOnEscape,
   shouldHandleHotspotTransformShortcut,
-  shouldDismissScenesFloatingWindowsOnEscape,
-  applyHotspotFeedbackValue,
-  resolveHotspotFeedbackValue,
-  updateOptionalHotspotEvent
+  shouldDismissScenesFloatingWindowsOnEscape
 } from "./ScenesPanel";
+import { formatCanvasZoomLabel } from "./scenes/SceneCanvas";
+import {
+  resolveInventoryPickerKeyboardAction,
+  resolveInventoryPickerToggleResult
+} from "./scenes/InventoryPlacementPickerWindow";
+import {
+  resolveLocationSwitcherOptions,
+  resolveSceneActionMenuItems,
+  resolveSceneSwitcherMenuNavigation,
+  resolveSceneSwitcherOptions
+} from "./scenes/SceneListRail";
+import {
+  applyHotspotFeedbackValue,
+  applyHotspotInventoryAction,
+  applyInventoryLinkToHotspot,
+  resolveHotspotFeedbackValue,
+  resolveHotspotInventoryActionSummary,
+  updateOptionalHotspotEvent
+} from "./scenes/hotspot-domain";
+import {
+  filterInventoryPlacementOptions,
+  resolveDroppedInventoryHotspotBounds,
+  resolveInventoryDragPreviewOffset,
+  resolveInventoryPreviewContentSize,
+  resolveLinkedInventoryOptions
+} from "./scenes/inventory-placement-domain";
+import {
+  applySceneBackgroundAsset,
+  canAssignSceneBackgroundAsset,
+  loadCornerFirstHotspotHandlesPreference,
+  resolveCornerFirstHotspotHandlesPreferenceValue,
+  resolveSceneAudioDropAcceptance,
+  saveCornerFirstHotspotHandlesPreference
+} from "./scenes/scene-domain";
 import { addInventoryItem } from "../project-helpers";
 
 const mockedStore = vi.hoisted(() => {
@@ -771,6 +781,9 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Player feedback</span>");
     expect(markup).toContain("None (silent)");
     expect(markup).toContain("Random from a response group");
+    expect(markup).toContain('class="scenes-event-feedback-note"');
+    expect(markup).toContain('class="scenes-floating-inspector__interaction-media-actions"');
+    expect(markup).toContain('class="muted scenes-floating-inspector__interaction-media-note"');
     expect(markup).toContain('class="scenes-floating-inspector__sections"');
     expect(markup).toContain(">Identity</summary>");
     expect(markup).toContain(">Action</summary>");

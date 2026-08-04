@@ -1,7 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+const styles = [
+  "./styles.css",
+  "./panels/scenes/SceneShell.css",
+  "./panels/scenes/SceneListRail.css",
+  "./panels/scenes/SceneCanvas.css",
+  "./panels/scenes/SceneMediaSection.css",
+  "./panels/scenes/SceneActionRail.css",
+  "./panels/scenes/HotspotInspectorWindow.css",
+  "./panels/scenes/InventoryPlacementPickerWindow.css"
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n")
+  .replace(/\r\n/g, "\n");
 const workbenchSharedButtonSelector =
   ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchScreenTabSelector =
@@ -255,6 +267,18 @@ describe("hotspot idle visibility styles", () => {
     );
     expect(styles).toMatch(
       /button\.assets-action-button--danger:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?grid-column: -2 \/ -1;[\s\S]*?justify-self: end;/
+    );
+  });
+
+  it("keeps hotspot inspector helper copy in deliberate layout rows", () => {
+    expect(styles).toMatch(
+      /\.app-shell--scene-editor \.scenes-floating-inspector__section \.scenes-event-feedback-note\s*\{[\s\S]*?grid-column: 2;[\s\S]*?margin-top: 0;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--scene-editor \.scenes-floating-inspector__interaction-media-actions\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 0\.4rem;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--scene-editor \.scenes-floating-inspector__interaction-media-note\s*\{[\s\S]*?margin: 0;[\s\S]*?line-height: 1\.4;/
     );
   });
 

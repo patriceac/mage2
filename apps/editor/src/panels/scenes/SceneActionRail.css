@@ -1,0 +1,169 @@
+.scenes-panel__action-rail {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--scene-editor-border);
+  border-radius: 12px;
+  background: var(--scene-editor-surface-soft);
+  min-height: 0;
+}
+
+.scenes-panel__hotspot-actions {
+  display: grid;
+  gap: 0.45rem;
+  align-self: start;
+}
+
+.scenes-panel__hotspot-actions button {
+  width: 100%;
+  min-height: 2.35rem;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.scenes-panel__tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.scenes-panel__tool-button::before {
+  display: inline-grid;
+  flex: 0 0 1.28rem;
+  width: 1.28rem;
+  height: 1.28rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: currentColor;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.scenes-panel__tool-button--primary {
+  background: rgba(125, 211, 252, 0.16);
+  color: #d7f0ff;
+}
+
+.scenes-panel__tool-button--primary:hover {
+  background: rgba(125, 211, 252, 0.23);
+}
+
+.scenes-panel__tool-button--primary::before {
+  content: "+";
+}
+
+.scenes-panel__tool-button--secondary::before {
+  content: "";
+  background:
+    linear-gradient(currentColor, currentColor) center / 0.72rem 0.12rem no-repeat,
+    linear-gradient(currentColor, currentColor) center / 0.12rem 0.72rem no-repeat,
+    rgba(255, 255, 255, 0.06);
+}
+
+.scenes-panel__tool-button--danger::before {
+  content: "-";
+}
+
+.scenes-panel__hotspot-delete-button {
+  margin-top: 0.25rem;
+  padding-top: 0.72rem;
+  border-top: 1px solid rgba(251, 113, 133, 0.16);
+  border-radius: 0;
+}
+
+.scenes-panel__hotspot-inventory-hint {
+  margin: -0.5rem 0 0;
+}
+
+.app-shell--scene-editor .scenes-panel__action-rail {
+  align-content: start;
+  gap: 1.4rem;
+  padding: 4rem 1.15rem 1rem;
+  border-left: 1px solid var(--scene-editor-border-strong);
+}
+
+.app-shell--scene-editor .scenes-panel__hotspot-actions {
+  gap: 1.25rem;
+}
+
+.app-shell--scene-editor .scenes-panel__hotspot-actions button {
+  justify-content: center;
+  min-height: 6.85rem;
+  white-space: normal;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button {
+  flex-direction: column;
+  gap: 0.68rem;
+  padding: 0.85rem 0.48rem;
+  border: 1px solid var(--scene-editor-border);
+  border-radius: 4px;
+  background: #111a22;
+  color: #e5edf4;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button::before {
+  content: none;
+  display: none;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button svg {
+  width: 2.55rem;
+  height: 2.55rem;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button--primary svg {
+  color: #f6a313;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button--secondary svg {
+  color: #5ecb52;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button--danger {
+  margin-top: 0;
+  padding-top: 0.85rem;
+  border-color: var(--scene-editor-border);
+  color: #ffd7d7;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button--danger svg {
+  color: #ff5f5f;
+}
+
+.app-shell--scene-editor .scenes-panel__tool-button--danger:disabled svg {
+  color: inherit;
+}
+
+.app-shell--scene-editor .scenes-panel__background-dropzone-hint {
+  margin-top: auto;
+  padding: 0.65rem;
+  border-color: var(--scene-editor-border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #9cadba;
+  font-size: 0.72rem;
+}
+
+.app-shell--scene-editor .scenes-panel input,
+.app-shell--scene-editor .scenes-panel textarea,
+.app-shell--scene-editor .scenes-panel .dropdown-select__native {
+  border-color: var(--scene-editor-border);
+  border-radius: 4px;
+  background: var(--scene-editor-control);
+  padding: 0.55rem 0.62rem;
+  font-size: 0.84rem;
+}
+

@@ -1,7 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const styles = [
+  "./styles.css",
+  "./panels/scenes/SceneShell.css",
+  "./panels/scenes/SceneListRail.css",
+  "./panels/scenes/SceneCanvas.css",
+  "./panels/scenes/SceneMediaSection.css",
+  "./panels/scenes/SceneActionRail.css",
+  "./panels/scenes/HotspotInspectorWindow.css",
+  "./panels/scenes/InventoryPlacementPickerWindow.css"
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 const appSource = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 
 describe("editor chrome styles", () => {

@@ -405,6 +405,9 @@ describe("shared player component contract", () => {
 
     for (const adapterSource of [editorSource, runtimeSource]) {
       expect(adapterSource).toContain("<PlayerSceneAudio");
+      const sceneAudioMarkup = adapterSource.match(/<PlayerSceneAudio[\s\S]*?\/>/)?.[0];
+      expect(sceneAudioMarkup).toBeDefined();
+      expect(sceneAudioMarkup).not.toMatch(/\bcontrols\b|containerClassName/);
       expect(adapterSource).not.toMatch(
         /sceneAudioTimeoutRef|sceneAudioAnimationFrameRef|syncSceneAudioToPlayheadRef|sceneAudioPlaybackIntentRef/
       );
