@@ -6,8 +6,10 @@ import { DialogProvider } from "../dialogs";
 import { useEditorStore } from "../store";
 import {
   AssetsPanel,
+  formatAssetLibraryCount,
   resolveAssetCardPreviewPresentation,
-  resolveAssetLibraryKeyboardSelection
+  resolveAssetLibraryKeyboardSelection,
+  resolveVisibleAssetSelection
 } from "./AssetsPanel";
 
 describe("AssetsPanel workbench UI", () => {
@@ -67,6 +69,13 @@ describe("AssetsPanel workbench UI", () => {
     expect(markup).toContain("Project default locale: en");
     expect(markup).toContain("Project default</span>");
     expect(markup).not.toContain("DEFAULT");
+    expect(markup).not.toContain("assets-browser__pagination");
+    expect(markup).not.toContain("Previous page");
+    expect(markup).not.toContain("Next page");
+    expect(markup).not.toContain("Import Translations...");
+    expect(markup).not.toContain("Export Asset Manifest...");
+    expect(markup).toContain("assets-browser__summary");
+    expect(markup).toContain("1 asset");
     const rowDeleteButtonStart = markup.indexOf("assets-delete-status");
     const rowDeleteButtonEnd = markup.indexOf("</button>", rowDeleteButtonStart);
     const rowDeleteButtonMarkup = markup.slice(rowDeleteButtonStart, rowDeleteButtonEnd);
@@ -251,5 +260,19 @@ describe("AssetsPanel workbench UI", () => {
     expect(resolveAssetLibraryKeyboardSelection("PageUp", groupedAssetIds, "asset_inventory_b", 3)).toBe("asset_background_b");
     expect(resolveAssetLibraryKeyboardSelection("PageDown", groupedAssetIds, "asset_inventory_b", 3)).toBe("asset_inventory_c");
     expect(resolveAssetLibraryKeyboardSelection("PageUp", groupedAssetIds, "asset_background_b", 3)).toBe("asset_background_a");
+  });
+
+  it("keeps selection inside the visible asset set", () => {
+    expect(resolveVisibleAssetSelection(["asset_visible_a", "asset_visible_b"], "asset_visible_b")).toBe("asset_visible_b");
+    expect(resolveVisibleAssetSelection(["asset_visible_a", "asset_visible_b"], "asset_hidden")).toBe("asset_visible_a");
+    expect(resolveVisibleAssetSelection([], "asset_hidden")).toBeUndefined();
+  });
+
+  it("summarizes the scrollable asset list without decorative pagination", () => {
+    expect(formatAssetLibraryCount(0, 0)).toBe("0 assets");
+    expect(formatAssetLibraryCount(0, 5)).toBe("0 matches");
+    expect(formatAssetLibraryCount(1, 1)).toBe("1 asset");
+    expect(formatAssetLibraryCount(5, 5)).toBe("5 assets");
+    expect(formatAssetLibraryCount(2, 5)).toBe("2 of 5 assets");
   });
 });

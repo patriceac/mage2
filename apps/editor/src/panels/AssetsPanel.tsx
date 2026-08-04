@@ -129,6 +129,29 @@ export function resolveAssetLibraryKeyboardSelection(
   return orderedAssetIds[nextIndex];
 }
 
+export function resolveVisibleAssetSelection(
+  visibleAssetIds: readonly string[],
+  selectedAssetId?: string
+): string | undefined {
+  return selectedAssetId && visibleAssetIds.includes(selectedAssetId) ? selectedAssetId : visibleAssetIds[0];
+}
+
+export function formatAssetLibraryCount(visibleCount: number, totalCount: number): string {
+  if (totalCount === 0) {
+    return "0 assets";
+  }
+
+  if (visibleCount === 0) {
+    return "0 matches";
+  }
+
+  if (visibleCount === totalCount) {
+    return `${totalCount} asset${totalCount === 1 ? "" : "s"}`;
+  }
+
+  return `${visibleCount} of ${totalCount} assets`;
+}
+
 export function AssetsPanel({
   project,
   setSavedProject,
@@ -164,18 +187,22 @@ export function AssetsPanel({
     });
   }, [activeLocale, project, supportedLocales]);
 
-  const visibleRows = assetRows.filter((row) => {
-    if (assetFilter !== "all" && row.category !== assetFilter) {
-      return false;
-    }
+  const visibleRows = useMemo(
+    () =>
+      assetRows.filter((row) => {
+        if (assetFilter !== "all" && row.category !== assetFilter) {
+          return false;
+        }
 
-    return matchesAssetSearch(row, searchQuery);
-  });
-  const selectedRow =
-    visibleRows.find((row) => row.asset.id === selectedAssetId) ??
-    assetRows.find((row) => row.asset.id === selectedAssetId) ??
-    visibleRows[0] ??
-    assetRows[0];
+        return matchesAssetSearch(row, searchQuery);
+      }),
+    [assetFilter, assetRows, searchQuery]
+  );
+  const resolvedSelectedAssetId = resolveVisibleAssetSelection(
+    visibleRows.map((row) => row.asset.id),
+    selectedAssetId
+  );
+  const selectedRow = visibleRows.find((row) => row.asset.id === resolvedSelectedAssetId);
   const selectedAsset = selectedRow?.asset;
   const selectedVariant = selectedRow?.activeVariant;
   const categoryCounts = calculateCategoryCounts(assetRows);
@@ -185,13 +212,20 @@ export function AssetsPanel({
     rows: visibleRows.filter((row) => row.category === group.id)
   })).filter((group) => group.rows.length > 0 || assetFilter === group.id);
 
+  useEffect(() => {
+    if (resolvedSelectedAssetId !== selectedAssetId) {
+      setSelectedAssetId(resolvedSelectedAssetId);
+    }
+  }, [resolvedSelectedAssetId, selectedAssetId, setSelectedAssetId]);
+
   function handleFilterChange(nextFilter: AssetLibraryFilter) {
     setAssetFilter(nextFilter);
-    const nextSelectedRow =
-      assetRows.find((row) => nextFilter === "all" || row.category === nextFilter) ?? assetRows[0];
-    if (nextSelectedRow) {
-      setSelectedAssetId(nextSelectedRow.asset.id);
-    }
+  }
+
+  function showAssetAcrossLibrary(row: AssetRowModel) {
+    setAssetFilter("all");
+    setSearchQuery("");
+    setSelectedAssetId(row.asset.id);
   }
 
   async function handleImportAsset() {
@@ -250,6 +284,7 @@ export function AssetsPanel({
       setSavedProject(saveResult.project);
       const firstImportedAsset = importedAssets[0];
       if (firstImportedAsset) {
+        setSearchQuery("");
         setSelectedAssetId(firstImportedAsset.id);
       }
 
@@ -392,8 +427,11 @@ export function AssetsPanel({
       }
 
       setSavedProject(result.project);
-      const nextSelectedAsset = result.project.assets.assets.find((entry) => entry.id !== asset.id);
-      setSelectedAssetId(nextSelectedAsset?.id);
+      const nextSelectedAssetId =
+        resolvedSelectedAssetId === asset.id
+          ? visibleRows.find((row) => row.asset.id !== asset.id)?.asset.id
+          : resolvedSelectedAssetId;
+      setSelectedAssetId(nextSelectedAssetId);
       setStatusMessage(
         resolveDeleteStatusMessage(
           asset.name,
@@ -509,7 +547,7 @@ export function AssetsPanel({
           activeLocale={activeLocale}
           categoryCounts={categoryCounts}
           groupedRows={groupedRows}
-          selectedAssetId={selectedAsset?.id}
+          selectedAssetId={resolvedSelectedAssetId}
           viewMode={viewMode}
           visibleCount={visibleRows.length}
           totalCount={assetRows.length}
@@ -534,7 +572,7 @@ export function AssetsPanel({
           onFindUnused={() => {
             const unusedRow = assetRows.find((row) => row.usageCount === 0);
             if (unusedRow) {
-              setSelectedAssetId(unusedRow.asset.id);
+              showAssetAcrossLibrary(unusedRow);
               setStatusMessage(`Selected unused asset ${unusedRow.asset.name}.`);
             } else {
               setStatusMessage("No unused assets found.");
@@ -543,7 +581,7 @@ export function AssetsPanel({
           onReviewMissingVariants={() => {
             const missingVariantRow = assetRows.find((row) => row.missingVariantCount > 0);
             if (missingVariantRow) {
-              setSelectedAssetId(missingVariantRow.asset.id);
+              showAssetAcrossLibrary(missingVariantRow);
               setStatusMessage(`Selected ${missingVariantRow.asset.name}, which is missing localized variants.`);
             } else {
               setStatusMessage("No missing asset variants found.");
@@ -694,21 +732,8 @@ function AssetBrowser({
         )}
       </div>
 
-      <div className="assets-browser__pagination">
-        <span>
-          {visibleCount === 0 ? "0" : "1"}-{visibleCount} of {totalCount} assets
-        </span>
-        <div>
-          <button type="button" disabled title="Previous page">
-            <Icon name="chevronLeft" />
-          </button>
-          <button type="button" className="assets-page-button assets-page-button--active">
-            1
-          </button>
-          <button type="button" disabled title="Next page">
-            <Icon name="chevronRight" />
-          </button>
-        </div>
+      <div className="assets-browser__summary" aria-live="polite">
+        {formatAssetLibraryCount(visibleCount, totalCount)}
       </div>
     </section>
   );
@@ -1043,16 +1068,6 @@ function AssetUsageRail({
           <Icon name="warning" />
           <span>Review Missing Variants</span>
           <kbd>M</kbd>
-        </button>
-        <button type="button" disabled>
-          <Icon name="upload" />
-          <span>Import Translations...</span>
-          <kbd>I</kbd>
-        </button>
-        <button type="button" disabled>
-          <Icon name="download" />
-          <span>Export Asset Manifest...</span>
-          <kbd>E</kbd>
         </button>
       </section>
     </aside>

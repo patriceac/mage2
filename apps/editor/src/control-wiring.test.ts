@@ -33,19 +33,6 @@ const enabledControlsThatMustHaveBehavior: ButtonExpectation[] = [
   }
 ];
 
-const disabledPlaceholderControls: ButtonExpectation[] = [
-  {
-    label: "Assets import translations",
-    file: "panels/AssetsPanel.tsx",
-    matcher: (block) => block.includes("Import Translations...")
-  },
-  {
-    label: "Assets export manifest",
-    file: "panels/AssetsPanel.tsx",
-    matcher: (block) => block.includes("Export Asset Manifest...")
-  }
-];
-
 function readSource(relativePath: string): string {
   return readFileSync(path.join(SOURCE_ROOT, relativePath), "utf8");
 }
@@ -105,13 +92,6 @@ describe("editor control wiring guardrails", () => {
     expect(block!.source).not.toContain("not wired");
   });
 
-  it.each(disabledPlaceholderControls)("$label remains explicitly disabled until implemented", (expectation) => {
-    const block = findButtonBlock(expectation);
-
-    expect(block, `${expectation.file} should still render ${expectation.label}`).toBeDefined();
-    expect(hasDisabledState(block!.source), `${expectation.file}:${block!.line} should be disabled while it is a placeholder`).toBe(true);
-  });
-
   it("keeps the Assets inspector free of the duplicate Open File action", () => {
     const source = readSource("panels/AssetsPanel.tsx");
     const blocks = findButtonBlocks(source);
@@ -141,10 +121,23 @@ describe("editor control wiring guardrails", () => {
     expect(source).not.toContain("Delete is not available while scene references may exist.");
   });
 
-  it("keeps the Inventory browser free of the unused filter placeholder", () => {
+  it("keeps Inventory free of roadmap-only controls", () => {
     const source = readSource("panels/InventoryPanel.tsx");
 
     expect(source).not.toContain("Filter items");
     expect(source).not.toContain('kind="filter"');
+    expect(source).not.toContain("Categories are reserved for a future inventory schema.");
+    expect(source).not.toContain("Stackable");
+    expect(source).not.toContain("Max Stack Size");
+  });
+
+  it("keeps Assets free of roadmap controls and decorative pagination", () => {
+    const source = readSource("panels/AssetsPanel.tsx");
+
+    expect(source).not.toContain("Import Translations...");
+    expect(source).not.toContain("Export Asset Manifest...");
+    expect(source).not.toContain("assets-browser__pagination");
+    expect(source).not.toContain('title="Previous page"');
+    expect(source).not.toContain('title="Next page"');
   });
 });

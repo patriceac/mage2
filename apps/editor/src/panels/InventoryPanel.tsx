@@ -651,25 +651,6 @@ export function InventoryPanel({
                   </div>
                 </section>
 
-                <label>
-                  <span className="field-label--inset">Category</span>
-                  <DropdownSelect value="key-items" disabled title="Categories are reserved for a future inventory schema.">
-                    <option value="key-items">Key Items</option>
-                  </DropdownSelect>
-                </label>
-
-                <label className="inventory-checkbox-row">
-                  <span className="field-label--inset">Stackable</span>
-                  <span>
-                    <input type="checkbox" disabled />
-                    <span>Allow multiple in inventory</span>
-                  </span>
-                </label>
-
-                <label>
-                  <span className="field-label--inset">Max Stack Size</span>
-                  <input value="1" readOnly disabled />
-                </label>
               </div>
             </>
           ) : (

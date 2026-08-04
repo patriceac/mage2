@@ -57,5 +57,8 @@ describe("InventoryPanel locale behavior", () => {
     expect(markup).not.toContain("Lanterne");
     expect(markup).not.toContain("Description francaise");
     expect(markup).not.toContain("Drag an image onto the preview to assign this item&#x27;s art.");
+    expect(markup).not.toContain("Categories are reserved for a future inventory schema.");
+    expect(markup).not.toContain("Stackable");
+    expect(markup).not.toContain("Max Stack Size");
   });
 });
