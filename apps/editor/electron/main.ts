@@ -21,6 +21,13 @@ import {
 import { parseProjectBundle, validateProject, type Asset, type AssetCategory, type ProjectBundle } from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
 import { exportProjectBundle } from "./exporter";
+import {
+  exportRuntimeArtifact,
+  suggestedRuntimeArtifactName,
+  type RuntimeExportFormat,
+  type RuntimeExportRequest,
+  type WindowsRuntimePackagingResources
+} from "./runtime-artifact-exporter";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
 import {
   createProjectInDirectory,
@@ -403,16 +410,166 @@ function registerIpcHandlers(): void {
     }
   );
 
-  handleTrustedIpc("mage2:export-project", async (_event, projectDir: string, project: ProjectBundle) => {
+  handleTrustedIpc("mage2:export-project", async (
+    _event,
+    projectDir: string,
+    project: ProjectBundle,
+    request?: RuntimeExportRequest
+  ) => {
     const grantedProjectDir = await filesystemCapabilities.assertProjectRoot(projectDir);
     const normalized = parseProjectBundle(project);
     await filesystemCapabilities.assertProjectBundlePaths(grantedProjectDir, normalized);
-    return exportProjectBundle(grantedProjectDir, normalized);
+
+    // The omitted request is retained for trusted automation and compatibility
+    // verifiers that need the canonical project-local web build without opening
+    // a native dialog.
+    if (request === undefined) {
+      return exportProjectBundle(grantedProjectDir, normalized);
+    }
+
+    const parsedRequest = parseRuntimeExportRequest(request);
+    const destinationPath = parsedRequest.destinationPath
+      ? resolveAutomationExportDestination(parsedRequest.destinationPath)
+      : await chooseRuntimeExportDestination(parsedRequest.format, normalized.manifest.projectName);
+    if (!destinationPath) {
+      return { canceled: true as const };
+    }
+
+    const result = await exportRuntimeArtifact({
+      projectDir: grantedProjectDir,
+      project: normalized,
+      request: { ...parsedRequest, destinationPath },
+      windowsResources: parsedRequest.format === "windows" ? resolveWindowsRuntimePackagingResources() : undefined
+    });
+    return { canceled: false as const, ...result };
   });
 
   handleTrustedIpc("mage2:path-to-file-url", async (_event, inputPath: string) => {
     return filesystemCapabilities.createMediaUrl(inputPath);
   });
+}
+
+function parseRuntimeExportRequest(input: RuntimeExportRequest): RuntimeExportRequest {
+  if (!input || typeof input !== "object" || (input.format !== "windows" && input.format !== "web")) {
+    throw new Error("Runtime export request must choose a supported format.");
+  }
+  if (input.destinationPath !== undefined && typeof input.destinationPath !== "string") {
+    throw new Error("Runtime export destination must be a path string.");
+  }
+  return {
+    format: input.format,
+    destinationPath: input.destinationPath?.trim() || undefined
+  };
+}
+
+async function chooseRuntimeExportDestination(
+  format: RuntimeExportFormat,
+  projectName: string
+): Promise<string | undefined> {
+  if (!mainWindow) {
+    throw new Error("The editor window is unavailable.");
+  }
+
+  if (format === "windows") {
+    const selection = await dialog.showSaveDialog(mainWindow, {
+      title: `Create a standalone Windows player for ${projectName}`,
+      buttonLabel: "Create Executable",
+      defaultPath: path.join(app.getPath("downloads"), suggestedRuntimeArtifactName(projectName, format)),
+      filters: [{ name: "Windows executable", extensions: ["exe"] }],
+      properties: ["showOverwriteConfirmation", "createDirectory"]
+    });
+    if (selection.canceled || !selection.filePath) {
+      return undefined;
+    }
+    return path.extname(selection.filePath).toLocaleLowerCase("en-US") === ".exe"
+      ? selection.filePath
+      : `${selection.filePath}.exe`;
+  }
+
+  const selection = await dialog.showOpenDialog(mainWindow, {
+    title: `Choose where to create ${suggestedRuntimeArtifactName(projectName, format)}`,
+    buttonLabel: "Choose Export Location",
+    defaultPath: app.getPath("downloads"),
+    properties: ["openDirectory", "createDirectory", "promptToCreate"]
+  });
+  const selectedParent = selection.canceled ? undefined : selection.filePaths[0];
+  return selectedParent
+    ? path.join(selectedParent, suggestedRuntimeArtifactName(projectName, format))
+    : undefined;
+}
+
+function resolveAutomationExportDestination(inputPath: string): string {
+  if (!/^(1|true|yes)$/i.test(process.env.MAGE2_EDITOR_AUTOMATION ?? "")) {
+    throw new Error("Explicit runtime export destinations are available only to authenticated editor automation.");
+  }
+  const automationRoot = process.env.MAGE2_EDITOR_AUTOMATION_ROOT?.trim();
+  if (!automationRoot) {
+    throw new Error("MAGE2_EDITOR_AUTOMATION_ROOT is required for an automated runtime export destination.");
+  }
+  const root = path.resolve(automationRoot);
+  const destination = path.resolve(inputPath);
+  const relativePath = path.relative(root, destination);
+  if (
+    relativePath.length === 0 ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new Error("Automated runtime export destination must stay inside MAGE2_EDITOR_AUTOMATION_ROOT.");
+  }
+  return destination;
+}
+
+function resolveWindowsRuntimePackagingResources(): WindowsRuntimePackagingResources {
+  const packagedResources = {
+    runtimeTemplateDirectory: path.join(process.resourcesPath, "runtime-template-win"),
+    nsisDirectory: path.join(process.resourcesPath, "nsis"),
+    iconPath: path.join(process.resourcesPath, "icon.ico")
+  };
+  if (
+    existsSync(path.join(packagedResources.runtimeTemplateDirectory, "MAGE2 Player.exe")) &&
+    existsSync(path.join(packagedResources.runtimeTemplateDirectory, "resources", "app.mage2asar")) &&
+    existsSync(path.join(packagedResources.nsisDirectory, "makensis.exe"))
+  ) {
+    return packagedResources;
+  }
+
+  const repoRoot = resolveDevelopmentRepoRoot();
+  const developmentResources = {
+    runtimeTemplateDirectory: path.join(
+      repoRoot,
+      "output",
+      "packaging",
+      "editor-win",
+      "app",
+      "resources",
+      "runtime-template-win"
+    ),
+    nsisDirectory: path.join(repoRoot, "output", "packaging", "editor-win", "app", "resources", "nsis"),
+    iconPath: path.join(repoRoot, "build", "icon.ico")
+  };
+  if (
+    !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "MAGE2 Player.exe")) ||
+    !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "resources", "app.mage2asar")) ||
+    !existsSync(path.join(developmentResources.nsisDirectory, "makensis.exe"))
+  ) {
+    throw new Error("Windows runtime packaging resources are missing. Rebuild the packaged editor and try again.");
+  }
+  return developmentResources;
+}
+
+function resolveDevelopmentRepoRoot(): string {
+  const candidates = [
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
+    path.resolve(process.cwd(), "..", ".."),
+    path.resolve(process.cwd(), "..", "..", "..")
+  ];
+  const repoRoot = candidates.find((candidate) => existsSync(path.join(candidate, "apps", "editor", "package.json")));
+  if (!repoRoot) {
+    throw new Error("Could not locate the MAGE2 repository root for Windows runtime packaging.");
+  }
+  return repoRoot;
 }
 
 async function initializeFilesystemCapabilities(): Promise<void> {

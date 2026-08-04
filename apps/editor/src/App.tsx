@@ -33,7 +33,7 @@ import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
 import { FirstProjectChecklist } from "./FirstProjectChecklist";
-import { useDialogs } from "./dialogs";
+import { useDialogs, type RuntimeExportFormat } from "./dialogs";
 import { resolveFirstProjectChecklist } from "./first-project-checklist";
 import {
   getIssueHint,
@@ -655,7 +655,12 @@ export function App() {
     setStatusMessage(t("Closed {projectName}.", { projectName: closingProjectName }));
   }
 
-  async function handleExportProject() {
+  async function handleExportProject(options?: {
+    format?: RuntimeExportFormat;
+    destinationPath?: string;
+    legacyAutomation?: boolean;
+    suppressErrorDialog?: boolean;
+  }) {
     if (!hasEditorApi || !project || !projectDir) {
       return;
     }
@@ -678,15 +683,31 @@ export function App() {
       return;
     }
 
+    const format = options?.legacyAutomation
+      ? undefined
+      : options?.format ?? (await dialogs.chooseRuntimeExport(project.manifest.projectName));
+    if (!options?.legacyAutomation && !format) {
+      setStatusMessage(t("Runtime export canceled."));
+      return;
+    }
+
     const savedProject = await saveCurrentProject();
     if (!savedProject) {
       return;
     }
 
     const result = await withBusy(
-      t("Exporting runtime build"),
-      () => window.editorApi.exportProject(projectDir, savedProject),
+      format === "windows" ? t("Creating standalone Windows executable") : t("Exporting web runtime build"),
+      () =>
+        window.editorApi.exportProject(
+          projectDir,
+          savedProject,
+          format ? { format, destinationPath: options?.destinationPath } : undefined
+      ),
       async (message, rawMessage) => {
+        if (options?.suppressErrorDialog) {
+          return;
+        }
         const unsafeDestination =
           /unsafe|refused|output folder|outside|absolute|traversal|not a recognized MAGE2|contains other files/i.test(
             rawMessage
@@ -697,7 +718,7 @@ export function App() {
             <>
               <p>
                 {unsafeDestination
-                  ? t("MAGE2 exports only to this project’s reserved build folder. It must be empty or an unchanged build previously created by MAGE2.")
+                  ? t("MAGE2 only replaces an empty destination or a verified previous export for this project. Choose another location or clear the destination yourself.")
                   : t("MAGE2 could not create the new runtime build. Any previous build was kept unchanged.")}
               </p>
               <p>{t("Details: {message}", { message })}</p>
@@ -711,8 +732,17 @@ export function App() {
     if (!result) {
       return;
     }
+    if ("canceled" in result && result.canceled) {
+      setStatusMessage(t("Runtime export canceled."));
+      return;
+    }
 
-    setStatusMessage(t("Runtime build exported to {outputDirectory}.", { outputDirectory: result.outputDirectory }));
+    const outputPath = result.outputPath ?? result.outputDirectory;
+    setStatusMessage(
+      result.format === "windows"
+        ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
+        : t("Web runtime exported to {outputPath}.", { outputPath })
+    );
     return result;
   }
 
@@ -991,7 +1021,12 @@ export function App() {
       }
       case "exportProject": {
         requireCurrentProject(command);
-        const exportResult = await handleExportProject();
+        const exportResult = await handleExportProject({
+          format: command.format,
+          destinationPath: command.destinationPath,
+          legacyAutomation: command.format === undefined,
+          suppressErrorDialog: true
+        });
         if (!exportResult) {
           throw new Error(t("Automation could not export the current project."));
         }
@@ -999,6 +1034,8 @@ export function App() {
         return {
           ...currentAutomationState(),
           export: {
+            format: exportResult.format,
+            outputPath: exportResult.outputPath,
             outputDirectory: exportResult.outputDirectory,
             validationReport: exportResult.validationReport
           }
@@ -1642,7 +1679,7 @@ export function App() {
                     role="menuitem"
                     onClick={() => void handleFileMenuAction(handleExportProject)}
                     onKeyDown={(event) => handleFileMenuItemKeyDown(1, event)}
-                    title={t("Save the project and build a static runtime export for play or distribution.")}
+                    title={t("Choose a standalone Windows executable or static web build and where to create it.")}
                   >
                     {t("Export Runtime")}
                   </button>

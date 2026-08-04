@@ -1,9 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
+import { createReadStream } from "node:fs";
 import { cp, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
+import { chromium } from "playwright";
 import {
   closeRunningCanonicalEditorProcesses,
   getCanonicalPackagedEditorExePath,
@@ -27,6 +30,14 @@ const reportPath = path.join(evidenceDirectory, "packaged-editor-report.json");
 const processLogPath = path.join(evidenceDirectory, "packaged-editor.log");
 const exportedRuntimeEvidencePath = path.join(evidenceDirectory, "runtime-export");
 const projectEvidencePath = path.join(evidenceDirectory, "representative-project");
+const standaloneRuntimeEvidenceDirectory = path.join(evidenceDirectory, "standalone-runtime");
+const standaloneRuntimeEvidencePath = path.join(
+  standaloneRuntimeEvidenceDirectory,
+  "Windows CI Representative Project Player.exe"
+);
+const standaloneRuntimeTitleScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-title.png");
+const standaloneRuntimeScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-running.png");
+const selectedWebRuntimeEvidencePath = path.join(evidenceDirectory, "selected-web-runtime");
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.stack ?? error.message : error);
@@ -40,9 +51,13 @@ async function main() {
 
   await mkdir(evidenceDirectory, { recursive: true });
   await closeRunningCanonicalEditorProcesses();
-  await runCommand("npm.cmd", ["run", "package:editor:win"], {
-    MAGE2_SKIP_SHORTCUT_REPAIR: "1"
-  });
+  if (process.env.MAGE2_SKIP_EDITOR_PACKAGE === "1") {
+    console.log("Using the existing packaged editor for Windows verification.");
+  } else {
+    await runCommand("npm.cmd", ["run", "package:editor:win"], {
+      MAGE2_SKIP_SHORTCUT_REPAIR: "1"
+    });
+  }
 
   const canonicalExePath = getCanonicalPackagedEditorExePath();
   await stat(canonicalExePath);
@@ -186,6 +201,72 @@ async function main() {
       exportEvidence.push({ relativePath, sizeBytes: fileStats.size });
     }
 
+    const standaloneDestinationPath = path.join(
+      temporaryRoot,
+      "Windows CI Representative Project Player.exe"
+    );
+    const standaloneExportState = await sendAutomationCommand({
+      command: "exportProject",
+      format: "windows",
+      destinationPath: standaloneDestinationPath
+    });
+    if (
+      standaloneExportState?.export?.format !== "windows" ||
+      standaloneExportState.export.outputPath !== standaloneDestinationPath ||
+      !standaloneExportState.export.validationReport?.valid
+    ) {
+      throw new Error(`The standalone Windows export result is invalid: ${JSON.stringify(standaloneExportState?.export)}`);
+    }
+    const standaloneStats = await stat(standaloneDestinationPath);
+    const standaloneHeader = await readExecutableHeader(standaloneDestinationPath);
+    if (standaloneStats.size < 1_000_000 || standaloneHeader !== "MZ") {
+      throw new Error("The standalone Windows export is not a plausible PE executable.");
+    }
+    const standaloneSha256 = await hashFile(standaloneDestinationPath);
+    await rm(standaloneRuntimeEvidenceDirectory, { recursive: true, force: true });
+    await mkdir(standaloneRuntimeEvidenceDirectory, { recursive: true });
+    await cp(standaloneDestinationPath, standaloneRuntimeEvidencePath);
+    const standaloneEvidenceEntries = await readdir(standaloneRuntimeEvidenceDirectory);
+    if (
+      standaloneEvidenceEntries.length !== 1 ||
+      standaloneEvidenceEntries[0] !== path.basename(standaloneRuntimeEvidencePath)
+    ) {
+      throw new Error("The standalone export evidence directory must contain exactly one distributable file.");
+    }
+    const standaloneLaunch = await verifyStandaloneRuntime(standaloneRuntimeEvidencePath);
+
+    const selectedWebDestinationPath = path.join(temporaryRoot, "Selected Web Runtime");
+    const selectedWebExportState = await sendAutomationCommand({
+      command: "exportProject",
+      format: "web",
+      destinationPath: selectedWebDestinationPath
+    });
+    if (
+      selectedWebExportState?.export?.format !== "web" ||
+      selectedWebExportState.export.outputPath !== selectedWebDestinationPath ||
+      !selectedWebExportState.export.validationReport?.valid
+    ) {
+      throw new Error(`The selected web export result is invalid: ${JSON.stringify(selectedWebExportState?.export)}`);
+    }
+    for (const relativePath of requiredExportFiles) {
+      await stat(path.join(selectedWebDestinationPath, ...relativePath.split("/")));
+    }
+    await rm(selectedWebRuntimeEvidencePath, { recursive: true, force: true });
+    await cp(selectedWebDestinationPath, selectedWebRuntimeEvidencePath, { recursive: true });
+
+    const unsafeWebDestinationPath = path.join(temporaryRoot, "Occupied Web Runtime");
+    const unsafeSentinelPath = path.join(unsafeWebDestinationPath, "keep-me.txt");
+    await mkdir(unsafeWebDestinationPath);
+    await writeFile(unsafeSentinelPath, "preserve this unrelated file\n", "utf8");
+    const unsafeDestinationFailure = await sendAutomationCommandExpectFailure({
+      command: "exportProject",
+      format: "web",
+      destinationPath: unsafeWebDestinationPath
+    });
+    if ((await readFile(unsafeSentinelPath, "utf8")) !== "preserve this unrelated file\n") {
+      throw new Error("The refused web export modified an unrelated destination file.");
+    }
+
     await rm(exportedRuntimeEvidencePath, { recursive: true, force: true });
     await cp(exportDirectory, exportedRuntimeEvidencePath, { recursive: true, force: true });
     await rm(projectEvidencePath, { recursive: true, force: true });
@@ -236,6 +317,26 @@ async function main() {
         evidenceCopy: exportedRuntimeEvidencePath,
         files: exportEvidence
       },
+      standaloneExport: {
+        format: standaloneExportState.export.format,
+        outputPath: standaloneRuntimeEvidencePath,
+        sizeBytes: standaloneStats.size,
+        sha256: standaloneSha256,
+        onlyDistributableFile: standaloneEvidenceEntries[0],
+        titleScreenshotPath: standaloneRuntimeTitleScreenshotPath,
+        screenshotPath: standaloneRuntimeScreenshotPath,
+        launch: standaloneLaunch
+      },
+      selectedWebExport: {
+        format: selectedWebExportState.export.format,
+        outputDirectory: selectedWebRuntimeEvidencePath,
+        files: requiredExportFiles
+      },
+      unsafeDestination: {
+        refused: true,
+        error: unsafeDestinationFailure,
+        sentinelPreserved: true
+      },
       security: securityState,
       localization: {
         builtInLocales: localeStates.map(({ uiLocale, uiLocalePreference, uiDirection, hasUnsavedChanges }) => ({
@@ -271,6 +372,166 @@ async function main() {
     await logHandle.close();
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+async function verifyStandaloneRuntime(executablePath) {
+  const debuggingPort = await reserveLoopbackPort();
+  const runtimeProcess = spawn(
+    executablePath,
+    [
+      "--remote-debugging-address=127.0.0.1",
+      `--remote-debugging-port=${debuggingPort}`
+    ],
+    {
+      cwd: path.dirname(executablePath),
+      stdio: "ignore",
+      windowsHide: false
+    }
+  );
+
+  let browser;
+  let page;
+  try {
+    browser = await connectToCdp(`http://127.0.0.1:${debuggingPort}`, runtimeProcess);
+    page = await waitForStandaloneRuntimePage(browser, runtimeProcess);
+    try {
+      await page.locator(".mage2-experience__title").waitFor({ state: "visible", timeout: 30_000 });
+    } catch (error) {
+      await page.screenshot({ path: standaloneRuntimeTitleScreenshotPath, fullPage: true }).catch(() => undefined);
+      const diagnosticText = normalizeText(await page.locator("body").innerText().catch(() => ""));
+      throw new Error(
+        `The standalone player did not reach its title screen. URL: ${page.url()}. UI: ${diagnosticText.slice(0, 800)}`,
+        { cause: error }
+      );
+    }
+    const titleText = normalizeText(await page.locator("body").innerText());
+    if (!titleText.includes("Windows CI Representative Project")) {
+      throw new Error(`The standalone player title screen is for the wrong project: ${titleText.slice(0, 500)}`);
+    }
+    await page.screenshot({ path: standaloneRuntimeTitleScreenshotPath, fullPage: true });
+    await page.locator(".mage2-experience__title .mage2-experience__primary-action").click();
+    await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
+    const rendererState = await page.evaluate(() => ({
+      title: document.title,
+      bodyText: document.body.innerText,
+      playerVisible: Boolean(document.querySelector(".mage2-player")),
+      debugHotspotsVisible: Boolean(document.querySelector(".mage2-player--debug-hotspots")),
+      rangeInputs: document.querySelectorAll('input[type="range"]').length,
+      viewport: { width: window.innerWidth, height: window.innerHeight }
+    }));
+    if (!rendererState.playerVisible || rendererState.debugHotspotsVisible || rendererState.rangeInputs !== 0) {
+      throw new Error(`The standalone player exposed author/debug UI: ${JSON.stringify(rendererState)}`);
+    }
+    await page.screenshot({ path: standaloneRuntimeScreenshotPath, fullPage: true });
+    await page.getByRole("button", { name: /Menu/i }).click();
+    await page.getByRole("button", { name: /Quit|Quitter/i }).click();
+    await waitForProcessExitWithTimeout(runtimeProcess, 20_000, "standalone runtime");
+    return {
+      executablePath,
+      titleText,
+      renderer: rendererState,
+      exitCode: runtimeProcess.exitCode
+    };
+  } finally {
+    if (runtimeProcess.exitCode === null) {
+      await page?.evaluate(() => window.mage2Runtime?.quit()).catch(() => undefined);
+    }
+    await browser?.close().catch(() => undefined);
+    if (runtimeProcess.exitCode === null) {
+      runtimeProcess.kill();
+      await waitForProcessExitWithTimeout(runtimeProcess, 5_000, "standalone runtime cleanup").catch(() => undefined);
+    }
+  }
+}
+
+async function connectToCdp(endpoint, childProcess) {
+  const deadline = Date.now() + 60_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (childProcess.exitCode !== null) {
+      throw new Error(`The standalone runtime exited before its DevTools endpoint was ready (code ${childProcess.exitCode}).`);
+    }
+    try {
+      return await chromium.connectOverCDP(endpoint);
+    } catch (error) {
+      lastError = error;
+      await delay(200);
+    }
+  }
+  throw new Error(`Timed out waiting for the standalone runtime DevTools endpoint at ${endpoint}.`, {
+    cause: lastError
+  });
+}
+
+async function waitForStandaloneRuntimePage(browser, childProcess) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (childProcess.exitCode !== null) {
+      throw new Error(`The standalone runtime exited before rendering (code ${childProcess.exitCode}).`);
+    }
+    for (const context of browser.contexts()) {
+      for (const candidate of context.pages()) {
+        if (candidate.url().startsWith("http://127.0.0.1:")) {
+          return candidate;
+        }
+      }
+    }
+    await delay(150);
+  }
+  throw new Error("Timed out waiting for the standalone runtime page.");
+}
+
+async function reserveLoopbackPort() {
+  const reservation = net.createServer();
+  await new Promise((resolve, reject) => {
+    reservation.once("error", reject);
+    reservation.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = reservation.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Could not reserve a loopback DevTools port.");
+    }
+    return address.port;
+  } finally {
+    await new Promise((resolve, reject) => reservation.close((error) => (error ? reject(error) : resolve())));
+  }
+}
+
+async function waitForProcessExitWithTimeout(childProcess, timeoutMs, label) {
+  if (childProcess.exitCode !== null) {
+    return;
+  }
+  await Promise.race([
+    new Promise((resolve) => childProcess.once("exit", resolve)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out waiting for ${label} to exit.`)), timeoutMs))
+  ]);
+}
+
+async function readExecutableHeader(filePath) {
+  const handle = await open(filePath, "r");
+  try {
+    const header = Buffer.alloc(2);
+    await handle.read(header, 0, header.length, 0);
+    return header.toString("ascii");
+  } finally {
+    await handle.close();
+  }
+}
+
+async function hashFile(filePath) {
+  const hash = createHash("sha256");
+  await new Promise((resolve, reject) => {
+    const stream = createReadStream(filePath);
+    stream.once("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.once("end", resolve);
+  });
+  return hash.digest("hex");
+}
+
+function normalizeText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
 async function verifyElectronFuses(canonicalExePath) {
@@ -404,7 +665,7 @@ async function sendAutomationCommandExpectFailure(command) {
   });
   const body = await response.json().catch(() => undefined);
   if (response.ok && body?.ok) {
-    throw new Error(`Automation command ${command.command} unexpectedly accepted locale ${command.locale}.`);
+    throw new Error(`Automation command ${command.command} unexpectedly succeeded: ${JSON.stringify(command)}.`);
   }
   return { status: response.status, error: body?.error ?? body };
 }

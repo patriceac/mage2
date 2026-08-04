@@ -1,6 +1,11 @@
-# Hosting a MAGE2 runtime export
+# Exporting and hosting a MAGE2 runtime
 
-The editor's **Export Runtime** action creates a static site in the project's `build` folder. The supported deployment unit is the complete contents of that folder.
+The editor's **Export Runtime** action offers two outputs:
+
+- **Standalone Windows executable** creates one portable `.exe` at the file location you choose. It contains the player and authored project, needs no browser or installation, and extracts a private temporary runtime while the game is open.
+- **Web build folder** asks for a destination and creates a MAGE2-managed `<Project Name> Web` folder there. The supported deployment unit is the complete contents of that folder.
+
+MAGE2 only replaces an empty web destination or an unchanged export previously created for the same project. It never clears an arbitrary nonempty folder.
 
 ## Supported hosts
 

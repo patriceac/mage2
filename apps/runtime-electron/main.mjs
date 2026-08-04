@@ -3,11 +3,24 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import { readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
+import { readPlayerBuildIdentitySync, resolveRuntimeApplicationIdentity } from "./identity.mjs";
 
 let playerServer;
 const runtimeShellDirectory = path.dirname(fileURLToPath(import.meta.url));
 const playerWindows = new Set();
 const RUNTIME_QUIT_CHANNEL = "mage2-runtime:quit";
+const playerDirectory = resolvePlayerDirectory();
+const initialBuildIdentity = readPlayerBuildIdentitySync(playerDirectory);
+const applicationIdentity = resolveRuntimeApplicationIdentity(initialBuildIdentity);
+
+app.setName(applicationIdentity.appName);
+app.setPath(
+  "userData",
+  path.join(app.getPath("appData"), "MAGE2 Players", applicationIdentity.userDataDirectoryName)
+);
+if (process.platform === "win32") {
+  app.setAppUserModelId(applicationIdentity.appUserModelId);
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -23,7 +36,6 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
-    const playerDirectory = resolvePlayerDirectory();
     const buildIdentity = await readPlayerBuildIdentity(playerDirectory);
     playerServer = await startPlayerServer(playerDirectory, resolvePlayerPort(buildIdentity.projectId));
     await createPlayerWindow(playerServer.url);

@@ -20,6 +20,17 @@ describe("parseEditorAutomationCommand", () => {
     });
     expect(parseEditorAutomationCommand({ command: "saveProject" })).toEqual({ command: "saveProject" });
     expect(parseEditorAutomationCommand({ command: "exportProject" })).toEqual({ command: "exportProject" });
+    expect(
+      parseEditorAutomationCommand({
+        command: "exportProject",
+        format: "windows",
+        destinationPath: "C:\\evidence\\Safe Game Player.exe"
+      })
+    ).toEqual({
+      command: "exportProject",
+      format: "windows",
+      destinationPath: "C:\\evidence\\Safe Game Player.exe"
+    });
     expect(parseEditorAutomationCommand({ command: "closeApplication" })).toEqual({ command: "closeApplication" });
   });
 
@@ -31,6 +42,19 @@ describe("parseEditorAutomationCommand", () => {
         projectName: "Release Evidence"
       })
     ).toThrow(/projectDir/u);
+  });
+
+  it("requires a supported format and destination for artifact export automation", () => {
+    expect(() =>
+      parseEditorAutomationCommand({
+        command: "exportProject",
+        format: "archive",
+        destinationPath: "C:\\evidence\\game.zip"
+      })
+    ).toThrow(/windows.*web/u);
+    expect(() => parseEditorAutomationCommand({ command: "exportProject", format: "web" })).toThrow(
+      /destinationPath/u
+    );
   });
 
   it("accepts interface locale control commands", () => {

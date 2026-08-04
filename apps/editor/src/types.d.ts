@@ -38,6 +38,27 @@ interface EditorLaunchOptions {
   tab?: "world" | "scenes" | "assets" | "dialogue" | "inventory" | "localization" | "playtest";
 }
 
+type RuntimeExportFormat = "windows" | "web";
+
+interface RuntimeExportRequest {
+  format: RuntimeExportFormat;
+  destinationPath?: string;
+}
+
+type RuntimeExportResult =
+  | { canceled: true }
+  | {
+      canceled?: false;
+      format?: RuntimeExportFormat;
+      outputPath?: string;
+      outputDirectory: string;
+      buildManifest: unknown;
+      validationReport: {
+        valid: boolean;
+        issues: Array<{ level: string; code: string; message: string; entityId?: string }>;
+      };
+    };
+
 declare global {
   interface Window {
     editorApi: {
@@ -84,11 +105,11 @@ declare global {
         locale: string,
         remainingAssets: Asset[]
       ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }>;
-      exportProject(projectDir: string, project: ProjectBundle): Promise<{
-        outputDirectory: string;
-        buildManifest: unknown;
-        validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
-      }>;
+      exportProject(
+        projectDir: string,
+        project: ProjectBundle,
+        request?: RuntimeExportRequest
+      ): Promise<RuntimeExportResult>;
       pathToFileUrl(inputPath: string): Promise<string>;
       getPathForDroppedFile(file: File): string;
     };

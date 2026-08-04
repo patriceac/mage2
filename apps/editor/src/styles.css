@@ -6185,6 +6185,95 @@ button.recent-project__icon-button:hover {
   line-height: 1.55;
 }
 
+.runtime-export-options {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.runtime-export-option {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #d9e4ec;
+  text-align: left;
+}
+
+.runtime-export-option:hover,
+.runtime-export-option:focus-visible {
+  border-color: rgba(125, 211, 252, 0.46);
+  background: rgba(125, 211, 252, 0.08);
+  color: #f4fbff;
+}
+
+.runtime-export-option--recommended {
+  border-color: rgba(246, 193, 119, 0.3);
+  background:
+    linear-gradient(135deg, rgba(215, 146, 34, 0.1), transparent 55%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.runtime-export-option--recommended:hover,
+.runtime-export-option--recommended:focus-visible {
+  border-color: rgba(246, 193, 119, 0.62);
+  background: rgba(215, 146, 34, 0.12);
+}
+
+.runtime-export-option__badge {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  min-height: 3.2rem;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 12px;
+  background: rgba(7, 13, 19, 0.72);
+  color: #8edcf6;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.runtime-export-option--recommended .runtime-export-option__badge {
+  border-color: rgba(246, 193, 119, 0.3);
+  color: #f6c177;
+}
+
+.runtime-export-option__copy {
+  display: grid;
+  gap: 0.38rem;
+  min-width: 0;
+  line-height: 1.42;
+}
+
+.runtime-export-option__copy small {
+  color: #91a3b1;
+  font-size: 0.79rem;
+}
+
+.runtime-export-option__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #f0f6fa;
+}
+
+.runtime-export-option__heading > span {
+  flex: 0 0 auto;
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  background: rgba(215, 146, 34, 0.16);
+  color: #f6c177;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .dialog-actions,
 .dialog-actions--spread,
 .dialog-button-row {

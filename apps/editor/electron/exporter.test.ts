@@ -136,6 +136,41 @@ describe("safe project export", () => {
     );
   });
 
+  it("exports to an explicitly selected managed folder outside the project", async () => {
+    const { projectDir, project } = await createValidProject();
+    const selectedParent = await createTempDirectory("mage2-export-selected-parent-");
+    const outputDirectory = path.join(selectedParent, "Safe Export Test Web");
+
+    const result = await exportProjectBundle(projectDir, project, { outputDirectory });
+    const marker = JSON.parse(await readFile(path.join(outputDirectory, ".mage2-export.json"), "utf8"));
+
+    expect(result.outputDirectory).toBe(outputDirectory);
+    expect(marker).toMatchObject({
+      format: "mage2-runtime-export",
+      version: 2,
+      projectId: project.manifest.projectId
+    });
+    await expect(readFile(path.join(outputDirectory, "build-manifest.json"), "utf8")).resolves.toContain(
+      project.manifest.projectId
+    );
+    expect((await readdir(selectedParent)).filter((entry) => entry.startsWith(".mage2-export-"))).toEqual([]);
+  });
+
+  it("refuses to replace an unowned folder at an explicitly selected destination", async () => {
+    const { projectDir, project } = await createValidProject();
+    const selectedParent = await createTempDirectory("mage2-export-selected-unsafe-");
+    const outputDirectory = path.join(selectedParent, "Safe Export Test Web");
+    const sentinelPath = path.join(outputDirectory, "keep.txt");
+    await mkdir(outputDirectory);
+    await writeFile(sentinelPath, "personal data", "utf8");
+
+    await expect(exportProjectBundle(projectDir, project, { outputDirectory })).rejects.toThrow(
+      /not a verified prior MAGE2 export/i
+    );
+    await expect(readFile(sentinelPath, "utf8")).resolves.toBe("personal data");
+    expect((await readdir(selectedParent)).filter((entry) => entry.startsWith(".mage2-export-"))).toEqual([]);
+  });
+
   it("refuses to replace a nonempty unowned destination", async () => {
     const { projectDir, project } = await createValidProject();
     const outputDirectory = path.join(projectDir, "build");

@@ -75,6 +75,7 @@ async function prepareStage() {
   await rm(stageRoot, { recursive: true, force: true });
   await mkdir(appStageDirectory, { recursive: true });
   await cp(path.join(runtimeShellDirectory, "main.mjs"), path.join(appStageDirectory, "main.mjs"));
+  await cp(path.join(runtimeShellDirectory, "identity.mjs"), path.join(appStageDirectory, "identity.mjs"));
   await cp(path.join(runtimeShellDirectory, "preload.cjs"), path.join(appStageDirectory, "preload.cjs"));
   await cp(path.join(runtimeShellDirectory, "server.mjs"), path.join(appStageDirectory, "server.mjs"));
   await cp(runtimeBuildDirectory, path.join(appStageDirectory, "player"), { recursive: true, force: true });
@@ -109,7 +110,7 @@ async function packageRuntime() {
         output: outputDirectory,
         buildResources: buildResourcesDirectory
       },
-      files: ["main.mjs", "preload.cjs", "server.mjs", "package.json"],
+      files: ["main.mjs", "identity.mjs", "preload.cjs", "server.mjs", "package.json"],
       extraResources: [
         { from: path.join(appStageDirectory, "player"), to: "player" },
         { from: path.join(buildResourcesDirectory, "icon.ico"), to: "icon.ico" },

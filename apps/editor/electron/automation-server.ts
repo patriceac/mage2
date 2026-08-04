@@ -24,6 +24,7 @@ const AUTOMATION_COMMAND_CHANNEL = "mage2:automation-command";
 const AUTOMATION_RENDERER_READY_CHANNEL = "mage2:automation-renderer-ready";
 const DEFAULT_AUTOMATION_PORT = 47632;
 const AUTOMATION_TIMEOUT_MS = 10000;
+const RUNTIME_EXPORT_AUTOMATION_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_REQUEST_BYTES = 1024 * 1024;
 
 let hasRegisteredAutomationResultHandler = false;
@@ -205,14 +206,27 @@ function dispatchAutomationCommand(getWindow: () => BrowserWindow | null, comman
   };
 
   return new Promise((resolve, reject) => {
+    const timeoutMs = isRuntimeArtifactExportCommand(command)
+      ? RUNTIME_EXPORT_AUTOMATION_TIMEOUT_MS
+      : AUTOMATION_TIMEOUT_MS;
     const timeout = setTimeout(() => {
       pendingAutomationRequests.delete(request.id);
-      reject(new Error(`Automation command timed out after ${AUTOMATION_TIMEOUT_MS}ms.`));
-    }, AUTOMATION_TIMEOUT_MS);
+      reject(new Error(`Automation command timed out after ${timeoutMs}ms.`));
+    }, timeoutMs);
 
     pendingAutomationRequests.set(request.id, { resolve, reject, timeout });
     window.webContents.send(AUTOMATION_COMMAND_CHANNEL, request);
   });
+}
+
+function isRuntimeArtifactExportCommand(command: unknown): boolean {
+  return Boolean(
+    command &&
+      typeof command === "object" &&
+      "command" in command &&
+      command.command === "exportProject" &&
+      "format" in command
+  );
 }
 
 function readJsonBody(request: http.IncomingMessage): Promise<unknown> {

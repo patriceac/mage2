@@ -3,6 +3,7 @@ import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
 import type { EditorLaunchOptions } from "./launch-options";
 import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
+import type { RuntimeExportRequest } from "./runtime-artifact-exporter";
 
 const initialLaunchOptions = ipcRenderer.sendSync("mage2:get-launch-options-sync") as EditorLaunchOptions;
 
@@ -77,8 +78,8 @@ const editorApi = {
     remainingAssets: Asset[]
   ): Promise<{ deletedProxyPaths: string[]; deletedSourcePaths: string[] }> =>
     ipcRenderer.invoke("mage2:delete-managed-asset-variant-files", projectDir, asset, locale, remainingAssets),
-  exportProject: (projectDir: string, project: ProjectBundle) =>
-    ipcRenderer.invoke("mage2:export-project", projectDir, project),
+  exportProject: (projectDir: string, project: ProjectBundle, request?: RuntimeExportRequest) =>
+    ipcRenderer.invoke("mage2:export-project", projectDir, project, request),
   pathToFileUrl: (inputPath: string): Promise<string> =>
     ipcRenderer.invoke("mage2:path-to-file-url", inputPath),
   getPathForDroppedFile: (file: File): string => {

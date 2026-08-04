@@ -71,16 +71,27 @@ export interface ExportResult {
   validationReport: ReturnType<typeof validateProjectForRelease>;
 }
 
+export interface ExportProjectBundleOptions {
+  /**
+   * An exact export directory selected by the trusted main process. Its parent
+   * must already exist. When omitted, the legacy project-local `build` folder
+   * remains the destination.
+   */
+  outputDirectory?: string;
+}
+
 export async function exportProjectBundle(
   projectDir: string,
-  project: ProjectBundle
+  project: ProjectBundle,
+  options: ExportProjectBundleOptions = {}
 ): Promise<ExportResult> {
   const validationReport = validateProjectForRelease(project);
   assertProjectCanBeExported(validationReport);
 
-  const { projectIdentity, outputDirectory } = await resolveSafeOutputDirectory(
+  const { projectIdentity, outputParentIdentity, outputDirectory } = await resolveSafeOutputDirectory(
     projectDir,
-    project.manifest.buildSettings.outputDir
+    project.manifest.buildSettings.outputDir,
+    options.outputDirectory
   );
   const initialDestination = await inspectDestination(outputDirectory, project.manifest.projectId);
 
@@ -89,7 +100,7 @@ export async function exportProjectBundle(
   const runtimeDist = await resolveRuntimeWebDist();
   await assertDirectoryIdentity(projectIdentity, "project folder");
 
-  const stagingIdentity = await createSiblingStagingDirectory(projectIdentity);
+  const stagingIdentity = await createSiblingStagingDirectory(outputParentIdentity, projectIdentity);
   let stagingPromoted = false;
 
   try {
@@ -112,6 +123,7 @@ export async function exportProjectBundle(
     // Re-check after the potentially long runtime build. This catches path swaps
     // and concurrent exports before either can replace an existing destination.
     await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
     await assertDirectoryIdentity(stagingIdentity, "export staging folder");
     const currentDestination = await inspectDestination(outputDirectory, project.manifest.projectId);
     if (!sameDestinationSnapshot(initialDestination, currentDestination)) {
@@ -121,7 +133,13 @@ export async function exportProjectBundle(
       );
     }
 
-    await promoteStagedExport(stagingIdentity, outputDirectory, currentDestination, projectIdentity);
+    await promoteStagedExport(
+      stagingIdentity,
+      outputDirectory,
+      currentDestination,
+      outputParentIdentity,
+      projectIdentity
+    );
     stagingPromoted = true;
 
     return {
@@ -131,7 +149,7 @@ export async function exportProjectBundle(
     };
   } finally {
     if (!stagingPromoted) {
-      await removeCreatedDirectoryBestEffort(stagingIdentity, projectIdentity);
+      await removeCreatedDirectoryBestEffort(stagingIdentity, outputParentIdentity, projectIdentity);
     }
   }
 }
@@ -154,8 +172,13 @@ function assertProjectCanBeExported(validationReport: ReturnType<typeof validate
 
 async function resolveSafeOutputDirectory(
   projectDir: string,
-  configuredOutputDirectory: string
-): Promise<{ projectIdentity: DirectoryIdentity; outputDirectory: string }> {
+  configuredOutputDirectory: string,
+  selectedOutputDirectory?: string
+): Promise<{
+  projectIdentity: DirectoryIdentity;
+  outputParentIdentity: DirectoryIdentity;
+  outputDirectory: string;
+}> {
   const absoluteProjectDirectory = path.resolve(projectDir);
   let projectIdentity: DirectoryIdentity;
 
@@ -168,6 +191,16 @@ async function resolveSafeOutputDirectory(
     );
   }
 
+  if (selectedOutputDirectory !== undefined) {
+    const outputDirectory = path.resolve(selectedOutputDirectory);
+    const outputParentIdentity = await captureDirectoryIdentity(path.dirname(outputDirectory));
+    if (path.basename(outputDirectory) === "." || path.basename(outputDirectory) === "..") {
+      throw new Error(`Export output folder must name a child of the selected destination: "${outputDirectory}".`);
+    }
+    await assertProspectiveChildPath(outputParentIdentity, outputDirectory, "export output folder");
+    return { projectIdentity, outputParentIdentity, outputDirectory };
+  }
+
   const relativeSegments = parseCanonicalRelativeOutputPath(configuredOutputDirectory);
   if (relativeSegments.length !== 1 || relativeSegments[0].toLocaleLowerCase("en-US") !== RESERVED_OUTPUT_DIRECTORY) {
     throw new Error(
@@ -175,10 +208,9 @@ async function resolveSafeOutputDirectory(
         `Custom project paths are refused so an export can never replace arbitrary project content: "${configuredOutputDirectory}".`
     );
   }
-
   const outputDirectory = path.join(projectIdentity.canonicalPath, RESERVED_OUTPUT_DIRECTORY);
   await assertProspectiveChildPath(projectIdentity, outputDirectory, "export output folder");
-  return { projectIdentity, outputDirectory };
+  return { projectIdentity, outputParentIdentity: projectIdentity, outputDirectory };
 }
 
 function parseCanonicalRelativeOutputPath(configuredOutputDirectory: string): string[] {
@@ -263,7 +295,7 @@ async function assertProspectiveChildPath(
   candidatePath: string,
   label: string
 ): Promise<void> {
-  await assertDirectoryIdentity(parentIdentity, label === "export output folder" ? "project folder" : "parent folder");
+  await assertDirectoryIdentity(parentIdentity, "parent folder");
   let canonicalCandidate: string;
   try {
     canonicalCandidate = await resolveProspectiveCanonicalPath(candidatePath);
@@ -587,16 +619,20 @@ function sameDestinationSnapshot(left: DestinationSnapshot, right: DestinationSn
   return left.kind !== "owned" || (right.kind === "owned" && left.fingerprint === right.fingerprint);
 }
 
-async function createSiblingStagingDirectory(projectIdentity: DirectoryIdentity): Promise<DirectoryIdentity> {
+async function createSiblingStagingDirectory(
+  outputParentIdentity: DirectoryIdentity,
+  projectIdentity: DirectoryIdentity
+): Promise<DirectoryIdentity> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const stagingDirectory = path.join(projectIdentity.path, `.mage2-export-${randomUUID()}.staging`);
+    const stagingDirectory = path.join(outputParentIdentity.path, `.mage2-export-${randomUUID()}.staging`);
     try {
       await assertDirectoryIdentity(projectIdentity, "project folder");
-      await assertProspectiveChildPath(projectIdentity, stagingDirectory, "export staging folder");
+      await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
+      await assertProspectiveChildPath(outputParentIdentity, stagingDirectory, "export staging folder");
       await mkdir(stagingDirectory);
       const stagingIdentity = await captureDirectoryIdentity(stagingDirectory);
-      if (!isStrictDescendant(projectIdentity.canonicalPath, stagingIdentity.canonicalPath)) {
-        throw new Error("the created staging folder escaped the project folder");
+      if (!isStrictDescendant(outputParentIdentity.canonicalPath, stagingIdentity.canonicalPath)) {
+        throw new Error("the created staging folder escaped the export destination parent folder");
       }
       return stagingIdentity;
     } catch (error) {
@@ -858,10 +894,11 @@ async function promoteStagedExport(
   stagingIdentity: DirectoryIdentity,
   outputDirectory: string,
   destination: DestinationSnapshot,
+  outputParentIdentity: DirectoryIdentity,
   projectIdentity: DirectoryIdentity
 ): Promise<void> {
   const backupDirectory = path.join(
-    projectIdentity.path,
+    outputParentIdentity.path,
     `.mage2-export-${randomUUID()}.backup`
   );
   let backupIdentity: DirectoryIdentity | undefined;
@@ -869,8 +906,9 @@ async function promoteStagedExport(
   if (destination.kind !== "missing") {
     try {
       await assertDirectoryIdentity(projectIdentity, "project folder");
+      await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
       await assertDirectoryIdentity(destination.identity, "existing export folder");
-      await assertProspectiveChildPath(projectIdentity, backupDirectory, "export backup folder");
+      await assertProspectiveChildPath(outputParentIdentity, backupDirectory, "export backup folder");
       await rename(outputDirectory, backupDirectory);
       backupIdentity = await captureDirectoryIdentity(backupDirectory);
       if (!sameDirectoryObject(destination.identity, backupIdentity)) {
@@ -886,6 +924,7 @@ async function promoteStagedExport(
 
   try {
     await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
     await assertDirectoryIdentity(stagingIdentity, "export staging folder");
     await rename(stagingIdentity.path, outputDirectory);
   } catch (promotionError) {
@@ -898,6 +937,7 @@ async function promoteStagedExport(
 
     try {
       await assertDirectoryIdentity(projectIdentity, "project folder");
+      await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
       await assertDirectoryIdentity(backupIdentity, "previous export backup");
       await rename(backupDirectory, outputDirectory);
     } catch (rollbackError) {
@@ -923,7 +963,7 @@ async function promoteStagedExport(
   }
 
   if (backupIdentity) {
-    await removeCreatedDirectoryBestEffort(backupIdentity, projectIdentity);
+    await removeCreatedDirectoryBestEffort(backupIdentity, outputParentIdentity, projectIdentity);
   }
 }
 
@@ -933,10 +973,16 @@ function sameDirectoryObject(left: DirectoryIdentity, right: DirectoryIdentity):
 
 async function removeCreatedDirectoryBestEffort(
   directoryIdentity: DirectoryIdentity,
+  outputParentIdentity: DirectoryIdentity,
   projectIdentity: DirectoryIdentity
 ): Promise<void> {
   try {
-    await removeVerifiedDirectoryTree(directoryIdentity, directoryIdentity, projectIdentity);
+    await removeVerifiedDirectoryTree(
+      directoryIdentity,
+      directoryIdentity,
+      outputParentIdentity,
+      projectIdentity
+    );
   } catch (error) {
     console.warn(
       `MAGE2 export left an identity-protected temporary folder "${directoryIdentity.path}": ${errorMessage(error)}`
@@ -947,9 +993,11 @@ async function removeCreatedDirectoryBestEffort(
 async function removeVerifiedDirectoryTree(
   directoryIdentity: DirectoryIdentity,
   rootIdentity: DirectoryIdentity,
+  outputParentIdentity: DirectoryIdentity,
   projectIdentity: DirectoryIdentity
 ): Promise<void> {
   await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
   await assertDirectoryIdentity(rootIdentity, "temporary export folder");
   await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
   const entries = await readdir(directoryIdentity.path);
@@ -957,6 +1005,7 @@ async function removeVerifiedDirectoryTree(
   for (const entry of entries) {
     const entryPath = path.join(directoryIdentity.path, entry);
     await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
     await assertDirectoryIdentity(rootIdentity, "temporary export folder");
     await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
     const entryStats = await lstat(entryPath);
@@ -964,6 +1013,7 @@ async function removeVerifiedDirectoryTree(
       await removeVerifiedDirectoryTree(
         await captureDirectoryIdentity(entryPath),
         rootIdentity,
+        outputParentIdentity,
         projectIdentity
       );
       continue;
@@ -972,12 +1022,14 @@ async function removeVerifiedDirectoryTree(
       throw new Error(`temporary export contains an unsupported filesystem entry: "${entryPath}"`);
     }
     await assertDirectoryIdentity(projectIdentity, "project folder");
+    await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
     await assertDirectoryIdentity(rootIdentity, "temporary export folder");
     await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
     await unlink(entryPath);
   }
 
   await assertDirectoryIdentity(projectIdentity, "project folder");
+  await assertDirectoryIdentity(outputParentIdentity, "export destination parent folder");
   await assertDirectoryIdentity(rootIdentity, "temporary export folder");
   await assertDirectoryIdentity(directoryIdentity, "temporary export subfolder");
   if ((await readdir(directoryIdentity.path)).length !== 0) {

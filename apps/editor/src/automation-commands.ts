@@ -22,7 +22,7 @@ export type EditorAutomationCommand =
   | { command: "resetInterfaceLocale" }
   | { command: "createProject"; projectDir: string; projectName: string }
   | { command: "saveProject" }
-  | { command: "exportProject" }
+  | { command: "exportProject"; format?: "windows" | "web"; destinationPath?: string }
   | { command: "listHotspots"; sceneId?: string }
   | { command: "listInventoryItems" }
   | { command: "openProject"; projectDir: string; tab?: EditorTab }
@@ -109,7 +109,6 @@ export function parseEditorAutomationCommand(input: unknown, t: EditorTranslator
     case "security.getState":
     case "resetInterfaceLocale":
     case "saveProject":
-    case "exportProject":
     case "listInventoryItems":
     case "enterPlaytest":
     case "playtest.getState":
@@ -117,6 +116,19 @@ export function parseEditorAutomationCommand(input: unknown, t: EditorTranslator
     case "editor.undo":
     case "editor.redo":
       return { command };
+    case "exportProject": {
+      if (candidate.format === undefined && candidate.destinationPath === undefined) {
+        return { command };
+      }
+      if (candidate.format !== "windows" && candidate.format !== "web") {
+        throw new Error(t("Automation runtime export format must be 'windows' or 'web'."));
+      }
+      return {
+        command,
+        format: candidate.format,
+        destinationPath: requireString(candidate.destinationPath, "destinationPath")
+      };
+    }
     case "setInterfaceLocale":
       return { command, locale: requireBuiltInLocale(candidate.locale, "locale", t) };
     case "createProject":

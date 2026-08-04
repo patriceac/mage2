@@ -216,35 +216,35 @@ async function exportAndVerifyPackagedEditor() {
 
     await page.getByRole("button", { name: "File", exact: true }).click();
     await page.getByRole("menuitem", { name: "Export Runtime", exact: true }).click();
-    const exportStatusLocator = page
-      .locator(".status-bar__scene-group--right")
-      .filter({ hasText: "Runtime build exported to" });
     const exportDialog = page.locator(".dialog-shell");
-    try {
-      await page.waitForFunction(
-        () =>
-          document.querySelector(".status-bar__scene-group--right")?.textContent?.includes("Runtime build exported to") ||
-          Boolean(document.querySelector(".dialog-shell")),
-        undefined,
-        { timeout: 20_000 }
-      );
-    } catch (error) {
-      const diagnosticPath = path.join(outputDirectory, "packaged-editor-export-timeout.png");
-      await page.screenshot({ path: diagnosticPath, fullPage: true });
-      const diagnostic = await page.evaluate(() => ({
-        bodyText: document.body.innerText,
-        status: document.querySelector(".status-bar__scene-group--right")?.textContent,
-        busy: document.querySelector(".busy-overlay")?.textContent,
-        dialog: document.querySelector(".dialog-shell")?.textContent
-      }));
-      throw new Error(`Packaged editor export timed out: ${JSON.stringify(diagnostic)}`, { cause: error });
+    await exportDialog.waitFor({ state: "visible", timeout: 20_000 });
+    const exportDialogText = normalizeText(await exportDialog.innerText());
+    for (const expectedText of [
+      "Standalone Windows executable",
+      "one portable file",
+      "Web build folder",
+      "managed folder"
+    ]) {
+      if (!exportDialogText.includes(expectedText)) {
+        throw new Error(`Packaged editor export chooser is missing '${expectedText}': ${exportDialogText}`);
+      }
     }
-    if (await exportDialog.isVisible()) {
-      const diagnosticPath = path.join(outputDirectory, "packaged-editor-export-dialog.png");
-      await page.screenshot({ path: diagnosticPath, fullPage: true });
-      throw new Error(`Packaged editor export failed: ${normalizeText(await exportDialog.innerText())}`);
+    const exportChoiceScreenshotPath = path.join(outputDirectory, "packaged-editor-export-choice.png");
+    await page.screenshot({ path: exportChoiceScreenshotPath, fullPage: true });
+    await exportDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page
+      .locator(".status-bar__scene-group--right")
+      .filter({ hasText: "Runtime export canceled." })
+      .waitFor({ state: "visible", timeout: 5_000 });
+
+    const directExport = await page.evaluate(async (currentProjectDirectory) => {
+      const project = await window.editorApi.loadProject(currentProjectDirectory);
+      return window.editorApi.exportProject(currentProjectDirectory, project);
+    }, projectDirectory);
+    if (!directExport?.validationReport?.valid || directExport.outputDirectory !== buildDirectory) {
+      throw new Error(`Packaged editor compatibility export failed: ${JSON.stringify(directExport)}`);
     }
-    const exportStatus = normalizeText(await exportStatusLocator.innerText());
+    const exportStatus = `Runtime build exported to ${directExport.outputDirectory}`;
     await refreshExportedSceneAudioExpectations();
 
     await page.evaluate(() => window.__mage2PlaytestAutomation?.reset());
@@ -257,6 +257,7 @@ async function exportAndVerifyPackagedEditor() {
 
     return {
       exportStatus,
+      exportChoiceScreenshotPath,
       processId: editorApp.process.pid,
       itemEventAuthoring,
       ...flow

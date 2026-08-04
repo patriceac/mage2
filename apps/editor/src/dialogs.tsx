@@ -152,11 +152,14 @@ export type DeleteInventoryItemDialogResult =
       replacementItemId: string;
     };
 
+export type RuntimeExportFormat = "windows" | "web";
+
 interface DialogContextValue {
   alert: (options: AlertDialogOptions) => Promise<void>;
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   promptText: (options: PromptTextDialogOptions) => Promise<string | undefined>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
+  chooseRuntimeExport: (projectName: string) => Promise<RuntimeExportFormat | undefined>;
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
   deleteScene: (options: DeleteSceneDialogOptions) => Promise<DeleteSceneDialogResult>;
@@ -183,6 +186,11 @@ type DialogRequest =
       kind: "close-project";
       projectName: string;
       resolve: (value: "save" | "discard" | "cancel") => void;
+    }
+  | {
+      kind: "runtime-export";
+      projectName: string;
+      resolve: (value: RuntimeExportFormat | undefined) => void;
     }
   | {
       kind: "directory";
@@ -239,6 +247,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       confirmCloseProject: (projectName) =>
         new Promise<"save" | "discard" | "cancel">((resolve) => {
           enqueueDialog({ kind: "close-project", projectName, resolve });
+        }),
+      chooseRuntimeExport: (projectName) =>
+        new Promise<RuntimeExportFormat | undefined>((resolve) => {
+          enqueueDialog({ kind: "runtime-export", projectName, resolve });
         }),
       chooseDirectory: (options) =>
         new Promise<string | undefined>((resolve) => {
@@ -323,6 +335,15 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       ) : null}
       {activeDialog?.kind === "close-project" ? (
         <CloseProjectDialog
+          projectName={activeDialog.projectName}
+          onResolve={(value) => {
+            activeDialog.resolve(value);
+            dismissActiveDialog();
+          }}
+        />
+      ) : null}
+      {activeDialog?.kind === "runtime-export" ? (
+        <RuntimeExportDialog
           projectName={activeDialog.projectName}
           onResolve={(value) => {
             activeDialog.resolve(value);
@@ -2093,6 +2114,64 @@ function resolveDirectoryValidationMessage(
   return directoryInspection?.reason
     ? translateRuntimeMessage(directoryInspection.reason, t)
     : t("This folder does not contain a valid MAGE2 project.");
+}
+
+function RuntimeExportDialog({
+  projectName,
+  onResolve
+}: {
+  projectName: string;
+  onResolve: (value: RuntimeExportFormat | undefined) => void;
+}) {
+  const { t } = useEditorI18n();
+  return (
+    <DialogFrame
+      title={t("Export Runtime")}
+      description={t("Choose what MAGE2 should create for “{projectName}”.", { projectName })}
+      wide={false}
+      onCancel={() => onResolve(undefined)}
+      footer={
+        <div className="dialog-actions">
+          <button type="button" className="button-secondary" onClick={() => onResolve(undefined)}>
+            {t("Cancel")}
+          </button>
+        </div>
+      }
+    >
+      <div className="runtime-export-options">
+        <button
+          type="button"
+          className="runtime-export-option runtime-export-option--recommended"
+          onClick={() => onResolve("windows")}
+          autoFocus
+        >
+          <span className="runtime-export-option__badge" aria-hidden="true">.EXE</span>
+          <span className="runtime-export-option__copy">
+            <span className="runtime-export-option__heading">
+              <strong>{t("Standalone Windows executable")}</strong>
+              <span>{t("Recommended")}</span>
+            </span>
+            <span>{t("Create one portable file that runs without a browser, server, Node.js, or installation.")}</span>
+            <small>{t("You will choose its file name and destination next.")}</small>
+          </span>
+        </button>
+        <button
+          type="button"
+          className="runtime-export-option"
+          onClick={() => onResolve("web")}
+        >
+          <span className="runtime-export-option__badge" aria-hidden="true">WEB</span>
+          <span className="runtime-export-option__copy">
+            <span className="runtime-export-option__heading">
+              <strong>{t("Web build folder")}</strong>
+            </span>
+            <span>{t("Create a static site for Netlify, Cloudflare Pages, Vercel, or another web host.")}</span>
+            <small>{t("MAGE2 will create a managed folder inside the location you choose.")}</small>
+          </span>
+        </button>
+      </div>
+    </DialogFrame>
+  );
 }
 
 function buildBreadcrumbs(inputPath: string): Array<{ label: string; path: string }> {

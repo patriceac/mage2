@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,8 @@ const buildResourcesDir = path.join(repoRoot, "build");
 const stageRoot = path.join(repoRoot, "output", "packaging", "editor-win");
 const appStageDir = path.join(stageRoot, "app");
 const outputDir = path.join(stageRoot, "dist");
+const runtimeTemplateAppDir = path.join(stageRoot, "runtime-template-app");
+const runtimeTemplateOutputDir = path.join(stageRoot, "runtime-template-dist");
 
 const rootPackageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 const editorPackageJson = JSON.parse(await readFile(path.join(repoRoot, "apps", "editor", "package.json"), "utf8"));
@@ -55,6 +57,8 @@ async function prepareStage() {
   await copyRequiredBuildOutput();
   await copyRuntimeDependencies();
   await writeStagePackageJson();
+  await prepareRuntimeTemplate();
+  await copyNsisToolchain();
 }
 
 async function copyRequiredBuildOutput() {
@@ -154,6 +158,144 @@ async function writeStagePackageJson() {
   await writeFile(path.join(appStageDir, "package.json"), JSON.stringify(stagePackageJson, null, 2), "utf8");
 }
 
+async function prepareRuntimeTemplate() {
+  const runtimeShellDirectory = path.join(repoRoot, "apps", "runtime-electron");
+  await mkdir(runtimeTemplateAppDir, { recursive: true });
+  for (const fileName of ["main.mjs", "identity.mjs", "preload.cjs", "server.mjs"]) {
+    await cp(path.join(runtimeShellDirectory, fileName), path.join(runtimeTemplateAppDir, fileName));
+  }
+  await writeFile(
+    path.join(runtimeTemplateAppDir, "package.json"),
+    JSON.stringify(
+      {
+        name: "mage2-runtime-template",
+        version: editorPackageJson.version,
+        description: "Offline player template embedded in the MAGE2 Editor.",
+        main: "main.mjs",
+        author: editorAppMetadata.author,
+        license: rootPackageJson.license ?? "UNLICENSED"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  await build({
+    targets: Platform.WINDOWS.createTarget(["portable", "dir"], Arch.x64),
+    config: {
+      appId: "com.mage2.runtime.template",
+      productName: "MAGE2 Player",
+      executableName: "MAGE2 Player",
+      electronVersion: editorPackageJson.dependencies.electron.replace(/^[^\d]*/, ""),
+      directories: {
+        app: runtimeTemplateAppDir,
+        output: runtimeTemplateOutputDir,
+        buildResources: buildResourcesDir
+      },
+      files: ["main.mjs", "identity.mjs", "preload.cjs", "server.mjs", "package.json"],
+      extraResources: [
+        { from: path.join(buildResourcesDir, "icon.ico"), to: "icon.ico" },
+        { from: path.join(buildResourcesDir, "icon.png"), to: "icon.png" }
+      ],
+      asar: true,
+      npmRebuild: false,
+      buildDependenciesFromSource: false,
+      compression: "normal",
+      electronFuses: {
+        runAsNode: false,
+        enableCookieEncryption: true,
+        enableNodeOptionsEnvironmentVariable: false,
+        enableNodeCliInspectArguments: false,
+        enableEmbeddedAsarIntegrityValidation: true,
+        onlyLoadAppFromAsar: true,
+        loadBrowserProcessSpecificV8Snapshot: false,
+        grantFileProtocolExtraPrivileges: false
+      },
+      win: {
+        target: [
+          { target: "portable", arch: ["x64"] },
+          { target: "dir", arch: ["x64"] }
+        ],
+        icon: path.join(buildResourcesDir, "icon.ico"),
+        artifactName: "MAGE2-Player-Template-${version}-${arch}.${ext}"
+      },
+      portable: {
+        requestExecutionLevel: "user"
+      }
+    }
+  });
+
+  const unpackedTemplate = path.join(runtimeTemplateOutputDir, "win-unpacked");
+  if (!existsSync(path.join(unpackedTemplate, "MAGE2 Player.exe"))) {
+    throw new Error(`Runtime template executable was not created at ${unpackedTemplate}.`);
+  }
+  const embeddedTemplate = path.join(appStageDir, "resources", "runtime-template-win");
+  await cp(unpackedTemplate, embeddedTemplate, {
+    recursive: true,
+    force: true
+  });
+  await renameRuntimeTemplateArchive(embeddedTemplate);
+}
+
+async function renameRuntimeTemplateArchive(embeddedTemplate) {
+  const resourcesDirectory = path.join(embeddedTemplate, "resources");
+  const sourceArchive = path.join(resourcesDirectory, "app.asar");
+  const embeddedArchive = path.join(resourcesDirectory, "app.mage2asar");
+  if (!existsSync(sourceArchive)) {
+    throw new Error(`Runtime template archive was not created at ${sourceArchive}.`);
+  }
+  await cp(sourceArchive, embeddedArchive, { force: false, errorOnExist: true });
+  await rm(sourceArchive);
+}
+
+async function copyNsisToolchain() {
+  const nsisRoot = await resolveNsisToolchainRoot();
+  await cp(nsisRoot, path.join(appStageDir, "resources", "nsis"), {
+    recursive: true,
+    force: true
+  });
+}
+
+async function resolveNsisToolchainRoot() {
+  const cacheRoots = [
+    process.env.ELECTRON_BUILDER_CACHE,
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "electron-builder", "Cache") : undefined
+  ].filter((candidate) => candidate && path.isAbsolute(candidate) && existsSync(candidate));
+  const candidates = [];
+  for (const cacheRoot of cacheRoots) {
+    await collectNsisToolchainRoots(cacheRoot, candidates, 0);
+  }
+  const uniqueCandidates = [...new Set(candidates)].sort((left, right) => right.localeCompare(left));
+  const selected = uniqueCandidates.find(
+    (candidate) =>
+      existsSync(path.join(candidate, "makensis.exe")) &&
+      existsSync(path.join(candidate, "Include")) &&
+      existsSync(path.join(candidate, "Stubs"))
+  );
+  if (!selected) {
+    throw new Error(
+      `Could not locate the NSIS toolchain after building the runtime template. Checked: ${cacheRoots.join(", ")}`
+    );
+  }
+  return selected;
+}
+
+async function collectNsisToolchainRoots(directory, candidates, depth) {
+  if (depth > 5) {
+    return;
+  }
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  if (entries.some((entry) => entry.isFile() && entry.name.toLocaleLowerCase("en-US") === "makensis.exe")) {
+    candidates.push(directory);
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      await collectNsisToolchainRoots(path.join(directory, entry.name), candidates, depth + 1);
+    }
+  }
+}
+
 async function packageWindowsApp() {
   await build({
     targets: Platform.WINDOWS.createTarget(["nsis", "dir"], Arch.x64),
@@ -180,6 +322,14 @@ async function packageWindowsApp() {
         {
           from: path.join(buildResourcesDir, "icon.png"),
           to: "icon.png"
+        },
+        {
+          from: path.join(appStageDir, "resources", "runtime-template-win"),
+          to: "runtime-template-win"
+        },
+        {
+          from: path.join(appStageDir, "resources", "nsis"),
+          to: "nsis"
         }
       ],
       asar: true,
