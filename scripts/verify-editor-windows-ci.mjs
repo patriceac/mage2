@@ -37,6 +37,7 @@ const standaloneRuntimeEvidencePath = path.join(
 );
 const standaloneRuntimeTitleScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-title.png");
 const standaloneRuntimeScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-running.png");
+const runtimeExportProgressScreenshotPath = path.join(evidenceDirectory, "packaged-editor-runtime-export-progress.png");
 const selectedWebRuntimeEvidencePath = path.join(evidenceDirectory, "selected-web-runtime");
 
 main().catch((error) => {
@@ -205,11 +206,16 @@ async function main() {
       temporaryRoot,
       "Windows CI Representative Project Player.exe"
     );
-    const standaloneExportState = await sendAutomationCommand({
+    const standaloneExportPromise = sendAutomationCommand({
       command: "exportProject",
       format: "windows",
       destinationPath: standaloneDestinationPath
     });
+    const runtimeExportProgressPromise = capturePackagedRuntimeExportProgress();
+    const [standaloneExportState, runtimeExportProgress] = await Promise.all([
+      standaloneExportPromise,
+      runtimeExportProgressPromise
+    ]);
     if (
       standaloneExportState?.export?.format !== "windows" ||
       standaloneExportState.export.outputPath !== standaloneDestinationPath ||
@@ -325,6 +331,7 @@ async function main() {
         onlyDistributableFile: standaloneEvidenceEntries[0],
         titleScreenshotPath: standaloneRuntimeTitleScreenshotPath,
         screenshotPath: standaloneRuntimeScreenshotPath,
+        progress: runtimeExportProgress,
         launch: standaloneLaunch
       },
       selectedWebExport: {
@@ -372,6 +379,96 @@ async function main() {
     await logHandle.close();
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+async function capturePackagedRuntimeExportProgress() {
+  const deadline = Date.now() + 10 * 60_000;
+  const samples = [];
+  let screenshotCaptured = false;
+  let lastSignature = "";
+  let lastFailure;
+
+  while (Date.now() < deadline) {
+    try {
+      const state = await sendAutomationCommand({ command: "getState" });
+      const progress = state?.runtimeExportProgress;
+      if (progress) {
+        const sample = {
+          format: progress.format,
+          phase: progress.phase,
+          progress: progress.progress,
+          percent: Math.round(progress.progress * 100),
+          elapsedSeconds: progress.elapsedSeconds,
+          estimatedSecondsRemaining: progress.estimatedSecondsRemaining,
+          payloadBytes: progress.payloadBytes
+        };
+        const signature = JSON.stringify(sample);
+        if (signature !== lastSignature) {
+          samples.push(sample);
+          lastSignature = signature;
+        }
+
+        if (
+          !screenshotCaptured &&
+          sample.phase === "compressing" &&
+          typeof sample.estimatedSecondsRemaining === "number" &&
+          sample.estimatedSecondsRemaining > 0 &&
+          sample.percent > 0 &&
+          sample.percent < 100
+        ) {
+          const screenshot = await fetchAutomationScreenshot();
+          assertPngScreenshot(screenshot, "runtime export progress");
+          await writeFile(runtimeExportProgressScreenshotPath, screenshot);
+          screenshotCaptured = true;
+        }
+
+        if (sample.phase === "complete" && sample.progress === 1) {
+          break;
+        }
+      }
+      lastFailure = undefined;
+    } catch (error) {
+      lastFailure = error;
+    }
+    await delay(500);
+  }
+
+  if (!samples.some((sample) => sample.phase === "complete" && sample.progress === 1)) {
+    throw new Error(
+      `The packaged editor did not expose a complete runtime export progress sequence.${lastFailure ? ` Last polling error: ${lastFailure}` : ""}`
+    );
+  }
+  if (!screenshotCaptured) {
+    throw new Error("The packaged editor never showed a visible compression ETA during the standalone export.");
+  }
+
+  const progressValues = samples.map((sample) => sample.progress);
+  if (progressValues.some((value, index) => index > 0 && value < progressValues[index - 1])) {
+    throw new Error(`Runtime export progress moved backward: ${JSON.stringify(progressValues)}`);
+  }
+  const compressionSamples = samples.filter(
+    (sample) => sample.phase === "compressing" && typeof sample.estimatedSecondsRemaining === "number"
+  );
+  if (
+    compressionSamples.length < 2 ||
+    !compressionSamples.some((sample, index) => index > 0 && sample.progress > compressionSamples[index - 1].progress) ||
+    !compressionSamples.some(
+      (sample, index) =>
+        index > 0 &&
+        sample.estimatedSecondsRemaining < compressionSamples[index - 1].estimatedSecondsRemaining
+    )
+  ) {
+    throw new Error(`The packaged editor progress or ETA did not advance during compression: ${JSON.stringify(compressionSamples)}`);
+  }
+
+  return {
+    screenshotPath: runtimeExportProgressScreenshotPath,
+    sampleCount: samples.length,
+    phases: [...new Set(samples.map((sample) => sample.phase))],
+    firstCompressionSample: compressionSamples[0],
+    lastCompressionSample: compressionSamples.at(-1),
+    samples
+  };
 }
 
 async function verifyStandaloneRuntime(executablePath) {
@@ -423,8 +520,10 @@ async function verifyStandaloneRuntime(executablePath) {
       throw new Error(`The standalone player exposed author/debug UI: ${JSON.stringify(rendererState)}`);
     }
     await page.screenshot({ path: standaloneRuntimeScreenshotPath, fullPage: true });
-    await page.getByRole("button", { name: /Menu/i }).click();
-    await page.getByRole("button", { name: /Quit|Quitter/i }).click();
+    await page.locator(".mage2-experience__menu-button").click();
+    const menuActions = page.locator(".mage2-experience__panel-actions");
+    await menuActions.waitFor({ state: "visible", timeout: 30_000 });
+    await menuActions.locator("button").last().click();
     await waitForProcessExitWithTimeout(runtimeProcess, 20_000, "standalone runtime");
     return {
       executablePath,

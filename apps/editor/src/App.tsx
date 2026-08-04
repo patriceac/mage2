@@ -33,6 +33,10 @@ import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
 import { FirstProjectChecklist } from "./FirstProjectChecklist";
+import {
+  RuntimeExportProgressOverlay,
+  type RuntimeExportProgressViewState
+} from "./RuntimeExportProgressOverlay";
 import { useDialogs, type RuntimeExportFormat } from "./dialogs";
 import { resolveFirstProjectChecklist } from "./first-project-checklist";
 import {
@@ -128,6 +132,7 @@ export function App() {
     setDialogueSection
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
+  const [runtimeExportProgress, setRuntimeExportProgress] = useState<RuntimeExportProgressViewState>();
   const [statusMessage, setStatusMessage] = useState(() => t("Create or open a project folder to begin."));
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
@@ -150,9 +155,25 @@ export function App() {
   const lastAuthoringTabRef = useRef<EditorTab>("scenes");
   const nativeCloseHandlerRef = useRef<() => Promise<boolean>>(async () => true);
   const busyOperationRef = useRef<string | undefined>(undefined);
+  const runtimeExportDismissTimerRef = useRef<number | undefined>(undefined);
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const hasHandledInitialLaunchRef = useRef(false);
   const dialogs = useDialogs();
+
+  function dismissRuntimeExportProgress(delayMs = 0) {
+    if (runtimeExportDismissTimerRef.current !== undefined) {
+      window.clearTimeout(runtimeExportDismissTimerRef.current);
+      runtimeExportDismissTimerRef.current = undefined;
+    }
+    if (delayMs <= 0) {
+      setRuntimeExportProgress(undefined);
+      return;
+    }
+    runtimeExportDismissTimerRef.current = window.setTimeout(() => {
+      runtimeExportDismissTimerRef.current = undefined;
+      setRuntimeExportProgress(undefined);
+    }, delayMs);
+  }
 
   async function withBusy<T>(
     label: string,
@@ -287,6 +308,27 @@ export function App() {
     }
 
     return window.editorApi.onCloseRequested(() => nativeCloseHandlerRef.current());
+  }, [hasEditorApi]);
+
+  useEffect(() => {
+    if (!hasEditorApi || typeof window.editorApi.onRuntimeExportProgress !== "function") {
+      return;
+    }
+
+    const unsubscribe = window.editorApi.onRuntimeExportProgress((progress) => {
+      if (runtimeExportDismissTimerRef.current !== undefined) {
+        window.clearTimeout(runtimeExportDismissTimerRef.current);
+        runtimeExportDismissTimerRef.current = undefined;
+      }
+      setRuntimeExportProgress(progress);
+    });
+    return () => {
+      unsubscribe();
+      if (runtimeExportDismissTimerRef.current !== undefined) {
+        window.clearTimeout(runtimeExportDismissTimerRef.current);
+        runtimeExportDismissTimerRef.current = undefined;
+      }
+    };
   }, [hasEditorApi]);
 
   useEffect(() => {
@@ -696,6 +738,7 @@ export function App() {
       return;
     }
 
+    dismissRuntimeExportProgress();
     const result = await withBusy(
       format === "windows" ? t("Creating standalone Windows executable") : t("Exporting web runtime build"),
       () =>
@@ -705,6 +748,7 @@ export function App() {
           format ? { format, destinationPath: options?.destinationPath } : undefined
       ),
       async (message, rawMessage) => {
+        dismissRuntimeExportProgress();
         if (options?.suppressErrorDialog) {
           return;
         }
@@ -730,9 +774,11 @@ export function App() {
       }
     );
     if (!result) {
+      dismissRuntimeExportProgress();
       return;
     }
     if ("canceled" in result && result.canceled) {
+      dismissRuntimeExportProgress();
       setStatusMessage(t("Runtime export canceled."));
       return;
     }
@@ -743,6 +789,7 @@ export function App() {
         ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
         : t("Web runtime exported to {outputPath}.", { outputPath })
     );
+    dismissRuntimeExportProgress(900);
     return result;
   }
 
@@ -961,7 +1008,14 @@ export function App() {
   async function handleAutomationCommand(rawCommand: unknown): Promise<unknown> {
     const command = parseEditorAutomationCommand(rawCommand, t);
     const currentAutomationState = () =>
-      resolveEditorAutomationState(statusMessage, locale, localePreference, direction, automaticLocale);
+      resolveEditorAutomationState(
+        statusMessage,
+        locale,
+        localePreference,
+        direction,
+        automaticLocale,
+        runtimeExportProgress
+      );
 
     switch (command.command) {
       case "ping":
@@ -1931,6 +1985,7 @@ export function App() {
           {hasProjectIssues ? formatIssueCount(validationReport.issues.length, t) : t("Valid")}
         </button>
       </footer>
+      {runtimeExportProgress ? <RuntimeExportProgressOverlay progress={runtimeExportProgress} /> : null}
     </div>
   );
 }
@@ -1940,7 +1995,8 @@ function resolveEditorAutomationState(
   uiLocale: string,
   uiLocalePreference: EditorLocalePreference,
   uiDirection: "ltr" | "rtl",
-  uiAutomaticLocale: string
+  uiAutomaticLocale: string,
+  runtimeExportProgress?: RuntimeExportProgressViewState
 ) {
   const state = useEditorStore.getState();
   const validationReport = state.project ? validateProjectForRelease(state.project) : undefined;
@@ -1958,6 +2014,7 @@ function resolveEditorAutomationState(
     uiLocalePreference,
     uiDirection,
     uiAutomaticLocale,
+    runtimeExportProgress,
     validation: validationReport
       ? {
           valid: validationReport.valid,

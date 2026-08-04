@@ -40,6 +40,23 @@ interface EditorLaunchOptions {
 
 type RuntimeExportFormat = "windows" | "web";
 
+type RuntimeExportProgressPhase =
+  | "preparing"
+  | "building-web"
+  | "assembling-player"
+  | "compressing"
+  | "publishing"
+  | "complete";
+
+interface RuntimeExportProgress {
+  format: RuntimeExportFormat;
+  phase: RuntimeExportProgressPhase;
+  progress: number;
+  elapsedSeconds: number;
+  estimatedSecondsRemaining?: number;
+  payloadBytes?: number;
+}
+
 interface RuntimeExportRequest {
   format: RuntimeExportFormat;
   destinationPath?: string;
@@ -110,6 +127,7 @@ declare global {
         project: ProjectBundle,
         request?: RuntimeExportRequest
       ): Promise<RuntimeExportResult>;
+      onRuntimeExportProgress(handler: (progress: RuntimeExportProgress) => void): () => void;
       pathToFileUrl(inputPath: string): Promise<string>;
       getPathForDroppedFile(file: File): string;
     };

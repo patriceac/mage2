@@ -3,7 +3,7 @@ import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
 import type { EditorLaunchOptions } from "./launch-options";
 import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
-import type { RuntimeExportRequest } from "./runtime-artifact-exporter";
+import type { RuntimeExportProgress, RuntimeExportRequest } from "./runtime-artifact-exporter";
 
 const initialLaunchOptions = ipcRenderer.sendSync("mage2:get-launch-options-sync") as EditorLaunchOptions;
 
@@ -80,6 +80,15 @@ const editorApi = {
     ipcRenderer.invoke("mage2:delete-managed-asset-variant-files", projectDir, asset, locale, remainingAssets),
   exportProject: (projectDir: string, project: ProjectBundle, request?: RuntimeExportRequest) =>
     ipcRenderer.invoke("mage2:export-project", projectDir, project, request),
+  onRuntimeExportProgress: (handler: (progress: RuntimeExportProgress) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, progress: RuntimeExportProgress) => {
+      handler(progress);
+    };
+    ipcRenderer.on("mage2:runtime-export-progress", listener);
+    return () => {
+      ipcRenderer.removeListener("mage2:runtime-export-progress", listener);
+    };
+  },
   pathToFileUrl: (inputPath: string): Promise<string> =>
     ipcRenderer.invoke("mage2:path-to-file-url", inputPath),
   getPathForDroppedFile: (file: File): string => {

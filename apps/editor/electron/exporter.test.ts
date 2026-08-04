@@ -140,8 +140,12 @@ describe("safe project export", () => {
     const { projectDir, project } = await createValidProject();
     const selectedParent = await createTempDirectory("mage2-export-selected-parent-");
     const outputDirectory = path.join(selectedParent, "Safe Export Test Web");
+    const progressUpdates: Array<{ stage: string; progress: number }> = [];
 
-    const result = await exportProjectBundle(projectDir, project, { outputDirectory });
+    const result = await exportProjectBundle(projectDir, project, {
+      outputDirectory,
+      onProgress: (progress) => progressUpdates.push(progress)
+    });
     const marker = JSON.parse(await readFile(path.join(outputDirectory, ".mage2-export.json"), "utf8"));
 
     expect(result.outputDirectory).toBe(outputDirectory);
@@ -152,6 +156,13 @@ describe("safe project export", () => {
     });
     await expect(readFile(path.join(outputDirectory, "build-manifest.json"), "utf8")).resolves.toContain(
       project.manifest.projectId
+    );
+    expect(progressUpdates[0]).toEqual({ stage: "preparing", progress: 0 });
+    expect(progressUpdates.some((progress) => progress.stage === "building")).toBe(true);
+    expect(progressUpdates.some((progress) => progress.stage === "publishing")).toBe(true);
+    expect(progressUpdates.at(-1)).toEqual({ stage: "complete", progress: 1 });
+    expect(progressUpdates.map((progress) => progress.progress)).toEqual(
+      [...progressUpdates].map((progress) => progress.progress).sort((left, right) => left - right)
     );
     expect((await readdir(selectedParent)).filter((entry) => entry.startsWith(".mage2-export-"))).toEqual([]);
   });

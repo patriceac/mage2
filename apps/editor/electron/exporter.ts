@@ -71,13 +71,22 @@ export interface ExportResult {
   validationReport: ReturnType<typeof validateProjectForRelease>;
 }
 
+export type ExportProjectBundleProgressStage = "preparing" | "building" | "publishing" | "complete";
+
+export interface ExportProjectBundleProgress {
+  stage: ExportProjectBundleProgressStage;
+  progress: number;
+}
+
 export interface ExportProjectBundleOptions {
   /**
    * An exact export directory selected by the trusted main process. Its parent
    * must already exist. When omitted, the legacy project-local `build` folder
    * remains the destination.
-   */
+  */
   outputDirectory?: string;
+  /** Receives best-effort phase updates. Listener errors never interrupt a safe export. */
+  onProgress?: (progress: ExportProjectBundleProgress) => void;
 }
 
 export async function exportProjectBundle(
@@ -87,6 +96,7 @@ export async function exportProjectBundle(
 ): Promise<ExportResult> {
   const validationReport = validateProjectForRelease(project);
   assertProjectCanBeExported(validationReport);
+  emitExportProjectBundleProgress(options.onProgress, { stage: "preparing", progress: 0 });
 
   const { projectIdentity, outputParentIdentity, outputDirectory } = await resolveSafeOutputDirectory(
     projectDir,
@@ -102,6 +112,7 @@ export async function exportProjectBundle(
 
   const stagingIdentity = await createSiblingStagingDirectory(outputParentIdentity, projectIdentity);
   let stagingPromoted = false;
+  emitExportProjectBundleProgress(options.onProgress, { stage: "building", progress: 0.05 });
 
   try {
     let buildManifest: BuildManifest;
@@ -111,7 +122,13 @@ export async function exportProjectBundle(
         projectIdentity,
         runtimeDist,
         project,
-        validationReport
+        validationReport,
+        (progress) => {
+          emitExportProjectBundleProgress(options.onProgress, {
+            stage: "building",
+            progress: 0.05 + progress * 0.85
+          });
+        }
       );
     } catch (error) {
       throw new Error(
@@ -133,6 +150,7 @@ export async function exportProjectBundle(
       );
     }
 
+    emitExportProjectBundleProgress(options.onProgress, { stage: "publishing", progress: 0.96 });
     await promoteStagedExport(
       stagingIdentity,
       outputDirectory,
@@ -141,6 +159,7 @@ export async function exportProjectBundle(
       projectIdentity
     );
     stagingPromoted = true;
+    emitExportProjectBundleProgress(options.onProgress, { stage: "complete", progress: 1 });
 
     return {
       outputDirectory,
@@ -151,6 +170,20 @@ export async function exportProjectBundle(
     if (!stagingPromoted) {
       await removeCreatedDirectoryBestEffort(stagingIdentity, outputParentIdentity, projectIdentity);
     }
+  }
+}
+
+function emitExportProjectBundleProgress(
+  handler: ExportProjectBundleOptions["onProgress"],
+  progress: ExportProjectBundleProgress
+): void {
+  if (!handler) {
+    return;
+  }
+  try {
+    handler(progress);
+  } catch (error) {
+    console.warn("MAGE2 web export progress listener failed:", error);
   }
 }
 
@@ -652,9 +685,11 @@ async function buildExportInDirectory(
   projectIdentity: DirectoryIdentity,
   runtimeDist: string,
   project: ProjectBundle,
-  validationReport: ReturnType<typeof validateProjectForRelease>
+  validationReport: ReturnType<typeof validateProjectForRelease>,
+  onProgress?: (progress: number) => void
 ): Promise<BuildManifest> {
   await copyRuntimeDistribution(runtimeDist, outputIdentity, projectIdentity);
+  onProgress?.(0.18);
 
   const mediaIdentity = await createVerifiedChildDirectory(outputIdentity, "media", projectIdentity);
   const supportedLocales = normalizeSupportedLocales(
@@ -662,6 +697,11 @@ async function buildExportInDirectory(
     project.manifest.supportedLocales
   );
   const generatedMediaPaths = new Set<string>();
+  const totalVariantCount = project.assets.assets.reduce(
+    (count, asset) => count + supportedLocales.filter((candidate) => asset.variants[candidate]).length,
+    0
+  );
+  let copiedVariantCount = 0;
 
   const exportedAssets: Array<readonly [string, ProjectBundle["assets"]["assets"][number]]> = [];
   for (const asset of project.assets.assets) {
@@ -698,9 +738,14 @@ async function buildExportInDirectory(
         proxyPath: undefined,
         posterPath: undefined
       };
+      copiedVariantCount += 1;
+      onProgress?.(0.18 + 0.52 * (copiedVariantCount / Math.max(1, totalVariantCount)));
     }
 
     exportedAssets.push([asset.id, { ...asset, variants: exportedVariants }]);
+  }
+  if (totalVariantCount === 0) {
+    onProgress?.(0.7);
   }
 
   const assetMap = Object.fromEntries(
@@ -751,8 +796,10 @@ async function buildExportInDirectory(
     outputIdentity,
     projectIdentity
   );
+  onProgress?.(0.78);
 
   const files = await collectExportFileInventory(outputIdentity);
+  onProgress?.(0.94);
   const marker: ExportOwnershipMarker = {
     format: EXPORT_MARKER_FORMAT,
     version: EXPORT_MARKER_VERSION,
@@ -767,6 +814,8 @@ async function buildExportInDirectory(
     outputIdentity,
     projectIdentity
   );
+
+  onProgress?.(1);
 
   return buildManifest;
 }

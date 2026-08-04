@@ -9,6 +9,8 @@ vi.mock("electron", () => ({ app: { isPackaged: true } }));
 import {
   createPortableNsisScript,
   createPortableWindowsRuntime,
+  estimatePortableCompressionSeconds,
+  resolvePortableCompressionProgress,
   sanitizeRuntimeArtifactName,
   suggestedRuntimeArtifactName
 } from "./runtime-artifact-exporter";
@@ -24,12 +26,14 @@ describe("portable Windows runtime export", () => {
     const fixture = await createPackagingFixture();
     const destinationFile = path.join(fixture.destinationDirectory, "Safe Game Player.exe");
     let compilationObserved = false;
+    const progressUpdates: Array<{ phase: string; progress: number; estimatedSecondsRemaining?: number; payloadBytes?: number }> = [];
 
     const result = await createPortableWindowsRuntime({
       buildDirectory: fixture.buildDirectory,
       destinationFile,
       project: fixture.project,
       resources: fixture.resources,
+      onProgress: (progress) => progressUpdates.push(progress),
       compilePortableExecutable: async (options) => {
         compilationObserved = true;
         await expect(readFile(path.join(options.payloadDirectory, "MAGE2 Player.exe"), "utf8")).resolves.toBe(
@@ -52,7 +56,37 @@ describe("portable Windows runtime export", () => {
 
     expect(compilationObserved).toBe(true);
     expect(result).toBe(destinationFile);
+    expect(progressUpdates.map((progress) => progress.phase)).toEqual([
+      "assembling-player",
+      "compressing",
+      "publishing",
+      "complete"
+    ]);
+    expect(progressUpdates.find((progress) => progress.phase === "compressing")).toMatchObject({
+      progress: expect.any(Number),
+      estimatedSecondsRemaining: expect.any(Number),
+      payloadBytes: expect.any(Number)
+    });
+    expect(progressUpdates.at(-1)).toMatchObject({ phase: "complete", progress: 1, estimatedSecondsRemaining: 0 });
     await expect(readFile(destinationFile, "utf8")).resolves.toBe("MZportable executable");
+  });
+
+  it("estimates compression from payload size while keeping simulated progress below publishing", () => {
+    const samplePayloadBytes = 356 * 1024 * 1024;
+    const estimate = estimatePortableCompressionSeconds(samplePayloadBytes);
+    expect(estimate).toBeGreaterThanOrEqual(130);
+    expect(estimate).toBeLessThanOrEqual(180);
+    expect(estimatePortableCompressionSeconds(0)).toBe(8);
+
+    const samples = [
+      resolvePortableCompressionProgress(0, estimate),
+      resolvePortableCompressionProgress(estimate / 2, estimate),
+      resolvePortableCompressionProgress(estimate, estimate),
+      resolvePortableCompressionProgress(estimate * 2, estimate)
+    ];
+    expect(samples[0]).toBeCloseTo(0.38, 5);
+    expect(samples).toEqual([...samples].sort((left, right) => left - right));
+    expect(samples.every((progress) => progress < 0.94)).toBe(true);
   });
 
   it("replaces the exact file selected by the user only after compilation succeeds", async () => {

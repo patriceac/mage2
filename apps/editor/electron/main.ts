@@ -411,7 +411,7 @@ function registerIpcHandlers(): void {
   );
 
   handleTrustedIpc("mage2:export-project", async (
-    _event,
+    event,
     projectDir: string,
     project: ProjectBundle,
     request?: RuntimeExportRequest
@@ -439,7 +439,12 @@ function registerIpcHandlers(): void {
       projectDir: grantedProjectDir,
       project: normalized,
       request: { ...parsedRequest, destinationPath },
-      windowsResources: parsedRequest.format === "windows" ? resolveWindowsRuntimePackagingResources() : undefined
+      windowsResources: parsedRequest.format === "windows" ? resolveWindowsRuntimePackagingResources() : undefined,
+      onProgress: (progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send("mage2:runtime-export-progress", progress);
+        }
+      }
     });
     return { canceled: false as const, ...result };
   });

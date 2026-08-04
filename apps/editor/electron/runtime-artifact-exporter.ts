@@ -7,6 +7,7 @@ import {
   lstat,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rename,
   rm,
@@ -19,6 +20,31 @@ import type { ProjectBundle } from "@mage2/schema";
 import { exportProjectBundle, type ExportResult } from "./exporter";
 
 export type RuntimeExportFormat = "windows" | "web";
+
+export type RuntimeExportProgressPhase =
+  | "preparing"
+  | "building-web"
+  | "assembling-player"
+  | "compressing"
+  | "publishing"
+  | "complete";
+
+export interface RuntimeExportProgress {
+  format: RuntimeExportFormat;
+  phase: RuntimeExportProgressPhase;
+  /** Overall completion from 0 to 1. Completion is never reported before publishing succeeds. */
+  progress: number;
+  elapsedSeconds: number;
+  /** Approximate wall-clock time remaining. Omitted while an estimate is unavailable or has elapsed. */
+  estimatedSecondsRemaining?: number;
+  /** Bytes being packaged, when the export has reached a measurable payload. */
+  payloadBytes?: number;
+}
+
+export type RuntimeExportProgressHandler = (progress: RuntimeExportProgress) => void;
+
+export type PortableWindowsRuntimeProgress = Omit<RuntimeExportProgress, "format" | "elapsedSeconds">;
+export type PortableWindowsRuntimeProgressHandler = (progress: PortableWindowsRuntimeProgress) => void;
 
 export interface RuntimeExportRequest {
   format: RuntimeExportFormat;
@@ -51,6 +77,7 @@ export interface CreatePortableWindowsRuntimeOptions {
   project: ProjectBundle;
   resources: WindowsRuntimePackagingResources;
   compilePortableExecutable?: (options: PortableCompilationOptions) => Promise<void>;
+  onProgress?: PortableWindowsRuntimeProgressHandler;
 }
 
 interface DirectoryIdentity {
@@ -75,22 +102,53 @@ type FileSnapshot =
 const PORTABLE_INNER_EXECUTABLE = "MAGE2 Player.exe";
 const BUNDLED_RUNTIME_APP_ARCHIVE = "app.mage2asar";
 const MAX_PORTABLE_EXECUTABLE_BYTES = 1_900_000_000;
+const PORTABLE_COMPRESSION_BYTES_PER_SECOND = 2.6 * 1024 * 1024;
+const PORTABLE_COMPRESSION_BASE_SECONDS = 8;
+const PORTABLE_COMPRESSION_PROGRESS_START = 0.38;
+const PORTABLE_COMPRESSION_PROGRESS_END = 0.94;
 
 export async function exportRuntimeArtifact(options: {
   projectDir: string;
   project: ProjectBundle;
   request: RuntimeExportRequest;
   windowsResources?: WindowsRuntimePackagingResources;
+  onProgress?: RuntimeExportProgressHandler;
 }): Promise<RuntimeArtifactExportResult> {
+  const reportProgress = createRuntimeExportProgressReporter(options.request.format, options.onProgress);
+  reportProgress({ phase: "preparing", progress: 0.02 });
+
   const destinationPath = path.resolve(options.request.destinationPath ?? "");
   if (!options.request.destinationPath?.trim()) {
     throw new Error("Choose where MAGE2 should create the runtime export.");
   }
 
   if (options.request.format === "web") {
+    const bundleStartedAt = Date.now();
     const result = await exportProjectBundle(options.projectDir, options.project, {
-      outputDirectory: destinationPath
+      outputDirectory: destinationPath,
+      onProgress: (bundleProgress) => {
+        const progress = 0.03 + bundleProgress.progress * 0.94;
+        const bundleElapsedSeconds = Math.max(0.25, (Date.now() - bundleStartedAt) / 1000);
+        const estimatedSecondsRemaining =
+          bundleProgress.progress > 0 && bundleProgress.progress < 1
+            ? Math.min(
+                60 * 60,
+                Math.max(1, Math.ceil((bundleElapsedSeconds * (1 - bundleProgress.progress)) / bundleProgress.progress))
+              )
+            : bundleProgress.progress >= 1
+              ? 0
+              : undefined;
+        reportProgress({
+          phase:
+            bundleProgress.stage === "publishing" || bundleProgress.stage === "complete"
+              ? "publishing"
+              : "building-web",
+          progress,
+          estimatedSecondsRemaining
+        });
+      }
     });
+    reportProgress({ phase: "complete", progress: 1, estimatedSecondsRemaining: 0 });
     return { ...result, format: "web", outputPath: result.outputDirectory };
   }
 
@@ -104,12 +162,20 @@ export async function exportRuntimeArtifact(options: {
   // Keep the project-local web build as the canonical, inspectable source of
   // the portable executable. The selected destination is not touched until
   // that build and the portable payload have both completed successfully.
-  const result = await exportProjectBundle(options.projectDir, options.project);
+  const result = await exportProjectBundle(options.projectDir, options.project, {
+    onProgress: (bundleProgress) => {
+      reportProgress({
+        phase: "building-web",
+        progress: 0.03 + bundleProgress.progress * 0.2
+      });
+    }
+  });
   const outputPath = await createPortableWindowsRuntime({
     buildDirectory: result.outputDirectory,
     destinationFile: destinationPath,
     project: options.project,
-    resources: options.windowsResources
+    resources: options.windowsResources,
+    onProgress: reportProgress
   });
   return { ...result, format: "windows", outputPath };
 }
@@ -134,6 +200,10 @@ export async function createPortableWindowsRuntime(
   const scriptPath = path.join(workDirectory, "portable.nsi");
 
   try {
+    emitPortableProgress(options.onProgress, {
+      phase: "assembling-player",
+      progress: 0.24
+    });
     await cp(runtimeTemplateDirectory, payloadDirectory, {
       recursive: true,
       force: false,
@@ -151,6 +221,9 @@ export async function createPortableWindowsRuntime(
     });
     await copyCreatorIconIfConfigured(options.buildDirectory, payloadDirectory);
 
+    const payloadBytes = await measureRegularDirectoryBytes(payloadDirectory);
+    const estimatedCompressionSeconds = estimatePortableCompressionSeconds(payloadBytes);
+
     const script = createPortableNsisScript({
       iconPath: options.resources.iconPath,
       outputFile: compiledExecutable,
@@ -161,13 +234,30 @@ export async function createPortableWindowsRuntime(
     await writeFile(scriptPath, script, { encoding: "utf8", flag: "wx" });
 
     const compile = options.compilePortableExecutable ?? compilePortableWithNsis;
-    await compile({
-      nsisDirectory,
-      outputFile: compiledExecutable,
-      payloadDirectory,
-      scriptPath,
-      script
-    });
+    const compressionStartedAt = Date.now();
+    const reportCompression = () => {
+      const elapsedSeconds = Math.max(0, (Date.now() - compressionStartedAt) / 1000);
+      const remainingSeconds = Math.ceil(estimatedCompressionSeconds - elapsedSeconds);
+      emitPortableProgress(options.onProgress, {
+        phase: "compressing",
+        progress: resolvePortableCompressionProgress(elapsedSeconds, estimatedCompressionSeconds),
+        estimatedSecondsRemaining: remainingSeconds > 0 ? remainingSeconds : undefined,
+        payloadBytes
+      });
+    };
+    reportCompression();
+    const compressionTimer = setInterval(reportCompression, 1_000);
+    try {
+      await compile({
+        nsisDirectory,
+        outputFile: compiledExecutable,
+        payloadDirectory,
+        scriptPath,
+        script
+      });
+    } finally {
+      clearInterval(compressionTimer);
+    }
 
     const compiledStats = await lstat(compiledExecutable, { bigint: true });
     if (compiledStats.isSymbolicLink() || !compiledStats.isFile()) {
@@ -182,18 +272,146 @@ export async function createPortableWindowsRuntime(
       );
     }
 
+    emitPortableProgress(options.onProgress, {
+      phase: "publishing",
+      progress: 0.97,
+      estimatedSecondsRemaining: 2,
+      payloadBytes
+    });
     await publishPortableExecutable(
       compiledExecutable,
       destinationFile,
       destinationParent,
       initialDestination
     );
+    emitPortableProgress(options.onProgress, {
+      phase: "complete",
+      progress: 1,
+      estimatedSecondsRemaining: 0,
+      payloadBytes
+    });
     return destinationFile;
   } finally {
     await rm(workDirectory, { recursive: true, force: true }).catch((error) => {
       console.warn(`MAGE2 could not remove temporary Windows export files at "${workDirectory}":`, error);
     });
   }
+}
+
+export function estimatePortableCompressionSeconds(payloadBytes: number): number {
+  const normalizedBytes = Number.isFinite(payloadBytes) ? Math.max(0, payloadBytes) : 0;
+  return Math.min(
+    15 * 60,
+    Math.max(
+      PORTABLE_COMPRESSION_BASE_SECONDS,
+      Math.ceil(PORTABLE_COMPRESSION_BASE_SECONDS + normalizedBytes / PORTABLE_COMPRESSION_BYTES_PER_SECOND)
+    )
+  );
+}
+
+export function resolvePortableCompressionProgress(
+  elapsedSeconds: number,
+  estimatedCompressionSeconds: number
+): number {
+  const normalizedElapsed = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
+  const normalizedEstimate = Number.isFinite(estimatedCompressionSeconds)
+    ? Math.max(1, estimatedCompressionSeconds)
+    : PORTABLE_COMPRESSION_BASE_SECONDS;
+  const ratio = normalizedElapsed / normalizedEstimate;
+  const easedAtEstimate = 1 - Math.exp(-2.5);
+  const eased = (1 - Math.exp(-2.5 * ratio)) / easedAtEstimate;
+  const capped = Math.min(0.985, Math.max(0, eased));
+  return PORTABLE_COMPRESSION_PROGRESS_START +
+    (PORTABLE_COMPRESSION_PROGRESS_END - PORTABLE_COMPRESSION_PROGRESS_START) * capped;
+}
+
+function createRuntimeExportProgressReporter(
+  format: RuntimeExportFormat,
+  handler: RuntimeExportProgressHandler | undefined
+): PortableWindowsRuntimeProgressHandler {
+  const startedAt = Date.now();
+  let lastPhase: RuntimeExportProgressPhase | undefined;
+  let lastProgress = 0;
+  let lastReportedAt = 0;
+
+  return (update) => {
+    if (!handler) {
+      return;
+    }
+
+    const now = Date.now();
+    const progress = Math.max(lastProgress, Math.min(1, Math.max(0, update.progress)));
+    const phaseChanged = update.phase !== lastPhase;
+    const shouldThrottle =
+      !phaseChanged &&
+      progress < 1 &&
+      progress - lastProgress < 0.01 &&
+      now - lastReportedAt < 100;
+    if (shouldThrottle) {
+      return;
+    }
+
+    lastPhase = update.phase;
+    lastProgress = progress;
+    lastReportedAt = now;
+    try {
+      handler({
+        ...update,
+        format,
+        progress,
+        elapsedSeconds: Math.max(0, (now - startedAt) / 1000)
+      });
+    } catch (error) {
+      console.warn("MAGE2 runtime export progress listener failed:", error);
+    }
+  };
+}
+
+function emitPortableProgress(
+  handler: PortableWindowsRuntimeProgressHandler | undefined,
+  progress: PortableWindowsRuntimeProgress
+): void {
+  if (!handler) {
+    return;
+  }
+  try {
+    handler(progress);
+  } catch (error) {
+    console.warn("MAGE2 portable export progress listener failed:", error);
+  }
+}
+
+async function measureRegularDirectoryBytes(rootDirectory: string): Promise<number> {
+  let totalBytes = 0;
+
+  async function walk(directory: string): Promise<void> {
+    const directoryStats = await lstat(directory);
+    if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
+      throw new Error(`Windows runtime payload contains an unsafe directory: "${directory}".`);
+    }
+
+    for (const entry of await readdir(directory)) {
+      const entryPath = path.join(directory, entry);
+      const stats = await lstat(entryPath);
+      if (stats.isSymbolicLink()) {
+        throw new Error(`Windows runtime payload contains a linked path: "${entryPath}".`);
+      }
+      if (stats.isDirectory()) {
+        await walk(entryPath);
+        continue;
+      }
+      if (!stats.isFile()) {
+        throw new Error(`Windows runtime payload contains unsupported content: "${entryPath}".`);
+      }
+      totalBytes += stats.size;
+      if (!Number.isSafeInteger(totalBytes)) {
+        throw new Error("Windows runtime payload is too large to estimate safely.");
+      }
+    }
+  }
+
+  await walk(path.resolve(rootDirectory));
+  return totalBytes;
 }
 
 export function createPortableNsisScript(options: {

@@ -12019,3 +12019,256 @@ button.recent-project__icon-button:hover {
     text-align: center;
   }
 }
+
+.runtime-export-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  isolation: isolate;
+  animation: runtime-export-overlay-in 180ms ease-out both;
+}
+
+.runtime-export-progress-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(231, 173, 88, 0.1), transparent 28rem),
+    rgba(3, 7, 11, 0.78);
+  backdrop-filter: blur(9px) saturate(0.82);
+}
+
+.runtime-export-progress {
+  width: min(100%, 31rem);
+  overflow: hidden;
+  border: 1px solid rgba(231, 173, 88, 0.34);
+  border-radius: 18px;
+  padding: 1.35rem 1.4rem 1.2rem;
+  background:
+    linear-gradient(145deg, rgba(231, 173, 88, 0.08), transparent 42%),
+    #0c131a;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #f4f7f9;
+}
+
+.runtime-export-progress__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.runtime-export-progress__signal {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 3px;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0.62rem;
+  border: 1px solid rgba(231, 173, 88, 0.34);
+  border-radius: 10px;
+  background: rgba(231, 173, 88, 0.08);
+}
+
+.runtime-export-progress__signal span {
+  width: 3px;
+  border-radius: 999px;
+  background: #e7ad58;
+  box-shadow: 0 0 10px rgba(231, 173, 88, 0.34);
+  animation: runtime-export-signal 1.05s ease-in-out infinite alternate;
+}
+
+.runtime-export-progress__signal span:nth-child(1) {
+  height: 38%;
+}
+
+.runtime-export-progress__signal span:nth-child(2) {
+  height: 82%;
+  animation-delay: -350ms;
+}
+
+.runtime-export-progress__signal span:nth-child(3) {
+  height: 56%;
+  animation-delay: -700ms;
+}
+
+.runtime-export-progress__heading {
+  min-width: 0;
+}
+
+.runtime-export-progress__heading p,
+.runtime-export-progress__heading h2,
+.runtime-export-progress__phase-row,
+.runtime-export-progress__timing,
+.runtime-export-progress__timing dd,
+.runtime-export-progress__note {
+  margin: 0;
+}
+
+.runtime-export-progress__heading p {
+  margin-bottom: 0.18rem;
+  color: #d6a458;
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.runtime-export-progress__heading h2 {
+  overflow: hidden;
+  font-size: 1.18rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-export-progress__percent {
+  color: #f0c47e;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+
+.runtime-export-progress__phase-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  font-size: 0.84rem;
+}
+
+.runtime-export-progress__phase-row strong {
+  color: #eef3f6;
+  font-weight: 650;
+}
+
+.runtime-export-progress__phase-row span {
+  overflow: hidden;
+  color: #8fa0ad;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-export-progress__track {
+  height: 0.5rem;
+  margin-top: 0.68rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+.runtime-export-progress__track > span {
+  display: block;
+  min-width: 0.2rem;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c98028, #efbb68 72%, #ffe0a5);
+  box-shadow: 0 0 16px rgba(231, 173, 88, 0.38);
+  transition: width 480ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.runtime-export-progress__timing {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 11px;
+  background: rgba(2, 7, 11, 0.34);
+}
+
+.runtime-export-progress__timing > div {
+  min-width: 0;
+  padding: 0.78rem 0.9rem;
+}
+
+.runtime-export-progress__timing > div + div {
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.runtime-export-progress__timing dt {
+  margin-bottom: 0.25rem;
+  color: #7f919f;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtime-export-progress__timing dd {
+  overflow: hidden;
+  color: #f1f4f6;
+  font-size: 0.94rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-export-progress__note {
+  margin-top: 0.85rem;
+  color: #8293a0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+@keyframes runtime-export-overlay-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes runtime-export-signal {
+  from {
+    opacity: 0.38;
+    transform: scaleY(0.58);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 520px) {
+  .runtime-export-progress {
+    padding: 1.15rem;
+  }
+
+  .runtime-export-progress__phase-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  .runtime-export-progress__timing {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-export-progress__timing > div + div {
+    border-top: 1px solid rgba(255, 255, 255, 0.075);
+    border-inline-start: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-export-progress-overlay,
+  .runtime-export-progress__signal span {
+    animation: none;
+  }
+
+  .runtime-export-progress__track > span {
+    transition: none;
+  }
+}
