@@ -130,6 +130,7 @@ describe("player controller", () => {
         }
       }
     });
+    project.scenes.items[0]!.backgroundAssetId = "asset_placeholder";
     project.scenes.items[0]!.hotspots[0]!.timingMode = "sceneDuration";
 
     const controller = createPlayerController(project);

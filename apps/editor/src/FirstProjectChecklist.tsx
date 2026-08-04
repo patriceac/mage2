@@ -4,6 +4,7 @@ interface FirstProjectChecklistProps {
   state: FirstProjectChecklistState;
   onOpenSceneMedia: () => void;
   onOpenInteraction: () => void;
+  onOpenPlayer: () => void;
   onReviewValidation: () => void;
   onOpenPlaytest: () => void;
   onDismiss: () => void;
@@ -13,6 +14,7 @@ export function FirstProjectChecklist({
   state,
   onOpenSceneMedia,
   onOpenInteraction,
+  onOpenPlayer,
   onReviewValidation,
   onOpenPlaytest,
   onDismiss
@@ -66,6 +68,7 @@ export function FirstProjectChecklist({
               onClick={resolveStepAction(step.id, step.complete, {
                 onOpenSceneMedia,
                 onOpenInteraction,
+                onOpenPlayer,
                 onReviewValidation,
                 onOpenPlaytest
               })}
@@ -84,7 +87,7 @@ function resolveStepAction(
   complete: boolean,
   actions: Pick<
     FirstProjectChecklistProps,
-    "onOpenSceneMedia" | "onOpenInteraction" | "onReviewValidation" | "onOpenPlaytest"
+    "onOpenSceneMedia" | "onOpenInteraction" | "onOpenPlayer" | "onReviewValidation" | "onOpenPlaytest"
   >
 ): () => void {
   if (stepId === "media") {
@@ -92,6 +95,9 @@ function resolveStepAction(
   }
   if (stepId === "interaction") {
     return actions.onOpenInteraction;
+  }
+  if (stepId === "player") {
+    return actions.onOpenPlayer;
   }
   return complete ? actions.onOpenPlaytest : actions.onReviewValidation;
 }
@@ -102,6 +108,9 @@ function resolveStepActionLabel(stepId: FirstProjectChecklistStepId, complete: b
   }
   if (stepId === "interaction") {
     return complete ? "Open hotspot" : "Wire hotspot";
+  }
+  if (stepId === "player") {
+    return "Open player";
   }
   return complete ? "Playtest" : "Review issues";
 }

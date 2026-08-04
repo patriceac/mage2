@@ -60,11 +60,14 @@ export interface AssetReferenceSummary {
     entryId: string;
     kind: "audio" | "video";
   }>;
+  playerPresentation: Array<{
+    role: "titleBackground" | "logo" | "appIcon";
+  }>;
 }
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use" | "player-asset-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
 }
@@ -139,7 +142,7 @@ export interface RemoveHotspotFromProjectResult {
   removedTextIds: string[];
 }
 
-export type EditorAssetCategory = "background" | "inventory" | "sceneAudio" | "foreground" | "response";
+export type EditorAssetCategory = "background" | "inventory" | "sceneAudio" | "foreground" | "response" | "player";
 
 export const STARTER_PLACEHOLDER_ASSET_ID = "asset_placeholder";
 const DEFAULT_HOTSPOT_WIDTH = 0.16;
@@ -196,6 +199,7 @@ export function collectAssetReferenceSummary(
   const dialogueMediaAssignments: AssetReferenceSummary["dialogueMediaAssignments"] = [];
   const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
   const responseEntries: AssetReferenceSummary["responseEntries"] = [];
+  const playerPresentation: AssetReferenceSummary["playerPresentation"] = [];
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
@@ -259,13 +263,24 @@ export function collectAssetReferenceSummary(
     }
   }
 
+  if (project.manifest.playerPresentation.titleBackgroundAssetId === assetId) {
+    playerPresentation.push({ role: "titleBackground" });
+  }
+  if (project.manifest.playerPresentation.logoAssetId === assetId) {
+    playerPresentation.push({ role: "logo" });
+  }
+  if (project.manifest.playerPresentation.appIconAssetId === assetId) {
+    playerPresentation.push({ role: "appIcon" });
+  }
+
   return {
     sceneBackgrounds,
     sceneAudioAssignments,
     hotspotMediaAssignments,
     dialogueMediaAssignments,
     inventoryImages,
-    responseEntries
+    responseEntries,
+    playerPresentation
   };
 }
 
@@ -276,7 +291,8 @@ export function countAssetReferences(summary: AssetReferenceSummary): number {
     summary.hotspotMediaAssignments.length +
     summary.dialogueMediaAssignments.length +
     summary.inventoryImages.length +
-    summary.responseEntries.length
+    summary.responseEntries.length +
+    summary.playerPresentation.length
   );
 }
 
@@ -311,6 +327,16 @@ export function evaluateAssetDeletion(
     return {
       canDelete: false,
       blockedReason: "response-media-in-use",
+      fallbackAssetId,
+      referenceSummary
+    };
+  }
+
+
+  if (referenceSummary.playerPresentation.length > 0) {
+    return {
+      canDelete: false,
+      blockedReason: "player-asset-in-use",
       fallbackAssetId,
       referenceSummary
     };
@@ -883,6 +909,8 @@ export function classifyEditorAssetCategory(asset: Asset): EditorAssetCategory {
       return "foreground";
     case "response":
       return "response";
+    case "player":
+      return "player";
     default:
       return "background";
   }
@@ -906,6 +934,10 @@ export function isInventoryImageAsset(asset: Asset): boolean {
 
 export function isResponseMediaAsset(asset: Asset): boolean {
   return resolveAssetCategory(asset) === "response" && (asset.kind === "audio" || asset.kind === "video");
+}
+
+export function isPlayerPresentationAsset(asset: Asset): boolean {
+  return resolveAssetCategory(asset) === "player" && asset.kind === "image";
 }
 
 export function resolveFirstBackgroundAssetId(assets: Asset[]): string | undefined {

@@ -16,6 +16,13 @@ import {
 import { createRectangleHotspotPolygon } from "./hotspots";
 import { normalizeSupportedLocales } from "./localization";
 import {
+  CINEMATIC_STARTER_KIT_ID,
+  CINEMATIC_STARTER_KIT_VERSION,
+  DEFAULT_PLAYER_CREDITS_TEXT_ID,
+  DEFAULT_PLAYER_TAGLINE_TEXT_ID,
+  seedPlayerExperienceStrings
+} from "./player-experience";
+import {
   createStarterResponseGroups,
   createStarterResponseGroupsIntroducedAfter,
   seedStarterResponseStrings,
@@ -74,6 +81,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     }
   };
   seedStarterResponseStrings(byLocale);
+  seedPlayerExperienceStrings(byLocale, defaultLanguage);
 
   return {
     manifest: {
@@ -83,9 +91,27 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
       defaultLanguage,
       supportedLocales: [defaultLanguage],
       engineVersion: "0.1.0",
+      gameVersion: "1.0.0",
+      saveCompatibilityVersion: 1,
       assetRoots: [],
       startLocationId: locationId,
       startSceneId: sceneId,
+      playerPresentation: {
+        titleScreenEnabled: true,
+        titleBackgroundAssetId: "asset_starter_title",
+        appIconAssetId: "asset_starter_icon",
+        titleLayout: "left",
+        overlayTone: "dark",
+        fontPreset: "cinematic",
+        accentColor: "#e0b56a",
+        creatorName: "",
+        websiteUrl: "",
+        taglineTextId: DEFAULT_PLAYER_TAGLINE_TEXT_ID,
+        creditsTextId: DEFAULT_PLAYER_CREDITS_TEXT_ID,
+        showLandscapeHintInPortrait: true,
+        starterKitId: CINEMATIC_STARTER_KIT_ID,
+        starterKitVersion: CINEMATIC_STARTER_KIT_VERSION
+      },
       buildSettings: {
         outputDir: "build",
         includeSourceMap: false
@@ -114,7 +140,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           id: sceneId,
           locationId,
           name: "Opening Scene",
-          backgroundAssetId: "asset_placeholder",
+          backgroundAssetId: "asset_starter_scene",
           sceneAudioLoop: true,
           sceneAudioDelayMs: 0,
           backgroundVideoLoop: false,
@@ -176,6 +202,7 @@ function normalizeProjectBundleInput(input: unknown): unknown {
   const manifest = normalizeManifest(rawBundle.manifest);
   const defaultLanguage = manifest.defaultLanguage;
   const strings = normalizeStrings(rawBundle.strings, defaultLanguage);
+  seedPlayerExperienceStrings(strings.byLocale, defaultLanguage);
 
   for (const locale of manifest.supportedLocales) {
     strings.byLocale[locale] ??= {};
@@ -339,7 +366,23 @@ function normalizeAsset(input: unknown, defaultLanguage: string): Asset {
     kind: rawAsset.kind === "video" || rawAsset.kind === "image" || rawAsset.kind === "audio" ? rawAsset.kind : "image",
     name: typeof rawAsset.name === "string" && rawAsset.name.length > 0 ? rawAsset.name : "Unnamed Asset",
     category: normalizeAssetCategory(rawAsset),
+    provenance: normalizeAssetProvenance(rawAsset.provenance),
     variants: normalizedVariants
+  };
+}
+
+function normalizeAssetProvenance(input: unknown): Asset["provenance"] {
+  if (!isRecord(input) || (input.source !== "creator" && input.source !== "starter-kit" && input.source !== "demo")) {
+    return undefined;
+  }
+
+  return {
+    source: input.source,
+    packId: typeof input.packId === "string" && input.packId.length > 0 ? input.packId : undefined,
+    packVersion:
+      typeof input.packVersion === "number" && Number.isInteger(input.packVersion) && input.packVersion > 0
+        ? input.packVersion
+        : undefined
   };
 }
 
@@ -349,7 +392,8 @@ function normalizeAssetCategory(input: Record<string, unknown>): AssetCategory |
     input.category === "inventory" ||
     input.category === "sceneAudio" ||
     input.category === "foreground" ||
-    input.category === "response"
+    input.category === "response" ||
+    input.category === "player"
   ) {
     return input.category;
   }

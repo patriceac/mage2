@@ -1,0 +1,39 @@
+{
+  "id": "cinematic",
+  "version": 1,
+  "name": "Cinematic Starter",
+  "purpose": "Editable out-of-box artwork for a landscape-first MAGE2 project.",
+  "rights": {
+    "status": "bundled-for-oobe",
+    "distributionNote": "The editor may copy these files into creator projects. Before public distribution, creators remain responsible for confirming rights under the MAGE2 project and applicable image-generation terms."
+  },
+  "assets": [
+    {
+      "id": "asset_starter_scene",
+      "fileName": "cinematic-starter-scene.png",
+      "role": "scene-background",
+      "width": 1536,
+      "height": 864,
+      "sha256": "774d17edc3c02aeb2b930b7c20717aaf983a0af81b14255a85cb394d777ca1e1",
+      "provenance": "Landscape crop derived from the pre-existing MAGE2 starter scene artwork."
+    },
+    {
+      "id": "asset_starter_title",
+      "fileName": "cinematic-starter-title.png",
+      "role": "title-background",
+      "width": 1672,
+      "height": 941,
+      "sha256": "42f33bd5db5dfd0157ab1bad7758e17e9e933b00cd226fa30a76ca040e4eb95a",
+      "provenance": "Generated with OpenAI built-in image generation from the MAGE2 starter scene as a visual reference."
+    },
+    {
+      "id": "asset_starter_icon",
+      "fileName": "cinematic-starter-icon.png",
+      "role": "player-icon",
+      "width": 1024,
+      "height": 1024,
+      "sha256": "50d1e3308bcdcf6fa8519e4bddff09bbb575c035722fd79f45e29cc11a3df7c6",
+      "provenance": "Square crop derived from the generated cinematic title artwork."
+    }
+  ]
+}

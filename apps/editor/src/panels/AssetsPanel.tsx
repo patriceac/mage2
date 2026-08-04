@@ -49,7 +49,7 @@ interface AssetsPanelProps {
   setBusyLabel: (label?: string) => void;
 }
 
-type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio" | "foreground" | "response";
+type AssetLibraryFilter = "all" | "background" | "inventory" | "sceneAudio" | "foreground" | "response" | "player";
 type AssetViewMode = "grid" | "list";
 
 interface AssetRowModel {
@@ -73,7 +73,8 @@ const CATEGORY_TABS: Array<{
   { id: "sceneAudio", label: "Scene Audio" },
   { id: "foreground", label: "Foreground Media" },
   { id: "response", label: "Responses" },
-  { id: "inventory", label: "Inventory" }
+  { id: "inventory", label: "Inventory" },
+  { id: "player", label: "Player" }
 ];
 
 const ASSET_GROUPS: Array<{
@@ -85,7 +86,8 @@ const ASSET_GROUPS: Array<{
   { id: "sceneAudio", label: "Scene Audio", icon: "waveform" },
   { id: "foreground", label: "Foreground Media", icon: "film" },
   { id: "response", label: "Responses", icon: "film" },
-  { id: "inventory", label: "Inventory", icon: "box" }
+  { id: "inventory", label: "Inventory", icon: "box" },
+  { id: "player", label: "Player", icon: "image" }
 ];
 
 export function resolveAssetCardPreviewPresentation(category: AssetLibraryFilter): {
@@ -453,6 +455,11 @@ export function AssetsPanel({
   }
 
   function navigateToUsage(usage: AssetUsageModel) {
+    if (usage.kind === "player") {
+      useEditorStore.getState().setActiveTab("player");
+      return;
+    }
+
     if (usage.kind === "response") {
       useEditorStore.getState().setSelectedResponseGroupId(usage.id);
       useEditorStore.getState().setSelectedResponseEntryId(usage.entryId);
@@ -1077,7 +1084,7 @@ function AssetUsageRail({
 interface AssetUsageModel {
   id: string;
   entryId?: string;
-  kind: "scene" | "inventory" | "hotspot" | "dialogue" | "response";
+  kind: "scene" | "inventory" | "hotspot" | "dialogue" | "response" | "player";
   sceneId?: string;
   dialogueId?: string;
   label: string;
@@ -1131,6 +1138,13 @@ function buildAssetUsageModels(summary: AssetReferenceSummary): AssetUsageModel[
       label: entry.groupName,
       detail: `${entry.kind === "audio" ? "Audio" : "Video"} Response`,
       actionLabel: "Open Response"
+    })),
+    ...summary.playerPresentation.map((entry) => ({
+      id: entry.role,
+      kind: "player" as const,
+      label: entry.role === "titleBackground" ? "Title background" : entry.role === "appIcon" ? "Application icon" : "Logo",
+      detail: "Player presentation",
+      actionLabel: "Open Player"
     }))
   ];
 }
@@ -1141,7 +1155,8 @@ function calculateCategoryCounts(rows: AssetRowModel[]): Record<AssetCategory, n
     sceneAudio: rows.filter((row) => row.category === "sceneAudio").length,
     foreground: rows.filter((row) => row.category === "foreground").length,
     inventory: rows.filter((row) => row.category === "inventory").length,
-    response: rows.filter((row) => row.category === "response").length
+    response: rows.filter((row) => row.category === "response").length,
+    player: rows.filter((row) => row.category === "player").length
   };
 }
 
@@ -1185,6 +1200,8 @@ function resolveImportDialogTitle(filter: AssetLibraryFilter): string {
       return "Import Inventory Assets";
     case "response":
       return "Import Response Media";
+    case "player":
+      return "Import Player Artwork";
     case "all":
       return "Import Assets";
   }
@@ -1202,6 +1219,8 @@ function resolveImportDialogDescription(filter: AssetLibraryFilter): string {
       return "Choose image files to add to the inventory asset library.";
     case "response":
       return "Choose audio or video files to use in response groups.";
+    case "player":
+      return "Choose image files for the title screen, logo, or application icon.";
     case "all":
       return "Choose media files to add to the asset library. Audio imports as scene audio; image and video imports as backgrounds.";
   }
@@ -1219,6 +1238,8 @@ function resolveImportExtensions(filter: AssetLibraryFilter): readonly string[] 
       return INVENTORY_IMAGE_EXTENSIONS;
     case "response":
       return RESPONSE_MEDIA_IMPORT_EXTENSIONS;
+    case "player":
+      return IMAGE_IMPORT_EXTENSIONS;
     case "all":
       return SUPPORTED_ASSET_EXTENSIONS;
   }
@@ -1242,7 +1263,8 @@ function groupImportPathsByCategory(filePaths: string[], filter: AssetLibraryFil
     sceneAudio: [],
     foreground: [],
     inventory: [],
-    response: []
+    response: [],
+    player: []
   };
 
   for (const filePath of filePaths) {
@@ -1251,7 +1273,8 @@ function groupImportPathsByCategory(filePaths: string[], filter: AssetLibraryFil
       filter === "sceneAudio" ||
       filter === "foreground" ||
       filter === "inventory" ||
-      filter === "response"
+      filter === "response" ||
+      filter === "player"
     ) {
       groupedPaths[filter].push(filePath);
       continue;
@@ -1275,6 +1298,8 @@ function formatAssetCategoryLabel(category: AssetCategory): string {
       return "Inventory";
     case "response":
       return "Response";
+    case "player":
+      return "Player";
   }
 }
 
@@ -1399,6 +1424,10 @@ function resolveDeleteSafetyMessage(row?: AssetRowModel): string {
     return "This asset is used as a scene background and no replacement background asset is available.";
   }
 
+  if (row.blockedReason === "player-asset-in-use") {
+    return "This asset is used by the player presentation. Choose another title, logo, or icon asset before deleting.";
+  }
+
   return "This asset cannot be deleted from the current project state.";
 }
 
@@ -1513,6 +1542,10 @@ function resolveDeleteBlockedMessage(
     return `Cannot delete ${assetName} because one or more responses still use it.`;
   }
 
+  if (blockedReason === "player-asset-in-use") {
+    return `Cannot delete ${assetName} because the Player screen still references it.`;
+  }
+
   return `${assetName} could not be deleted because it is no longer present in the project.`;
 }
 
@@ -1530,6 +1563,10 @@ function resolveDeleteDisabledTitle(
 
   if (blockedReason === "response-media-in-use") {
     return `${assetName} cannot be deleted until it is removed from every response that references it.`;
+  }
+
+  if (blockedReason === "player-asset-in-use") {
+    return `${assetName} cannot be deleted until it is replaced or cleared in Player.`;
   }
 
   return `${assetName} could not be deleted because it is no longer present in the project.`;

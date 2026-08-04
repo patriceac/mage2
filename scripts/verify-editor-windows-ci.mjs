@@ -16,9 +16,12 @@ const AUTOMATION_PORT = 47632;
 const AUTOMATION_TOKEN = randomBytes(32).toString("hex");
 const evidenceDirectory = path.join(repoRoot, "output", "playwright", "windows-ci");
 const screenshotPath = path.join(evidenceDirectory, "packaged-editor-export.png");
+const playerScreenshotPath = path.join(evidenceDirectory, "packaged-editor-player.png");
+const playtestScreenshotPath = path.join(evidenceDirectory, "packaged-editor-playtest.png");
 const reportPath = path.join(evidenceDirectory, "packaged-editor-report.json");
 const processLogPath = path.join(evidenceDirectory, "packaged-editor.log");
 const exportedRuntimeEvidencePath = path.join(evidenceDirectory, "runtime-export");
+const projectEvidencePath = path.join(evidenceDirectory, "representative-project");
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.stack ?? error.message : error);
@@ -101,12 +104,24 @@ async function main() {
 
     await rm(exportedRuntimeEvidencePath, { recursive: true, force: true });
     await cp(exportDirectory, exportedRuntimeEvidencePath, { recursive: true, force: true });
+    await rm(projectEvidencePath, { recursive: true, force: true });
+    await cp(projectDir, projectEvidencePath, { recursive: true, force: true });
 
     const screenshot = await fetchAutomationScreenshot();
-    if (screenshot.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
-      throw new Error("The packaged editor screenshot response was not a PNG image.");
-    }
+    assertPngScreenshot(screenshot, "export");
     await writeFile(screenshotPath, screenshot);
+
+    await sendAutomationCommand({ command: "selectTab", tab: "player" });
+    await delay(800);
+    const playerScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(playerScreenshot, "Player authoring");
+    await writeFile(playerScreenshotPath, playerScreenshot);
+
+    await sendAutomationCommand({ command: "enterPlaytest" });
+    await delay(300);
+    const playtestScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(playtestScreenshot, "Playtest");
+    await writeFile(playtestScreenshotPath, playtestScreenshot);
 
     const checksumPath = path.join(
       repoRoot,
@@ -127,6 +142,7 @@ async function main() {
       processId: editorProcess.pid,
       project: {
         projectDir,
+        evidenceCopy: projectEvidencePath,
         name: createdState.projectName,
         validation: exportState.validation
       },
@@ -139,6 +155,8 @@ async function main() {
       electronFuses,
       releaseChecksums: checksumPath,
       screenshotPath,
+      playerScreenshotPath,
+      playtestScreenshotPath,
       processLogPath
     };
     await writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
@@ -263,6 +281,12 @@ async function fetchAutomationScreenshot() {
     throw new Error(`Packaged screenshot capture failed with HTTP ${response.status}.`);
   }
   return Buffer.from(await response.arrayBuffer());
+}
+
+function assertPngScreenshot(screenshot, label) {
+  if (screenshot.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
+    throw new Error(`The packaged editor ${label} screenshot response was not a PNG image.`);
+  }
 }
 
 function runCommand(command, args, extraEnvironment = {}) {

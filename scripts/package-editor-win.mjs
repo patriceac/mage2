@@ -60,7 +60,15 @@ async function prepareStage() {
 async function copyRequiredBuildOutput() {
   const editorDist = path.join(repoRoot, "apps", "editor", "dist");
   const editorElectronDist = path.join(repoRoot, "apps", "editor", "dist-electron");
-  const starterSceneAsset = path.join(repoRoot, "apps", "editor", "electron", "starter-scene.png");
+  const starterAssetNames = [
+    "cinematic-starter-scene.png",
+    "cinematic-starter-title.png",
+    "cinematic-starter-icon.png",
+    "cinematic-starter-kit.json"
+  ];
+  const starterAssets = starterAssetNames.map((fileName) =>
+    path.join(repoRoot, "apps", "editor", "electron", fileName)
+  );
   const runtimeWebDist = path.join(repoRoot, "apps", "runtime-web", "dist");
 
   for (const requiredDir of [editorDist, editorElectronDist, runtimeWebDist]) {
@@ -68,13 +76,17 @@ async function copyRequiredBuildOutput() {
       throw new Error(`Missing build output at ${requiredDir}. Run the editor/runtime build first.`);
     }
   }
-  if (!existsSync(starterSceneAsset)) {
-    throw new Error(`Missing starter scene asset at ${starterSceneAsset}.`);
+  for (const starterAsset of starterAssets) {
+    if (!existsSync(starterAsset)) {
+      throw new Error(`Missing cinematic starter asset at ${starterAsset}.`);
+    }
   }
 
   await cp(editorDist, path.join(appStageDir, "dist"), { recursive: true, force: true });
   await cp(editorElectronDist, path.join(appStageDir, "dist-electron"), { recursive: true, force: true });
-  await cp(starterSceneAsset, path.join(appStageDir, "dist-electron", "starter-scene.png"), { force: true });
+  for (const starterAsset of starterAssets) {
+    await cp(starterAsset, path.join(appStageDir, "dist-electron", path.basename(starterAsset)), { force: true });
+  }
   await cp(runtimeWebDist, path.join(appStageDir, "resources", "runtime-web"), {
     recursive: true,
     force: true

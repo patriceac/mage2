@@ -140,7 +140,7 @@ describe("resolveIssueNavigation", () => {
     const project = createDefaultProjectBundle("Localized media navigation");
     project.manifest.supportedLocales = ["fr"];
     project.assets.assets.push({
-      id: "asset_placeholder",
+      id: "asset_starter_scene",
       kind: "image",
       name: "Placeholder",
       variants: {

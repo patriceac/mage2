@@ -214,7 +214,8 @@ describe("LocalizationPanel internal subtabs", () => {
 
     expect(markup).toContain("Translation complete");
     expect(markup).toContain("Inherited copies");
-    expect(markup).toContain("Inherited (1)");
+    expect(markup).toContain("Inherited (31)");
+    expect(markup).toContain("Player</span><span>30</span>");
     expect(markup).toContain("Only Translated and Reviewed count toward completion");
     expect(markup).toContain("Mark Translated");
     expect(markup).toContain("Mark Reviewed");

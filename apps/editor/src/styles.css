@@ -992,6 +992,156 @@ label > .checkbox-list {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.panel-grid--player {
+  grid-template-columns: minmax(0, 1.55fr) minmax(21rem, 0.8fr);
+  align-items: start;
+}
+
+.player-panel__preview-panel {
+  position: sticky;
+  top: var(--space-md);
+}
+
+.player-panel__preview {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: #050608;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.34);
+}
+
+.player-panel__preview[data-title-enabled="false"] {
+  border-style: dashed;
+  opacity: 0.84;
+}
+
+.player-panel__preview .mage2-experience {
+  font-size: clamp(0.55rem, 1.15vw, 1rem);
+}
+
+.player-panel__game-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  gap: 0.4rem;
+  padding: 2rem;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(224, 181, 106, 0.14), transparent 42%),
+    #080b0f;
+  color: #d7dde3;
+  text-align: center;
+}
+
+.player-panel__game-placeholder span,
+.player-panel__preview-note {
+  color: #91a0ad;
+  font-size: 0.8rem;
+}
+
+.player-panel__controls {
+  gap: 0.85rem;
+}
+
+.player-panel__fieldset {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.player-panel__fieldset legend {
+  padding: 0 0.3rem;
+  color: #e5edf4;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.player-panel__fieldset > label {
+  display: grid;
+  gap: 0.35rem;
+  color: #aebbc7;
+  font-size: 0.78rem;
+}
+
+.player-panel__fieldset :is(input:not([type="checkbox"]):not([type="color"]), select, textarea) {
+  width: 100%;
+}
+
+.player-panel__fieldset small {
+  color: #7f909f;
+  line-height: 1.4;
+}
+
+.player-panel__check-row {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center;
+}
+
+.player-panel__check-row input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: #f6c177;
+}
+
+.player-panel__color-row {
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  align-items: center;
+}
+
+.player-panel__color-row input {
+  width: 2.6rem;
+  height: 2rem;
+  padding: 0.1rem;
+}
+
+.player-panel__color-row code {
+  color: #c4d0da;
+  font-size: 0.72rem;
+}
+
+.player-panel__starter-note {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(246, 193, 119, 0.18);
+  border-radius: 12px;
+  background: rgba(246, 193, 119, 0.055);
+  color: #dfe7ed;
+  font-size: 0.8rem;
+}
+
+.player-panel__starter-note > span {
+  color: #f6c177;
+}
+
+.player-panel__starter-note p {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+  color: #91a0ad;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .panel-grid--player {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .player-panel__preview-panel {
+    position: static;
+  }
+}
+
 .panel {
   display: grid;
   align-content: start;
@@ -1954,7 +2104,21 @@ label > .checkbox-list {
   position: relative;
   width: min(100%, max(42rem, calc((100vh - 23rem) * 16 / 8.75)));
   margin-inline: auto;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
   border-radius: 22px;
+}
+
+.playtest-stage > .mage2-experience {
+  width: 100%;
+  height: 100%;
+}
+
+.playtest-stage .mage2-experience__game-canvas > .mage2-player {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
 }
 
 .playtest-stage__hud {

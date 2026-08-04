@@ -30,7 +30,8 @@ export interface SaveEnvelopeMigration {
  * builds. It is the only legacy save format intentionally supported.
  */
 export const SAVE_ENVELOPE_MIGRATIONS: readonly SaveEnvelopeMigration[] = [
-  { fromVersion: 0, toVersion: 1 }
+  { fromVersion: 0, toVersion: 1 },
+  { fromVersion: 1, toVersion: 2 }
 ];
 
 export function getSaveMigrationPath(sourceVersion: number): readonly SaveEnvelopeMigration[] {
@@ -52,24 +53,17 @@ export function getSaveMigrationPath(sourceVersion: number): readonly SaveEnvelo
 }
 
 /**
- * The fingerprint is an identity check, not a security primitive. It is
- * deterministic across browser and Electron runtimes and changes when the
- * playable project content changes.
+ * Save compatibility is creator-controlled. Copy, localization, presentation,
+ * and other compatible project changes do not invalidate progress; creators
+ * increment saveCompatibilityVersion when a release intentionally breaks it.
  */
 export function createProjectContentIdentity(project: ProjectBundle): ProjectContentIdentity {
-  const serialized = stableSerialize({
-    manifest: project.manifest,
-    assets: project.assets,
-    locations: project.locations,
-    scenes: project.scenes,
-    dialogues: project.dialogues,
-    inventory: project.inventory,
-    strings: project.strings
-  });
+  const saveCompatibilityVersion = project.manifest.saveCompatibilityVersion;
 
   return {
     projectId: project.manifest.projectId,
-    contentId: `v${project.manifest.schemaVersion}-${serialized.length.toString(36)}-${fnv1a32(serialized)}`
+    contentId: `save-compat-${saveCompatibilityVersion}`,
+    saveCompatibilityVersion
   };
 }
 
@@ -190,6 +184,10 @@ function loadVersionedSave(value: Record<string, unknown>, project: ProjectBundl
     return migrateLegacySave(value.state, project);
   }
 
+  if (version === 1) {
+    return migrateV1Save(value, project);
+  }
+
   if (version !== CURRENT_SAVE_ENVELOPE_VERSION) {
     return recoverFromSave("unsupported", project, `Saved progress format ${version} has no supported migration path.`);
   }
@@ -202,6 +200,13 @@ function loadVersionedSave(value: Record<string, unknown>, project: ProjectBundl
   const identity = createProjectContentIdentity(project);
   if (parsed.data.identity.projectId !== identity.projectId) {
     return recoverFromSave("stale", project, "Saved progress belongs to a different project and was not loaded.");
+  }
+  if (parsed.data.identity.saveCompatibilityVersion !== identity.saveCompatibilityVersion) {
+    return recoverFromSave(
+      "stale",
+      project,
+      `Saved progress targets compatibility version ${parsed.data.identity.saveCompatibilityVersion}; this game uses ${identity.saveCompatibilityVersion}.`
+    );
   }
   if (parsed.data.identity.contentId !== identity.contentId) {
     return recoverFromSave("stale", project, "Saved progress was created for different project content and was not loaded.");
@@ -216,6 +221,35 @@ function loadVersionedSave(value: Record<string, unknown>, project: ProjectBundl
     status: "compatible",
     saveState: parsed.data.state,
     envelope: parsed.data,
+    shouldQuarantine: false
+  };
+}
+
+function migrateV1Save(value: Record<string, unknown>, project: ProjectBundle): SaveLoadResult {
+  const identity = isRecord(value.identity) ? value.identity : undefined;
+  if (!identity || identity.projectId !== project.manifest.projectId) {
+    return recoverFromSave("stale", project, "Saved progress belongs to a different project and was not loaded.");
+  }
+
+  const parsedState = SaveStateSchema.safeParse(value.state);
+  if (!parsedState.success) {
+    return recoverFromSave("corrupt", project, "Saved progress is malformed and was not loaded.");
+  }
+
+  const compatibilityError = validateSaveStateForProject(parsedState.data, project);
+  if (compatibilityError) {
+    return recoverFromSave("stale", project, `${compatibilityError} The version-one save was not migrated.`);
+  }
+
+  const savedAt = typeof value.savedAt === "string" && value.savedAt.length > 0
+    ? value.savedAt
+    : new Date().toISOString();
+  const envelope = createSaveEnvelope(project, parsedState.data, savedAt);
+  return {
+    status: "migrated",
+    saveState: parsedState.data,
+    envelope,
+    message: "Saved progress was upgraded to the creator-controlled compatibility format.",
     shouldQuarantine: false
   };
 }
@@ -267,33 +301,4 @@ function isLegacySaveStateCandidate(value: unknown): value is Record<string, unk
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function stableSerialize(value: unknown): string {
-  if (value === null) {
-    return "null";
-  }
-  if (typeof value === "string" || typeof value === "boolean" || typeof value === "number") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableSerialize(entry)).join(",")}]`;
-  }
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .filter((key) => value[key] !== undefined)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
-      .join(",")}}`;
-  }
-  return "null";
-}
-
-function fnv1a32(input: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
 }

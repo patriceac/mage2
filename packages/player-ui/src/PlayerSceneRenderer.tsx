@@ -86,6 +86,8 @@ export interface PlayerSceneRendererProps {
   onPlayheadMsChange?: (playheadMs: number) => void;
   onPlayableDurationMsChange?: (durationMs: number) => void;
   playbackResetKey?: string | number;
+  volume?: number;
+  paused?: boolean;
   presentation?: PlayerScenePresentation;
   className?: string;
 }
@@ -334,6 +336,8 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       onPlayheadMsChange,
       onPlayableDurationMsChange,
       playbackResetKey,
+      volume = 1,
+      paused = false,
       presentation = "embedded",
       className
     },
@@ -344,7 +348,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const overlayRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
-    const gameplayPaused = activeResponse?.entry.kind === "video";
+    const gameplayPaused = paused || activeResponse?.entry.kind === "video";
 
     const sceneAsset = project.assets.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId);
     const sceneAssetVariant = sceneAsset ? resolveAssetVariant(sceneAsset, locale) : undefined;
@@ -687,6 +691,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
             resolveSourcePath={resolveSourcePath}
             presentation={presentation}
             copy={copy}
+            volume={volume}
             onComplete={onResponseComplete ?? NOOP_RESPONSE_COMPLETE}
           />
         </div>

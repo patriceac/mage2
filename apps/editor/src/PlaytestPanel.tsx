@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPlayerController, resolveSceneTimelineDurationMs, type ActivePlayerResponse } from "@mage2/player";
 import {
+  DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
+  PlayerExperienceShell,
   PlayerSceneAudio,
   PlayerSceneRenderer,
   resolvePlayerHotspotVisuals,
   resolvePlayerSystemCopy,
   resolvePlayerSceneHotspots,
+  type PlayerExperiencePreferences,
+  type PlayerExperienceScreen,
   type PlayerSceneRendererHandle
 } from "@mage2/player-ui";
 import {
@@ -18,6 +22,7 @@ import {
 import { DropdownSelect } from "./DropdownSelect";
 import { ForegroundMediaPlayer } from "./ForegroundMedia";
 import { resolveFileUrl } from "./file-url-cache";
+import { useEditorAssetFileUrl } from "./player-asset-url";
 import { getLocalizedAssetVariant } from "./localized-project";
 import type { EditorAutomationPlaytestState } from "./automation-commands";
 import {
@@ -107,6 +112,11 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     durationMs: number;
   }>();
   const [showHotspots, setShowHotspots] = useState(false);
+  const [playerScreen, setPlayerScreen] = useState<PlayerExperienceScreen>("game");
+  const [playerPreferences, setPlayerPreferences] = useState<PlayerExperiencePreferences>(
+    DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
+  );
+  const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const selectedInventoryItemIdRef = useRef<string | undefined>(undefined);
   const playerRendererRef = useRef<PlayerSceneRendererHandle>(null);
@@ -124,6 +134,13 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   );
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const playerCopy = resolvePlaytestPlayerCopy(activeLocale);
+  const presentation = project.manifest.playerPresentation;
+  const titleAsset = project.assets.assets.find((asset) => asset.id === presentation.titleBackgroundAssetId);
+  const logoAsset = project.assets.assets.find((asset) => asset.id === presentation.logoAssetId);
+  const iconAsset = project.assets.assets.find((asset) => asset.id === presentation.appIconAssetId);
+  const titleBackgroundUrl = useEditorAssetFileUrl(titleAsset, activeLocale);
+  const logoUrl = useEditorAssetFileUrl(logoAsset, activeLocale);
+  const iconUrl = useEditorAssetFileUrl(iconAsset, activeLocale);
 
   useEffect(() => {
     const nextController = createPlayerController(project);
@@ -165,6 +182,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
         event.key !== "Escape" ||
         event.repeat ||
         event.defaultPrevented ||
+        shellMenuOpen ||
+        playerScreen === "title" ||
         document.querySelector(".dialog-overlay")
       ) {
         return;
@@ -183,7 +202,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     return () => {
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [onExit]);
+  }, [onExit, playerScreen, shellMenuOpen]);
 
   function resetPlaytestRun() {
     const nextController = createPlayerController(project);
@@ -363,7 +382,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs);
-  const gameplayPaused = activeResponse?.entry.kind === "video";
+  const gameplayPaused = activeResponse?.entry.kind === "video" || shellMenuOpen || playerScreen === "title";
   const sceneHotspots = resolvePlayerSceneHotspots(visibleHotspots, snapshot.scene.hotspots, snapshot.flags);
   const hotspotVisuals = resolvePlayerHotspotVisuals({
     hotspots: sceneHotspots.surfaceHotspots,
@@ -445,6 +464,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     }
   }, [selectedInventoryItemId, snapshot.inventoryItems]);
 
+  const preferredLoadSlotId = saveSlotInspections.find((slot) => slot.status === "ready")?.slotId;
+
   return (
     <div className="panel-grid panel-grid--playtest">
       <section className="panel">
@@ -472,6 +493,14 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             </DropdownSelect>
           </label>
           <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--session" aria-label="Playtest session controls">
+            <button
+              type="button"
+              className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
+              title="Preview the creator-configured title screen and player menu used by exported builds."
+              onClick={() => setPlayerScreen("title")}
+            >
+              Title Screen
+            </button>
             <button
               type="button"
               className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
@@ -581,6 +610,35 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
         </section>
 
         <div className="playtest-stage">
+          <PlayerExperienceShell
+            projectName={project.manifest.projectName}
+            gameVersion={project.manifest.gameVersion}
+            presentation={presentation}
+            screen={playerScreen}
+            onScreenChange={setPlayerScreen}
+            locale={activeLocale}
+            supportedLocales={supportedLocales}
+            localeStrings={localeStrings}
+            onLocaleChange={setActiveLocale}
+            preferences={playerPreferences}
+            onPreferencesChange={setPlayerPreferences}
+            hasSavedGame={Boolean(preferredLoadSlotId)}
+            onContinue={() => {
+              if (preferredLoadSlotId) {
+                loadPlaytestSlot(preferredLoadSlotId);
+              }
+            }}
+            onNewGame={() => {
+              resetPlaytestRun();
+            }}
+            onSave={() => savePlaytestSlot(1)}
+            onLoad={preferredLoadSlotId ? () => loadPlaytestSlot(preferredLoadSlotId) : undefined}
+            onQuit={onExit}
+            titleBackgroundUrl={titleBackgroundUrl}
+            logoUrl={logoUrl}
+            iconUrl={iconUrl}
+            onMenuOpenChange={setShellMenuOpen}
+          >
           <PlayerSceneRenderer
             ref={playerRendererRef}
             className="playtest-shared-renderer"
@@ -594,6 +652,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             resolveSourcePath={resolveFileUrl}
             bagIconUrl={PLAYTEST_INVENTORY_BAG_ICON_SRC}
             copy={playerCopy}
+            volume={playerPreferences.volume}
+            paused={gameplayPaused}
             selectedInventoryItemId={selectedInventoryItemId}
             onSelectedInventoryItemIdChange={selectPlaytestInventoryItem}
             onHotspotActivate={activatePlaytestHotspot}
@@ -630,9 +690,11 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               locale={activeLocale}
               label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
               className="foreground-media-player--playtest"
+              volume={playerPreferences.volume}
               onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
             />
           ) : null}
+          </PlayerExperienceShell>
         </div>
 
         <PlayerSceneAudio
@@ -646,6 +708,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           loop={snapshot.scene.sceneAudioLoop}
           durationMs={sceneAudioVariant?.durationMs}
           paused={gameplayPaused}
+          volume={playerPreferences.volume}
           playbackResetKey={playbackResetKey}
           onPlayheadMsChange={setPlayheadMs}
         />

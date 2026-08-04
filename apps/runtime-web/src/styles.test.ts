@@ -8,6 +8,7 @@ const sharedStyles = readFileSync(
 );
 const runtimeEntry = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
 const runtimeApp = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+const runtimeHtml = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 describe("runtime player layout styles", () => {
   it("uses a dynamic full viewport without document scrolling", () => {
@@ -34,16 +35,17 @@ describe("runtime player layout styles", () => {
   });
 
   it("turns player menus and confirmations into mobile bottom sheets", () => {
-    expect(styles).toMatch(/@media \(max-width: 640px\)/);
-    expect(styles).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.runtime-menu-panel,[\s\S]*?\.runtime-confirmation\s*\{[\s\S]*?top: auto;[\s\S]*?bottom: 0;[\s\S]*?width: 100%;[\s\S]*?border-radius: 22px 22px 0 0;/
+    expect(sharedStyles).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*?\.mage2-experience__panel,[\s\S]*?\.mage2-experience__confirmation\s*\{[\s\S]*?top: auto;[\s\S]*?bottom: 0;[\s\S]*?width: 100%;[\s\S]*?border-radius: 22px 22px 0 0;/
     );
+    expect(styles).not.toContain(".runtime-menu-panel");
+    expect(styles).not.toContain(".runtime-confirmation");
   });
 
   it("opts the standalone host into the shared portrait renderer without changing its scene plane", () => {
     expect(runtimeApp).toContain('presentation="runtime-responsive"');
     expect(styles).toMatch(
-      /\.runtime-player-renderer\s*\{[\s\S]*?--mage2-player-runtime-top-inset: calc\(var\(--runtime-safe-top\) \+ 3\.45rem\);/
+      /\.runtime-player-renderer\s*\{[\s\S]*?--mage2-player-runtime-top-inset: 0;/
     );
     expect(styles).toMatch(
       /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*?\.runtime-player-renderer\s*\{[\s\S]*?width: 100%;[\s\S]*?height: 100%;/
@@ -70,13 +72,19 @@ describe("runtime player layout styles", () => {
     );
     expect(styles).toContain(".runtime-error-details {");
   });
+
+  it("suppresses the browser's speculative favicon request until the creator icon is ready", () => {
+    expect(runtimeHtml).toContain('<link rel="icon" href="data:," />');
+    expect(runtimeApp).toContain('link[rel~="icon"]');
+  });
 });
 
 describe("runtime hotspot and debug styles", () => {
   it("keeps runtime host button chrome out of every shared renderer control", () => {
     expect(styles).toContain(
-      ".runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):hover:not(:disabled) {"
+      ":is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button:hover:not(:disabled) {"
     );
+    expect(styles).not.toContain(".runtime-shell button:not");
     expect(styles).not.toMatch(/(^|\n)button:hover:not\(:disabled\)\s*\{/u);
   });
 

@@ -18,10 +18,14 @@ import {
   parseBuildManifest
 } from "@mage2/schema";
 import {
+  DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
+  PlayerExperienceShell,
   PlayerSceneAudio,
   PlayerSceneRenderer,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
+  type PlayerExperiencePreferences,
+  type PlayerExperienceScreen,
   type PlayerSourceResolver
 } from "@mage2/player-ui";
 
@@ -65,31 +69,15 @@ export function resolveRuntimeSaveStorageKey(projectId: string): string {
 }
 
 interface RuntimeSystemCopy {
-  cancel: string;
-  close: string;
-  closeMenu: string;
-  confirmLoad: string;
-  confirmLoadBody: string;
-  confirmLoadTitle: string;
-  confirmRestart: string;
-  confirmRestartBody: string;
-  confirmRestartTitle: string;
   debugMode: string;
   gameLoaded: string;
   gameRestarted: string;
   gameSaved: string;
-  language: string;
-  loadGame: string;
   loading: string;
-  menu: string;
-  menuTitle: string;
   noValidSave: string;
   placedObject: string;
   playhead: string;
-  quit: string;
   rawSave: string;
-  restartGame: string;
-  saveGame: string;
   saveRecovered: string;
   showHotspots: string;
   startupErrorBody: string;
@@ -98,62 +86,30 @@ interface RuntimeSystemCopy {
 
 const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
   en: {
-    cancel: "Cancel",
-    close: "Close",
-    closeMenu: "Close player menu",
-    confirmLoad: "Load",
-    confirmLoadBody: "Current progress will be replaced.",
-    confirmLoadTitle: "Load saved game?",
-    confirmRestart: "New game",
-    confirmRestartBody: "Saved progress on this device will be deleted.",
-    confirmRestartTitle: "Start a new game?",
     debugMode: "Debug mode",
     gameLoaded: "Saved game loaded.",
     gameRestarted: "New game started.",
     gameSaved: "Game saved.",
-    language: "Language",
-    loadGame: "Load game",
     loading: "Loading game...",
-    menu: "Menu",
-    menuTitle: "Player menu",
     noValidSave: "No valid saved game is available.",
     placedObject: "This object is placed here.",
     playhead: "Playhead",
-    quit: "Quit",
     rawSave: "Raw save state",
-    restartGame: "New game",
-    saveGame: "Save game",
     saveRecovered: "The saved game could not be read. A new game was started.",
     showHotspots: "Show hotspots",
     startupErrorBody: "Check that the complete exported game was published, then try again.",
     startupErrorTitle: "Unable to start this game"
   },
   fr: {
-    cancel: "Annuler",
-    close: "Fermer",
-    closeMenu: "Fermer le menu du jeu",
-    confirmLoad: "Charger",
-    confirmLoadBody: "La progression actuelle sera remplacée.",
-    confirmLoadTitle: "Charger la sauvegarde ?",
-    confirmRestart: "Nouvelle partie",
-    confirmRestartBody: "La sauvegarde de cet appareil sera supprimée.",
-    confirmRestartTitle: "Commencer une nouvelle partie ?",
     debugMode: "Mode debug",
     gameLoaded: "Sauvegarde chargée.",
     gameRestarted: "Nouvelle partie commencée.",
     gameSaved: "Partie sauvegardée.",
-    language: "Langue",
-    loadGame: "Charger la partie",
     loading: "Chargement du jeu...",
-    menu: "Menu",
-    menuTitle: "Menu du jeu",
     noValidSave: "Aucune sauvegarde valide n'est disponible.",
     placedObject: "Cet objet est placé ici.",
     playhead: "Tête de lecture",
-    quit: "Quitter",
     rawSave: "État brut de la sauvegarde",
-    restartGame: "Nouvelle partie",
-    saveGame: "Sauvegarder",
     saveRecovered: "La sauvegarde était illisible. Une nouvelle partie a été lancée.",
     showHotspots: "Afficher les zones",
     startupErrorBody: "Vérifiez que le jeu exporté a été publié en entier, puis réessayez.",
@@ -193,15 +149,29 @@ function RuntimeForegroundMediaPlayer({
   asset,
   locale,
   label,
-  onDismiss
+  onDismiss,
+  volume = 1
 }: {
   asset: Asset;
   locale: string;
   label: string;
   onDismiss?: () => void;
+  volume?: number;
 }) {
   const variant = resolveAssetVariant(asset, locale);
   const sourcePath = variant?.proxyPath ?? variant?.sourcePath;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const nextVolume = Math.min(1, Math.max(0, volume));
+    if (videoRef.current) {
+      videoRef.current.volume = nextVolume;
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = nextVolume;
+    }
+  }, [volume]);
 
   return (
     <section className={`runtime-foreground-media runtime-foreground-media--${asset.kind}`} aria-label={`${label}: ${asset.name}`}>
@@ -215,9 +185,9 @@ function RuntimeForegroundMediaPlayer({
         ) : null}
       </header>
       {sourcePath && asset.kind === "video" ? (
-        <video src={sourcePath} autoPlay controls playsInline preload="auto" />
+        <video ref={videoRef} src={sourcePath} autoPlay controls playsInline preload="auto" />
       ) : sourcePath && asset.kind === "audio" ? (
-        <audio src={sourcePath} autoPlay controls preload="auto" />
+        <audio ref={audioRef} src={sourcePath} autoPlay controls preload="auto" />
       ) : (
         <div>No playable {locale} variant.</div>
       )}
@@ -256,6 +226,32 @@ export function resolveRuntimeLanguageName(locale: string): string {
   }
 }
 
+export function resolveRuntimePlayerPreferences(raw: string | null | undefined): PlayerExperiencePreferences {
+  if (!raw) {
+    return DEFAULT_PLAYER_EXPERIENCE_PREFERENCES;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      volume:
+        typeof parsed.volume === "number" && Number.isFinite(parsed.volume)
+          ? Math.min(1, Math.max(0, parsed.volume))
+          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.volume,
+      textSize:
+        parsed.textSize === "small" || parsed.textSize === "medium" || parsed.textSize === "large"
+          ? parsed.textSize
+          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.textSize,
+      reducedMotion:
+        typeof parsed.reducedMotion === "boolean"
+          ? parsed.reducedMotion
+          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.reducedMotion
+    };
+  } catch {
+    return DEFAULT_PLAYER_EXPERIENCE_PREFERENCES;
+  }
+}
+
 export function App() {
   const [debugMode] = useState(() =>
     isRuntimeDebugMode(typeof window === "undefined" ? "" : window.location.search)
@@ -266,22 +262,22 @@ export function App() {
   const [activeLocale, setActiveLocale] = useState<string>();
   const [playheadMs, setPlayheadMs] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmationAction, setConfirmationAction] = useState<"load" | "restart">();
   const [hasValidStoredSave, setHasValidStoredSave] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const [runtimeNotice, setRuntimeNotice] = useState<string>();
   const [interactionMediaPlayback, setInteractionMediaPlayback] = useState<{ assetId: string; sequence: number }>();
+  const [playerScreen, setPlayerScreen] = useState<PlayerExperienceScreen>("title");
+  const [playerPreferences, setPlayerPreferences] = useState<PlayerExperiencePreferences>(
+    DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
+  );
+  const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const interactionMediaSequenceRef = useRef(0);
   const [activeResponse, setActiveResponse] = useState<ActivePlayerResponse>();
   const completeResponse = useCallback((sequence: number) => {
     setActiveResponse((current) => (current?.sequence === sequence ? undefined : current));
   }, []);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuDialogRef = useRef<HTMLElement>(null);
-  const confirmationDialogRef = useRef<HTMLElement>(null);
   const startupCopy = resolveRuntimeSystemCopy(
     typeof navigator === "undefined" ? "en" : navigator.language
   );
@@ -337,6 +333,10 @@ export function App() {
           restoredSession.loadResult.status === "compatible" || restoredSession.loadResult.status === "migrated"
         );
         setRuntimeNotice(resolveRuntimeSaveLoadNotice(restoredSession.loadResult, nextLocale));
+        setPlayerScreen(loadedProject.manifest.playerPresentation.titleScreenEnabled ? "title" : "game");
+        setPlayerPreferences(
+          resolveRuntimePlayerPreferences(localStorage.getItem(`mage2-runtime-preferences:${manifest.projectId}`))
+        );
       } catch (error) {
         setErrorMessage(error instanceof Error ? error.message : String(error));
       }
@@ -347,6 +347,7 @@ export function App() {
 
   const storageKey = buildManifest ? resolveRuntimeSaveStorageKey(buildManifest.projectId) : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
+  const preferencesStorageKey = buildManifest ? `mage2-runtime-preferences:${buildManifest.projectId}` : "";
   const supportedLocales =
     content
       ? normalizeSupportedLocales(content.manifest.defaultLanguage, content.manifest.supportedLocales)
@@ -386,7 +387,18 @@ export function App() {
     currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs) : [];
-  const gameplayPaused = activeResponse?.entry.kind === "video";
+  const gameplayPaused = activeResponse?.entry.kind === "video" || shellMenuOpen || playerScreen === "title";
+
+  const resolvePresentationVariant = (assetId?: string) => {
+    const asset = assetId ? content?.assets.find((entry) => entry.id === assetId) : undefined;
+    return asset ? resolveAssetVariant(asset, locale) ?? resolveAssetVariant(asset, content!.manifest.defaultLanguage) : undefined;
+  };
+  const titleBackgroundVariant = resolvePresentationVariant(content?.manifest.playerPresentation.titleBackgroundAssetId);
+  const logoVariant = resolvePresentationVariant(content?.manifest.playerPresentation.logoAssetId);
+  const iconVariant = resolvePresentationVariant(content?.manifest.playerPresentation.appIconAssetId);
+  const titleBackgroundUrl = titleBackgroundVariant?.proxyPath ?? titleBackgroundVariant?.sourcePath;
+  const logoUrl = logoVariant?.proxyPath ?? logoVariant?.sourcePath;
+  const iconUrl = iconVariant?.proxyPath ?? iconVariant?.sourcePath;
 
   useEffect(() => {
     if (dialogueMediaAssetId) {
@@ -408,69 +420,57 @@ export function App() {
   }, [content, locale, localeStorageKey]);
 
   useEffect(() => {
-    const dialog = menuOpen
-      ? menuDialogRef.current
-      : confirmationAction
-        ? confirmationDialogRef.current
-        : undefined;
-    if (!dialog) {
+    if (!preferencesStorageKey) {
+      return;
+    }
+    try {
+      localStorage.setItem(preferencesStorageKey, JSON.stringify(playerPreferences));
+    } catch {
+      // Settings remain active for this session when storage is unavailable.
+    }
+  }, [playerPreferences, preferencesStorageKey]);
+
+  useEffect(() => {
+    if (!content) {
       return;
     }
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    const focusableSelector = [
-      "button:not([disabled])",
-      "select:not([disabled])",
-      "input:not([disabled])",
-      "[href]",
-      '[tabindex]:not([tabindex="-1"])'
-    ].join(",");
-    const focusFirstControl = () => dialog.querySelector<HTMLElement>(focusableSelector)?.focus();
-    const animationFrame = window.requestAnimationFrame(focusFirstControl);
+    const existingIcon = document.head.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+    const iconLink = existingIcon ?? document.createElement("link");
+    const previousIconHref = existingIcon?.getAttribute("href");
+    if (!existingIcon) {
+      iconLink.rel = "icon";
+      document.head.append(iconLink);
+    }
+    if (iconUrl) {
+      iconLink.href = iconUrl;
+    }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setMenuOpen(false);
-        setConfirmationAction(undefined);
-        return;
-      }
+    const existingTheme = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const themeMeta = existingTheme ?? document.createElement("meta");
+    const previousThemeColor = existingTheme?.content;
+    if (!existingTheme) {
+      themeMeta.name = "theme-color";
+      document.head.append(themeMeta);
+    }
+    themeMeta.content = content.manifest.playerPresentation.accentColor;
 
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)).filter(
-        (element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true"
-      );
-      if (controls.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-
-      const first = controls[0]!;
-      const last = controls[controls.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("keydown", handleKeyDown);
-      if (previouslyFocused?.isConnected) {
-        previouslyFocused.focus();
+      if (!existingIcon) {
+        iconLink.remove();
+      } else if (previousIconHref === null || previousIconHref === undefined) {
+        iconLink.removeAttribute("href");
       } else {
-        menuButtonRef.current?.focus();
+        iconLink.setAttribute("href", previousIconHref);
+      }
+
+      if (!existingTheme) {
+        themeMeta.remove();
+      } else {
+        themeMeta.content = previousThemeColor ?? "";
       }
     };
-  }, [confirmationAction, menuOpen]);
+  }, [content, iconUrl]);
 
   if (errorMessage) {
     return (
@@ -535,7 +535,6 @@ export function App() {
     } catch {
       setRuntimeNotice("Progress could not be saved in local storage.");
     }
-    setMenuOpen(false);
   };
 
   const loadSavedGame = () => {
@@ -543,7 +542,6 @@ export function App() {
     if (storedSave === null) {
       setHasValidStoredSave(false);
       setRuntimeNotice(systemCopy.noValidSave);
-      setConfirmationAction(undefined);
       return;
     }
 
@@ -560,7 +558,6 @@ export function App() {
       setHasValidStoredSave(true);
       setRuntimeNotice(restoredSession.loadResult.message ?? systemCopy.gameLoaded);
     }
-    setConfirmationAction(undefined);
   };
 
   const restartGame = () => {
@@ -568,33 +565,44 @@ export function App() {
     applyRestoredSession(restoreRuntimeSession(content, null));
     setHasValidStoredSave(false);
     setRuntimeNotice(systemCopy.gameRestarted);
-    setConfirmationAction(undefined);
   };
-
-  const modalOpen = menuOpen || Boolean(confirmationAction);
 
   return (
     <main className="runtime-shell" data-runtime-mode={debugMode ? "debug" : "player"}>
       <section className="runtime-stage" aria-label={headerContent.projectName}>
-        <div
-          className="runtime-player-layer"
-          aria-hidden={modalOpen ? true : undefined}
-          inert={modalOpen ? true : undefined}
+        <PlayerExperienceShell
+          projectName={headerContent.projectName}
+          gameVersion={content.manifest.gameVersion}
+          presentation={content.manifest.playerPresentation}
+          screen={playerScreen}
+          onScreenChange={setPlayerScreen}
+          locale={locale}
+          supportedLocales={supportedLocales}
+          localeStrings={localeStrings}
+          onLocaleChange={setActiveLocale}
+          preferences={playerPreferences}
+          onPreferencesChange={setPlayerPreferences}
+          hasSavedGame={hasValidStoredSave}
+          onContinue={() => setRuntimeNotice(undefined)}
+          onNewGame={restartGame}
+          onSave={saveGame}
+          onLoad={loadSavedGame}
+          onQuit={canQuitRuntime ? () => window.mage2Runtime?.quit() : undefined}
+          onFullscreen={() => {
+            if (document.fullscreenElement) {
+              void document.exitFullscreen();
+            } else {
+              void document.documentElement.requestFullscreen();
+            }
+          }}
+          titleBackgroundUrl={titleBackgroundUrl}
+          logoUrl={logoUrl}
+          iconUrl={iconUrl}
+          status={runtimeNotice}
+          onMenuOpenChange={setShellMenuOpen}
+          resolveLocaleName={resolveRuntimeLanguageName}
         >
-          <header className="runtime-header">
-            <h1>{headerContent.projectName}</h1>
-            <button
-              ref={menuButtonRef}
-              type="button"
-              className="runtime-menu-button"
-              aria-expanded={menuOpen}
-              aria-controls="runtime-player-menu"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {systemCopy.menu}
-            </button>
-          </header>
-
+          <div className="runtime-player-layer">
           <div className="runtime-player-frame">
             {currentAsset?.kind === "image" && currentAssetVariant?.sourcePath ? (
               <div
@@ -605,7 +613,7 @@ export function App() {
             ) : null}
             <PlayerSceneRenderer
               className={
-                gameplayPaused
+                activeResponse?.entry.kind === "video"
                   ? "runtime-player-renderer runtime-player-renderer--response-video"
                   : "runtime-player-renderer"
               }
@@ -620,6 +628,8 @@ export function App() {
               resolveSourcePath={resolveRuntimeSourcePath}
               bagIconUrl={RUNTIME_INVENTORY_BAG_ICON_SRC}
               copy={playerCopy}
+              volume={playerPreferences.volume}
+              paused={gameplayPaused}
               selectedInventoryItemId={selectedInventoryItemId}
               onSelectedInventoryItemIdChange={(itemId) => {
                 setSelectedInventoryItemId(itemId);
@@ -669,6 +679,7 @@ export function App() {
                 asset={foregroundMediaAsset}
                 locale={locale}
                 label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
+                volume={playerPreferences.volume}
                 onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
               />
             ) : null}
@@ -685,18 +696,10 @@ export function App() {
             loop={snapshot.scene.sceneAudioLoop}
             durationMs={sceneAudioVariant?.durationMs}
             paused={gameplayPaused}
+            volume={playerPreferences.volume}
             onPlayheadMsChange={setPlayheadMs}
             className="runtime-scene-audio"
           />
-
-          <p
-            className={runtimeNotice ? "runtime-status" : "runtime-status runtime-status--empty"}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {runtimeNotice ?? ""}
-          </p>
 
           {debugMode ? (
             <details className="runtime-debug-panel" open>
@@ -730,114 +733,8 @@ export function App() {
             </details>
           ) : null}
         </div>
+        </PlayerExperienceShell>
 
-        {menuOpen ? (
-          <div className="runtime-modal-layer">
-            <div className="runtime-modal-scrim" aria-hidden="true" onClick={() => setMenuOpen(false)} />
-            <section
-              ref={menuDialogRef}
-              id="runtime-player-menu"
-              className="runtime-menu-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="runtime-menu-title"
-            >
-              <div className="runtime-panel-heading">
-                <h2 id="runtime-menu-title">{systemCopy.menuTitle}</h2>
-                <button
-                  type="button"
-                  className="runtime-close-button"
-                  aria-label={systemCopy.closeMenu}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {systemCopy.close}
-                </button>
-              </div>
-              <label className="runtime-language-picker">
-                <span>{systemCopy.language}</span>
-                <select value={locale} onChange={(event) => setActiveLocale(event.target.value)}>
-                  {supportedLocales.map((entry) => (
-                    <option key={entry} value={entry}>
-                      {resolveRuntimeLanguageName(entry)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="runtime-menu-actions">
-                <button type="button" onClick={saveGame}>
-                  {systemCopy.saveGame}
-                </button>
-                <button
-                  type="button"
-                  disabled={!hasValidStoredSave}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setConfirmationAction("load");
-                  }}
-                >
-                  {systemCopy.loadGame}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setConfirmationAction("restart");
-                  }}
-                >
-                  {systemCopy.restartGame}
-                </button>
-                {canQuitRuntime ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      window.mage2Runtime?.quit();
-                    }}
-                  >
-                    {systemCopy.quit}
-                  </button>
-                ) : null}
-              </div>
-            </section>
-          </div>
-        ) : null}
-
-        {confirmationAction ? (
-          <div className="runtime-modal-layer">
-            <div
-              className="runtime-modal-scrim"
-              aria-hidden="true"
-              onClick={() => setConfirmationAction(undefined)}
-            />
-            <section
-              ref={confirmationDialogRef}
-              className="runtime-confirmation"
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="runtime-confirmation-title"
-              aria-describedby="runtime-confirmation-body"
-            >
-              <h2 id="runtime-confirmation-title">
-                {confirmationAction === "load" ? systemCopy.confirmLoadTitle : systemCopy.confirmRestartTitle}
-              </h2>
-              <p id="runtime-confirmation-body">
-                {confirmationAction === "load" ? systemCopy.confirmLoadBody : systemCopy.confirmRestartBody}
-              </p>
-              <div className="runtime-confirmation__actions">
-                <button type="button" autoFocus onClick={() => setConfirmationAction(undefined)}>
-                  {systemCopy.cancel}
-                </button>
-                <button
-                  type="button"
-                  className="runtime-confirmation__primary"
-                  onClick={confirmationAction === "load" ? loadSavedGame : restartGame}
-                >
-                  {confirmationAction === "load" ? systemCopy.confirmLoad : systemCopy.confirmRestart}
-                </button>
-              </div>
-            </section>
-          </div>
-        ) : null}
       </section>
     </main>
   );

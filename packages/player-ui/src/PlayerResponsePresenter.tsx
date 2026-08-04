@@ -20,6 +20,7 @@ export interface PlayerResponsePresenterProps {
     "skipResponseVideo" | "stopResponseAudio" | "playResponseAudio" | "responseAudioPlaying" | "responseMediaUnavailable"
   >;
   onComplete: (sequence: number) => void;
+  volume?: number;
 }
 
 export function resolveResponseTextDurationMs(text: string): number {
@@ -38,7 +39,8 @@ export function PlayerResponsePresenter({
   resolveSourcePath,
   presentation,
   copy,
-  onComplete
+  onComplete,
+  volume = 1
 }: PlayerResponsePresenterProps) {
   const entry = activeResponse?.entry;
   const mediaAsset =
@@ -133,6 +135,7 @@ export function PlayerResponsePresenter({
         sequence={activeResponse.sequence}
         sourceUrl={resolvedSource.url}
         copy={copy}
+        volume={volume}
         onComplete={onComplete}
       />
     );
@@ -146,6 +149,7 @@ export function PlayerResponsePresenter({
       presentation={presentation}
       skipLabel={copy.skipResponseVideo}
       playLabel={copy.playResponseAudio}
+      volume={volume}
       onComplete={onComplete}
     />
   );
@@ -155,15 +159,23 @@ function ResponseAudio({
   sequence,
   sourceUrl,
   copy,
+  volume,
   onComplete
 }: {
   sequence: number;
   sourceUrl: string;
   copy: PlayerResponsePresenterProps["copy"];
+  volume: number;
   onComplete: (sequence: number) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [requiresPlay, setRequiresPlay] = useState(false);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = Math.min(1, Math.max(0, volume));
+    }
+  }, [volume]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -209,6 +221,7 @@ function ResponseVideo({
   presentation,
   skipLabel,
   playLabel,
+  volume,
   onComplete
 }: {
   sequence: number;
@@ -216,10 +229,17 @@ function ResponseVideo({
   presentation: PlayerScenePresentation;
   skipLabel: string;
   playLabel: string;
+  volume: number;
   onComplete: (sequence: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [requiresPlay, setRequiresPlay] = useState(false);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = Math.min(1, Math.max(0, volume));
+    }
+  }, [volume]);
 
   useEffect(() => {
     const video = videoRef.current;

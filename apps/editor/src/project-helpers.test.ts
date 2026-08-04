@@ -401,7 +401,8 @@ describe("collectAssetReferenceSummary", () => {
       hotspotMediaAssignments: [],
       dialogueMediaAssignments: [],
       inventoryImages: [],
-      responseEntries: []
+      responseEntries: [],
+      playerPresentation: []
     });
   });
 
@@ -421,7 +422,8 @@ describe("collectAssetReferenceSummary", () => {
       hotspotMediaAssignments: [],
       dialogueMediaAssignments: [],
       inventoryImages: [],
-      responseEntries: []
+      responseEntries: [],
+      playerPresentation: []
     });
   });
 
@@ -460,6 +462,26 @@ describe("collectAssetReferenceSummary", () => {
           nodeLabel: node.speaker
         }
       ]
+    });
+  });
+
+  it("reports player presentation roles and blocks referenced artwork deletion", () => {
+    const project = createDefaultProjectBundle("Player artwork usage");
+    const titleAsset = createAsset(
+      "asset_starter_title",
+      "title.png",
+      "D:\\media\\title.png",
+      "player"
+    );
+    project.assets.assets = [titleAsset];
+    project.manifest.playerPresentation.titleBackgroundAssetId = titleAsset.id;
+
+    expect(collectAssetReferenceSummary(project, titleAsset.id).playerPresentation).toEqual([
+      { role: "titleBackground" }
+    ]);
+    expect(removeAssetFromProject(project, titleAsset.id)).toMatchObject({
+      deleted: false,
+      blockedReason: "player-asset-in-use"
     });
   });
 });

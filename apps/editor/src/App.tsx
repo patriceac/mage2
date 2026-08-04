@@ -19,12 +19,13 @@ import {
   type Hotspot,
   type ProjectBundle,
   type ValidationIssue,
-  validateProject
+  validateProjectForRelease
 } from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
 import { InventoryPanel } from "./panels/InventoryPanel";
 import { LocalizationPanel } from "./panels/LocalizationPanel";
+import { PlayerPanel } from "./panels/PlayerPanel";
 import { ScenesPanel } from "./panels/ScenesPanel";
 import { WorldPanel } from "./panels/WorldPanel";
 import { PlaytestPanel } from "./PlaytestPanel";
@@ -62,6 +63,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "dialogue", label: "Dialogue" },
   { id: "inventory", label: "Inventory" },
   { id: "localization", label: "Localization" },
+  { id: "player", label: "Player" },
   { id: "assets", label: "Assets" },
   { id: "playtest", label: "Playtest" }
 ];
@@ -73,6 +75,7 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   dialogue: "Write conversations and reusable text, audio, or video player responses, then assign them from scene hotspots.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
   localization: "Manage locale coverage and edit localized strings and media variants in one place.",
+  player: "Customize the title screen, player chrome, credits, release identity, and save compatibility.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, and state."
 };
 
@@ -585,14 +588,15 @@ export function App() {
       return;
     }
 
-    const preflightReport = validateProject(project);
+    const preflightReport = validateProjectForRelease(project);
     if (!preflightReport.valid) {
+      const blockingIssueCount = preflightReport.issues.filter((issue) => issue.level === "error").length;
       setShowValidationDetails(true);
       setStatusMessage("Export blocked. Review the project issues and try again.");
       await dialogs.alert({
         title: "Project Is Not Ready to Export",
         body: (
-          <p>{`Fix ${preflightReport.issues.length} blocking ${preflightReport.issues.length === 1 ? "issue" : "issues"} before creating a runtime build. No export files were changed.`}</p>
+          <p>{`Fix ${blockingIssueCount} blocking ${blockingIssueCount === 1 ? "issue" : "issues"} before creating a runtime build. No export files were changed.`}</p>
         ),
         confirmLabel: "Review Issues",
         tone: "danger"
@@ -1206,7 +1210,7 @@ export function App() {
     await openProjectDirectory(droppedPath);
   }
 
-  const validationReport = validateProject(project);
+  const validationReport = validateProjectForRelease(project);
   const visibleValidationIssues = resolveVisibleIssuesForTab(project, validationReport.issues, activeTab);
   const hasProjectIssues = validationReport.issues.length > 0;
   const firstProjectChecklist = resolveFirstProjectChecklist(
@@ -1466,6 +1470,13 @@ export function App() {
                   setBusyLabel={setBusyLabel}
                 />
               ) : null}
+              {activeTab === "player" ? (
+                <PlayerPanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  setStatusMessage={setStatusMessage}
+                />
+              ) : null}
               {activeTab === "playtest" ? <PlaytestPanel project={project} onExit={handleExitPlaytest} /> : null}
             </main>
           </div>
@@ -1510,6 +1521,10 @@ export function App() {
                   state={firstProjectChecklist}
                   onOpenSceneMedia={() => openFirstProjectScene(false)}
                   onOpenInteraction={() => openFirstProjectScene(true)}
+                  onOpenPlayer={() => {
+                    setActiveTab("player");
+                    setStatusMessage("Opened Player. Review the title screen, credits, and release version.");
+                  }}
                   onReviewValidation={reviewFirstProjectValidation}
                   onOpenPlaytest={() => {
                     setActiveTab("playtest");
@@ -1600,7 +1615,7 @@ export function App() {
 
 function resolveEditorAutomationState(statusMessage: string) {
   const state = useEditorStore.getState();
-  const validationReport = state.project ? validateProject(state.project) : undefined;
+  const validationReport = state.project ? validateProjectForRelease(state.project) : undefined;
   return {
     activeTab: state.activeTab,
     projectDir: state.projectDir,
@@ -1927,6 +1942,8 @@ function resolveIssuesPanelTitle(tab: EditorTab): string {
       return "Inventory Issues";
     case "localization":
       return "Localization Issues";
+    case "player":
+      return "Player Issues";
     case "playtest":
       return "Playtest Issues";
   }

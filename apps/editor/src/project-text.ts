@@ -10,6 +10,7 @@ import type {
   ValidationIssue
 } from "@mage2/schema";
 import { getLocaleStringValues, getStringTranslationState, resolveProjectLocale } from "@mage2/schema";
+import { collectPlayerExperienceTextIds } from "@mage2/schema";
 import type { EditorNavigationTarget } from "./navigation-target";
 
 export type ProjectTextUsageKind =
@@ -18,10 +19,11 @@ export type ProjectTextUsageKind =
   | "dialogueChoice"
   | "responseText"
   | "inventoryName"
-  | "inventoryDescription";
+  | "inventoryDescription"
+  | "playerUi";
 
 export type ProjectTextEntryStatus = "missing" | "referenced" | "orphaned";
-export type ProjectTextArea = "scenes" | "dialogue" | "inventory";
+export type ProjectTextArea = "scenes" | "dialogue" | "inventory" | "player";
 export type ProjectTextStatusFilter = "all" | ProjectTextEntryStatus;
 export type ProjectTextAreaFilter = "all" | ProjectTextArea;
 export type ProjectTextSortOption = "status" | "textId" | "mostUses";
@@ -168,6 +170,20 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
     }
   }
 
+  for (const textId of collectPlayerExperienceTextIds(project.manifest.playerPresentation)) {
+    usages.push({
+      textId,
+      kind: "playerUi",
+      ownerId: textId,
+      ownerLabel: textId.startsWith("player.ui.") ? "Player interface" : "Player presentation",
+      navigation: {
+        label: "Player presentation",
+        tab: "player",
+        textId
+      }
+    });
+  }
+
   return usages;
 }
 
@@ -259,6 +275,8 @@ export function resolveProjectTextArea(kind: ProjectTextUsageKind): ProjectTextA
     case "inventoryName":
     case "inventoryDescription":
       return "inventory";
+    case "playerUi":
+      return "player";
   }
 }
 
@@ -270,6 +288,8 @@ export function getProjectTextAreaLabel(area: ProjectTextArea): string {
       return "Dialogue";
     case "inventory":
       return "Inventory";
+    case "player":
+      return "Player";
   }
 }
 
@@ -287,6 +307,8 @@ export function formatProjectTextUsageKind(kind: ProjectTextUsageKind): string {
       return "Inventory Name";
     case "inventoryDescription":
       return "Inventory Description";
+    case "playerUi":
+      return "Player Interface";
   }
 }
 
@@ -543,6 +565,11 @@ function collectAllProjectTextReferenceCounts(project: ProjectBundle): Map<strin
   for (const item of project.inventory.items) {
     register(item.textId);
     register(item.descriptionTextId);
+  }
+
+
+  for (const textId of collectPlayerExperienceTextIds(project.manifest.playerPresentation)) {
+    register(textId);
   }
 
   return counts;

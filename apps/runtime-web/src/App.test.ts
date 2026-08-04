@@ -135,13 +135,9 @@ describe("restoreRuntimeSession", () => {
 
 describe("runtime localization", () => {
   it("resolves system copy by exact locale, base language, then English", () => {
-    expect(resolveRuntimeSystemCopy("fr").saveGame).toBe("Sauvegarder");
-    expect(resolveRuntimeSystemCopy("fr-CA").saveGame).toBe("Sauvegarder");
-    expect(resolveRuntimeSystemCopy("de-DE").saveGame).toBe("Save game");
-    expect(resolveRuntimeSystemCopy("fr").restartGame).toBe("Nouvelle partie");
-    expect(resolveRuntimeSystemCopy("de-DE").restartGame).toBe("New game");
-    expect(resolveRuntimeSystemCopy("fr").quit).toBe("Quitter");
-    expect(resolveRuntimeSystemCopy("de-DE").quit).toBe("Quit");
+    expect(resolveRuntimeSystemCopy("fr").debugMode).toBe("Mode debug");
+    expect(resolveRuntimeSystemCopy("fr-CA").gameSaved).toBe("Partie sauvegardée.");
+    expect(resolveRuntimeSystemCopy("de-DE").gameSaved).toBe("Game saved.");
     expect(resolveRuntimeSystemCopy("fr").startupErrorTitle).toBe("Impossible de lancer ce jeu");
     expect(resolveRuntimeSystemCopy("de-DE").startupErrorTitle).toBe("Unable to start this game");
   });

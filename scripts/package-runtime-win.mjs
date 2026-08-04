@@ -3,11 +3,16 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build, Platform, Arch } from "electron-builder";
+import { isValidGameVersion } from "@mage2/schema";
 import {
   closeRunningCanonicalEditorProcesses,
   closeRunningWindowsProcessesAtPath,
   writeWindowsShortcut
 } from "./editor-windows-launch-targets.mjs";
+import {
+  resolveRuntimePackageIcon,
+  resolveRuntimePackageVersion
+} from "./runtime-package-assets.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -20,6 +25,16 @@ const outputDirectory = path.join(stageRoot, "dist");
 const projectDirectory = resolveProjectDirectory(process.argv.slice(2));
 const runtimeBuildDirectory = path.join(projectDirectory, "build");
 const buildManifest = JSON.parse(await readFile(path.join(runtimeBuildDirectory, "build-manifest.json"), "utf8"));
+const projectContent = JSON.parse(
+  await readFile(path.join(runtimeBuildDirectory, ...buildManifest.contentPath.split("/")), "utf8")
+);
+const packageVersion = resolveRuntimePackageVersion(buildManifest.gameVersion, isValidGameVersion);
+const creatorIcon = await resolveRuntimePackageIcon({
+  runtimeBuildDirectory,
+  buildManifest,
+  projectContent
+});
+const applicationIconPath = creatorIcon?.sourcePath ?? path.join(buildResourcesDirectory, "icon.ico");
 const projectId = normalizeIdentifier(buildManifest.projectId);
 const productName = `${buildManifest.projectName} Player`;
 const executableName = `${sanitizeWindowsName(buildManifest.projectName)} Player`;
@@ -41,17 +56,20 @@ if (!existsSync(runtimeExecutablePath)) {
   throw new Error(`Packaged runtime executable was not created at ${runtimeExecutablePath}.`);
 }
 
-const desktopShortcutPath = path.join(requireEnvironmentVariable("USERPROFILE"), "Desktop", `${productName}.lnk`);
-const desktopShortcut = await writeWindowsShortcut({
-  linkPath: desktopShortcutPath,
-  targetPath: runtimeExecutablePath,
-  workingDirectory: path.dirname(runtimeExecutablePath),
-  iconLocation: `${runtimeExecutablePath},0`,
-  description: `Launch ${productName}.`
-});
-
 console.log(`Packaged runtime: ${runtimeExecutablePath}`);
-console.log(`Desktop shortcut: ${desktopShortcut.linkPath} -> ${desktopShortcut.targetPath}`);
+if (process.env.MAGE2_SKIP_SHORTCUT_REPAIR === "1") {
+  console.log("Skipped Windows player shortcut repair for this non-interactive package build.");
+} else {
+  const desktopShortcutPath = path.join(requireEnvironmentVariable("USERPROFILE"), "Desktop", `${productName}.lnk`);
+  const desktopShortcut = await writeWindowsShortcut({
+    linkPath: desktopShortcutPath,
+    targetPath: runtimeExecutablePath,
+    workingDirectory: path.dirname(runtimeExecutablePath),
+    iconLocation: `${runtimeExecutablePath},0`,
+    description: `Launch ${productName}.`
+  });
+  console.log(`Desktop shortcut: ${desktopShortcut.linkPath} -> ${desktopShortcut.targetPath}`);
+}
 
 async function prepareStage() {
   await rm(stageRoot, { recursive: true, force: true });
@@ -65,7 +83,7 @@ async function prepareStage() {
     JSON.stringify(
       {
         name: `mage2-runtime-${projectId}`,
-        version: "0.1.0",
+        version: packageVersion,
         description: `Standalone Electron player for ${buildManifest.projectName}.`,
         main: "main.mjs",
         author: "MAGE2",
@@ -95,7 +113,8 @@ async function packageRuntime() {
       extraResources: [
         { from: path.join(appStageDirectory, "player"), to: "player" },
         { from: path.join(buildResourcesDirectory, "icon.ico"), to: "icon.ico" },
-        { from: path.join(buildResourcesDirectory, "icon.png"), to: "icon.png" }
+        { from: path.join(buildResourcesDirectory, "icon.png"), to: "icon.png" },
+        ...(creatorIcon ? [{ from: creatorIcon.sourcePath, to: creatorIcon.resourceName }] : [])
       ],
       asar: true,
       npmRebuild: false,
@@ -106,7 +125,7 @@ async function packageRuntime() {
           { target: "nsis", arch: ["x64"] },
           { target: "dir", arch: ["x64"] }
         ],
-        icon: path.join(buildResourcesDirectory, "icon.ico"),
+        icon: applicationIconPath,
         artifactName: `${sanitizeWindowsName(buildManifest.projectName)}-Player-\${version}-\${arch}.\${ext}`
       },
       nsis: {

@@ -54,8 +54,14 @@ describe("starter project creation", () => {
 
     const project = await createProjectInDirectory(projectDir, "Fresh Starter");
     const hotspot = project.scenes.items[0].hotspots[0];
-    const starterScenePng = await readFile(path.join(projectDir, "assets", "starter-scene.png"));
-    const starterVariant = project.assets.assets[0]?.variants[project.manifest.defaultLanguage];
+    const starterScenePng = await readFile(path.join(projectDir, "assets", "cinematic-starter-scene.png"));
+    const starterTitlePng = await readFile(path.join(projectDir, "assets", "cinematic-starter-title.png"));
+    const starterIconPng = await readFile(path.join(projectDir, "assets", "cinematic-starter-icon.png"));
+    const starterKitManifest = JSON.parse(
+      await readFile(path.join(projectDir, "assets", "cinematic-starter-kit.json"), "utf8")
+    );
+    const starterScene = project.assets.assets.find((asset) => asset.id === "asset_starter_scene");
+    const starterVariant = starterScene?.variants[project.manifest.defaultLanguage];
 
     expect(hotspot?.name).toBe("Placeholder");
     expect(hotspot?.commentTextId).toBe("text.hotspot.inspect.comment");
@@ -69,9 +75,25 @@ describe("starter project creation", () => {
       "Add real hotspots in Scenes"
     );
     expect(starterScenePng.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(starterTitlePng.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(starterIconPng.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     expect(starterScenePng.byteLength).toBeGreaterThan(0);
-    expect(starterVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.png"));
-    expect(starterVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_placeholder.en.thumb.png"));
+    expect(project.assets.assets.map((asset) => asset.id)).toEqual([
+      "asset_starter_scene",
+      "asset_starter_title",
+      "asset_starter_icon"
+    ]);
+    expect(project.assets.assets.every((asset) => asset.provenance?.source === "starter-kit")).toBe(true);
+    expect(project.manifest.playerPresentation).toMatchObject({
+      titleBackgroundAssetId: "asset_starter_title",
+      appIconAssetId: "asset_starter_icon",
+      starterKitId: "cinematic",
+      starterKitVersion: 1
+    });
+    expect(starterKitManifest).toMatchObject({ id: "cinematic", version: 1 });
+    expect(starterVariant).toMatchObject({ width: 1536, height: 864 });
+    expect(starterVariant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_starter_scene.en.png"));
+    expect(starterVariant?.posterPath).toBe(path.join(projectDir, ".mage2", "proxies", "asset_starter_scene.en.thumb.png"));
     expect(await readFile(starterVariant!.proxyPath!)).not.toHaveLength(0);
     expect(await readFile(starterVariant!.posterPath!)).not.toHaveLength(0);
   });
@@ -135,7 +157,7 @@ describe("starter project creation", () => {
   it("rolls back only its own entries when concurrent content arrives inside a created directory", async () => {
     const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-starter-nested-race-"));
     tempDirs.push(projectDir);
-    const relativeAssetPath = path.join("assets", "starter-scene.png");
+    const relativeAssetPath = path.join("assets", "cinematic-starter-scene.png");
     const concurrentContents = "external asset";
 
     __projectIoTestHooks.beforeCreatePublish = async ({ kind, relativePath }) => {
@@ -150,7 +172,7 @@ describe("starter project creation", () => {
     );
 
     expect(await readdir(projectDir)).toEqual(["assets"]);
-    expect(await readdir(path.join(projectDir, "assets"))).toEqual(["starter-scene.png"]);
+    expect(await readdir(path.join(projectDir, "assets"))).toEqual(["cinematic-starter-scene.png"]);
     expect(await readFile(path.join(projectDir, relativeAssetPath), "utf8")).toBe(
       concurrentContents
     );

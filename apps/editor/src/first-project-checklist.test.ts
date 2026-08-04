@@ -22,6 +22,7 @@ describe("first project checklist", () => {
     expect(checklist.steps.map((step) => [step.id, step.complete])).toEqual([
       ["media", false],
       ["interaction", false],
+      ["player", false],
       ["validation", false]
     ]);
   });
@@ -41,12 +42,25 @@ describe("first project checklist", () => {
         }
       }
     });
+    project.assets.assets.push({
+      id: "asset_starter_title",
+      kind: "image",
+      category: "player",
+      name: "cinematic-starter-title.png",
+      provenance: { source: "starter-kit", packId: "cinematic", packVersion: 1 },
+      variants: {
+        en: {
+          sourcePath: "C:/project/assets/cinematic-starter-title.png",
+          importedAt: "2026-08-03T10:00:00.000Z"
+        }
+      }
+    });
     project.scenes.items[0].backgroundAssetId = "asset_opening";
     project.scenes.items[0].hotspots[0].effects = [{ type: "setFlag", flag: "started", value: true }];
 
     const checklist = resolveFirstProjectChecklist(project, true, 0);
 
-    expect(checklist.completedCount).toBe(3);
+    expect(checklist.completedCount).toBe(4);
     expect(checklist.shouldShow).toBe(false);
   });
 
@@ -67,9 +81,10 @@ describe("first project checklist", () => {
     const markup = renderToStaticMarkup(
       React.createElement(FirstProjectChecklist, {
         state: checklist,
-        onOpenSceneMedia: () => undefined,
-        onOpenInteraction: () => undefined,
-        onReviewValidation: () => undefined,
+      onOpenSceneMedia: () => undefined,
+      onOpenInteraction: () => undefined,
+      onOpenPlayer: () => undefined,
+      onReviewValidation: () => undefined,
         onOpenPlaytest: () => undefined,
         onDismiss: () => undefined
       })
@@ -80,6 +95,7 @@ describe("first project checklist", () => {
     expect(markup).toContain('aria-valuenow="0"');
     expect(markup).toContain('data-first-project-step="media"');
     expect(markup).toContain('data-first-project-step="interaction"');
+    expect(markup).toContain('data-first-project-step="player"');
     expect(markup).toContain('data-first-project-step="validation"');
     expect(markup).toContain("Review issues");
   });

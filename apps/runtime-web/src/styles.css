@@ -30,18 +30,16 @@ body {
   background: #050608;
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)),
-input,
-select {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button,
+.runtime-debug-panel input {
   font: inherit;
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)),
-select {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button {
   color: inherit;
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)) {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   padding: 0.7rem 1rem;
@@ -54,24 +52,23 @@ select {
     transform 150ms ease;
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):hover:not(:disabled) {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button:hover:not(:disabled) {
   border-color: rgba(243, 201, 133, 0.62);
   background: rgba(49, 55, 63, 0.98);
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):active:not(:disabled) {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):focus-visible,
-select:focus-visible,
-input:focus-visible,
-summary:focus-visible {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button:focus-visible,
+.runtime-debug-panel input:focus-visible,
+.runtime-debug-panel summary:focus-visible {
   outline: 2px solid #f3c985;
   outline-offset: 3px;
 }
 
-.runtime-shell button:not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-toggle, .mage2-player__inventory-slot, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):disabled {
+:is(.runtime-card, .runtime-debug-panel, .runtime-foreground-media) button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
 }
@@ -99,45 +96,6 @@ summary:focus-visible {
   position: absolute;
   inset: 0;
   overflow: hidden;
-}
-
-.runtime-header {
-  position: absolute;
-  z-index: 30;
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: var(--runtime-safe-top) var(--runtime-safe-right) 1rem var(--runtime-safe-left);
-  pointer-events: none;
-}
-
-.runtime-header h1 {
-  overflow: hidden;
-  margin: 0;
-  color: #fff;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.1rem, 2.25vw, 1.8rem);
-  font-weight: 500;
-  letter-spacing: 0.015em;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.92);
-  white-space: nowrap;
-  pointer-events: auto;
-}
-
-.runtime-menu-button {
-  min-width: 4.65rem;
-  min-height: 2.6rem;
-  border-color: rgba(255, 255, 255, 0.26);
-  background: rgba(8, 11, 15, 0.72);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(18px);
-  pointer-events: auto;
 }
 
 .runtime-player-frame {
@@ -241,7 +199,7 @@ summary:focus-visible {
 }
 
 .runtime-player-renderer {
-  --mage2-player-runtime-top-inset: calc(var(--runtime-safe-top) + 3.45rem);
+  --mage2-player-runtime-top-inset: 0;
   z-index: 1;
   max-width: 100vw;
   max-height: 100dvh;
@@ -253,35 +211,6 @@ summary:focus-visible {
   overflow: visible;
   animation: none;
   transform: none;
-}
-
-.runtime-status {
-  position: absolute;
-  z-index: 26;
-  top: calc(var(--runtime-safe-top) + 3.25rem);
-  left: 50%;
-  max-width: min(34rem, calc(100vw - 2rem));
-  margin: 0;
-  padding: 0.62rem 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: rgba(8, 11, 15, 0.82);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
-  color: #edf1f5;
-  font-size: 0.82rem;
-  text-align: center;
-  backdrop-filter: blur(18px);
-  transform: translateX(-50%);
-  animation: runtime-status-arrive 180ms ease-out both;
-}
-
-.runtime-status--empty {
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  opacity: 0;
 }
 
 .runtime-debug-panel {
@@ -362,123 +291,6 @@ summary:focus-visible {
   font-size: 0.7rem;
 }
 
-.runtime-modal-layer {
-  position: fixed;
-  z-index: 60;
-  inset: 0;
-}
-
-.runtime-modal-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(4px);
-  animation: runtime-fade-in 150ms ease-out both;
-}
-
-.runtime-menu-panel,
-.runtime-confirmation {
-  position: absolute;
-  border: 1px solid var(--runtime-panel-border);
-  background: var(--runtime-panel);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
-  backdrop-filter: blur(24px);
-  animation: runtime-overlay-arrive 180ms ease-out both;
-}
-
-.runtime-menu-panel {
-  top: calc(var(--runtime-safe-top) + 3.35rem);
-  right: var(--runtime-safe-right);
-  width: min(22rem, calc(100vw - 2rem));
-  padding: 1rem;
-  border-radius: 18px;
-}
-
-.runtime-panel-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.runtime-panel-heading h2,
-.runtime-confirmation h2 {
-  margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.25rem;
-  font-weight: 500;
-}
-
-.runtime-close-button {
-  min-height: 2.35rem;
-  padding: 0.45rem 0.72rem;
-  border-color: transparent;
-  background: transparent;
-  color: #c7cdd4;
-  font-size: 0.8rem;
-}
-
-.runtime-language-picker {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d8dde3;
-}
-
-.runtime-language-picker select {
-  min-height: 2.35rem;
-  max-width: 12rem;
-  padding: 0.4rem 2rem 0.4rem 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 9px;
-  background: #171b21;
-}
-
-.runtime-menu-actions {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: 0.9rem;
-}
-
-.runtime-menu-actions button {
-  width: 100%;
-  min-height: 2.8rem;
-  border-radius: 11px;
-  text-align: left;
-}
-
-.runtime-confirmation {
-  top: 50%;
-  left: 50%;
-  width: min(25rem, calc(100vw - 2rem));
-  padding: 1.2rem;
-  border-radius: 18px;
-  transform: translate(-50%, -50%);
-}
-
-.runtime-confirmation p {
-  margin: 0.65rem 0 1.2rem;
-  color: #c4cbd3;
-  line-height: 1.45;
-}
-
-.runtime-confirmation__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.6rem;
-}
-
-.runtime-confirmation__primary {
-  border-color: rgba(243, 201, 133, 0.56);
-  background: #f3c985;
-  color: #15110b;
-}
-
 .runtime-card {
   position: absolute;
   top: 50%;
@@ -519,62 +331,7 @@ summary:focus-visible {
   }
 }
 
-@keyframes runtime-overlay-arrive {
-  from {
-    opacity: 0;
-    translate: 0 0.45rem;
-  }
-
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
-@keyframes runtime-status-arrive {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -0.35rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-
-@keyframes runtime-fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
 @media (max-width: 640px) {
-  .runtime-header {
-    padding: var(--runtime-safe-top) var(--runtime-safe-right) 0.75rem var(--runtime-safe-left);
-  }
-
-  .runtime-header h1 {
-    max-width: calc(100vw - 7.5rem);
-    font-size: 1.05rem;
-  }
-
-  .runtime-menu-button {
-    min-width: 4.25rem;
-    min-height: 2.45rem;
-    padding: 0.55rem 0.8rem;
-  }
-
-  .runtime-status {
-    top: calc(var(--runtime-safe-top) + 3rem);
-    max-width: calc(100vw - 1.5rem);
-    font-size: 0.76rem;
-  }
-
   .runtime-debug-panel {
     top: calc(var(--runtime-safe-top) + 3rem);
     right: var(--runtime-safe-right);
@@ -583,32 +340,6 @@ summary:focus-visible {
     max-height: calc(100dvh - 4.5rem);
   }
 
-  .runtime-menu-panel,
-  .runtime-confirmation {
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    max-height: calc(100dvh - var(--runtime-safe-top));
-    padding: 1.1rem max(1rem, env(safe-area-inset-right)) calc(1.1rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
-    overflow: auto;
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
-    border-radius: 22px 22px 0 0;
-    transform: none;
-    animation-name: runtime-sheet-arrive;
-  }
-
-  .runtime-menu-actions button {
-    min-height: 3rem;
-  }
-
-  .runtime-confirmation__actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 @media (max-width: 640px) and (orientation: portrait) {
@@ -624,18 +355,6 @@ summary:focus-visible {
     height: 100%;
     max-width: none;
     max-height: none;
-  }
-}
-
-@keyframes runtime-sheet-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(1.25rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 

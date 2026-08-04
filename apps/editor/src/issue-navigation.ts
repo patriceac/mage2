@@ -105,6 +105,13 @@ export function resolveIssueNavigation(
 
     const asset = project.assets.assets.find((entry) => entry.id === entityId);
     if (asset) {
+      if (issue.code.startsWith("PLAYER_")) {
+        return {
+          label: asset.name,
+          tab: "player",
+          assetId: asset.id
+        };
+      }
       if (
         issue.code === "SCENE_BACKGROUND_LOCALE_MISSING" ||
         issue.code === "SCENE_AUDIO_LOCALE_MISSING" ||
@@ -163,6 +170,16 @@ export function resolveIssueNavigation(
   }
 
   switch (issue.code) {
+    case "PLAYER_TITLE_BACKGROUND_MISSING":
+    case "PLAYER_APP_ICON_RECOMMENDED":
+    case "PLAYER_WEBSITE_INVALID":
+    case "PLAYER_GAME_VERSION_MISSING":
+    case "PLAYER_TEXT_SOURCE_INCOMPLETE":
+    case "PLAYER_TEXT_LOCALE_INCOMPLETE":
+      return {
+        label: "player presentation",
+        tab: "player"
+      };
     case "MISSING_START_LOCATION":
       return {
         label: "start location",
@@ -271,6 +288,34 @@ export function resolveIssueEntityLabel(
 
 export function getIssueHint(issue: ValidationIssue): string {
   switch (issue.code) {
+    case "PLAYER_TITLE_BACKGROUND_MISSING":
+    case "PLAYER_TITLE_BACKGROUND_ASSET_MISSING":
+    case "PLAYER_TITLE_BACKGROUND_KIND_INVALID":
+    case "PLAYER_TITLE_BACKGROUND_CATEGORY_INVALID":
+    case "PLAYER_TITLE_BACKGROUND_DEFAULT_LOCALE_MISSING":
+    case "PLAYER_LOGO_ASSET_MISSING":
+    case "PLAYER_LOGO_KIND_INVALID":
+    case "PLAYER_LOGO_CATEGORY_INVALID":
+    case "PLAYER_LOGO_DEFAULT_LOCALE_MISSING":
+    case "PLAYER_APP_ICON_ASSET_MISSING":
+    case "PLAYER_APP_ICON_KIND_INVALID":
+    case "PLAYER_APP_ICON_CATEGORY_INVALID":
+    case "PLAYER_APP_ICON_DEFAULT_LOCALE_MISSING":
+    case "PLAYER_APP_ICON_RECOMMENDED":
+      return "Open Player and assign valid Player artwork, then use Localization > Media for locale variants.";
+    case "PLAYER_TITLE_BACKGROUND_LOCALE_MISSING":
+    case "PLAYER_LOGO_LOCALE_MISSING":
+    case "PLAYER_APP_ICON_LOCALE_MISSING":
+      return "Add the missing artwork variant in Localization > Media, or keep the intentional default-locale fallback.";
+    case "PLAYER_TEXT_SOURCE_INCOMPLETE":
+    case "PLAYER_TEXT_LOCALE_INCOMPLETE":
+      return "Complete player interface copy in Localization > Strings and mark non-source text Translated or Reviewed.";
+    case "PLAYER_WEBSITE_INVALID":
+      return "Enter a complete http or https creator URL in Player, or leave the field empty.";
+    case "PLAYER_GAME_VERSION_MISSING":
+      return "Set the player-facing release version in Player.";
+    case "STARTER_HOTSPOT_UNWIRED":
+      return "Open the starter hotspot in Scenes and give it a transition, dialogue, item action, media, or response.";
     case "HOTSPOT_COMMENT_TEXT_MISSING":
       return "Add the missing text in Localization > Strings, or restore the default-locale value from Scenes.";
     case "DIALOGUE_TEXT_MISSING":

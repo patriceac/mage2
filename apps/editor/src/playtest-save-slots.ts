@@ -20,6 +20,7 @@ export interface PlaytestSaveEnvelope {
   projectId: string;
   projectSchemaVersion: number;
   projectEngineVersion: string;
+  saveCompatibilityVersion: number;
   savedAt: string;
   state: SaveState;
 }
@@ -53,6 +54,7 @@ export function createPlaytestSaveEnvelope(
     projectId: project.manifest.projectId,
     projectSchemaVersion: project.manifest.schemaVersion,
     projectEngineVersion: project.manifest.engineVersion,
+    saveCompatibilityVersion: project.manifest.saveCompatibilityVersion,
     savedAt: savedAt.toISOString(),
     state: parseSaveState(state)
   };
@@ -174,20 +176,27 @@ export function inspectPlaytestSaveSlot(
     };
   }
 
-  if (parsed.projectSchemaVersion !== project.manifest.schemaVersion) {
+  if (
+    typeof parsed.saveCompatibilityVersion === "number" &&
+    parsed.saveCompatibilityVersion !== project.manifest.saveCompatibilityVersion
+  ) {
     return {
       slotId,
       status: "incompatible",
-      message: `Saved with project schema ${parsed.projectSchemaVersion}; this project uses ${project.manifest.schemaVersion}.`,
+      message: `Saved for compatibility version ${parsed.saveCompatibilityVersion}; this project uses ${project.manifest.saveCompatibilityVersion}.`,
       savedAt
     };
   }
 
-  if (parsed.projectEngineVersion !== project.manifest.engineVersion) {
+  if (
+    typeof parsed.saveCompatibilityVersion !== "number" &&
+    (parsed.projectSchemaVersion !== project.manifest.schemaVersion ||
+      parsed.projectEngineVersion !== project.manifest.engineVersion)
+  ) {
     return {
       slotId,
       status: "incompatible",
-      message: `Saved with engine ${parsed.projectEngineVersion}; this project uses ${project.manifest.engineVersion}.`,
+      message: `This legacy slot targets project schema ${parsed.projectSchemaVersion} and engine ${parsed.projectEngineVersion}.`,
       savedAt
     };
   }
@@ -220,6 +229,10 @@ export function inspectPlaytestSaveSlot(
     projectId: parsed.projectId,
     projectSchemaVersion: parsed.projectSchemaVersion,
     projectEngineVersion: parsed.projectEngineVersion,
+    saveCompatibilityVersion:
+      typeof parsed.saveCompatibilityVersion === "number"
+        ? parsed.saveCompatibilityVersion
+        : project.manifest.saveCompatibilityVersion,
     savedAt,
     state
   };
@@ -325,6 +338,7 @@ function inspectVersionedEditorSave(
         projectId: project.manifest.projectId,
         projectSchemaVersion: project.manifest.schemaVersion,
         projectEngineVersion: project.manifest.engineVersion,
+        saveCompatibilityVersion: project.manifest.saveCompatibilityVersion,
         savedAt: result.envelope.savedAt,
         state: result.saveState
       }

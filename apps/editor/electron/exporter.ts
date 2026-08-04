@@ -23,7 +23,7 @@ import {
   toExportProjectData,
   type BuildManifest,
   type ProjectBundle,
-  validateProject
+  validateProjectForRelease
 } from "@mage2/schema";
 
 const EXPORT_MARKER_FILE = ".mage2-export.json";
@@ -68,14 +68,14 @@ type DestinationSnapshot =
 export interface ExportResult {
   outputDirectory: string;
   buildManifest: BuildManifest;
-  validationReport: ReturnType<typeof validateProject>;
+  validationReport: ReturnType<typeof validateProjectForRelease>;
 }
 
 export async function exportProjectBundle(
   projectDir: string,
   project: ProjectBundle
 ): Promise<ExportResult> {
-  const validationReport = validateProject(project);
+  const validationReport = validateProjectForRelease(project);
   assertProjectCanBeExported(validationReport);
 
   const { projectIdentity, outputDirectory } = await resolveSafeOutputDirectory(
@@ -136,7 +136,7 @@ export async function exportProjectBundle(
   }
 }
 
-function assertProjectCanBeExported(validationReport: ReturnType<typeof validateProject>): void {
+function assertProjectCanBeExported(validationReport: ReturnType<typeof validateProjectForRelease>): void {
   const errors = validationReport.issues.filter((issue) => issue.level === "error");
   if (errors.length === 0) {
     return;
@@ -616,7 +616,7 @@ async function buildExportInDirectory(
   projectIdentity: DirectoryIdentity,
   runtimeDist: string,
   project: ProjectBundle,
-  validationReport: ReturnType<typeof validateProject>
+  validationReport: ReturnType<typeof validateProjectForRelease>
 ): Promise<BuildManifest> {
   await copyRuntimeDistribution(runtimeDist, outputIdentity, projectIdentity);
 
@@ -698,6 +698,8 @@ async function buildExportInDirectory(
     projectId: project.manifest.projectId,
     projectName: project.manifest.projectName,
     engineVersion: project.manifest.engineVersion,
+    gameVersion: project.manifest.gameVersion,
+    saveCompatibilityVersion: project.manifest.saveCompatibilityVersion,
     generatedAt: new Date().toISOString(),
     startLocationId: project.manifest.startLocationId,
     startSceneId: project.manifest.startSceneId,

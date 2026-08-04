@@ -3,19 +3,100 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createPlayerController } from "@mage2/player";
-import { createDefaultProjectBundle, type Hotspot } from "@mage2/schema";
+import { PLAYER_UI_TEXT_IDS, createDefaultProjectBundle, type Hotspot } from "@mage2/schema";
 import {
+  DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
   PlayerDialogueBox,
+  PlayerExperienceShell,
   PlayerInventoryTray,
   PlayerSceneRenderer,
   isOpaqueHotspotVisualHit,
   resolvePlayerHotspotInteraction,
   resolvePlayerInventoryContextMenuAction,
+  resolvePlayerExperienceShellCopy,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
   resolveResponseTextDurationMs,
   type PlayerSystemCopy
 } from "./index";
+
+describe("player experience shell", () => {
+  it("renders creator presentation and localized shell copy without host dependencies", () => {
+    const project = createDefaultProjectBundle("The Glass Observatory");
+    const strings = {
+      ...project.strings.byLocale.en,
+      [PLAYER_UI_TEXT_IDS.startGame]: "Enter the observatory"
+    };
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        PlayerExperienceShell,
+        {
+          projectName: project.manifest.projectName,
+          gameVersion: project.manifest.gameVersion,
+          presentation: project.manifest.playerPresentation,
+          screen: "title",
+          onScreenChange: () => undefined,
+          locale: "en",
+          supportedLocales: ["en"],
+          localeStrings: strings,
+          onLocaleChange: () => undefined,
+          preferences: DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
+          onPreferencesChange: () => undefined,
+          hasSavedGame: false,
+          onContinue: () => undefined,
+          onNewGame: () => undefined,
+          titleBackgroundUrl: "title.png",
+          iconUrl: "icon.png",
+          status: "A recovered save is ready."
+        },
+        React.createElement("div", null, "Game canvas")
+      )
+    );
+
+    expect(markup).toContain('data-player-screen="title"');
+    expect(markup).toContain("The Glass Observatory");
+    expect(markup).toContain("An interactive story");
+    expect(markup).toContain("Enter the observatory");
+    expect(markup).toContain("title.png");
+    expect(markup).toContain("icon.png");
+    expect(markup).toContain("A recovered save is ready.");
+    expect(markup).toMatch(/<\/div><p class="mage2-experience__status" role="status">/u);
+  });
+
+  it("falls back to complete default confirmation copy", () => {
+    expect(resolvePlayerExperienceShellCopy({})).toMatchObject({
+      confirmLoadBody: "Current unsaved progress will be replaced.",
+      confirmNewGameBody: "Current progress on this device will be replaced.",
+      menuHeading: "Paused",
+      settingsHeading: "Player settings"
+    });
+  });
+
+  it("keeps landscape composition primary and portrait behavior bounded", () => {
+    const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.mage2-experience__title\s*\{[\s\S]*?background-size: cover;/);
+    expect(styles).toMatch(
+      /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*?\.mage2-experience__title-actions\s*\{[\s\S]*?grid-template-columns: 1fr 1fr;/
+    );
+    expect(styles).toContain(".mage2-experience__landscape-hint");
+    expect(styles).toMatch(
+      /\.mage2-experience\s*\{[\s\S]*?container-type: inline-size;/
+    );
+    expect(styles).toContain("font-size: clamp(2.75rem, 6.4cqw, 6.6rem);");
+    expect(styles).not.toMatch(/\.mage2-experience__[\s\S]*?\d(?:\.\d+)?vw/u);
+    expect(styles).not.toMatch(/\.mage2-experience button(?:,|\s*\{)/u);
+    expect(styles).not.toMatch(/\.playtest-|\.runtime-/);
+  });
+
+  it("keeps the modal scrim full-bleed instead of inheriting pill button chrome", () => {
+    const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(
+      /\.mage2-experience button\.mage2-experience__scrim,[\s\S]*?:hover:not\(:disabled\),[\s\S]*?:active:not\(:disabled\)\s*\{[\s\S]*?inset: 0;[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?border-radius: 0;[\s\S]*?background: rgba\(0, 0, 0, 0\.6\);[\s\S]*?transform: none;/
+    );
+  });
+});
 
 const copy: PlayerSystemCopy = {
   narrator: "Storyteller",

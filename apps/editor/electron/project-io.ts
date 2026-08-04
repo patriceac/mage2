@@ -40,7 +40,30 @@ const FILES = {
   strings: "strings.json"
 } as const;
 
-const STARTER_SCENE_ASSET_NAME = "starter-scene.png";
+const CINEMATIC_STARTER_ASSETS = [
+  {
+    id: "asset_starter_scene",
+    fileName: "cinematic-starter-scene.png",
+    category: "background",
+    width: 1536,
+    height: 864
+  },
+  {
+    id: "asset_starter_title",
+    fileName: "cinematic-starter-title.png",
+    category: "player",
+    width: 1672,
+    height: 941
+  },
+  {
+    id: "asset_starter_icon",
+    fileName: "cinematic-starter-icon.png",
+    category: "player",
+    width: 1024,
+    height: 1024
+  }
+] as const;
+const CINEMATIC_STARTER_MANIFEST_FILE = "cinematic-starter-kit.json";
 const PROJECT_SAVE_TRANSACTION_DIRECTORY = ".project-save-transaction";
 const PROJECT_SAVE_JOURNAL_FILE = "journal.json";
 
@@ -464,7 +487,7 @@ async function createProjectExclusively(
 
     const project = createDefaultProjectBundle(projectName);
     project.manifest.projectId = slugify(projectName);
-    await seedStarterSceneAsset(stagingRoot, project);
+    await seedCinematicStarterKit(stagingRoot, project);
     rebaseProjectPaths(project, stagingRoot, boundary.requestedRoot);
     const normalized = parseProjectBundle(project);
     await writeProjectBundleToStaging(stagingRoot, normalized);
@@ -1223,36 +1246,52 @@ function slugify(input: string): string {
     .slice(0, 48) || "project_default";
 }
 
-async function seedStarterSceneAsset(projectDir: string, project: ProjectBundle): Promise<void> {
+async function seedCinematicStarterKit(projectDir: string, project: ProjectBundle): Promise<void> {
   const assetsDir = path.join(projectDir, "assets");
-  const starterAssetPath = path.join(assetsDir, STARTER_SCENE_ASSET_NAME);
   const defaultLocale = project.manifest.defaultLanguage;
 
   await mkdir(assetsDir, { recursive: true });
-  await copyFile(resolveStarterSceneTemplatePath(), starterAssetPath);
+  const importedAt = new Date().toISOString();
 
-  const starterVariant: AssetVariant = {
-    sourcePath: starterAssetPath,
-    sha256: await computeFileSha256(starterAssetPath),
-    importedAt: new Date().toISOString(),
-    width: 1280,
-    height: 720
-  };
-  const starterAsset: Asset = {
-    id: "asset_placeholder",
-    kind: "image",
-    name: STARTER_SCENE_ASSET_NAME,
-    variants: {
-      [defaultLocale]: starterVariant
+  for (const template of CINEMATIC_STARTER_ASSETS) {
+    const starterAssetPath = path.join(assetsDir, template.fileName);
+    await copyFile(resolveStarterTemplatePath(template.fileName), starterAssetPath);
+
+    const starterVariant: AssetVariant = {
+      sourcePath: starterAssetPath,
+      sha256: await computeFileSha256(starterAssetPath),
+      importedAt,
+      width: template.width,
+      height: template.height
+    };
+    const starterAsset: Asset = {
+      id: template.id,
+      kind: "image",
+      category: template.category,
+      name: template.fileName,
+      provenance: {
+        source: "starter-kit",
+        packId: "cinematic",
+        packVersion: 1
+      },
+      variants: {
+        [defaultLocale]: starterVariant
+      }
+    };
+
+    const proxiedAsset = await generateProxy(starterAsset, defaultLocale, projectDir);
+    const existingAssetIndex = project.assets.assets.findIndex((asset) => asset.id === starterAsset.id);
+    if (existingAssetIndex >= 0) {
+      project.assets.assets[existingAssetIndex] = proxiedAsset;
+    } else {
+      project.assets.assets.push(proxiedAsset);
     }
-  };
-
-  const existingAssetIndex = project.assets.assets.findIndex((asset) => asset.id === starterAsset.id);
-  if (existingAssetIndex >= 0) {
-    project.assets.assets[existingAssetIndex] = await generateProxy(starterAsset, defaultLocale, projectDir);
-  } else {
-    project.assets.assets.push(await generateProxy(starterAsset, defaultLocale, projectDir));
   }
+
+  await copyFile(
+    resolveStarterTemplatePath(CINEMATIC_STARTER_MANIFEST_FILE),
+    path.join(assetsDir, CINEMATIC_STARTER_MANIFEST_FILE)
+  );
 
   if (!project.manifest.assetRoots.includes(assetsDir)) {
     project.manifest.assetRoots.push(assetsDir);
@@ -1325,11 +1364,11 @@ async function pathExists(candidatePath: string | undefined): Promise<boolean> {
   }
 }
 
-function resolveStarterSceneTemplatePath(): string {
-  const bundledAssetPath = path.join(__dirname, STARTER_SCENE_ASSET_NAME);
+function resolveStarterTemplatePath(fileName: string): string {
+  const bundledAssetPath = path.join(__dirname, fileName);
   if (existsSync(bundledAssetPath)) {
     return bundledAssetPath;
   }
 
-  return path.resolve(__dirname, "..", "electron", STARTER_SCENE_ASSET_NAME);
+  return path.resolve(__dirname, "..", "electron", fileName);
 }

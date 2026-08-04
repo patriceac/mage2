@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import { readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
 
@@ -86,9 +87,12 @@ function resolvePlayerDirectory() {
 }
 
 function resolveIconPath() {
-  const candidate = app.isPackaged
-    ? path.join(process.resourcesPath, "icon.png")
-    : path.resolve(process.cwd(), "build", "icon.png");
+  const candidates = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, "creator-icon.png"),
+        path.join(process.resourcesPath, "icon.png")
+      ]
+    : [path.resolve(process.cwd(), "build", "icon.png")];
 
-  return candidate;
+  return candidates.find((candidate) => existsSync(candidate));
 }

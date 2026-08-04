@@ -46,7 +46,8 @@ export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
   { fromVersion: 7, toVersion: 8, migrate: migrateV7ToV8 },
   { fromVersion: 8, toVersion: 9, migrate: migrateV8ToV9 },
   { fromVersion: 9, toVersion: 10, migrate: migrateV9ToV10 },
-  { fromVersion: 10, toVersion: 11, migrate: migrateV10ToV11 }
+  { fromVersion: 10, toVersion: 11, migrate: migrateV10ToV11 },
+  { fromVersion: 11, toVersion: 12, migrate: migrateV11ToV12 }
 ];
 
 /** Returns the ordered transformations required to reach the current format. */
@@ -244,6 +245,30 @@ function migrateV9ToV10(bundle: UnknownRecord): UnknownRecord {
 
 function migrateV10ToV11(bundle: UnknownRecord): UnknownRecord {
   return withSchemaVersion(bundle, 11);
+}
+
+function migrateV11ToV12(bundle: UnknownRecord): UnknownRecord {
+  const manifest = requireRecord(bundle.manifest, "Project manifest must be an object.");
+  return withSchemaVersion(bundle, 12, {
+    manifest: {
+      ...manifest,
+      gameVersion:
+        typeof manifest.gameVersion === "string" && manifest.gameVersion.trim()
+          ? manifest.gameVersion
+          : "1.0.0",
+      saveCompatibilityVersion:
+        typeof manifest.saveCompatibilityVersion === "number" &&
+        Number.isInteger(manifest.saveCompatibilityVersion) &&
+        manifest.saveCompatibilityVersion > 0
+          ? manifest.saveCompatibilityVersion
+          : 1,
+      // Existing projects launched straight into gameplay before schema 12.
+      // Keep that behavior until their creator explicitly enables a title.
+      playerPresentation: isRecord(manifest.playerPresentation)
+        ? manifest.playerPresentation
+        : { titleScreenEnabled: false }
+    }
+  });
 }
 
 function withSchemaVersion(

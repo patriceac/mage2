@@ -79,6 +79,7 @@ const EDITOR_TABS = new Set<EditorTab>([
   "dialogue",
   "inventory",
   "localization",
+  "player",
   "playtest"
 ]);
 

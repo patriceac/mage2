@@ -46,8 +46,8 @@ import {
 } from "../project-text";
 import { type LocalizationSection, useEditorStore } from "../store";
 
-type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory";
-type MediaAssetFilter = "background" | "inventory" | "sceneAudio" | "foreground" | "response";
+type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory" | "player";
+type MediaAssetFilter = "background" | "inventory" | "sceneAudio" | "foreground" | "response" | "player";
 type LocalizationStatusFilter = "all" | LocalizedStringStatus;
 type QueueItemStatus = LocalizedStringStatus | "present";
 type QueueItemKind = "string" | "media";
@@ -122,7 +122,7 @@ const QUEUE_GROUPS: ReadonlyArray<{
   { status: "present", label: "Present", icon: "check" }
 ];
 
-const TEXT_AREAS: ReadonlyArray<ProjectTextArea> = ["scenes", "dialogue", "inventory"];
+const TEXT_AREAS: ReadonlyArray<ProjectTextArea> = ["scenes", "dialogue", "inventory", "player"];
 const COPY_TEXT_ID_FEEDBACK_MS = 1600;
 
 export function LocalizationPanel({
@@ -976,6 +976,7 @@ function QueueList({
             <option value="scenes">Scenes</option>
             <option value="dialogue">Dialogue</option>
             <option value="inventory">Inventory</option>
+            <option value="player">Player</option>
           </DropdownSelect>
         </label>
         <label className="localization-filter">
@@ -1101,6 +1102,7 @@ function MediaQueueList({
             <option value="foreground">Foreground Media</option>
             <option value="response">Responses</option>
             <option value="inventory">Inventory</option>
+            <option value="player">Player</option>
           </DropdownSelect>
         </label>
       </div>
@@ -1905,7 +1907,7 @@ function buildStringCoverageRows(entries: ProjectTextEntry[]): CoverageRow[] {
 function buildMediaCoverageRows(project: ProjectBundle, locale: string): CoverageRow[] {
   const rows: CoverageRow[] = [];
 
-  for (const category of ["background", "sceneAudio", "foreground", "response", "inventory"] as const) {
+  for (const category of ["background", "sceneAudio", "foreground", "response", "inventory", "player"] as const) {
     const assets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === category);
     rows.push({
       label: formatMediaCategoryLabel(category),
@@ -2020,6 +2022,27 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
     }
   }
 
+  const presentation = project.manifest.playerPresentation;
+  const presentationRoles = [
+    [presentation.titleBackgroundAssetId, "Title background"],
+    [presentation.logoAssetId, "Title logo"],
+    [presentation.appIconAssetId, "Application icon"]
+  ] as const;
+  for (const [assetId, detail] of presentationRoles) {
+    if (assetId !== asset.id) {
+      continue;
+    }
+    usages.push({
+      label: project.manifest.projectName,
+      detail,
+      navigation: {
+        label: detail,
+        tab: "player",
+        assetId: asset.id
+      }
+    });
+  }
+
   return usages;
 }
 
@@ -2074,6 +2097,8 @@ function formatMediaCategoryLabel(category: MediaAssetFilter): string {
       return "Inventory";
     case "response":
       return "Responses";
+    case "player":
+      return "Player";
   }
 }
 
@@ -2089,6 +2114,8 @@ function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
       return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
     case "response":
       return "No response media yet. Import audio or video from Dialogue > Responses before localizing it here.";
+    case "player":
+      return "No player assets yet. Import title, logo, or icon artwork from Assets before localizing it here.";
   }
 }
 

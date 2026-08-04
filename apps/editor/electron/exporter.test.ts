@@ -262,6 +262,9 @@ async function createValidProject(
   const project = createDefaultProjectBundle("Safe Export Test");
   project.manifest.projectId = options.projectId ?? "project_safe_export";
   project.manifest.buildSettings.outputDir = options.outputDir ?? "build";
+  project.manifest.playerPresentation.titleScreenEnabled = false;
+  project.manifest.playerPresentation.titleBackgroundAssetId = undefined;
+  project.manifest.playerPresentation.appIconAssetId = undefined;
   project.assets.assets = [
     {
       id: "asset_background",

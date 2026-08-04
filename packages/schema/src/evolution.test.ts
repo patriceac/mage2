@@ -43,7 +43,8 @@ describe("project schema evolution", () => {
       [7, 8],
       [8, 9],
       [9, 10],
-      [10, 11]
+      [10, 11],
+      [11, 12]
     ]);
 
     const parsed = parseProjectBundle(raw);
@@ -70,6 +71,22 @@ describe("project schema evolution", () => {
     raw.assets.schemaVersion = CURRENT_SCHEMA_VERSION - 1;
 
     expect(() => parseProjectBundle(raw)).toThrow(/mixed schema versions/i);
+  });
+
+  it("keeps pre-title-screen projects launching directly into gameplay", () => {
+    const raw = structuredClone(createDefaultProjectBundle("Schema 11 player behavior")) as Record<string, any>;
+    for (const fileName of ["manifest", "assets", "locations", "scenes", "dialogues", "inventory", "strings"] as const) {
+      raw[fileName].schemaVersion = 11;
+    }
+    delete raw.manifest.playerPresentation;
+    delete raw.manifest.gameVersion;
+    delete raw.manifest.saveCompatibilityVersion;
+
+    const parsed = parseProjectBundle(raw);
+
+    expect(parsed.manifest.playerPresentation.titleScreenEnabled).toBe(false);
+    expect(parsed.manifest.gameVersion).toBe("1.0.0");
+    expect(parsed.manifest.saveCompatibilityVersion).toBe(1);
   });
 });
 
@@ -179,7 +196,7 @@ describe("project integrity validation", () => {
 });
 
 describe("save evolution and recovery", () => {
-  it("loads an exact versioned save and rejects stale content", () => {
+  it("keeps compatible saves across content edits and rejects creator-declared breaks", () => {
     const project = createDefaultProjectBundle("Save identity");
     const state = { ...createInitialSaveState(project), flags: { opened: true }, playheadMs: 1234 };
     const envelope = createSaveEnvelope(project, state, "2026-01-01T00:00:00.000Z");
@@ -191,6 +208,13 @@ describe("save evolution and recovery", () => {
     });
 
     project.manifest.projectName = "Changed content";
+    expect(loadSaveForProject(JSON.stringify(envelope), project)).toMatchObject({
+      status: "compatible",
+      saveState: state,
+      shouldQuarantine: false
+    });
+
+    project.manifest.saveCompatibilityVersion += 1;
     expect(loadSaveForProject(JSON.stringify(envelope), project)).toMatchObject({
       status: "stale",
       saveState: createInitialSaveState(project),
@@ -204,7 +228,10 @@ describe("save evolution and recovery", () => {
 
     const result = loadSaveForProject(JSON.stringify(legacyState), project);
 
-    expect(getSaveMigrationPath(0).map((migration) => [migration.fromVersion, migration.toVersion])).toEqual([[0, 1]]);
+    expect(getSaveMigrationPath(0).map((migration) => [migration.fromVersion, migration.toVersion])).toEqual([
+      [0, 1],
+      [1, 2]
+    ]);
     expect(result).toMatchObject({
       status: "migrated",
       saveState: legacyState,

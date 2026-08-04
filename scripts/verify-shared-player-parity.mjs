@@ -16,6 +16,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const projectDirectory = resolveProjectDirectory(process.argv.slice(2));
 const buildDirectory = path.join(projectDirectory, "build");
 const buildManifest = JSON.parse(await readFile(path.join(buildDirectory, "build-manifest.json"), "utf8"));
+let runtimeContent = JSON.parse(
+  await readFile(path.join(buildDirectory, buildManifest.contentPath), "utf8")
+);
 const editorExecutablePath = getCanonicalPackagedEditorExePath();
 const runtimeExecutablePath = path.join(
   repoRoot,
@@ -130,7 +133,7 @@ try {
     path.join(repoRoot, "scripts", "package-runtime-win.mjs"),
     "--project-dir",
     projectDirectory
-  ]);
+  ], { MAGE2_SKIP_SHORTCUT_REPAIR: "1" });
 
   webServer = await startPlayerServer(buildDirectory, 43173);
   browser = await launchChrome();
@@ -971,11 +974,11 @@ async function assertSharedSceneAudioPlayback(page, host, sceneId) {
 
 async function refreshExportedSceneAudioExpectations() {
   const exportedManifest = JSON.parse(await readFile(path.join(buildDirectory, "build-manifest.json"), "utf8"));
-  const exportedContent = JSON.parse(
+  runtimeContent = JSON.parse(
     await readFile(path.join(buildDirectory, exportedManifest.contentPath), "utf8")
   );
   sceneAudioAssetIdBySceneId = Object.fromEntries(
-    exportedContent.scenes
+    runtimeContent.scenes
       .filter((scene) => scene.sceneAudioAssetId)
       .map((scene) => [scene.id, scene.sceneAudioAssetId])
   );
@@ -990,30 +993,44 @@ async function runRuntimeHostChecks(activeBrowser, url) {
   assert.equal(await page.getByText("Raw save state", { exact: true }).count(), 0, "Production player exposes raw save state.");
   assert.equal(await page.getByText("Playhead", { exact: false }).count(), 0, "Production player exposes the playhead.");
 
+  const englishSettings = resolveAuthoredPlayerText("en", "player.ui.settings", "Settings");
+  const englishSettingsHeading = resolveAuthoredPlayerText("en", "player.ui.settingsHeading", "Player settings");
+  const englishLanguage = resolveAuthoredPlayerText("en", "player.ui.language", "Language");
   await openRuntimeMenu(page);
-  await page.locator(".runtime-language-picker select").selectOption("fr");
+  await page.getByRole("button", { name: englishSettings, exact: true }).click();
+  await page.getByRole("heading", { name: englishSettingsHeading, exact: true }).waitFor({ state: "visible" });
+  await page.getByRole("combobox", { name: englishLanguage, exact: true }).selectOption("fr");
   await page.waitForFunction(() => document.documentElement.lang === "fr");
-  assert.equal(await page.getByRole("button", { name: "Sauvegarder", exact: true }).count(), 1);
-  await page.locator(".runtime-close-button").click();
+  const frenchSave = resolveAuthoredPlayerText("fr", "player.ui.saveGame", "Save game");
+  await page.locator(".mage2-experience__close").click();
   await page.getByRole("button", { name: /Ouvrir l’inventaire \(0 objets\)/u }).waitFor({ state: "visible" });
 
+  const frenchSettings = resolveAuthoredPlayerText("fr", "player.ui.settings", englishSettings);
+  const frenchLanguage = resolveAuthoredPlayerText("fr", "player.ui.language", englishLanguage);
   await openRuntimeMenu(page);
-  await page.locator(".runtime-language-picker select").selectOption("en");
+  assert.equal(await page.getByRole("button", { name: frenchSave, exact: true }).count(), 1);
+  await page.getByRole("button", { name: frenchSettings, exact: true }).click();
+  await page.getByRole("combobox", { name: frenchLanguage, exact: true }).selectOption("en");
   await page.waitForFunction(() => document.documentElement.lang === "en");
   await page.waitForFunction(
-    () => Boolean(document.querySelector("#runtime-player-menu")?.contains(document.activeElement)),
+    () => Boolean(document.querySelector(".mage2-experience__panel")?.contains(document.activeElement)),
     undefined,
     { timeout: 2_000 }
   );
   await page.keyboard.press("Shift+Tab");
   assert(
-    await page.evaluate(() => Boolean(document.querySelector("#runtime-player-menu")?.contains(document.activeElement))),
+    await page.evaluate(() => Boolean(document.querySelector(".mage2-experience__panel")?.contains(document.activeElement))),
     "Player menu focus escaped while tabbing."
   );
   await page.keyboard.press("Escape");
-  await page.locator("#runtime-player-menu").waitFor({ state: "detached" });
+  await page.locator(".mage2-experience__panel").waitFor({ state: "detached" });
+  await page.waitForFunction(
+    () => document.activeElement?.classList.contains("mage2-experience__menu-button"),
+    undefined,
+    { timeout: 2_000 }
+  );
   assert.equal(
-    await page.evaluate(() => document.activeElement?.classList.contains("runtime-menu-button")),
+    await page.evaluate(() => document.activeElement?.classList.contains("mage2-experience__menu-button")),
     true,
     "Closing the player menu did not restore focus."
   );
@@ -1021,13 +1038,13 @@ async function runRuntimeHostChecks(activeBrowser, url) {
   await progressToDockWithKey(page);
   await openRuntimeMenu(page);
   await page.getByRole("button", { name: "Save game", exact: true }).click();
-  await page.locator(".runtime-status").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
+  await page.locator(".mage2-experience__status").filter({ hasText: "Game saved." }).waitFor({ state: "visible" });
   await clickRuntimeHotspot(page, "Enter Workshop");
   await page.locator('.mage2-player__media[alt="Workshop Cabinet Locked"]').waitFor({ state: "visible" });
 
   await openRuntimeMenu(page);
   await page.getByRole("button", { name: "Load game", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Load", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Load game", exact: true }).click();
   await page.locator('.mage2-player__media[alt="Dock at Blue Hour"]').waitFor({ state: "visible" });
   assert.equal(await page.locator(".mage2-player__inventory-count").innerText(), "1");
 
@@ -1040,14 +1057,15 @@ async function runRuntimeHostChecks(activeBrowser, url) {
   const storageKey = `mage2-runtime-save:${buildManifest.projectId}`;
   await page.evaluate(([key]) => localStorage.setItem(key, "{malformed-save"), [storageKey]);
   await page.reload();
-  await page.locator(".mage2-player").waitFor({ state: "visible" });
-  await page.locator(".runtime-status").filter({ hasText: "The saved game could not be read" }).waitFor({
+  await page.locator(".mage2-experience").waitFor({ state: "visible" });
+  await page.locator(".mage2-experience__status").filter({ hasText: "The saved game could not be read" }).waitFor({
     state: "visible"
   });
   assert.equal(await page.evaluate(([key]) => localStorage.getItem(key), [storageKey]), null);
 
   const debugPage = await context.newPage();
   await debugPage.goto(`${url}?debug=1`, { waitUntil: "domcontentloaded" });
+  await enterRuntimeGameIfTitle(debugPage);
   await debugPage.locator(".mage2-player").waitFor({ state: "visible" });
   await debugPage.getByLabel("Show hotspots").check();
   await debugPage.waitForTimeout(180);
@@ -1092,9 +1110,10 @@ async function verifyElectronPersistence() {
   let firstUrl;
   try {
     const page = await firstApp.firstWindow();
-    await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
+    await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
     await page.evaluate(() => localStorage.clear());
     await page.reload();
+    await enterRuntimeGameIfTitle(page);
     await page.locator(".mage2-player").waitFor({ state: "visible" });
     await progressToDockWithKey(page);
     await clickRuntimeHotspot(page, "Enter Workshop");
@@ -1113,6 +1132,8 @@ async function verifyElectronPersistence() {
   });
   try {
     const page = await secondApp.firstWindow();
+    await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
+    await enterRuntimeGameIfTitle(page);
     await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
     assert.equal(page.url(), firstUrl, "Electron player origin changed across launches.");
     await page.locator('.mage2-player__media[alt="Workshop Cabinet Locked"]').waitFor({ state: "visible" });
@@ -1148,11 +1169,11 @@ async function clickRuntimeHotspot(page, name) {
 }
 
 async function openRuntimeMenu(page) {
-  const menu = page.locator("#runtime-player-menu");
-  if (await menu.count()) {
+  const menu = page.locator(".mage2-experience__panel");
+  if (await menu.isVisible().catch(() => false)) {
     return;
   }
-  await page.locator(".runtime-menu-button").click();
+  await page.locator(".mage2-experience__menu-button").click();
   await menu.waitFor({ state: "visible" });
 }
 
@@ -1258,11 +1279,26 @@ async function waitForDialogue(page) {
 
 async function openFreshRuntime(page, url) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
+  await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
+  await enterRuntimeGameIfTitle(page);
   await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
   await settle(page);
+}
+
+async function enterRuntimeGameIfTitle(page) {
+  const title = page.locator('.mage2-experience[data-player-screen="title"]');
+  if (await title.isVisible().catch(() => false)) {
+    await title.locator(".mage2-experience__primary-action").first().click();
+    await page.locator('.mage2-experience[data-player-screen="game"]').waitFor({ state: "visible" });
+  }
+}
+
+function resolveAuthoredPlayerText(locale, textId, fallback) {
+  const defaultLocale = runtimeContent.manifest.defaultLanguage;
+  return runtimeContent.strings?.[locale]?.[textId] ?? runtimeContent.strings?.[defaultLocale]?.[textId] ?? fallback;
 }
 
 async function settle(page) {
@@ -1281,9 +1317,13 @@ async function launchChrome() {
   }
 }
 
-async function runCommand(command, args) {
+async function runCommand(command, args, extraEnvironment = {}) {
   await new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: repoRoot, stdio: "inherit" });
+    const child = spawn(command, args, {
+      cwd: repoRoot,
+      env: { ...process.env, ...extraEnvironment },
+      stdio: "inherit"
+    });
     child.once("error", reject);
     child.once("exit", (code) => {
       if (code === 0) {

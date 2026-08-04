@@ -1,7 +1,7 @@
 import { resolveAssetCategory, type Hotspot, type ProjectBundle } from "@mage2/schema";
 import { STARTER_PLACEHOLDER_ASSET_ID } from "./project-helpers";
 
-export type FirstProjectChecklistStepId = "media" | "interaction" | "validation";
+export type FirstProjectChecklistStepId = "media" | "interaction" | "player" | "validation";
 
 export interface FirstProjectChecklistStep {
   id: FirstProjectChecklistStepId;
@@ -32,9 +32,10 @@ export function resolveFirstProjectChecklist(
     project.scenes.items.find((scene) => scene.backgroundAssetId === STARTER_PLACEHOLDER_ASSET_ID) ??
     project.scenes.items.find((scene) => scene.hotspots.some((hotspot) => hotspot.id === STARTER_HOTSPOT_ID));
   const starterHotspot = starterScene?.hotspots.find((hotspot) => hotspot.id === STARTER_HOTSPOT_ID);
-  const usesStarterMedia = project.scenes.items.some(
-    (scene) => scene.backgroundAssetId === STARTER_PLACEHOLDER_ASSET_ID
-  );
+  const usesStarterMedia = project.scenes.items.some((scene) => {
+    const asset = project.assets.assets.find((entry) => entry.id === scene.backgroundAssetId);
+    return scene.backgroundAssetId === STARTER_PLACEHOLDER_ASSET_ID || asset?.provenance?.source === "starter-kit";
+  });
   const hasStarterHotspot = project.scenes.items.some((scene) =>
     scene.hotspots.some((hotspot) => hotspot.id === STARTER_HOTSPOT_ID)
   );
@@ -47,12 +48,24 @@ export function resolveFirstProjectChecklist(
     starterScene?.backgroundAssetId &&
       starterScene.backgroundAssetId !== STARTER_PLACEHOLDER_ASSET_ID &&
       sceneAsset &&
+      sceneAsset.provenance?.source !== "starter-kit" &&
       resolveAssetCategory(sceneAsset) === "background" &&
       (sceneAsset.kind === "image" || sceneAsset.kind === "video")
   );
   const interactionComplete = project.scenes.items.some((scene) =>
     scene.hotspots.some((hotspot) => isMeaningfulStarterInteraction(hotspot))
   );
+  const titleAsset = project.assets.assets.find(
+    (asset) => asset.id === project.manifest.playerPresentation.titleBackgroundAssetId
+  );
+  const playerPresentationComplete =
+    !project.manifest.playerPresentation.titleScreenEnabled ||
+    Boolean(
+      titleAsset &&
+        resolveAssetCategory(titleAsset) === "player" &&
+        titleAsset.kind === "image" &&
+        project.manifest.gameVersion.trim()
+    );
 
   const steps: FirstProjectChecklistStep[] = [
     {
@@ -70,6 +83,14 @@ export function resolveFirstProjectChecklist(
       description: interactionComplete
         ? "At least one scene hotspot has a real player-facing purpose."
         : "Turn the placeholder hotspot into a transition, dialogue, pickup, or placement."
+    },
+    {
+      id: "player",
+      complete: playerPresentationComplete,
+      title: "Review the player experience",
+      description: playerPresentationComplete
+        ? "The title screen and release identity have a usable starting point."
+        : "Choose title artwork and set the version players will see."
     },
     {
       id: "validation",

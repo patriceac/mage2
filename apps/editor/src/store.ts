@@ -8,7 +8,7 @@ import {
 } from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
-export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "playtest";
+export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "player" | "playtest";
 export type LocalizationSection = "overview" | "strings" | "media";
 export type DialogueSection = "dialogues" | "responses";
 export interface ProjectUpdateOptions {

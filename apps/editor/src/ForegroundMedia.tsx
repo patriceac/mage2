@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Asset } from "@mage2/schema";
 import { resolveFileUrl } from "./file-url-cache";
 import { getLocalizedAssetVariant } from "./localized-project";
@@ -10,6 +10,7 @@ interface ForegroundMediaPlayerProps {
   autoPlay?: boolean;
   className?: string;
   onDismiss?: () => void;
+  volume?: number;
 }
 
 export function ForegroundMediaPlayer({
@@ -18,13 +19,26 @@ export function ForegroundMediaPlayer({
   label = "Foreground media",
   autoPlay = true,
   className,
-  onDismiss
+  onDismiss,
+  volume = 1
 }: ForegroundMediaPlayerProps) {
   const [sourceUrl, setSourceUrl] = useState<string>();
   const [posterUrl, setPosterUrl] = useState<string>();
   const variant = asset ? getLocalizedAssetVariant(asset, locale) : undefined;
   const sourcePath = variant?.proxyPath ?? variant?.sourcePath;
   const posterPath = asset?.kind === "video" ? variant?.posterPath : undefined;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const nextVolume = Math.min(1, Math.max(0, volume));
+    if (videoRef.current) {
+      videoRef.current.volume = nextVolume;
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = nextVolume;
+    }
+  }, [volume]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +94,7 @@ export function ForegroundMediaPlayer({
       </header>
       {sourceUrl && asset.kind === "video" ? (
         <video
+          ref={videoRef}
           src={sourceUrl}
           poster={posterUrl}
           autoPlay={autoPlay}
@@ -90,6 +105,7 @@ export function ForegroundMediaPlayer({
         />
       ) : sourceUrl && asset.kind === "audio" ? (
         <audio
+          ref={audioRef}
           src={sourceUrl}
           autoPlay={autoPlay}
           controls

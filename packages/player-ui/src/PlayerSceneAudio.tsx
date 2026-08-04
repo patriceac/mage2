@@ -20,6 +20,7 @@ export interface PlayerSceneAudioProps {
   loop: boolean;
   durationMs?: number;
   paused?: boolean;
+  volume?: number;
   playbackResetKey?: string | number;
   onPlayheadMsChange: (playheadMs: number) => void;
   controls?: boolean;
@@ -52,6 +53,7 @@ export function PlayerSceneAudio({
   loop,
   durationMs,
   paused = false,
+  volume = 1,
   playbackResetKey,
   onPlayheadMsChange,
   controls = false,
@@ -60,6 +62,12 @@ export function PlayerSceneAudio({
 }: PlayerSceneAudioProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceUrl = useResolvedSceneAudioSource(sourcePath, resolveSourcePath);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = Math.min(1, Math.max(0, volume));
+    }
+  }, [volume]);
 
   usePlayerSceneAudioPlayback({
     audioRef,
