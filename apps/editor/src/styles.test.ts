@@ -365,6 +365,15 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("padding: 0.7rem 3.7rem 0.7rem 0.8rem;");
     expect(styles).toContain(".dropdown-select__trigger {");
   });
+
+  it("keeps native workbench dropdown options readable in the dark menu", () => {
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.dropdown-select__native option\s*\{[\s\S]*?background: var\(--workbench-control\);[\s\S]*?color: var\(--workbench-text\);/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.dropdown-select__native option:checked\s*\{[\s\S]*?background: #27465b;[\s\S]*?color: #ffffff;/
+    );
+  });
 });
 
 function resolveSelectorSpecificityScore(selector: string) {

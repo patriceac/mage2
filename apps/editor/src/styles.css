@@ -7199,6 +7199,20 @@ button.recent-project__icon-button:hover {
   padding-right: 2.75rem;
 }
 
+.app-shell--editor-workbench .dropdown-select__native option {
+  background: var(--workbench-control);
+  color: var(--workbench-text);
+}
+
+.app-shell--editor-workbench .dropdown-select__native option:checked {
+  background: #27465b;
+  color: #ffffff;
+}
+
+.app-shell--editor-workbench .dropdown-select__native option:disabled {
+  color: #7e90a0;
+}
+
 .app-shell--editor-workbench .dropdown-select__trigger {
   width: 2.2rem;
   border-radius: 0 3px 3px 0;
