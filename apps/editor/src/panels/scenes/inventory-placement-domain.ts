@@ -1,6 +1,12 @@
 import type { Asset, InventoryItem } from "@mage2/schema";
 import { isInventoryImageAsset } from "../../project-helpers";
 import { MIN_HOTSPOT_SIZE } from "../../hotspot-geometry";
+import type { EditorTranslator } from "../../i18n/translate";
+
+const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
 
 export const INVENTORY_ITEM_DRAG_TYPE = "application/x-mage2-inventory-item";
 export const INVENTORY_ITEM_DRAG_SIZE_TYPE = "application/x-mage2-inventory-preview-size";
@@ -9,6 +15,7 @@ const INVENTORY_DRAG_PREVIEW_SCALE = 2 / 3;
 
 export interface LinkedInventoryOption {
   asset?: Asset;
+  baseLabel: string;
   description?: string;
   internalName: string;
   itemId: string;
@@ -21,7 +28,8 @@ export function resolveLinkedInventoryOptions(
   items: InventoryItem[],
   assets: Asset[],
   strings: Record<string, string>,
-  currentItemId?: string
+  currentItemId?: string,
+  t: EditorTranslator = identityEditorTranslator
 ): LinkedInventoryOption[] {
   const assetsById = new Map(assets.map((asset) => [asset.id, asset] as const));
   const options: LinkedInventoryOption[] = [];
@@ -32,12 +40,14 @@ export function resolveLinkedInventoryOptions(
       continue;
     }
 
+    const baseLabel = strings[item.textId] ?? item.name ?? item.id;
     options.push({
       asset,
+      baseLabel,
       description: normalizeInventoryPickerText(item.descriptionTextId ? strings[item.descriptionTextId] : undefined),
       internalName: item.name,
       itemId: item.id,
-      label: strings[item.textId] ?? item.name ?? item.id,
+      label: baseLabel,
       eligible: true,
       searchText: `${strings[item.textId] ?? item.name ?? item.id}\n${item.name}`.toLowerCase()
     });
@@ -51,9 +61,10 @@ export function resolveLinkedInventoryOptions(
   if (!currentItem) {
     return [
       {
+        baseLabel: currentItemId,
         internalName: currentItemId,
         itemId: currentItemId,
-        label: `Missing inventory item (${currentItemId})`,
+        label: t("Missing inventory item ({itemId})", { itemId: currentItemId }),
         eligible: false,
         searchText: currentItemId.toLowerCase()
       },
@@ -61,13 +72,15 @@ export function resolveLinkedInventoryOptions(
     ];
   }
 
+  const baseLabel = strings[currentItem.textId] ?? currentItem.name ?? currentItem.id;
   return [
     {
       asset: currentItem.imageAssetId ? assetsById.get(currentItem.imageAssetId) : undefined,
+      baseLabel,
       description: normalizeInventoryPickerText(currentItem.descriptionTextId ? strings[currentItem.descriptionTextId] : undefined),
       internalName: currentItem.name,
       itemId: currentItem.id,
-      label: `${strings[currentItem.textId] ?? currentItem.name ?? currentItem.id} (missing valid art)`,
+      label: t("{itemLabel} (missing valid art)", { itemLabel: baseLabel }),
       eligible: false,
       searchText: `${strings[currentItem.textId] ?? currentItem.name ?? currentItem.id}\n${currentItem.name}`.toLowerCase()
     },

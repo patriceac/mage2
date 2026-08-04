@@ -5,11 +5,14 @@ import "./styles.css";
 import "./panels/scenes/scenes.css";
 import { App } from "./App";
 import { DialogProvider } from "./dialogs";
+import { EditorI18nProvider } from "./i18n";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <DialogProvider>
-      <App />
-    </DialogProvider>
+    <EditorI18nProvider>
+      <DialogProvider>
+        <App />
+      </DialogProvider>
+    </EditorI18nProvider>
   </React.StrictMode>
 );

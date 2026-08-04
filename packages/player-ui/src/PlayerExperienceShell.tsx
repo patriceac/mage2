@@ -8,10 +8,14 @@ import {
   type ReactNode
 } from "react";
 import {
-  DEFAULT_PLAYER_UI_STRINGS,
-  PLAYER_UI_TEXT_IDS,
+  BUILT_IN_LOCALES,
+  BUILT_IN_LOCALE_AUTONYMS,
+  resolveBuiltInLocale,
+  type BuiltInLocale,
+  type PlayerUiOverrides,
   type PlayerPresentation
 } from "@mage2/schema";
+import { resolvePlayerExperienceShellCopy } from "./chrome-localization";
 import { resolvePlayerTextDirection } from "./model";
 
 export type PlayerExperienceScreen = "title" | "game";
@@ -29,37 +33,6 @@ export const DEFAULT_PLAYER_EXPERIENCE_PREFERENCES: PlayerExperiencePreferences 
   reducedMotion: false
 };
 
-export interface PlayerExperienceShellCopy {
-  cancel: string;
-  close: string;
-  confirmLoadBody: string;
-  confirmNewGameBody: string;
-  continueGame: string;
-  credits: string;
-  creditsHeading: string;
-  fullscreen: string;
-  language: string;
-  landscapeHint: string;
-  loadGame: string;
-  menu: string;
-  menuHeading: string;
-  newGame: string;
-  noSavedGame: string;
-  quit: string;
-  reducedMotion: string;
-  resume: string;
-  saveGame: string;
-  settings: string;
-  settingsHeading: string;
-  startGame: string;
-  textSize: string;
-  textSizeLarge: string;
-  textSizeMedium: string;
-  textSizeSmall: string;
-  version: string;
-  volume: string;
-}
-
 export interface PlayerExperienceShellProps {
   projectName: string;
   gameVersion: string;
@@ -70,6 +43,10 @@ export interface PlayerExperienceShellProps {
   supportedLocales: readonly string[];
   localeStrings: Record<string, string>;
   onLocaleChange: (locale: string) => void;
+  interfaceLocale?: BuiltInLocale;
+  interfaceLocalePreference?: "automatic" | BuiltInLocale;
+  onInterfaceLocalePreferenceChange?: (preference: "automatic" | BuiltInLocale) => void;
+  playerUiOverrides?: PlayerUiOverrides;
   preferences: PlayerExperiencePreferences;
   onPreferencesChange: (preferences: PlayerExperiencePreferences) => void;
   hasSavedGame: boolean;
@@ -92,44 +69,6 @@ export interface PlayerExperienceShellProps {
 type PlayerExperiencePanel = "menu" | "settings" | "credits";
 type PlayerExperienceConfirmation = "newGame" | "load";
 
-export function resolvePlayerExperienceShellCopy(strings: Record<string, string>): PlayerExperienceShellCopy {
-  const value = (textId: keyof typeof PLAYER_UI_TEXT_IDS) => {
-    const id = PLAYER_UI_TEXT_IDS[textId];
-    return strings[id]?.trim() || DEFAULT_PLAYER_UI_STRINGS[id];
-  };
-
-  return {
-    cancel: value("cancel"),
-    close: value("close"),
-    confirmLoadBody: value("confirmLoadBody"),
-    confirmNewGameBody: value("confirmNewGameBody"),
-    continueGame: value("continueGame"),
-    credits: value("credits"),
-    creditsHeading: value("creditsHeading"),
-    fullscreen: value("fullscreen"),
-    language: value("language"),
-    landscapeHint: value("landscapeHint"),
-    loadGame: value("loadGame"),
-    menu: value("menu"),
-    menuHeading: value("menuHeading"),
-    newGame: value("newGame"),
-    noSavedGame: value("noSavedGame"),
-    quit: value("quit"),
-    reducedMotion: value("reducedMotion"),
-    resume: value("resume"),
-    saveGame: value("saveGame"),
-    settings: value("settings"),
-    settingsHeading: value("settingsHeading"),
-    startGame: value("startGame"),
-    textSize: value("textSize"),
-    textSizeLarge: value("textSizeLarge"),
-    textSizeMedium: value("textSizeMedium"),
-    textSizeSmall: value("textSizeSmall"),
-    version: value("version"),
-    volume: value("volume")
-  };
-}
-
 export function PlayerExperienceShell({
   projectName,
   gameVersion,
@@ -140,6 +79,10 @@ export function PlayerExperienceShell({
   supportedLocales,
   localeStrings,
   onLocaleChange,
+  interfaceLocale,
+  interfaceLocalePreference = "automatic",
+  onInterfaceLocalePreferenceChange,
+  playerUiOverrides,
   preferences,
   onPreferencesChange,
   hasSavedGame,
@@ -165,7 +108,11 @@ export function PlayerExperienceShell({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasModalOpenRef = useRef(false);
   const headingId = useId();
-  const copy = useMemo(() => resolvePlayerExperienceShellCopy(localeStrings), [localeStrings]);
+  const resolvedInterfaceLocale = interfaceLocale ?? resolveBuiltInLocale([locale]);
+  const copy = useMemo(
+    () => resolvePlayerExperienceShellCopy(resolvedInterfaceLocale, playerUiOverrides?.[resolvedInterfaceLocale]),
+    [playerUiOverrides, resolvedInterfaceLocale]
+  );
   const tagline = presentation.taglineTextId ? localeStrings[presentation.taglineTextId]?.trim() : undefined;
   const credits = presentation.creditsTextId ? localeStrings[presentation.creditsTextId]?.trim() : undefined;
   const modalOpen = Boolean(panel || confirmation);
@@ -284,8 +231,8 @@ export function PlayerExperienceShell({
     <section
       className={rootClassName}
       style={rootStyle}
-      lang={locale}
-      dir={resolvePlayerTextDirection(locale)}
+      lang={resolvedInterfaceLocale}
+      dir={resolvePlayerTextDirection(resolvedInterfaceLocale)}
       data-player-screen={screen}
       data-player-menu-open={modalOpen ? "true" : "false"}
     >
@@ -322,7 +269,7 @@ export function PlayerExperienceShell({
                 <h1>{projectName}</h1>
               </div>
             )}
-            {tagline ? <p className="mage2-experience__tagline">{tagline}</p> : null}
+            {tagline ? <p className="mage2-experience__tagline" lang={locale} dir={resolvePlayerTextDirection(locale)}>{tagline}</p> : null}
             <div className="mage2-experience__title-actions">
               <button
                 type="button"
@@ -379,9 +326,27 @@ export function PlayerExperienceShell({
 
             {panel === "settings" ? (
               <div className="mage2-experience__settings">
-                {supportedLocales.length > 1 ? (
+                {onInterfaceLocalePreferenceChange ? (
                   <label>
-                    <span>{copy.language}</span>
+                    <span>
+                      {copy.interfaceLanguage}
+                      <small>{copy.interfaceLanguageHelp}</small>
+                    </span>
+                    <select
+                      value={interfaceLocalePreference}
+                      onChange={(event) => onInterfaceLocalePreferenceChange(event.target.value as "automatic" | BuiltInLocale)}
+                    >
+                      <option value="automatic">{copy.automatic}</option>
+                      {BUILT_IN_LOCALES.map((value) => <option key={value} value={value}>{BUILT_IN_LOCALE_AUTONYMS[value]}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                {supportedLocales.length > 0 ? (
+                  <label>
+                    <span>
+                      {copy.gameLanguage}
+                      <small>{copy.gameLanguageHelp}</small>
+                    </span>
                     <select value={locale} onChange={(event) => onLocaleChange(event.target.value)}>
                       {supportedLocales.map((value) => <option key={value} value={value}>{resolveLocaleName(value)}</option>)}
                     </select>
@@ -423,7 +388,7 @@ export function PlayerExperienceShell({
 
             {panel === "credits" ? (
               <div className="mage2-experience__credits">
-                {credits ? <p>{credits}</p> : null}
+                {credits ? <p lang={locale} dir={resolvePlayerTextDirection(locale)}>{credits}</p> : null}
                 {presentation.creatorName ? <strong>{presentation.creatorName}</strong> : null}
                 {presentation.websiteUrl ? <a href={presentation.websiteUrl} target="_blank" rel="noreferrer">{presentation.websiteUrl}</a> : null}
                 <small>{copy.version} {gameVersion}</small>

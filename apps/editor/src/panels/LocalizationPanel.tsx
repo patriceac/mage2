@@ -13,6 +13,7 @@ import {
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
+import { translateRuntimeMessage, useEditorI18n, type EditorMessageParams } from "../i18n";
 import {
   addProjectLocale,
   getLocaleCompletenessStatus,
@@ -52,6 +53,7 @@ type LocalizationStatusFilter = "all" | LocalizedStringStatus;
 type QueueItemStatus = LocalizedStringStatus | "present";
 type QueueItemKind = "string" | "media";
 type CopyTextIdFeedbackStatus = "copied" | "failed";
+type EditorTranslator = (source: string, params?: EditorMessageParams) => string;
 
 interface LocalizationPanelProps {
   project: ProjectBundle;
@@ -99,27 +101,21 @@ interface AssetUsage {
 
 const LOCALIZATION_SUBTABS: ReadonlyArray<{
   id: LocalizationSection;
-  label: string;
-}> = [
-  { id: "overview", label: "Work Queue" },
-  { id: "strings", label: "Strings" },
-  { id: "media", label: "Media" }
-];
+}> = [{ id: "overview" }, { id: "strings" }, { id: "media" }];
 
 const QUEUE_GROUPS: ReadonlyArray<{
   status: QueueItemStatus;
-  label: string;
   icon: LocalizationIconName;
 }> = [
-  { status: "missing", label: "Missing", icon: "alert" },
-  { status: "empty", label: "Empty", icon: "circle" },
-  { status: "inherited", label: "Inherited", icon: "copy" },
-  { status: "draft", label: "Draft", icon: "circle" },
-  { status: "translated", label: "Translated", icon: "check" },
-  { status: "reviewed", label: "Reviewed", icon: "shield" },
-  { status: "source", label: "Source", icon: "text" },
-  { status: "orphaned", label: "Orphans", icon: "unlink" },
-  { status: "present", label: "Present", icon: "check" }
+  { status: "missing", icon: "alert" },
+  { status: "empty", icon: "circle" },
+  { status: "inherited", icon: "copy" },
+  { status: "draft", icon: "circle" },
+  { status: "translated", icon: "check" },
+  { status: "reviewed", icon: "shield" },
+  { status: "source", icon: "text" },
+  { status: "orphaned", icon: "unlink" },
+  { status: "present", icon: "check" }
 ];
 
 const TEXT_AREAS: ReadonlyArray<ProjectTextArea> = ["scenes", "dialogue", "inventory", "player"];
@@ -133,6 +129,7 @@ export function LocalizationPanel({
   setBusyLabel
 }: LocalizationPanelProps) {
   const dialogs = useDialogs();
+  const { t } = useEditorI18n();
   const activeLocale = useEditorStore((state) => state.localizationLocale) ?? project.manifest.defaultLanguage;
   const setLocalizationLocale = useEditorStore((state) => state.setLocalizationLocale);
   const localizationSection = useEditorStore((state) => state.localizationSection);
@@ -169,8 +166,8 @@ export function LocalizationPanel({
   const defaultLocaleStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
 
   const allStringEntries = useMemo(
-    () => collectStringLocalizationEntries(project, activeLocale),
-    [activeLocale, project]
+    () => collectStringLocalizationEntries(project, activeLocale, t),
+    [activeLocale, project, t]
   );
   const visibleStringEntries = useMemo(
     () =>
@@ -178,9 +175,10 @@ export function LocalizationPanel({
         area: areaFilter,
         search,
         sort: sortOption,
-        status: statusFilter
+        status: statusFilter,
+        t
       }),
-    [allStringEntries, areaFilter, search, sortOption, statusFilter]
+    [allStringEntries, areaFilter, search, sortOption, statusFilter, t]
   );
   const activeTextEntryId = resolveProjectTextSelection(visibleStringEntries, selectedTextId);
   const selectedStringEntry =
@@ -206,21 +204,21 @@ export function LocalizationPanel({
   );
   const selectedMediaAsset = visibleMediaAssets.find((asset) => asset.id === selectedAssetId) ?? visibleMediaAssets[0];
   const selectedMediaUsages = useMemo(
-    () => (selectedMediaAsset ? collectAssetUsages(project, selectedMediaAsset) : []),
-    [project, selectedMediaAsset]
+    () => (selectedMediaAsset ? collectAssetUsages(project, selectedMediaAsset, t) : []),
+    [project, selectedMediaAsset, t]
   );
-  const stringCoverageRows = useMemo(() => buildStringCoverageRows(allStringEntries), [allStringEntries]);
-  const mediaCoverageRows = useMemo(() => buildMediaCoverageRows(project, activeLocale), [activeLocale, project]);
+  const stringCoverageRows = useMemo(() => buildStringCoverageRows(allStringEntries, t), [allStringEntries, t]);
+  const mediaCoverageRows = useMemo(() => buildMediaCoverageRows(project, activeLocale, t), [activeLocale, project, t]);
   const isDefaultLocale = activeLocale === project.manifest.defaultLanguage;
-  const localeLabel = formatLocaleDisplayName(activeLocale);
+  const localeLabel = formatLocaleDisplayName(activeLocale, t);
   const queueItems = useMemo(
-    () => buildQueueItems(project, activeLocale, visibleStringEntries, { search, areaFilter, statusFilter }),
-    [activeLocale, areaFilter, project, search, statusFilter, visibleStringEntries]
+    () => buildQueueItems(project, activeLocale, visibleStringEntries, { search, areaFilter, statusFilter }, t),
+    [activeLocale, areaFilter, project, search, statusFilter, t, visibleStringEntries]
   );
   const selectedQueueItem =
     queueItems.find((item) => item.kind === "media" && item.asset.id === selectedAssetId) ??
     queueItems.find((item) => item.kind === "string" && item.entry.textId === selectedTextId) ??
-    (selectedStringEntry ? buildStringQueueItem(selectedStringEntry, defaultLocaleStrings) : undefined) ??
+    (selectedStringEntry ? buildStringQueueItem(selectedStringEntry, defaultLocaleStrings, t) : undefined) ??
     queueItems[0];
 
   useEffect(() => {
@@ -303,29 +301,37 @@ export function LocalizationPanel({
 
     const isBulkDelete = textIds.length > 1;
     const confirmed = await dialogs.confirm({
-      title: isBulkDelete ? `Delete ${textIds.length} orphaned strings?` : `Delete ${textIds[0]}?`,
+      title: isBulkDelete
+        ? t("Delete {count} orphaned strings?", { count: textIds.length })
+        : t("Delete {textId}?", { textId: textIds[0] }),
       body: (
         <>
           <p>
             {isBulkDelete
-              ? "Only the currently visible orphaned entries will be removed from the stored project text."
-              : "This orphaned entry is no longer referenced anywhere in the project and will be removed from the stored project text."}
+              ? t("Only the currently visible orphaned entries will be removed from the stored project text.")
+              : t("This orphaned entry is no longer referenced anywhere in the project and will be removed from the stored project text.")}
           </p>
           <div className="dialog-callout">
-            <strong>Removing</strong>
+            <strong>{t("Removing")}</strong>
             <ul className="dialog-detail-list">
               {textIds.slice(0, 8).map((textId) => (
                 <li key={textId}>
                   <code>{textId}</code>
                 </li>
               ))}
-              {textIds.length > 8 ? <li>{`${textIds.length - 8} more entry${textIds.length - 8 === 1 ? "" : "ies"}`}</li> : null}
+              {textIds.length > 8 ? (
+                <li>
+                  {t(textIds.length - 8 === 1 ? "{count} more entry" : "{count} more entries", {
+                    count: textIds.length - 8
+                  })}
+                </li>
+              ) : null}
             </ul>
           </div>
         </>
       ),
-      confirmLabel: isBulkDelete ? "Delete Orphans" : "Delete Orphaned Entry",
-      cancelLabel: "Keep Entries",
+      confirmLabel: isBulkDelete ? t("Delete Orphans") : t("Delete Orphaned Entry"),
+      cancelLabel: t("Keep Entries"),
       tone: "danger"
     });
 
@@ -340,12 +346,12 @@ export function LocalizationPanel({
 
   async function handleAddLocale() {
     const nextLocale = await dialogs.promptText({
-      title: "Add Locale",
-      description: "Add a locale code like en, fr, or pt-BR. Source text is copied as Inherited and will not count as translated.",
-      label: "Locale Code",
+      title: t("Add Locale"),
+      description: t("Add a locale code like en, fr, or pt-BR. Source text is copied as Inherited and will not count as translated."),
+      label: t("Locale Code"),
       placeholder: "fr",
-      confirmLabel: "Add Locale",
-      cancelLabel: "Cancel"
+      confirmLabel: t("Add Locale"),
+      cancelLabel: t("Cancel")
     });
     const normalizedLocale = normalizeLocaleInput(nextLocale);
     if (!normalizedLocale) {
@@ -369,10 +375,10 @@ export function LocalizationPanel({
     }
 
     const confirmed = await dialogs.confirm({
-      title: `Remove locale ${activeLocale}?`,
-      body: <p>This removes the locale's stored text and media variants from the project.</p>,
-      confirmLabel: "Remove Locale",
-      cancelLabel: "Keep Locale",
+      title: t("Remove locale {locale}?", { locale: activeLocale }),
+      body: <p>{t("This removes the locale's stored text and media variants from the project.")}</p>,
+      confirmLabel: t("Remove Locale"),
+      cancelLabel: t("Keep Locale"),
       tone: "danger"
     });
     if (!confirmed) {
@@ -391,20 +397,18 @@ export function LocalizationPanel({
     }
 
     const confirmed = await dialogs.confirm({
-      title: `Make ${activeLocale} the project default?`,
+      title: t("Make {locale} the project default?", { locale: activeLocale }),
       body: (
         <>
-          <p>
-            This makes {activeLocale} the source locale for strings and media throughout the project.
-          </p>
+          <p>{t("This makes {locale} the source locale for strings and media throughout the project.", { locale: activeLocale })}</p>
           <div className="dialog-callout">
-            <strong>Workflow states will be recalculated</strong>
-            <p>Values that do not match the new source return to Draft so they are not reported as complete without review.</p>
+            <strong>{t("Workflow states will be recalculated")}</strong>
+            <p>{t("Values that do not match the new source return to Draft so they are not reported as complete without review.")}</p>
           </div>
         </>
       ),
-      confirmLabel: "Change Project Default",
-      cancelLabel: "Keep Current Default"
+      confirmLabel: t("Change Project Default"),
+      cancelLabel: t("Keep Current Default")
     });
     if (!confirmed) {
       return;
@@ -413,16 +417,22 @@ export function LocalizationPanel({
     mutateProject((draft) => {
       setProjectDefaultLocale(draft, activeLocale);
     });
-    setStatusMessage(`${activeLocale} is now the project default source locale.`);
+    setStatusMessage(t("{locale} is now the project default source locale.", { locale: activeLocale }));
   }
 
   async function handleImportVariant(asset: Asset) {
-    const variantAction = getLocalizedAssetVariant(asset, activeLocale) ? "Updated" : "Added";
+    const isReplacingVariant = Boolean(getLocalizedAssetVariant(asset, activeLocale));
     const filePaths = await dialogs.pickFiles({
-      title: `${variantAction === "Updated" ? "Replace" : "Add"} ${activeLocale} Variant`,
-      description: `Choose a ${asset.kind} file for the ${activeLocale} variant of ${asset.name}.`,
+      title: isReplacingVariant
+        ? t("Replace {locale} Variant", { locale: activeLocale })
+        : t("Add {locale} Variant", { locale: activeLocale }),
+      description: t("Choose a {kind} file for the {locale} variant of {name}.", {
+        kind: formatAssetKindLabel(asset.kind, t).toLocaleLowerCase(),
+        locale: activeLocale,
+        name: asset.name
+      }),
       initialPath: resolveAssetImportInitialPath(project, activeLocale) ?? useEditorStore.getState().projectDir,
-      confirmLabel: "Use This File",
+      confirmLabel: t("Use This File"),
       allowedExtensions: resolveAssetVariantImportExtensions(asset)
     });
     const filePath = filePaths[0];
@@ -433,10 +443,10 @@ export function LocalizationPanel({
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Updating localized media");
+      setBusyLabel(t("Updating localized media"));
       const updatedAsset = await window.editorApi.importAssetVariant(projectDir, asset, activeLocale, filePath);
       mutateProject((draft) => {
         const index = draft.assets.assets.findIndex((entry) => entry.id === asset.id);
@@ -446,10 +456,17 @@ export function LocalizationPanel({
       });
       setSelectedAssetId(asset.id);
       setSelectedTextId(undefined);
-      setStatusMessage(`${variantAction} ${activeLocale} variant for ${asset.name}. Save the project to keep this change.`);
+      setStatusMessage(
+        t(isReplacingVariant
+          ? "Updated {locale} variant for {name}. Save the project to keep this change."
+          : "Added {locale} variant for {name}. Save the project to keep this change.", {
+          locale: activeLocale,
+          name: asset.name
+        })
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Variant import failed: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Variant import failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -462,15 +479,15 @@ export function LocalizationPanel({
     }
 
     if (Object.keys(asset.variants).length <= 1) {
-      setStatusMessage(`Delete ${asset.name} entirely in Assets if you want to remove its only locale variant.`);
+      setStatusMessage(t("Delete {name} entirely in Assets if you want to remove its only locale variant.", { name: asset.name }));
       return;
     }
 
     const confirmed = await dialogs.confirm({
-      title: `Remove ${activeLocale} variant from ${asset.name}?`,
-      body: <p>This removes the stored file and generated proxies for the selected locale variant only.</p>,
-      confirmLabel: "Remove Variant",
-      cancelLabel: "Keep Variant",
+      title: t("Remove {locale} variant from {name}?", { locale: activeLocale, name: asset.name }),
+      body: <p>{t("This removes the stored file and generated proxies for the selected locale variant only.")}</p>,
+      confirmLabel: t("Remove Variant"),
+      cancelLabel: t("Keep Variant"),
       tone: "danger"
     });
     if (!confirmed) {
@@ -480,14 +497,14 @@ export function LocalizationPanel({
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Removing localized media");
+      setBusyLabel(t("Removing localized media"));
       const nextProject = structuredClone(project) as ProjectBundle;
       const target = nextProject.assets.assets.find((entry) => entry.id === asset.id);
       if (!target) {
-        throw new Error("Asset is no longer present.");
+        throw new Error(t("Asset is no longer present."));
       }
 
       delete target.variants[activeLocale];
@@ -496,10 +513,10 @@ export function LocalizationPanel({
       setSavedProject(result.project);
       setSelectedAssetId(asset.id);
       setSelectedTextId(undefined);
-      setStatusMessage(`Removed ${activeLocale} variant from ${asset.name}.`);
+      setStatusMessage(t("Removed {locale} variant from {name}.", { locale: activeLocale, name: asset.name }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Variant removal failed: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Variant removal failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -519,7 +536,7 @@ export function LocalizationPanel({
   function handleFindNextString(status: "missing" | "empty") {
     const nextEntry = allStringEntries.find((entry) => getLocalizedStringStatus(entry) === status);
     if (!nextEntry) {
-      setStatusMessage(status === "missing" ? "No missing strings for this locale." : "No empty strings for this locale.");
+      setStatusMessage(t(status === "missing" ? "No missing strings for this locale." : "No empty strings for this locale."));
       return;
     }
 
@@ -532,16 +549,16 @@ export function LocalizationPanel({
   async function handleCopyTextId(textId: string) {
     try {
       if (!navigator.clipboard?.writeText) {
-        throw new Error("Clipboard is not available.");
+        throw new Error(t("Clipboard is not available."));
       }
 
       await navigator.clipboard.writeText(textId);
       showCopyTextIdFeedback(textId, "copied");
-      setStatusMessage(`Copied text id ${textId}.`);
+      setStatusMessage(t("Copied text id {textId}.", { textId }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = translateRuntimeMessage(error, t);
       showCopyTextIdFeedback(textId, "failed");
-      setStatusMessage(`Copy text id failed: ${message}`);
+      setStatusMessage(t("Copy text id failed: {message}", { message }));
     }
   }
 
@@ -613,7 +630,7 @@ export function LocalizationPanel({
     <div className="localization-page localization-workbench-page">
       <section className="localization-commandbar">
         <div className="localization-commandbar__field">
-          <span className="localization-commandbar__label">Editing locale</span>
+          <span className="localization-commandbar__label">{t("Editing locale")}</span>
           <label className="localization-locale-select">
             <span className="localization-locale-select__icon" aria-hidden="true">
               <LocalizationIcon name="globe" />
@@ -621,52 +638,52 @@ export function LocalizationPanel({
             <DropdownSelect value={activeLocale} onChange={(event) => setLocalizationLocale(event.target.value)}>
               {supportedLocales.map((locale) => (
                 <option key={locale} value={locale}>
-                  {formatLocaleDisplayName(locale)}
+                  {formatLocaleDisplayName(locale, t)}
                 </option>
               ))}
             </DropdownSelect>
-            {isDefaultLocale ? <span className="localization-default-chip">Project default</span> : null}
+            {isDefaultLocale ? <span className="localization-default-chip">{t("Project default")}</span> : null}
           </label>
         </div>
         <div className="localization-commandbar__actions">
           <button type="button" className="button-secondary localization-command-button" onClick={() => void handleAddLocale()}>
             <LocalizationIcon name="plus" />
-            <span>Add Locale</span>
+            <span>{t("Add Locale")}</span>
           </button>
           <button
             type="button"
             className="button-secondary localization-command-button"
             disabled={isDefaultLocale}
             onClick={() => void handleSetDefaultLocale()}
-            title="Make the selected locale the project default authoring locale."
+            title={t("Make the selected locale the project default authoring locale.")}
           >
             <LocalizationIcon name="star" />
-            <span>Set as Default</span>
+            <span>{t("Set as Default")}</span>
           </button>
           <button
             type="button"
             className="button-danger-quiet localization-command-button localization-command-button--danger"
             disabled={isDefaultLocale}
             onClick={() => void handleRemoveLocale()}
-            title="Remove the selected non-default locale from the project."
+            title={t("Remove the selected non-default locale from the project.")}
           >
             <LocalizationIcon name="trash" />
-            <span>Remove Locale</span>
+            <span>{t("Remove Locale")}</span>
           </button>
         </div>
       </section>
 
-      <section className="panel localization-health-panel" aria-label={`Locale health for ${localeLabel}`}>
+      <section className="panel localization-health-panel" aria-label={t("Locale health for {locale}", { locale: localeLabel })}>
         <div className="localization-health-panel__header">
-          <h3>Locale Health - {localeLabel}</h3>
+          <h3>{t("Locale Health - {locale}", { locale: localeLabel })}</h3>
         </div>
         <div className="localization-health-grid">
           <HealthMetricCard
             icon="check"
             tone="ready"
             value={stringMetrics.complete}
-            label={isDefaultLocale ? "Source authored" : "Translation complete"}
-            detail={`${formatCoveragePercent(stringMetrics.complete, stringMetrics.total)} of total`}
+            label={t(isDefaultLocale ? "Source authored" : "Translation complete")}
+            detail={t("{percent} of total", { percent: formatCoveragePercent(stringMetrics.complete, stringMetrics.total) })}
           />
           {isDefaultLocale ? (
             <>
@@ -674,15 +691,15 @@ export function LocalizationPanel({
                 icon="alert"
                 tone="missing"
                 value={stringMetrics.missing}
-                label="Source strings missing"
-                detail={`${formatCoveragePercent(stringMetrics.missing, stringMetrics.total)} of total`}
+                label={t("Source strings missing")}
+                detail={t("{percent} of total", { percent: formatCoveragePercent(stringMetrics.missing, stringMetrics.total) })}
               />
               <HealthMetricCard
                 icon="circle"
                 tone="empty"
                 value={stringMetrics.empty}
-                label="Empty source strings"
-                detail={`${formatCoveragePercent(stringMetrics.empty, stringMetrics.total)} of total`}
+                label={t("Empty source strings")}
+                detail={t("{percent} of total", { percent: formatCoveragePercent(stringMetrics.empty, stringMetrics.total) })}
               />
             </>
           ) : (
@@ -691,22 +708,22 @@ export function LocalizationPanel({
                 icon="copy"
                 tone="inherited"
                 value={stringMetrics.inherited}
-                label="Inherited copies"
-                detail="Excluded from completion"
+                label={t("Inherited copies")}
+                detail={t("Excluded from completion")}
               />
               <HealthMetricCard
                 icon="circle"
                 tone="draft"
                 value={stringMetrics.draft}
-                label="Draft strings"
-                detail="Excluded from completion"
+                label={t("Draft strings")}
+                detail={t("Excluded from completion")}
               />
               <HealthMetricCard
                 icon="alert"
                 tone="missing"
                 value={stringMetrics.missing + stringMetrics.empty}
-                label="Strings missing"
-                detail={`${formatCoveragePercent(stringMetrics.missing + stringMetrics.empty, stringMetrics.total)} of total`}
+                label={t("Strings missing")}
+                detail={t("{percent} of total", { percent: formatCoveragePercent(stringMetrics.missing + stringMetrics.empty, stringMetrics.total) })}
               />
             </>
           )}
@@ -714,20 +731,20 @@ export function LocalizationPanel({
             icon="image"
             tone="missing"
             value={mediaCoverage.missing}
-            label="Media missing"
-            detail={`${formatCoveragePercent(mediaCoverage.missing, mediaCoverage.total)} of total`}
+            label={t("Media missing")}
+            detail={t("{percent} of total", { percent: formatCoveragePercent(mediaCoverage.missing, mediaCoverage.total) })}
           />
           <HealthMetricCard
             icon="unlink"
             tone="orphaned"
             value={stringMetrics.orphaned}
-            label="Orphans"
-            detail="No references"
+            label={t("Orphans")}
+            detail={t("No references")}
           />
         </div>
       </section>
 
-      <nav className="localization-subtab-strip localization-view-switch" role="tablist" aria-label="Localization sections">
+      <nav className="localization-subtab-strip localization-view-switch" role="tablist" aria-label={t("Localization sections")}>
         {LOCALIZATION_SUBTABS.map((section) => (
           <button
             key={section.id}
@@ -743,7 +760,7 @@ export function LocalizationPanel({
             }
             onClick={() => setLocalizationSection(section.id)}
           >
-            {section.label}
+            {t(getLocalizationSubtabLabel(section.id))}
           </button>
         ))}
       </nav>
@@ -800,7 +817,7 @@ export function LocalizationPanel({
             activeLocale={activeLocale}
             hasActiveSearchOrFilter={hasActiveSearchOrFilter}
             listRef={stringsListRef}
-            items={visibleStringEntries.map((entry) => buildStringQueueItem(entry, defaultLocaleStrings))}
+            items={visibleStringEntries.map((entry) => buildStringQueueItem(entry, defaultLocaleStrings, t))}
             search={search}
             statusFilter={statusFilter}
             areaFilter={areaFilter}
@@ -902,19 +919,27 @@ export function LocalizationPanel({
           <span className="localization-locale-select__icon" aria-hidden="true">
             <LocalizationIcon name="globe" />
           </span>
-          {isDefaultLocale ? "Project default locale" : "Editing locale"}: {activeLocale}
+          {t(isDefaultLocale ? "Project default locale" : "Editing locale")}: {activeLocale}
           {isDefaultLocale ? null : (
-            <span className="localization-footer__source">Project default: {project.manifest.defaultLanguage}</span>
+            <span className="localization-footer__source">
+              {t("Project default: {locale}", { locale: project.manifest.defaultLanguage })}
+            </span>
           )}
         </span>
-        <span>Total Strings: {stringMetrics.total}</span>
-        <span>{isDefaultLocale ? "Source authored" : "Complete"}: {stringMetrics.complete} ({formatCoveragePercent(stringMetrics.complete, stringMetrics.total)})</span>
-        {isDefaultLocale ? null : <span>Inherited: {stringMetrics.inherited}</span>}
-        {isDefaultLocale ? null : <span>Draft: {stringMetrics.draft}</span>}
-        {isDefaultLocale ? null : <span>Translated: {stringMetrics.translated}</span>}
-        {isDefaultLocale ? null : <span>Reviewed: {stringMetrics.reviewed}</span>}
-        <span>Missing or empty: {stringMetrics.missing + stringMetrics.empty}</span>
-        <span>Orphans: {stringMetrics.orphaned}</span>
+        <span>{t("Total Strings: {count}", { count: stringMetrics.total })}</span>
+        <span>
+          {t("{label}: {count} ({percent})", {
+            label: t(isDefaultLocale ? "Source authored" : "Complete"),
+            count: stringMetrics.complete,
+            percent: formatCoveragePercent(stringMetrics.complete, stringMetrics.total)
+          })}
+        </span>
+        {isDefaultLocale ? null : <span>{t("Inherited: {count}", { count: stringMetrics.inherited })}</span>}
+        {isDefaultLocale ? null : <span>{t("Draft: {count}", { count: stringMetrics.draft })}</span>}
+        {isDefaultLocale ? null : <span>{t("Translated: {count}", { count: stringMetrics.translated })}</span>}
+        {isDefaultLocale ? null : <span>{t("Reviewed: {count}", { count: stringMetrics.reviewed })}</span>}
+        <span>{t("Missing or empty: {count}", { count: stringMetrics.missing + stringMetrics.empty })}</span>
+        <span>{t("Orphans: {count}", { count: stringMetrics.orphaned })}</span>
       </footer>
     </div>
   );
@@ -957,62 +982,68 @@ function QueueList({
   onSortChange: (value: "status" | "textId" | "mostUses") => void;
   onStatusFilterChange: (value: LocalizationStatusFilter) => void;
 }) {
+  const { t } = useEditorI18n();
+
   return (
     <aside className="localization-queue-pane">
       <div className="localization-queue-controls">
         <label className="localization-search-field">
-          <span className="field-label--inset">Search</span>
+          <span className="field-label--inset">{t("Search")}</span>
           <input
             value={search}
-            placeholder="Search text id, asset, or source text..."
+            placeholder={t("Search text id, asset, or source text...")}
             onChange={(event) => onSearchChange(event.target.value)}
           />
           <LocalizationIcon name="search" />
         </label>
         <label className="localization-filter">
-          <span className="field-label--inset">Area</span>
+          <span className="field-label--inset">{t("Area")}</span>
           <DropdownSelect value={areaFilter} onChange={(event) => onAreaFilterChange(event.target.value as StringsAreaFilter)}>
-            <option value="all">All Areas</option>
-            <option value="scenes">Scenes</option>
-            <option value="dialogue">Dialogue</option>
-            <option value="inventory">Inventory</option>
-            <option value="player">Player</option>
+            <option value="all">{t("All Areas")}</option>
+            <option value="scenes">{t("Scenes")}</option>
+            <option value="dialogue">{t("Dialogue")}</option>
+            <option value="inventory">{t("Inventory")}</option>
+            <option value="player">{t("Player")}</option>
           </DropdownSelect>
         </label>
         <label className="localization-filter">
-          <span className="field-label--inset">Status</span>
+          <span className="field-label--inset">{t("Status")}</span>
           <DropdownSelect value={statusFilter} onChange={(event) => onStatusFilterChange(event.target.value as LocalizationStatusFilter)}>
-            <option value="all">All Statuses</option>
-            <option value="missing">Missing</option>
-            <option value="empty">Empty</option>
-            <option value="inherited">Inherited</option>
-            <option value="draft">Draft</option>
-            <option value="translated">Translated</option>
-            <option value="reviewed">Reviewed</option>
-            <option value="source">Source</option>
-            <option value="orphaned">Orphaned</option>
+            <option value="all">{t("All Statuses")}</option>
+            <option value="missing">{t("Missing")}</option>
+            <option value="empty">{t("Empty")}</option>
+            <option value="inherited">{t("Inherited")}</option>
+            <option value="draft">{t("Draft")}</option>
+            <option value="translated">{t("Translated")}</option>
+            <option value="reviewed">{t("Reviewed")}</option>
+            <option value="source">{t("Source")}</option>
+            <option value="orphaned">{t("Orphaned")}</option>
           </DropdownSelect>
         </label>
         <label className="localization-filter">
-          <span className="field-label--inset">Sort</span>
+          <span className="field-label--inset">{t("Sort")}</span>
           <DropdownSelect value={sortOption} onChange={(event) => onSortChange(event.target.value as "status" | "textId" | "mostUses")}>
-            <option value="status">Status then ID</option>
-            <option value="textId">Text ID A-Z</option>
-            <option value="mostUses">Most Uses</option>
+            <option value="status">{t("Status then ID")}</option>
+            <option value="textId">{t("Text ID A-Z")}</option>
+            <option value="mostUses">{t("Most Uses")}</option>
           </DropdownSelect>
         </label>
       </div>
 
       <div className="localization-queue-summary">
-        <span>{hasActiveSearchOrFilter ? `${items.length} of ${totalCount} visible` : `Sorted by priority for ${activeLocale}`}</span>
+        <span>
+          {hasActiveSearchOrFilter
+            ? t("{visible} of {total} visible", { visible: items.length, total: totalCount })
+            : t("Sorted by priority for {locale}", { locale: activeLocale })}
+        </span>
         <LocalizationIcon name="sort" />
       </div>
 
       {visibleOrphanCount > 0 ? (
         <div className="localization-orphan-action">
-          <span>{visibleOrphanCount} visible orphaned {visibleOrphanCount === 1 ? "entry" : "entries"}</span>
+          <span>{t(visibleOrphanCount === 1 ? "{count} visible orphaned entry" : "{count} visible orphaned entries", { count: visibleOrphanCount })}</span>
           <button type="button" className="button-danger-quiet button-danger--compact" onClick={onDeleteVisibleOrphans}>
-            Delete Orphans
+            {t("Delete Orphans")}
           </button>
         </div>
       ) : null}
@@ -1029,7 +1060,7 @@ function QueueList({
               <section key={group.status} className={`localization-queue-group localization-queue-group--${group.status}`}>
                 <h4>
                   <LocalizationIcon name={group.icon} />
-                  {group.label} ({groupItems.length})
+                   {t("{label} ({count})", { label: getQueueGroupLabel(group.status, t), count: groupItems.length })}
                 </h4>
                 <div className="localization-queue-group__rows">
                   {groupItems.map((item) => (
@@ -1045,12 +1076,12 @@ function QueueList({
             );
           })
         ) : (
-          <p className="muted localization-empty-state">No localization work matches the current filters.</p>
+          <p className="muted localization-empty-state">{t("No localization work matches the current filters.")}</p>
         )}
       </div>
 
-      <div className="localization-queue-pager" aria-label="Visible localization range">
-        <span>1-{Math.min(items.length, 25)} of {items.length} items</span>
+      <div className="localization-queue-pager" aria-label={t("Visible localization range")}>
+        <span>{t("{start}-{end} of {count} items", { start: items.length > 0 ? 1 : 0, end: Math.min(items.length, 25), count: items.length })}</span>
         <div className="localization-pager-buttons" aria-hidden="true">
           <span className="localization-pager-button localization-pager-button--active">1</span>
           <span className="localization-pager-button">2</span>
@@ -1080,35 +1111,39 @@ function MediaQueueList({
   onSearchChange: (value: string) => void;
   onSelectAsset: (asset: Asset) => void;
 }) {
-  const items = assets.map((asset) => buildMediaQueueItem(asset, activeLocale));
+  const { t } = useEditorI18n();
+  const items = assets.map((asset) => buildMediaQueueItem(asset, activeLocale, t));
 
   return (
     <aside className="localization-queue-pane">
       <div className="localization-queue-controls localization-queue-controls--media">
         <label className="localization-search-field">
-          <span className="field-label--inset">Search</span>
+          <span className="field-label--inset">{t("Search")}</span>
           <input
             value={search}
-            placeholder="Search media assets..."
+            placeholder={t("Search media assets...")}
             onChange={(event) => onSearchChange(event.target.value)}
           />
           <LocalizationIcon name="search" />
         </label>
         <label className="localization-filter">
-          <span className="field-label--inset">Category</span>
+          <span className="field-label--inset">{t("Category")}</span>
           <DropdownSelect value={category} onChange={(event) => onCategoryChange(event.target.value as MediaAssetFilter)}>
-            <option value="background">Background</option>
-            <option value="sceneAudio">Scene Audio</option>
-            <option value="foreground">Foreground Media</option>
-            <option value="response">Responses</option>
-            <option value="inventory">Inventory</option>
-            <option value="player">Player</option>
+            <option value="background">{t("Background")}</option>
+            <option value="sceneAudio">{t("Scene Audio")}</option>
+            <option value="foreground">{t("Foreground Media")}</option>
+            <option value="response">{t("Responses")}</option>
+            <option value="inventory">{t("Inventory")}</option>
+            <option value="player">{t("Player")}</option>
           </DropdownSelect>
         </label>
       </div>
 
       <div className="localization-queue-summary">
-        <span>{items.length} {formatMediaCategoryLabel(category).toLowerCase()} asset{items.length === 1 ? "" : "s"}</span>
+        <span>{t(items.length === 1 ? "{count} {category} asset" : "{count} {category} assets", {
+          count: items.length,
+          category: formatMediaCategoryLabel(category, t).toLocaleLowerCase()
+        })}</span>
       </div>
 
       <div className="localization-queue-list">
@@ -1123,7 +1158,10 @@ function MediaQueueList({
               <section key={group.status} className={`localization-queue-group localization-queue-group--${group.status}`}>
                 <h4>
                   <LocalizationIcon name={group.status === "missing" ? "image" : "check"} />
-                  {group.status === "missing" ? "Missing Variants" : "Present"} ({groupItems.length})
+                  {t("{label} ({count})", {
+                    label: t(group.status === "missing" ? "Missing Variants" : "Present"),
+                    count: groupItems.length
+                  })}
                 </h4>
                 <div className="localization-queue-group__rows">
                   {groupItems.map((item) => (
@@ -1139,7 +1177,7 @@ function MediaQueueList({
             );
           })
         ) : (
-          <p className="muted localization-empty-state">{resolveEmptyMediaMessage(category)}</p>
+          <p className="muted localization-empty-state">{resolveEmptyMediaMessage(category, t)}</p>
         )}
       </div>
     </aside>
@@ -1155,12 +1193,14 @@ function QueueRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useEditorI18n();
+
   return (
     <button
       type="button"
       className={selected ? "localization-queue-row localization-queue-row--selected" : "localization-queue-row"}
       onClick={onSelect}
-      title={`Inspect ${item.title}.`}
+      title={t("Inspect {title}.", { title: item.title })}
     >
       <span className="localization-queue-row__icon" aria-hidden="true">
         <LocalizationIcon name={item.kind === "media" ? "image" : "text"} />
@@ -1168,7 +1208,7 @@ function QueueRow({
       <span className="localization-queue-row__area">{item.areaLabel}</span>
       <code>{item.title}</code>
       <span className="localization-queue-row__preview">{item.preview}</span>
-      <span className={`localization-status localization-status--${item.status}`}>{getQueueItemStatusLabel(item)}</span>
+      <span className={`localization-status localization-status--${item.status}`}>{getQueueItemStatusLabel(item, t)}</span>
       <LocalizationIcon name="chevronRight" />
     </button>
   );
@@ -1197,10 +1237,12 @@ function StringDetailPanel({
   onFocus: (entry: ProjectTextEntry) => void;
   onNavigate: (target: EditorNavigationTarget, textId?: string) => void;
 }) {
+  const { t } = useEditorI18n();
+
   if (!entry) {
     return (
       <section className="panel localization-detail-panel">
-        <p className="muted localization-empty-state">Select a string to inspect and edit it.</p>
+        <p className="muted localization-empty-state">{t("Select a string to inspect and edit it.")}</p>
       </section>
     );
   }
@@ -1208,9 +1250,9 @@ function StringDetailPanel({
   const status = getLocalizedStringStatus(entry);
   const copyFeedbackLabel =
     copyFeedback === "copied"
-      ? `Copied text id ${entry.textId}.`
+      ? t("Copied text id {textId}.", { textId: entry.textId })
       : copyFeedback === "failed"
-        ? `Copy text id failed for ${entry.textId}.`
+        ? t("Copy text id failed for {textId}.", { textId: entry.textId })
         : undefined;
 
   return (
@@ -1226,8 +1268,8 @@ function StringDetailPanel({
                   ? `localization-icon-button localization-icon-button--${copyFeedback}`
                   : "localization-icon-button"
               }
-              title={copyFeedbackLabel ?? `Copy text id ${entry.textId}`}
-              aria-label={copyFeedbackLabel ?? `Selected text id ${entry.textId}`}
+              title={copyFeedbackLabel ?? t("Copy text id {textId}", { textId: entry.textId })}
+              aria-label={copyFeedbackLabel ?? t("Selected text id {textId}", { textId: entry.textId })}
               onClick={() => void onCopyTextId(entry.textId)}
             >
               <LocalizationIcon name={copyFeedback === "copied" ? "check" : copyFeedback === "failed" ? "alert" : "copy"} />
@@ -1236,15 +1278,15 @@ function StringDetailPanel({
               </span>
             </button>
           </div>
-          <p className="muted">{summarizeProjectTextUsages(entry.usages)}</p>
+          <p className="muted">{summarizeProjectTextUsages(entry.usages, t)}</p>
         </div>
         <div className="localization-detail-header__badges">
-          {resolveUsageAreaLabels(entry.usages).map((area) => (
+          {resolveUsageAreaLabels(entry.usages, t).map((area) => (
             <span key={area} className="localization-area">
               {area}
             </span>
           ))}
-          <span className={`localization-status localization-status--${status}`}>{getLocalizedStringStatusLabel(status)}</span>
+          <span className={`localization-status localization-status--${status}`}>{getLocalizedStringStatusLabel(status, t)}</span>
         </div>
       </header>
 
@@ -1252,20 +1294,20 @@ function StringDetailPanel({
         <div className="localization-source-editor">
           <label className="localization-text-field localization-text-field--source localization-text-field--source-editable">
             <span>
-              Source text <small>({defaultLocale})</small>
-              <span className="localization-default-chip">Project default</span>
+              {t("Source text")} <small>({defaultLocale})</small>
+              <span className="localization-default-chip">{t("Project default")}</span>
             </span>
             <textarea
               value={entry.value}
-              placeholder="Enter the project source text..."
-              title={`Edit the source text stored under ${entry.textId}.`}
+              placeholder={t("Enter the project source text...")}
+              title={t("Edit the source text stored under {textId}.", { textId: entry.textId })}
               onFocus={() => onFocus(entry)}
               onChange={(event) => onChange(entry, event.target.value)}
             />
             <small>{entry.value.length} / 500</small>
           </label>
           <p className="localization-source-editor__note">
-            This is the single source value. New locales inherit it, and edits refresh existing Inherited copies.
+            {t("This is the single source value. New locales inherit it, and edits refresh existing Inherited copies.")}
           </p>
         </div>
       ) : (
@@ -1273,8 +1315,8 @@ function StringDetailPanel({
           <div className="localization-translation-editor">
             <label className="localization-text-field localization-text-field--source">
               <span>
-                Source <small>({defaultLocale})</small>
-                <span className="localization-default-chip">Project default</span>
+                {t("Source")} <small>({defaultLocale})</small>
+                <span className="localization-default-chip">{t("Project default")}</span>
               </span>
               <textarea value={defaultValue} readOnly />
               <small>{defaultValue.length} / 500</small>
@@ -1284,31 +1326,31 @@ function StringDetailPanel({
             </div>
             <label className="localization-text-field localization-text-field--target">
               <span>
-                Translation <small>({activeLocale})</small>
+                {t("Translation")} <small>({activeLocale})</small>
               </span>
               <textarea
                 value={entry.value}
-                placeholder={`Enter ${formatLocaleDisplayName(activeLocale)} translation...`}
-                title={`Edit the localized text stored under ${entry.textId}. Editing marks it Draft.`}
+                placeholder={t("Enter {locale} translation...", { locale: formatLocaleDisplayName(activeLocale, t) })}
+                title={t("Edit the localized text stored under {textId}. Editing marks it Draft.", { textId: entry.textId })}
                 onFocus={() => onFocus(entry)}
                 onChange={(event) => onChange(entry, event.target.value)}
               />
               <small>{entry.value.length} / 500</small>
             </label>
           </div>
-          <section className="localization-workflow-state" aria-label="Translation workflow state">
+          <section className="localization-workflow-state" aria-label={t("Translation workflow state")}>
             <div>
-              <strong>Workflow state</strong>
-              <span>Only Translated and Reviewed count toward completion. Editing returns this string to Draft.</span>
+              <strong>{t("Workflow state")}</strong>
+              <span>{t("Only Translated and Reviewed count toward completion. Editing returns this string to Draft.")}</span>
             </div>
-            <div className="localization-workflow-state__actions" role="group" aria-label="Set translation workflow state">
+            <div className="localization-workflow-state__actions" role="group" aria-label={t("Set translation workflow state")}>
               <button
                 type="button"
                 className={status === "inherited" ? "button-secondary localization-state-button localization-state-button--active" : "button-secondary localization-state-button"}
                 disabled={!defaultValue}
                 onClick={() => onStateChange(entry, "inherited")}
               >
-                Inherit source
+                {t("Inherit source")}
               </button>
               <button
                 type="button"
@@ -1316,7 +1358,7 @@ function StringDetailPanel({
                 disabled={entry.status === "missing"}
                 onClick={() => onStateChange(entry, "draft")}
               >
-                Mark Draft
+                {t("Mark Draft")}
               </button>
               <button
                 type="button"
@@ -1324,7 +1366,7 @@ function StringDetailPanel({
                 disabled={entry.value.trim().length === 0}
                 onClick={() => onStateChange(entry, "translated")}
               >
-                Mark Translated
+                {t("Mark Translated")}
               </button>
               <button
                 type="button"
@@ -1332,7 +1374,7 @@ function StringDetailPanel({
                 disabled={entry.value.trim().length === 0}
                 onClick={() => onStateChange(entry, "reviewed")}
               >
-                Mark Reviewed
+                {t("Mark Reviewed")}
               </button>
             </div>
           </section>
@@ -1341,10 +1383,10 @@ function StringDetailPanel({
 
       <section className="localization-detail-block">
         <div className="localization-detail-block__header">
-          <h4>Usage Locations ({entry.usages.length})</h4>
+          <h4>{t("Usage Locations ({count})", { count: entry.usages.length })}</h4>
           {entry.usages.length > 1 ? (
             <button type="button" className="localization-link-button" onClick={() => onNavigate(entry.usages[0].navigation, entry.textId)}>
-              Jump to all
+              {t("Jump to all")}
               <LocalizationIcon name="arrowRight" />
             </button>
           ) : null}
@@ -1356,37 +1398,40 @@ function StringDetailPanel({
                 <LocalizationIcon name={usage.navigation.tab === "dialogue" ? "message" : "image"} />
                 <div>
                   <strong>{usage.ownerLabel}</strong>
-                  <span>{formatProjectTextUsageKind(usage.kind)}</span>
+                  <span>{formatProjectTextUsageKind(usage.kind, t)}</span>
                 </div>
                 <button
                   type="button"
                   className="button-secondary localization-usage-button"
                   onClick={() => onNavigate(usage.navigation, entry.textId)}
-                  title={`Open ${usage.ownerLabel} in the ${usage.navigation.tab} tab.`}
+                  title={t("Open {owner} in the {tab} tab.", {
+                    owner: usage.ownerLabel,
+                    tab: formatNavigationTabLabel(usage.navigation.tab, t)
+                  })}
                 >
-                  Open {usage.navigation.label}
+                  {t("Open {label}", { label: usage.navigation.label })}
                   <LocalizationIcon name="external" />
                 </button>
               </article>
             ))}
           </div>
         ) : (
-          <p className="muted localization-empty-state">No editor surfaces currently reference this text id.</p>
+          <p className="muted localization-empty-state">{t("No editor surfaces currently reference this text id.")}</p>
         )}
       </section>
 
       <section className="localization-detail-block localization-detail-block--metadata">
-        <h4>Metadata</h4>
+        <h4>{t("Metadata")}</h4>
         <dl className="localization-metadata-grid">
-          <dt>Uses</dt>
+          <dt>{t("Uses")}</dt>
           <dd>{entry.usages.length}</dd>
-          <dt>Stored Value</dt>
-          <dd>{entry.value.length > 0 ? "Yes" : "Empty"}</dd>
-          <dt>Source Length</dt>
+          <dt>{t("Stored Value")}</dt>
+          <dd>{t(entry.value.length > 0 ? "Yes" : "Empty")}</dd>
+          <dt>{t("Source Length")}</dt>
           <dd>{defaultValue.length}</dd>
-          <dt>Status</dt>
-          <dd>{getLocalizedStringStatusLabel(status)}</dd>
-          <dt>Text ID</dt>
+          <dt>{t("Status")}</dt>
+          <dd>{getLocalizedStringStatusLabel(status, t)}</dd>
+          <dt>{t("Text ID")}</dt>
           <dd>{entry.textId}</dd>
         </dl>
       </section>
@@ -1411,10 +1456,12 @@ function MediaDetailPanel({
   onImportVariant?: () => void;
   onRemoveVariant?: () => void;
 }) {
+  const { t } = useEditorI18n();
+
   if (!asset) {
     return (
       <section className="panel localization-detail-panel">
-        <p className="muted localization-empty-state">Select a media asset to inspect its localized variants.</p>
+        <p className="muted localization-empty-state">{t("Select a media asset to inspect its localized variants.")}</p>
       </section>
     );
   }
@@ -1432,30 +1479,33 @@ function MediaDetailPanel({
             <code>{asset.name}</code>
           </div>
           <p className="muted">
-            {formatMediaCategoryLabel(category)} / {asset.kind}
-            {activeVariant?.durationMs ? ` / ${Math.round(activeVariant.durationMs / 100) / 10}s` : " / still"}
+            {formatMediaCategoryLabel(category, t)} / {formatAssetKindLabel(asset.kind, t)}
+            {" / "}
+            {activeVariant?.durationMs
+              ? t("{duration}s", { duration: Math.round(activeVariant.durationMs / 100) / 10 })
+              : t("still")}
             {activeVariant?.width && activeVariant?.height ? ` / ${activeVariant.width}x${activeVariant.height}` : ""}
           </p>
         </div>
         <span className={`localization-status localization-status--${activeVariant ? (isDefaultLocale ? "source" : "present") : "missing"}`}>
-          {activeVariant ? (isDefaultLocale ? "Source" : "Present") : "Missing"}
+          {t(activeVariant ? (isDefaultLocale ? "Source" : "Present") : "Missing")}
         </span>
       </header>
 
       <div className={isDefaultLocale ? "localization-media-variant-grid localization-media-variant-grid--single" : "localization-media-variant-grid"}>
         <section>
           <div className="localization-media-variant-grid__header">
-            <h4>{isDefaultLocale ? "Default media" : "Source"} ({projectDefaultLocale})</h4>
-            <span className="localization-default-chip">Project default</span>
+            <h4>{t(isDefaultLocale ? "Default media" : "Source")} ({projectDefaultLocale})</h4>
+            <span className="localization-default-chip">{t("Project default")}</span>
           </div>
           <AssetPreview asset={asset} locale={projectDefaultLocale} allowSourceFallback preferPosterForImages fit="contain" />
         </section>
         {isDefaultLocale ? null : (
           <section>
             <div className="localization-media-variant-grid__header">
-              <h4>Target ({activeLocale})</h4>
+              <h4>{t("Target ({locale})", { locale: activeLocale })}</h4>
               <span className={`localization-status localization-status--${activeVariant ? "present" : "missing"}`}>
-                {activeVariant ? "Present" : "Missing"}
+                {t(activeVariant ? "Present" : "Missing")}
               </span>
             </div>
             <AssetPreview
@@ -1463,8 +1513,8 @@ function MediaDetailPanel({
               locale={activeLocale}
               preferPosterForImages
               fit="contain"
-              emptyTitle={`${activeLocale} variant missing`}
-              emptyBody="Import a localized media file for this locale."
+              emptyTitle={t("{locale} variant missing", { locale: activeLocale })}
+              emptyBody={t("Import a localized media file for this locale.")}
             />
           </section>
         )}
@@ -1473,7 +1523,11 @@ function MediaDetailPanel({
       <div className="localization-media-actions">
         <button type="button" className="button-secondary localization-command-button" onClick={onImportVariant}>
           <LocalizationIcon name="upload" />
-          <span>{activeVariant ? `Replace ${isDefaultLocale ? "default" : activeLocale}` : `Import ${activeLocale} Variant`}</span>
+          <span>
+            {activeVariant
+              ? t("Replace {locale}", { locale: isDefaultLocale ? t("default") : activeLocale })
+              : t("Import {locale} Variant", { locale: activeLocale })}
+          </span>
         </button>
         <button
           type="button"
@@ -1482,28 +1536,28 @@ function MediaDetailPanel({
           onClick={onRemoveVariant}
           title={
             !activeVariant
-              ? `${asset.name} does not have a ${activeLocale} variant to remove.`
+              ? t("{name} does not have a {locale} variant to remove.", { name: asset.name, locale: activeLocale })
               : Object.keys(asset.variants).length <= 1
-                ? `Delete ${asset.name} entirely in Assets to remove its only remaining variant.`
-                : `Remove only the ${activeLocale} variant from ${asset.name}.`
+                ? t("Delete {name} entirely in Assets to remove its only remaining variant.", { name: asset.name })
+                : t("Remove only the {locale} variant from {name}.", { locale: activeLocale, name: asset.name })
           }
         >
           <LocalizationIcon name="trash" />
-          <span>{`Remove ${activeLocale}`}</span>
+          <span>{t("Remove {locale}", { locale: activeLocale })}</span>
         </button>
       </div>
 
       <section className="localization-detail-block localization-detail-block--metadata">
-        <h4>Variant Coverage</h4>
+        <h4>{t("Variant Coverage")}</h4>
         <dl className="localization-metadata-grid">
-          <dt>Present</dt>
-          <dd>{localeStatus.present.join(", ") || "none"}</dd>
-          <dt>Missing</dt>
-          <dd>{localeStatus.missing.join(", ") || "none"}</dd>
-          <dt>Asset ID</dt>
+          <dt>{t("Present")}</dt>
+          <dd>{localeStatus.present.join(", ") || t("none")}</dd>
+          <dt>{t("Missing")}</dt>
+          <dd>{localeStatus.missing.join(", ") || t("none")}</dd>
+          <dt>{t("Asset ID")}</dt>
           <dd>{asset.id}</dd>
-          <dt>Preview</dt>
-          <dd>{activeVariant?.proxyPath ? "Ready" : activeVariant ? "Source only" : "Missing"}</dd>
+          <dt>{t("Preview")}</dt>
+          <dd>{t(activeVariant?.proxyPath ? "Ready" : activeVariant ? "Source only" : "Missing")}</dd>
         </dl>
       </section>
     </section>
@@ -1531,6 +1585,7 @@ function CoverageRail({
   onFindNextMissing: () => void;
   onNavigate: (target: EditorNavigationTarget, textId?: string) => void;
 }) {
+  const { t } = useEditorI18n();
   const primaryUsage = selectedStringEntry?.usages[0];
   const primaryAssetUsage = assetUsages[0];
   const selectedStatus = selectedStringEntry ? getLocalizedStringStatus(selectedStringEntry) : asset ? (getLocalizedAssetVariant(asset, activeLocale) ? "present" : "missing") : undefined;
@@ -1538,7 +1593,7 @@ function CoverageRail({
   return (
     <aside className="panel localization-rail">
       <div className="localization-rail__title">
-        <h3>Usage and Coverage</h3>
+        <h3>{t("Usage and Coverage")}</h3>
         <div aria-hidden="true">
           <LocalizationIcon name="pin" />
           <LocalizationIcon name="close" />
@@ -1547,17 +1602,19 @@ function CoverageRail({
 
       <section className="localization-rail-section">
         <div className="localization-rail-section__header">
-          <h4>Where Used</h4>
+          <h4>{t("Where Used")}</h4>
           <span className="muted">
-            {selectedStringEntry ? `${selectedStringEntry.usages.length} location${selectedStringEntry.usages.length === 1 ? "" : "s"}` : `${assetUsages.length} location${assetUsages.length === 1 ? "" : "s"}`}
+            {t((selectedStringEntry?.usages.length ?? assetUsages.length) === 1 ? "{count} location" : "{count} locations", {
+              count: selectedStringEntry?.usages.length ?? assetUsages.length
+            })}
           </span>
         </div>
         {primaryUsage ? (
           <RailUsageBlock
             icon={primaryUsage.navigation.tab === "dialogue" ? "message" : "image"}
             label={primaryUsage.ownerLabel}
-            detail={formatProjectTextUsageKind(primaryUsage.kind)}
-            actionLabel={`Open ${primaryUsage.navigation.label}`}
+            detail={formatProjectTextUsageKind(primaryUsage.kind, t)}
+            actionLabel={t("Open {label}", { label: primaryUsage.navigation.label })}
             onNavigate={() => onNavigate(primaryUsage.navigation, selectedStringEntry?.textId)}
           />
         ) : primaryAssetUsage ? (
@@ -1565,44 +1622,44 @@ function CoverageRail({
             icon={asset?.kind === "audio" ? "audio" : "image"}
             label={primaryAssetUsage.label}
             detail={primaryAssetUsage.detail}
-            actionLabel={`Open ${primaryAssetUsage.navigation.label}`}
+            actionLabel={t("Open {label}", { label: primaryAssetUsage.navigation.label })}
             onNavigate={() => onNavigate(primaryAssetUsage.navigation)}
           />
         ) : (
-          <p className="muted localization-empty-state">No editor surfaces currently reference this item.</p>
+          <p className="muted localization-empty-state">{t("No editor surfaces currently reference this item.")}</p>
         )}
       </section>
 
       <section className="localization-rail-section">
-        <h4>Next Step</h4>
+        <h4>{t("Next Step")}</h4>
         <div className={`localization-next-step localization-next-step--${selectedStatus ?? "present"}`}>
           <LocalizationIcon name={getLocalizedStatusIcon(selectedStatus)} />
           <div>
-            <strong>{resolveNextStepTitle(selectedStatus)}</strong>
-            <span>{resolveNextStepBody(selectedStatus, activeLocale)}</span>
+            <strong>{resolveNextStepTitle(selectedStatus, t)}</strong>
+            <span>{resolveNextStepBody(selectedStatus, activeLocale, t)}</span>
           </div>
         </div>
       </section>
 
       <section className="localization-rail-section">
         <div className="localization-rail-section__header">
-          <h4>Locale Coverage</h4>
+          <h4>{t("Locale Coverage")}</h4>
           <span className="muted">{activeLocale}</span>
         </div>
         <CoverageTable rows={[...stringCoverageRows, ...mediaCoverageRows]} />
       </section>
 
       <section className="localization-rail-section">
-        <h4>Quick Actions</h4>
+        <h4>{t("Quick Actions")}</h4>
         <div className="localization-quick-actions">
           <button type="button" className="button-secondary" onClick={onFindNextMissing}>
             <LocalizationIcon name="circle" />
-            Find Next Missing
+            {t("Find Next Missing")}
             <kbd>F</kbd>
           </button>
           <button type="button" className="button-secondary" onClick={onFindNextEmpty}>
             <LocalizationIcon name="circle" />
-            Find Next Empty
+            {t("Find Next Empty")}
             <kbd>E</kbd>
           </button>
         </div>
@@ -1639,13 +1696,15 @@ function RailUsageBlock({
 }
 
 function CoverageTable({ rows }: { rows: CoverageRow[] }) {
+  const { t } = useEditorI18n();
+
   return (
     <div className="localization-coverage-table">
       <div className="localization-coverage-table__header">
-        <span>Area</span>
-        <span>Total</span>
-        <span>Complete</span>
-        <span>Needs work</span>
+        <span>{t("Area")}</span>
+        <span>{t("Total")}</span>
+        <span>{t("Complete")}</span>
+        <span>{t("Needs work")}</span>
       </div>
       {rows.map((row) => (
         <div key={row.label} className="localization-coverage-table__row">
@@ -1725,6 +1784,7 @@ function LocalizationIcon({ name }: { name: LocalizationIconName }) {
     filter: <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />,
     globe: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.6 9h16.8M3.6 15h16.8M12 3c2.3 2.4 3.5 5.4 3.5 9s-1.2 6.6-3.5 9c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z" />,
     image: <path d="M4 5h16v14H4zM7 15l3-3 2 2 3-4 3 5M8 9h.01" />,
+    // i18n-ignore-next-line -- SVG path geometry, not user-facing text.
     message: <path d="M4 5h16v10H8l-4 4V5Z" />,
     pin: <path d="M8 3h8l-1 5 3 3v2h-5v7l-1 1-1-1v-7H6v-2l3-3-1-5Z" />,
     plus: <path d="M12 5v14M5 12h14" />,
@@ -1745,8 +1805,12 @@ function LocalizationIcon({ name }: { name: LocalizationIconName }) {
   );
 }
 
-function collectStringLocalizationEntries(project: ProjectBundle, locale: string): ProjectTextEntry[] {
-  return collectProjectTextEntries(project, locale);
+function collectStringLocalizationEntries(
+  project: ProjectBundle,
+  locale: string,
+  t: EditorTranslator
+): ProjectTextEntry[] {
+  return collectProjectTextEntries(project, locale, t);
 }
 
 function filterLocalizedStringEntries(
@@ -1756,6 +1820,7 @@ function filterLocalizedStringEntries(
     search: string;
     sort: "status" | "textId" | "mostUses";
     status: LocalizationStatusFilter;
+    t: EditorTranslator;
   }
 ): ProjectTextEntry[] {
   const baseStatus = options.status === "missing" || options.status === "orphaned" ? options.status : "all";
@@ -1764,7 +1829,8 @@ function filterLocalizedStringEntries(
     area: options.area,
     search: options.search,
     sort: options.sort,
-    status: baseStatus
+    status: baseStatus,
+    translate: options.t
   }).filter((entry) => options.status === "all" || getLocalizedStringStatus(entry) === options.status);
 }
 
@@ -1776,23 +1842,28 @@ function buildQueueItems(
     areaFilter: StringsAreaFilter;
     search: string;
     statusFilter: LocalizationStatusFilter;
-  }
+  },
+  t: EditorTranslator
 ): LocalizationQueueItem[] {
   const defaultLocaleStrings = getLocaleStringValues(project, project.manifest.defaultLanguage);
-  const stringItems = visibleStringEntries.map((entry) => buildStringQueueItem(entry, defaultLocaleStrings));
+  const stringItems = visibleStringEntries.map((entry) => buildStringQueueItem(entry, defaultLocaleStrings, t));
   const mediaItems =
     options.areaFilter === "all"
       ? project.assets.assets
           .filter((asset) => matchesMediaSearch(asset, options.search))
-          .map((asset) => buildMediaQueueItem(asset, locale))
+          .map((asset) => buildMediaQueueItem(asset, locale, t))
           .filter((item) => options.statusFilter === "all" || item.status === options.statusFilter)
       : [];
 
   return [...stringItems, ...mediaItems].sort(compareQueueItems);
 }
 
-function buildStringQueueItem(entry: ProjectTextEntry, defaultLocaleStrings: Record<string, string>): StringQueueItem {
-  const usageAreas = resolveUsageAreaLabels(entry.usages);
+function buildStringQueueItem(
+  entry: ProjectTextEntry,
+  defaultLocaleStrings: Record<string, string>,
+  t: EditorTranslator
+): StringQueueItem {
+  const usageAreas = resolveUsageAreaLabels(entry.usages, t);
   const sourceValue = defaultLocaleStrings[entry.textId] ?? "";
   const status = getLocalizedStringStatus(entry);
 
@@ -1801,14 +1872,14 @@ function buildStringQueueItem(entry: ProjectTextEntry, defaultLocaleStrings: Rec
     kind: "string",
     entry,
     status,
-    areaLabel: usageAreas[0] ?? "Stored",
+    areaLabel: usageAreas[0] ?? t("Stored"),
     title: entry.textId,
-    subtitle: summarizeProjectTextUsages(entry.usages),
-    preview: entry.value || sourceValue || summarizeProjectTextUsages(entry.usages)
+    subtitle: summarizeProjectTextUsages(entry.usages, t),
+    preview: entry.value || sourceValue || summarizeProjectTextUsages(entry.usages, t)
   };
 }
 
-function buildMediaQueueItem(asset: Asset, locale: string): MediaQueueItem {
+function buildMediaQueueItem(asset: Asset, locale: string, t: EditorTranslator): MediaQueueItem {
   const category = classifyEditorAssetCategory(asset);
   const activeVariant = getLocalizedAssetVariant(asset, locale);
 
@@ -1818,10 +1889,10 @@ function buildMediaQueueItem(asset: Asset, locale: string): MediaQueueItem {
     asset,
     category,
     status: activeVariant ? "present" : "missing",
-    areaLabel: formatMediaCategoryLabel(category),
+    areaLabel: formatMediaCategoryLabel(category, t),
     title: asset.name,
-    subtitle: `${formatMediaCategoryLabel(category)} / ${asset.kind}`,
-    preview: activeVariant ? `${locale} variant present` : `${locale} variant missing`
+    subtitle: `${formatMediaCategoryLabel(category, t)} / ${formatAssetKindLabel(asset.kind, t)}`,
+    preview: t(activeVariant ? "{locale} variant present" : "{locale} variant missing", { locale })
   };
 }
 
@@ -1857,46 +1928,64 @@ function getQueueStatusOrder(status: QueueItemStatus): number {
   }
 }
 
-function getLocalizedStringStatusLabel(status: LocalizedStringStatus): string {
+function getLocalizedStringStatusLabel(status: LocalizedStringStatus, t: EditorTranslator): string {
   switch (status) {
     case "missing":
-      return "Missing";
+      return t("Missing");
     case "empty":
-      return "Empty";
+      return t("Empty");
     case "inherited":
-      return "Inherited";
+      return t("Inherited");
     case "draft":
-      return "Draft";
+      return t("Draft");
     case "translated":
-      return "Translated";
+      return t("Translated");
     case "reviewed":
-      return "Reviewed";
+      return t("Reviewed");
     case "source":
-      return "Source";
+      return t("Source");
     case "orphaned":
-      return "Orphaned";
+      return t("Orphaned");
   }
 }
 
-function getQueueItemStatusLabel(item: LocalizationQueueItem): string {
+function getQueueItemStatusLabel(item: LocalizationQueueItem, t: EditorTranslator): string {
   if (item.kind === "media") {
-    return item.status === "missing" ? "Missing" : "Present";
+    return t(item.status === "missing" ? "Missing" : "Present");
   }
 
-  return getLocalizedStringStatusLabel(item.status as LocalizedStringStatus);
+  return getLocalizedStringStatusLabel(item.status as LocalizedStringStatus, t);
 }
 
-function resolveUsageAreaLabels(usages: ProjectTextUsage[]): string[] {
-  return [...new Set(usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))];
+function getQueueGroupLabel(status: QueueItemStatus, t: EditorTranslator): string {
+  if (status === "present") {
+    return t("Present");
+  }
+  return status === "orphaned" ? t("Orphans") : getLocalizedStringStatusLabel(status, t);
 }
 
-function buildStringCoverageRows(entries: ProjectTextEntry[]): CoverageRow[] {
+function getLocalizationSubtabLabel(section: LocalizationSection): string {
+  switch (section) {
+    case "overview":
+      return "Work Queue";
+    case "strings":
+      return "Strings";
+    case "media":
+      return "Media";
+  }
+}
+
+function resolveUsageAreaLabels(usages: ProjectTextUsage[], t: EditorTranslator): string[] {
+  return [...new Set(usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind), t)))];
+}
+
+function buildStringCoverageRows(entries: ProjectTextEntry[], t: EditorTranslator): CoverageRow[] {
   return TEXT_AREAS.map((area) => {
     const areaEntries = entries.filter((entry) => entry.usages.some((usage) => resolveProjectTextArea(usage.kind) === area));
     const coverage = calculateStringCoverage(areaEntries);
 
     return {
-      label: getProjectTextAreaLabel(area),
+      label: getProjectTextAreaLabel(area, t),
       total: coverage.total,
       complete: coverage.complete,
       needsWork: coverage.needsWork
@@ -1904,13 +1993,13 @@ function buildStringCoverageRows(entries: ProjectTextEntry[]): CoverageRow[] {
   });
 }
 
-function buildMediaCoverageRows(project: ProjectBundle, locale: string): CoverageRow[] {
+function buildMediaCoverageRows(project: ProjectBundle, locale: string, t: EditorTranslator): CoverageRow[] {
   const rows: CoverageRow[] = [];
 
   for (const category of ["background", "sceneAudio", "foreground", "response", "inventory", "player"] as const) {
     const assets = project.assets.assets.filter((asset) => classifyEditorAssetCategory(asset) === category);
     rows.push({
-      label: formatMediaCategoryLabel(category),
+      label: formatMediaCategoryLabel(category, t),
       total: assets.length,
       complete: assets.filter((asset) => Boolean(getLocalizedAssetVariant(asset, locale))).length,
       needsWork: assets.filter((asset) => !getLocalizedAssetVariant(asset, locale)).length
@@ -1920,14 +2009,14 @@ function buildMediaCoverageRows(project: ProjectBundle, locale: string): Coverag
   return rows;
 }
 
-function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] {
+function collectAssetUsages(project: ProjectBundle, asset: Asset, t: EditorTranslator): AssetUsage[] {
   const usages: AssetUsage[] = [];
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === asset.id) {
       usages.push({
         label: scene.name,
-        detail: "Scene background",
+        detail: t("Scene background"),
         navigation: {
           label: scene.name,
           tab: "scenes",
@@ -1941,7 +2030,7 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
     if (scene.sceneAudioAssetId === asset.id) {
       usages.push({
         label: scene.name,
-        detail: "Scene audio",
+        detail: t("Scene audio"),
         navigation: {
           label: scene.name,
           tab: "scenes",
@@ -1956,7 +2045,7 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
       if (hotspot.mediaAssetId === asset.id) {
         usages.push({
           label: hotspot.name,
-          detail: `Interaction media in ${scene.name}`,
+          detail: t("Interaction media in {scene}", { scene: scene.name }),
           navigation: {
             label: hotspot.name,
             tab: "scenes",
@@ -1975,7 +2064,7 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
       if (node.mediaAssetId === asset.id) {
         usages.push({
           label: node.speaker || node.id,
-          detail: `Dialogue media in ${dialogue.name}`,
+          detail: t("Dialogue media in {dialogue}", { dialogue: dialogue.name }),
           navigation: {
             label: node.speaker || node.id,
             tab: "dialogue",
@@ -1992,7 +2081,7 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
     if (item.imageAssetId === asset.id) {
       usages.push({
         label: item.name,
-        detail: "Inventory art",
+        detail: t("Inventory art"),
         navigation: {
           label: item.name,
           tab: "inventory",
@@ -2008,7 +2097,7 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
       if (entry.kind !== "text" && entry.assetId === asset.id) {
         usages.push({
           label: group.name,
-          detail: `${entry.kind === "audio" ? "Audio" : "Video"} response`,
+          detail: t("{kind} response", { kind: t(entry.kind === "audio" ? "Audio" : "Video") }),
           navigation: {
             label: group.name,
             tab: "dialogue",
@@ -2024,9 +2113,9 @@ function collectAssetUsages(project: ProjectBundle, asset: Asset): AssetUsage[] 
 
   const presentation = project.manifest.playerPresentation;
   const presentationRoles = [
-    [presentation.titleBackgroundAssetId, "Title background"],
-    [presentation.logoAssetId, "Title logo"],
-    [presentation.appIconAssetId, "Application icon"]
+    [presentation.titleBackgroundAssetId, t("Title background")],
+    [presentation.logoAssetId, t("Title logo")],
+    [presentation.appIconAssetId, t("Application icon")]
   ] as const;
   for (const [assetId, detail] of presentationRoles) {
     if (assetId !== asset.id) {
@@ -2085,41 +2174,73 @@ function resolveAssetImportInitialPath(project: ProjectBundle, locale: string): 
   return undefined;
 }
 
-function formatMediaCategoryLabel(category: MediaAssetFilter): string {
+function formatMediaCategoryLabel(category: MediaAssetFilter, t: EditorTranslator): string {
   switch (category) {
     case "background":
-      return "Background";
+      return t("Background");
     case "sceneAudio":
-      return "Scene Audio";
+      return t("Scene Audio");
     case "foreground":
-      return "Foreground Media";
+      return t("Foreground Media");
     case "inventory":
-      return "Inventory";
+      return t("Inventory");
     case "response":
-      return "Responses";
+      return t("Responses");
     case "player":
-      return "Player";
+      return t("Player");
   }
 }
 
-function resolveEmptyMediaMessage(filter: MediaAssetFilter): string {
+function formatAssetKindLabel(kind: Asset["kind"], t: EditorTranslator): string {
+  switch (kind) {
+    case "audio":
+      return t("Audio");
+    case "video":
+      return t("Video");
+    case "image":
+      return t("Image");
+  }
+}
+
+function formatNavigationTabLabel(tab: EditorNavigationTarget["tab"], t: EditorTranslator): string {
+  switch (tab) {
+    case "world":
+      return t("World");
+    case "scenes":
+      return t("Scenes");
+    case "dialogue":
+      return t("Dialogue");
+    case "inventory":
+      return t("Inventory");
+    case "localization":
+      return t("Localization");
+    case "assets":
+      return t("Assets");
+    case "player":
+      return t("Player");
+    case "playtest":
+      return t("Playtest");
+  }
+}
+
+function resolveEmptyMediaMessage(filter: MediaAssetFilter, t: EditorTranslator): string {
   switch (filter) {
     case "background":
-      return "No background assets yet. Upload scene media from Scenes before localizing it here.";
+      return t("No background assets yet. Upload scene media from Scenes before localizing it here.");
     case "sceneAudio":
-      return "No scene audio assets yet. Upload scene audio from Scenes before localizing it here.";
+      return t("No scene audio assets yet. Upload scene audio from Scenes before localizing it here.");
     case "foreground":
-      return "No foreground media yet. Upload audio or video from Dialogue, a hotspot, or Assets before localizing it here.";
+      return t("No foreground media yet. Upload audio or video from Dialogue, a hotspot, or Assets before localizing it here.");
     case "inventory":
-      return "No inventory assets yet. Upload an inventory image from Inventory before localizing it here.";
+      return t("No inventory assets yet. Upload an inventory image from Inventory before localizing it here.");
     case "response":
-      return "No response media yet. Import audio or video from Dialogue > Responses before localizing it here.";
+      return t("No response media yet. Import audio or video from Dialogue > Responses before localizing it here.");
     case "player":
-      return "No player assets yet. Import title, logo, or icon artwork from Assets before localizing it here.";
+      return t("No player assets yet. Import title, logo, or icon artwork from Assets before localizing it here.");
   }
 }
 
-function formatLocaleDisplayName(locale: string): string {
+function formatLocaleDisplayName(locale: string, t: EditorTranslator): string {
   const localeNames: Record<string, string> = {
     en: "English",
     fr: "French",
@@ -2128,13 +2249,16 @@ function formatLocaleDisplayName(locale: string): string {
     it: "Italian",
     ja: "Japanese",
     ko: "Korean",
+    ar: "Arabic",
     "pt-BR": "Portuguese",
     pt: "Portuguese",
-    zh: "Chinese"
+    zh: "Chinese",
+    "zh-Hans": "Simplified Chinese"
   };
 
   const baseLocale = locale.split("-")[0] ?? locale;
-  return `${locale} (${localeNames[locale] ?? localeNames[baseLocale] ?? locale.toUpperCase()})`;
+  const languageName = localeNames[locale] ?? localeNames[baseLocale];
+  return languageName ? `${locale} (${t(languageName)})` : locale;
 }
 
 function formatCoveragePercent(value: number, total: number): string {
@@ -2167,53 +2291,53 @@ function getLocalizedStatusIcon(status: QueueItemStatus | undefined): Localizati
   }
 }
 
-function resolveNextStepTitle(status: QueueItemStatus | undefined): string {
+function resolveNextStepTitle(status: QueueItemStatus | undefined, t: EditorTranslator): string {
   switch (status) {
     case "missing":
-      return "Missing translation";
+      return t("Missing translation");
     case "empty":
-      return "Empty translation";
+      return t("Empty translation");
     case "inherited":
-      return "Inherited source copy";
+      return t("Inherited source copy");
     case "draft":
-      return "Draft translation";
+      return t("Draft translation");
     case "translated":
-      return "Translation complete";
+      return t("Translation complete");
     case "reviewed":
-      return "Reviewed translation";
+      return t("Reviewed translation");
     case "source":
-      return "Source text";
+      return t("Source text");
     case "orphaned":
-      return "No references";
+      return t("No references");
     case "present":
-      return "Variant present";
+      return t("Variant present");
     default:
-      return "Select an item";
+      return t("Select an item");
   }
 }
 
-function resolveNextStepBody(status: QueueItemStatus | undefined, locale: string): string {
+function resolveNextStepBody(status: QueueItemStatus | undefined, locale: string, t: EditorTranslator): string {
   switch (status) {
     case "missing":
-      return `Add a ${locale} value for this item.`;
+      return t("Add a {locale} value for this item.", { locale });
     case "empty":
-      return `Fill the stored ${locale} value.`;
+      return t("Fill the stored {locale} value.", { locale });
     case "inherited":
-      return "Translate this source copy; inherited text is excluded from completion.";
+      return t("Translate this source copy; inherited text is excluded from completion.");
     case "draft":
-      return "Finish the text, then mark it Translated or Reviewed.";
+      return t("Finish the text, then mark it Translated or Reviewed.");
     case "translated":
-      return "This value counts toward completion and can still be marked Reviewed.";
+      return t("This value counts toward completion and can still be marked Reviewed.");
     case "reviewed":
-      return "This value has passed review and counts toward completion.";
+      return t("This value has passed review and counts toward completion.");
     case "source":
-      return "This is the project source value used by every target locale.";
+      return t("This is the project source value used by every target locale.");
     case "orphaned":
-      return "Delete the stored entry or keep it for reuse.";
+      return t("Delete the stored entry or keep it for reuse.");
     case "present":
-      return "This locale has a dedicated media variant.";
+      return t("This locale has a dedicated media variant.");
     default:
-      return "Choose a string or media variant to inspect.";
+      return t("Choose a string or media variant to inspect.");
   }
 }
 

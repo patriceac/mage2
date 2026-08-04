@@ -4,7 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { addDialogueTree } from "../project-helpers";
 import { DialogProvider } from "../dialogs";
+import { dialogueMessages } from "../i18n/catalogs/dialogue";
 import { DialoguePanel } from "./DialoguePanel";
+
+const mockedI18n = vi.hoisted(() => ({
+  locale: "en" as "en" | "fr" | "ar",
+  direction: "ltr" as "ltr" | "rtl"
+}));
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
@@ -13,9 +19,28 @@ const mockedStore = vi.hoisted(() => {
     state: {
       selectedDialogueId: undefined as string | undefined,
       selectedDialogueNodeId: undefined as string | undefined,
+      dialogueSection: "dialogues" as "dialogues" | "responses",
       setSelectedDialogueId: noop,
-      setSelectedDialogueNodeId: noop
+      setSelectedDialogueNodeId: noop,
+      setDialogueSection: noop,
+      setSelectedResponseGroupId: noop,
+      setSelectedResponseEntryId: noop
     } as any
+  };
+});
+
+vi.mock("../i18n", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../i18n")>();
+  return {
+    ...actual,
+    useEditorI18n: () => ({
+      locale: mockedI18n.locale,
+      direction: mockedI18n.direction,
+      preference: mockedI18n.locale,
+      hasExplicitOverride: true,
+      setPreference: () => undefined,
+      t: actual.createEditorTranslator(actual.EDITOR_CATALOG, mockedI18n.locale)
+    })
   };
 });
 
@@ -57,6 +82,9 @@ describe("DialoguePanel", () => {
   beforeEach(() => {
     mockedStore.state.selectedDialogueId = undefined;
     mockedStore.state.selectedDialogueNodeId = undefined;
+    mockedStore.state.dialogueSection = "dialogues";
+    mockedI18n.locale = "en";
+    mockedI18n.direction = "ltr";
   });
 
   it("presents dialogue authoring as a library, builder, preview, and launch handoff", () => {
@@ -143,5 +171,46 @@ describe("DialoguePanel", () => {
 
     expect(markup).toContain("Create your first dialogue");
     expect(markup).toContain("Write the conversation here, then start it from a hotspot in Scenes.");
+  });
+
+  it("renders localized editor copy while preserving authored dialogue content", () => {
+    mockedI18n.locale = "fr";
+    const markup = renderDialoguePanel((project) => {
+      const dialogue = addDialogueTree(project);
+      dialogue.name = "Citadel_01";
+      mockedStore.state.selectedDialogueId = dialogue.id;
+      mockedStore.state.selectedDialogueNodeId = dialogue.startNodeId;
+    });
+
+    expect(markup).toContain("Création de dialogues");
+    expect(markup).toContain('placeholder="Rechercher par nom"');
+    expect(markup).toContain("Ajouter une réplique");
+    expect(markup).toContain("Citadel_01");
+    expect(markup).toContain("Opening line");
+  });
+
+  it("renders the response editor in Arabic with RTL direction", () => {
+    mockedI18n.locale = "ar";
+    mockedI18n.direction = "rtl";
+    mockedStore.state.dialogueSection = "responses";
+
+    const markup = renderDialoguePanel(() => undefined);
+
+    expect(markup).toContain('class="dialogue-screen" dir="rtl"');
+    expect(markup).toContain('class="response-workspace" dir="rtl"');
+    expect(markup).toContain("مجموعات الاستجابات");
+    expect(markup).toContain("البحث بالاسم");
+  });
+
+  it("keeps dialogue catalog placeholders identical in every locale", () => {
+    const placeholders = (message: string) => [...message.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)]
+      .map((match) => match[1])
+      .sort();
+
+    for (const [source, translations] of Object.entries(dialogueMessages)) {
+      for (const translation of Object.values(translations)) {
+        expect(placeholders(translation), source).toEqual(placeholders(source));
+      }
+    }
   });
 });

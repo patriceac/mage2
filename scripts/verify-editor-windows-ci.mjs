@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
-import { cp, mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
@@ -11,11 +11,16 @@ import {
   normalizeWindowsPath,
   repoRoot
 } from "./editor-windows-launch-targets.mjs";
+import {
+  BUILT_IN_LOCALE_CASES,
+  assertEditorLocaleState
+} from "./localization-verification.mjs";
 
 const AUTOMATION_PORT = 47632;
 const AUTOMATION_TOKEN = randomBytes(32).toString("hex");
 const evidenceDirectory = path.join(repoRoot, "output", "playwright", "windows-ci");
 const screenshotPath = path.join(evidenceDirectory, "packaged-editor-export.png");
+const welcomeScreenshotPath = path.join(evidenceDirectory, "packaged-editor-welcome-titlebar.png");
 const playerScreenshotPath = path.join(evidenceDirectory, "packaged-editor-player.png");
 const playtestScreenshotPath = path.join(evidenceDirectory, "packaged-editor-playtest.png");
 const reportPath = path.join(evidenceDirectory, "packaged-editor-report.json");
@@ -49,20 +54,18 @@ async function main() {
   await mkdir(userDataDir);
 
   const logHandle = await open(processLogPath, "w");
-  const editorProcess = spawn(canonicalExePath, [`--user-data-dir=${userDataDir}`], {
-    cwd: path.dirname(canonicalExePath),
-    env: {
-      ...process.env,
-      MAGE2_EDITOR_AUTOMATION: "1",
-      MAGE2_EDITOR_AUTOMATION_ROOT: temporaryRoot,
-      MAGE2_EDITOR_AUTOMATION_PORT: String(AUTOMATION_PORT),
-      MAGE2_EDITOR_AUTOMATION_TOKEN: AUTOMATION_TOKEN
-    },
-    stdio: ["ignore", logHandle.fd, logHandle.fd]
-  });
+  let editorProcess = launchEditorProcess(canonicalExePath, userDataDir, temporaryRoot, logHandle.fd);
 
   try {
     await waitForAutomationBridge(editorProcess);
+    // Exercise the renderer bridge once before starting a state-changing command.
+    // This also proves the React-side command listener, not just the main-process
+    // HTTP server, is ready.
+    await sendAutomationCommand({ command: "getState" });
+    await delay(350);
+    const welcomeScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(welcomeScreenshot, "welcome title bar");
+    await writeFile(welcomeScreenshotPath, welcomeScreenshot);
     const launchedExecutablePath = await getWindowsProcessExecutablePath(editorProcess.pid);
     if (normalizeWindowsPath(launchedExecutablePath) !== normalizeWindowsPath(canonicalExePath)) {
       throw new Error(
@@ -77,6 +80,87 @@ async function main() {
     });
     if (createdState?.projectDir !== projectDir || createdState?.projectName !== "Windows CI Representative Project") {
       throw new Error("The packaged editor did not create and open the representative project.");
+    }
+
+    await sendAutomationCommand({ command: "saveProject" });
+    const automaticState = await sendAutomationCommand({ command: "getState" });
+    const automaticLocaleCase = BUILT_IN_LOCALE_CASES.find(({ locale }) => locale === automaticState?.uiLocale);
+    if (
+      !automaticLocaleCase ||
+      automaticState?.uiLocalePreference !== "automatic" ||
+      automaticState?.uiDirection !== automaticLocaleCase.direction ||
+      automaticState?.uiAutomaticLocale !== automaticState.uiLocale
+    ) {
+      throw new Error(`The packaged editor automatic OS locale state is invalid: ${JSON.stringify(automaticState)}`);
+    }
+    const projectFingerprintBefore = await fingerprintProjectFiles(projectDir);
+    const localizationScreenshots = [];
+    const localeStates = [];
+    for (const localeCase of BUILT_IN_LOCALE_CASES) {
+      await sendAutomationCommand({ command: "setInterfaceLocale", locale: localeCase.locale });
+      const state = await sendAutomationCommand({ command: "getState" });
+      assertEditorLocaleState(state, {
+        locale: localeCase.locale,
+        preference: localeCase.locale,
+        direction: localeCase.direction
+      }, automaticState, `packaged editor ${localeCase.locale}`);
+      if (state?.uiAutomaticLocale !== automaticState.uiAutomaticLocale) {
+        throw new Error(
+          `The packaged editor ${localeCase.locale} override changed the detected automatic locale: ${JSON.stringify(state)}`
+        );
+      }
+      await delay(350);
+      const localeScreenshotPath = path.join(evidenceDirectory, `packaged-editor-locale-${localeCase.locale}.png`);
+      const localeScreenshot = await fetchAutomationScreenshot();
+      assertPngScreenshot(localeScreenshot, localeCase.locale);
+      await writeFile(localeScreenshotPath, localeScreenshot);
+      localizationScreenshots.push(localeScreenshotPath);
+      localeStates.push(state);
+    }
+
+    const rejectedLocaleOverrides = {
+      unsupported: await sendAutomationCommandExpectFailure({ command: "setInterfaceLocale", locale: "de-DE" }),
+      zhHant: await sendAutomationCommandExpectFailure({ command: "setInterfaceLocale", locale: "zh-Hant" })
+    };
+    const projectFingerprintAfter = await fingerprintProjectFiles(projectDir);
+    if (projectFingerprintAfter !== projectFingerprintBefore) {
+      throw new Error("Changing the packaged editor interface locale mutated project files.");
+    }
+
+    await sendAutomationCommand({ command: "closeApplication" });
+    await waitForProcessExit(editorProcess);
+    editorProcess = launchEditorProcess(canonicalExePath, userDataDir, temporaryRoot, logHandle.fd);
+    await waitForAutomationBridge(editorProcess);
+    const persistedLocaleState = await sendAutomationCommand({ command: "getState" });
+    if (
+      persistedLocaleState?.uiLocale !== "ar" ||
+      persistedLocaleState?.uiLocalePreference !== "ar" ||
+      persistedLocaleState?.uiDirection !== "rtl"
+    ) {
+      throw new Error(`The packaged editor did not persist the Arabic interface override: ${JSON.stringify(persistedLocaleState)}`);
+    }
+    const persistedScreenshotPath = path.join(evidenceDirectory, "packaged-editor-locale-ar-persisted.png");
+    await delay(350);
+    const persistedScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(persistedScreenshot, "persisted Arabic locale");
+    await writeFile(persistedScreenshotPath, persistedScreenshot);
+    await sendAutomationCommand({ command: "resetInterfaceLocale" });
+    const resetLocaleState = await sendAutomationCommand({ command: "getState" });
+    if (
+      resetLocaleState?.uiLocale !== automaticState.uiLocale ||
+      resetLocaleState?.uiLocalePreference !== "automatic" ||
+      resetLocaleState?.uiDirection !== automaticState.uiDirection
+    ) {
+      throw new Error(`Reset did not restore automatic OS locale detection: ${JSON.stringify(resetLocaleState)}`);
+    }
+    const resetScreenshotPath = path.join(evidenceDirectory, "packaged-editor-locale-automatic-reset.png");
+    await delay(350);
+    const resetScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(resetScreenshot, "automatic locale reset");
+    await writeFile(resetScreenshotPath, resetScreenshot);
+    const reopenedState = await sendAutomationCommand({ command: "openProject", projectDir });
+    if (reopenedState?.projectDir !== projectDir || reopenedState?.hasUnsavedChanges !== false) {
+      throw new Error("The packaged editor did not reopen the unchanged localization verification project.");
     }
 
     await sendAutomationCommand({ command: "selectTab", tab: "scenes" });
@@ -106,6 +190,7 @@ async function main() {
     await cp(exportDirectory, exportedRuntimeEvidencePath, { recursive: true, force: true });
     await rm(projectEvidencePath, { recursive: true, force: true });
     await cp(projectDir, projectEvidencePath, { recursive: true, force: true });
+    await relocateProjectEvidencePaths(projectEvidencePath, projectDir);
 
     const screenshot = await fetchAutomationScreenshot();
     assertPngScreenshot(screenshot, "export");
@@ -152,8 +237,27 @@ async function main() {
         files: exportEvidence
       },
       security: securityState,
+      localization: {
+        builtInLocales: localeStates.map(({ uiLocale, uiLocalePreference, uiDirection, hasUnsavedChanges }) => ({
+          uiLocale,
+          uiLocalePreference,
+          uiDirection,
+          hasUnsavedChanges
+        })),
+        automaticDetection: {
+          initial: pickEditorLocaleState(automaticState),
+          afterReset: pickEditorLocaleState(resetLocaleState)
+        },
+        persistedOverride: pickEditorLocaleState(persistedLocaleState),
+        rejectedLocaleOverrides,
+        projectFingerprintBefore,
+        projectFingerprintAfter,
+        projectFilesUnchanged: true,
+        screenshots: [...localizationScreenshots, persistedScreenshotPath, resetScreenshotPath]
+      },
       electronFuses,
       releaseChecksums: checksumPath,
+      welcomeScreenshotPath,
       screenshotPath,
       playerScreenshotPath,
       playtestScreenshotPath,
@@ -243,7 +347,8 @@ async function waitForAutomationBridge(editorProcess) {
     }
     try {
       const response = await fetch(`http://127.0.0.1:${AUTOMATION_PORT}/health`);
-      if (response.ok) {
+      const body = await response.json().catch(() => undefined);
+      if (response.ok && body?.ready === true) {
         return;
       }
     } catch {
@@ -271,16 +376,126 @@ async function sendAutomationCommand(command) {
 }
 
 async function fetchAutomationScreenshot() {
-  const response = await fetch(`http://127.0.0.1:${AUTOMATION_PORT}/automation/screenshot`, {
+  let lastFailure = "no response";
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await fetch(`http://127.0.0.1:${AUTOMATION_PORT}/automation/screenshot`, {
+      method: "POST",
+      headers: {
+        "x-mage2-automation-token": AUTOMATION_TOKEN
+      }
+    });
+    if (response.ok) {
+      return Buffer.from(await response.arrayBuffer());
+    }
+    lastFailure = `HTTP ${response.status}: ${await response.text().catch(() => "")}`;
+    await delay(250);
+  }
+  throw new Error(`Packaged screenshot capture failed after retries (${lastFailure}).`);
+}
+
+async function sendAutomationCommandExpectFailure(command) {
+  const response = await fetch(`http://127.0.0.1:${AUTOMATION_PORT}/automation/command`, {
     method: "POST",
     headers: {
+      "content-type": "application/json",
       "x-mage2-automation-token": AUTOMATION_TOKEN
-    }
+    },
+    body: JSON.stringify(command)
   });
-  if (!response.ok) {
-    throw new Error(`Packaged screenshot capture failed with HTTP ${response.status}.`);
+  const body = await response.json().catch(() => undefined);
+  if (response.ok && body?.ok) {
+    throw new Error(`Automation command ${command.command} unexpectedly accepted locale ${command.locale}.`);
   }
-  return Buffer.from(await response.arrayBuffer());
+  return { status: response.status, error: body?.error ?? body };
+}
+
+function launchEditorProcess(canonicalExePath, userDataDir, temporaryRoot, logFileDescriptor) {
+  return spawn(canonicalExePath, [`--user-data-dir=${userDataDir}`], {
+    cwd: path.dirname(canonicalExePath),
+    env: {
+      ...process.env,
+      MAGE2_EDITOR_AUTOMATION: "1",
+      MAGE2_EDITOR_AUTOMATION_ROOT: temporaryRoot,
+      MAGE2_EDITOR_AUTOMATION_PORT: String(AUTOMATION_PORT),
+      MAGE2_EDITOR_AUTOMATION_TOKEN: AUTOMATION_TOKEN
+    },
+    stdio: ["ignore", logFileDescriptor, logFileDescriptor]
+  });
+}
+
+async function waitForProcessExit(childProcess) {
+  if (childProcess.exitCode !== null) {
+    return;
+  }
+  await Promise.race([
+    new Promise((resolve) => childProcess.once("exit", resolve)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for the packaged editor to exit.")), 10_000))
+  ]);
+}
+
+async function fingerprintProjectFiles(projectDir) {
+  const hash = createHash("sha256");
+  const relativePaths = await listProjectFiles(projectDir);
+  for (const relativePath of relativePaths) {
+    hash.update(relativePath.replaceAll("\\", "/"));
+    hash.update("\0");
+    hash.update(await readFile(path.join(projectDir, relativePath)));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+async function relocateProjectEvidencePaths(evidenceProjectDir, sourceProjectDir) {
+  const relocate = (value) => {
+    if (typeof value === "string") {
+      return value.toLowerCase().startsWith(sourceProjectDir.toLowerCase())
+        ? path.join(evidenceProjectDir, value.slice(sourceProjectDir.length))
+        : value;
+    }
+    if (Array.isArray(value)) {
+      return value.map(relocate);
+    }
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, nestedValue]) => [key, relocate(nestedValue)]));
+    }
+    return value;
+  };
+  for (const relativePath of [
+    "project.json",
+    "assets.json",
+  ]) {
+    const jsonPath = path.join(evidenceProjectDir, relativePath);
+    const value = JSON.parse(await readFile(jsonPath, "utf8"));
+    const relocated = relocate(value);
+    await writeFile(jsonPath, `${JSON.stringify(relocated, null, 2)}\n`, "utf8");
+  }
+}
+
+async function listProjectFiles(directory, relativeDirectory = "") {
+  const entries = await readdir(path.join(directory, relativeDirectory), { withFileTypes: true });
+  const files = [];
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const relativePath = path.join(relativeDirectory, entry.name);
+    if (relativeDirectory === "" && entry.name === "build") {
+      continue;
+    }
+    if (entry.isDirectory()) {
+      files.push(...await listProjectFiles(directory, relativePath));
+    } else if (entry.isFile()) {
+      files.push(relativePath);
+    }
+  }
+  return files;
+}
+
+function pickEditorLocaleState(state) {
+  return {
+    uiLocale: state?.uiLocale,
+    uiLocalePreference: state?.uiLocalePreference,
+    uiDirection: state?.uiDirection,
+    uiAutomaticLocale: state?.uiAutomaticLocale,
+    hasUnsavedChanges: state?.hasUnsavedChanges
+  };
 }
 
 function assertPngScreenshot(screenshot, label) {

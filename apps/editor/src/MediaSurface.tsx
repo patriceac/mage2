@@ -31,6 +31,7 @@ import {
 } from "./media-playhead";
 import { resolveFileUrl } from "./file-url-cache";
 import type { HotspotVisual } from "./hotspot-visuals";
+import { useEditorI18n } from "./i18n";
 
 interface MediaSurfaceProps {
   asset?: Asset;
@@ -124,6 +125,7 @@ export function MediaSurface({
   onViewportTransformChange,
   materializeHotspotMidpointsOnCornerDrag = false
 }: MediaSurfaceProps) {
+  const { t } = useEditorI18n();
   const [assetUrl, setAssetUrl] = useState<string>();
   const [hotspotVisualUrls, setHotspotVisualUrls] = useState<Record<string, string>>({});
   const [hotspotVisualAlphaMasks, setHotspotVisualAlphaMasks] = useState<Record<string, HotspotVisualAlphaMask>>({});
@@ -983,13 +985,13 @@ export function MediaSurface({
       title={
         showSurfaceTooltips
           ? viewportTool === "pan"
-            ? "Scene preview. Drag to pan the zoomed view, or use the mouse wheel to zoom."
+            ? t("Scene preview. Drag to pan the zoomed view, or use the mouse wheel to zoom.")
             : viewportTool === "zoom"
-              ? "Scene preview. Click to zoom in, Shift-click to zoom out, or use the mouse wheel to zoom."
+              ? t("Scene preview. Click to zoom in, Shift-click to zoom out, or use the mouse wheel to zoom.")
               : onSurfaceClick
             ? editableHotspots
-              ? "Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag empty space to pan, use the mouse wheel to zoom, drag a hotspot to move it, or drag the orange handles to reshape it."
-              : "Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position. Drag empty space to pan and use the mouse wheel to zoom."
+              ? t("Scene preview. Click empty space to clear the hotspot selection, Ctrl+click empty space to add a hotspot, drag empty space to pan, use the mouse wheel to zoom, drag a hotspot to move it, or drag the orange handles to reshape it.")
+              : t("Scene preview. Ctrl+click anywhere on the media to add a hotspot at that normalized position. Drag empty space to pan and use the mouse wheel to zoom.")
             : undefined
           : undefined
       }
@@ -1015,7 +1017,8 @@ export function MediaSurface({
               muted
               playsInline
               className="media-surface__media"
-              title={showSurfaceTooltips ? "Preview the selected video asset directly inside the editor." : undefined}
+              title={showSurfaceTooltips ? t("Preview the selected video asset directly inside the editor.") : undefined}
+              dir="ltr"
               onLoadedMetadata={(event) => {
                 const playableDurationMs = resolvePlayableDurationMs(event.currentTarget.duration, assetVariant?.durationMs);
                 if (playableDurationMs !== undefined) {
@@ -1033,18 +1036,18 @@ export function MediaSurface({
               src={assetUrl}
               alt={asset.name}
               className="media-surface__media"
-              title={showSurfaceTooltips ? "Preview the selected image asset directly inside the editor." : undefined}
+              title={showSurfaceTooltips ? t("Preview the selected image asset directly inside the editor.") : undefined}
             />
           ) : (
             <div
               className="media-surface__placeholder"
               title={
                 showSurfaceTooltips
-                  ? "The selected asset is not a visual media file, so the editor cannot draw a frame preview."
+                  ? t("The selected asset is not a visual media file, so the editor cannot draw a frame preview.")
                   : undefined
               }
             >
-              Non-visual asset selected
+              {t("Non-visual asset selected")}
             </div>
           )
         ) : (
@@ -1052,17 +1055,18 @@ export function MediaSurface({
             className="media-surface__placeholder"
             title={
               showSurfaceTooltips
-                ? "Upload or assign background media in the Scenes tab to preview it here."
+                ? t("Upload or assign background media in the Scenes tab to preview it here.")
                 : undefined
             }
           >
-            Upload or assign background media for this scene.
+            {t("Upload or assign background media for this scene.")}
           </div>
         )}
 
         <div
           ref={overlayRef}
           className={editableHotspots ? "media-surface__overlay media-surface__overlay--editable" : "media-surface__overlay"}
+          dir="ltr"
         >
           {hotspots.map((hotspot) => (
             <HotspotButton
@@ -1110,9 +1114,15 @@ export function MediaSurface({
               rotationFeedback={
                 hotspotRotationFeedback?.hotspotId === hotspot.id ? hotspotRotationFeedback : undefined
               }
-              ariaLabel={`${resolveHotspotTitle(hotspot, strings)}: interactive region over the scene. Click to ${
-                onSurfaceClick ? "select and edit" : "activate"
-              } this hotspot.`}
+              ariaLabel={
+                onSurfaceClick
+                  ? t("{name}: interactive region over the scene. Click to select and edit this hotspot.", {
+                      name: resolveHotspotTitle(hotspot, strings)
+                    })
+                  : t("{name}: interactive region over the scene. Click to activate this hotspot.", {
+                      name: resolveHotspotTitle(hotspot, strings)
+                    })
+              }
             />
           ))}
         </div>
@@ -1389,6 +1399,7 @@ function HotspotButton({
   rotationFeedback,
   ariaLabel
 }: HotspotButtonProps) {
+  const { t } = useEditorI18n();
   const bounds = resolveHotspotBounds(hotspot);
   const relativeFrame = surfaceSize ? resolveRelativeHotspotFrame(hotspot, surfaceSize) : undefined;
   const relativePolygon = hotspot.inventoryItemId && relativeFrame ? relativeFrame.polygon : resolveRelativeHotspotPolygon(hotspot);
@@ -1516,7 +1527,7 @@ function HotspotButton({
       </button>
 
       {editable && selected ? (
-        <div className="hotspot__handles" aria-hidden="true">
+        <div className="hotspot__handles" aria-hidden="true" dir="ltr">
           {rotationHandle && onRotateStart ? (
             <>
               <svg className="hotspot__rotation-ui" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -1549,7 +1560,7 @@ function HotspotButton({
                     {formatHotspotRotationReadout(rotationFeedback.rotationDegrees)}
                   </span>
                   {rotationFeedback.snapped ? (
-                    <span className="hotspot__rotation-readout-snap">15° snap</span>
+                    <span className="hotspot__rotation-readout-snap">{t("15° snap")}</span>
                   ) : null}
                 </span>
               ) : null}

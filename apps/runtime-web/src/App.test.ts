@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, createInitialSaveState, toExportProjectData } from "@mage2/schema";
 import {
   isRuntimeDebugMode,
+  persistRuntimeInterfaceLocalePreference,
   resolveRuntimeHeaderContent,
+  resolveRuntimeInitialContentLocale,
+  resolveRuntimeInterfaceLocale,
+  resolveRuntimeInterfaceLocalePreference,
+  resolveRuntimeInterfaceLocaleStorageKey,
   resolveRuntimeLocaleStrings,
   resolveRuntimePlayerCopy,
   resolveRuntimeSaveLoadNotice,
@@ -134,12 +139,50 @@ describe("restoreRuntimeSession", () => {
 });
 
 describe("runtime localization", () => {
-  it("resolves system copy by exact locale, base language, then English", () => {
+  it("resolves complete system copy through the shared seven-locale resolver", () => {
     expect(resolveRuntimeSystemCopy("fr").debugMode).toBe("Mode debug");
     expect(resolveRuntimeSystemCopy("fr-CA").gameSaved).toBe("Partie sauvegardée.");
     expect(resolveRuntimeSystemCopy("de-DE").gameSaved).toBe("Game saved.");
+    expect(resolveRuntimeSystemCopy("es").loading).toBe("Cargando el juego...");
+    expect(resolveRuntimeSystemCopy("zh-Hans").startupErrorTitle).toBe("无法启动此游戏");
+    expect(resolveRuntimeSystemCopy("ja").saveRecovered).toContain("ニューゲーム");
+    expect(resolveRuntimeSystemCopy("ko").rawSave).toBe("원시 저장 상태");
+    expect(resolveRuntimeSystemCopy("ar").showHotspots).toBe("إظهار مناطق التفاعل");
+    expect(resolveRuntimeSystemCopy("zh-Hant").loading).toBe("Loading game...");
     expect(resolveRuntimeSystemCopy("fr").startupErrorTitle).toBe("Impossible de lancer ce jeu");
     expect(resolveRuntimeSystemCopy("de-DE").startupErrorTitle).toBe("Unable to start this game");
+  });
+
+  it("detects and persists interface locale preferences independently", () => {
+    expect(resolveRuntimeInterfaceLocale("automatic", ["de-DE", "ar-SA", "fr-FR"])).toBe("ar");
+    expect(resolveRuntimeInterfaceLocale("automatic", ["zh-TW", "fr-FR"])).toBe("fr");
+    expect(resolveRuntimeInterfaceLocale("automatic", ["zh-HK"])).toBe("en");
+    expect(resolveRuntimeInterfaceLocale("ja", ["fr-FR"])).toBe("ja");
+    expect(resolveRuntimeInterfaceLocalePreference("ko")).toBe("ko");
+    expect(resolveRuntimeInterfaceLocalePreference("de")).toBe("automatic");
+    expect(resolveRuntimeInterfaceLocaleStorageKey("project_one")).toBe("mage2-runtime-interface-locale:project_one");
+
+    const calls: string[] = [];
+    const storage = {
+      setItem: (key: string, value: string) => calls.push(`set:${key}:${value}`),
+      removeItem: (key: string) => calls.push(`remove:${key}`)
+    };
+    persistRuntimeInterfaceLocalePreference(storage, "interface-key", "fr");
+    persistRuntimeInterfaceLocalePreference(storage, "interface-key", "automatic");
+    expect(calls).toEqual(["set:interface-key:fr", "remove:interface-key"]);
+  });
+
+  it("selects content independently while preserving the backward-compatible stored choice", () => {
+    const common = { supportedLocales: ["en", "fr"], defaultLanguage: "en" } as const;
+    expect(resolveRuntimeInitialContentLocale({ ...common, storedContentLocale: "fr", interfaceLocale: "ar" })).toBe("fr");
+    expect(resolveRuntimeInitialContentLocale({ ...common, storedContentLocale: null, interfaceLocale: "fr" })).toBe("fr");
+    expect(resolveRuntimeInitialContentLocale({ ...common, storedContentLocale: null, interfaceLocale: "ar" })).toBe("en");
+    expect(resolveRuntimeInitialContentLocale({
+      supportedLocales: ["en", "fr-CA"], defaultLanguage: "en", storedContentLocale: null, interfaceLocale: "fr"
+    })).toBe("fr-CA");
+    expect(resolveRuntimeInitialContentLocale({
+      supportedLocales: ["en", "zh-Hant"], defaultLanguage: "zh-Hant", storedContentLocale: null, interfaceLocale: "en"
+    })).toBe("en");
   });
 
   it("lays active authored strings over default-locale fallbacks", () => {

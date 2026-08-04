@@ -3,13 +3,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createPlayerController } from "@mage2/player";
-import { PLAYER_UI_TEXT_IDS, createDefaultProjectBundle, type Hotspot } from "@mage2/schema";
+import { BUILT_IN_LOCALES, PLAYER_UI_TEXT_IDS, createDefaultProjectBundle, type Hotspot } from "@mage2/schema";
 import {
   DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
   PlayerDialogueBox,
   PlayerExperienceShell,
   PlayerInventoryTray,
   PlayerSceneRenderer,
+  hasCompleteBuiltInPlayerChrome,
   isOpaqueHotspotVisualHit,
   resolvePlayerHotspotInteraction,
   resolvePlayerInventoryContextMenuAction,
@@ -40,6 +41,7 @@ describe("player experience shell", () => {
           supportedLocales: ["en"],
           localeStrings: strings,
           onLocaleChange: () => undefined,
+          playerUiOverrides: { en: { [PLAYER_UI_TEXT_IDS.startGame]: "Enter the observatory" } },
           preferences: DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
           onPreferencesChange: () => undefined,
           hasSavedGame: false,
@@ -70,6 +72,54 @@ describe("player experience shell", () => {
       menuHeading: "Paused",
       settingsHeading: "Player settings"
     });
+  });
+
+  it("ships complete genuine chrome copy for all seven built-in locales", () => {
+    expect(hasCompleteBuiltInPlayerChrome()).toBe(true);
+    expect(resolvePlayerExperienceShellCopy("fr").settings).toBe("Paramètres");
+    expect(resolvePlayerExperienceShellCopy("es").newGame).toBe("Nueva partida");
+    expect(resolvePlayerExperienceShellCopy("zh-Hans").menuHeading).toBe("已暂停");
+    expect(resolvePlayerExperienceShellCopy("ja").loadGame).toBe("ロード");
+    expect(resolvePlayerExperienceShellCopy("ko").credits).toBe("제작진");
+    expect(resolvePlayerExperienceShellCopy("ar").interfaceLanguage).toBe("لغة الواجهة");
+    expect(BUILT_IN_LOCALES).toHaveLength(7);
+  });
+
+  it("keeps interface chrome independent from authored content language", () => {
+    const project = createDefaultProjectBundle("Mixed language");
+    project.manifest.playerPresentation.taglineTextId = "tagline";
+    const markup = renderToStaticMarkup(
+      React.createElement(PlayerExperienceShell, {
+        projectName: project.manifest.projectName,
+        gameVersion: project.manifest.gameVersion,
+        presentation: project.manifest.playerPresentation,
+        screen: "title",
+        onScreenChange: () => undefined,
+        locale: "fr",
+        supportedLocales: ["en", "fr"],
+        localeStrings: { tagline: "Une histoire en français" },
+        onLocaleChange: () => undefined,
+        interfaceLocale: "ar",
+        interfaceLocalePreference: "ar",
+        onInterfaceLocalePreferenceChange: () => undefined,
+        preferences: DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
+        onPreferencesChange: () => undefined,
+        hasSavedGame: false,
+        onContinue: () => undefined,
+        onNewGame: () => undefined
+      })
+    );
+
+    expect(markup).toContain('lang="ar" dir="rtl"');
+    expect(markup).toContain('lang="fr" dir="ltr"');
+    expect(markup).toContain("Une histoire en français");
+    expect(markup).toContain("الإعدادات");
+  });
+
+  it("applies authored overrides only on top of the selected built-in interface locale", () => {
+    expect(resolvePlayerExperienceShellCopy("fr").startGame).toBe("Commencer");
+    expect(resolvePlayerExperienceShellCopy("fr", { [PLAYER_UI_TEXT_IDS.startGame]: "Entrer" }).startGame).toBe("Entrer");
+    expect(resolvePlayerExperienceShellCopy("fr").startGame).not.toBe("Begin");
   });
 
   it("keeps landscape composition primary and portrait behavior bounded", () => {
@@ -137,6 +187,8 @@ describe("player responses", () => {
     expect(resolvePlayerTextDirection("ar")).toBe("rtl");
     expect(resolvePlayerTextDirection("ar-SA")).toBe("rtl");
     expect(resolvePlayerTextDirection("zh-Hans")).toBe("ltr");
+    expect(resolvePlayerTextDirection("zh-Hant")).toBe("ltr");
+    expect(resolvePlayerSystemCopy("zh-Hant").inventory).toBe("Inventory");
   });
 });
 

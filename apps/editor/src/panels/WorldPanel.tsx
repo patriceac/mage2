@@ -19,6 +19,8 @@ import {
   type Scene
 } from "@mage2/schema";
 import { useDialogs } from "../dialogs";
+import { useEditorI18n } from "../i18n/EditorI18nProvider";
+import type { EditorTranslator } from "../i18n/translate";
 import { addLocation, addScene, removeLocationFromProject } from "../project-helpers";
 import { useEditorStore } from "../store";
 
@@ -91,6 +93,7 @@ type WorldPanelIconKind =
 
 export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   const dialogs = useDialogs();
+  const { direction, t } = useEditorI18n();
   const selectedLocationId = useEditorStore((state) => state.selectedLocationId);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const setSelectedLocationId = useEditorStore((state) => state.setSelectedLocationId);
@@ -123,10 +126,10 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   );
   const deleteLocationTitle =
     project.locations.items.length <= 1
-      ? "A project needs at least one location."
+      ? t("A project needs at least one location.")
       : deleteWouldRemoveStart && !replacementStartSceneAfterDelete
-        ? "Add another scene before deleting the start location."
-        : "Delete this location and its scenes.";
+        ? t("Add another scene before deleting the start location.")
+        : t("Delete this location and its scenes.");
   const currentLocationSummary = currentLocation
     ? resolveLocationSummary(project, currentLocation, resolveTransitionCounts(locationTransitionCounts, currentLocation.id))
     : undefined;
@@ -233,17 +236,20 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
     setShowLocationSettings(false);
     const sceneCount = currentLocation.sceneIds.length;
     const confirmed = await dialogs.confirm({
-      title: "Delete Location",
+      title: t("Delete Location"),
       tone: "danger",
-      confirmLabel: "Delete Location",
-      cancelLabel: "Keep Location",
+      confirmLabel: t("Delete Location"),
+      cancelLabel: t("Keep Location"),
       body: (
         <>
-          <p>{`Delete "${currentLocation.name}" from this project?`}</p>
+          <p>{t('Delete "{name}" from this project?', { name: currentLocation.name })}</p>
+          {/* i18n-ignore-next-line -- CSS class names, not user-facing copy */}
           <div className="dialog-callout dialog-callout--danger">
-            <strong>Permanent location deletion</strong>
+            <strong>{t("Permanent location deletion")}</strong>
             <p>
-              {`This removes ${formatCount(sceneCount, "scene")} in this location and cleans references to those scenes.`}
+              {sceneCount === 1
+                ? t("This removes {count} scene in this location and cleans references to those scenes.", { count: sceneCount })
+                : t("This removes {count} scenes in this location and cleans references to them.", { count: sceneCount })}
             </p>
           </div>
         </>
@@ -280,14 +286,14 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   };
 
   return (
-    <div className="panel-grid panel-grid--world">
+    <div className="panel-grid panel-grid--world" dir={direction}>
       <section className="panel panel--flow world-panel__workspace">
-        <aside className="world-panel__location-rail" aria-label="Locations">
+        <aside className="world-panel__location-rail" aria-label={t("Locations")}>
           <div className="world-panel__rail-header">
-            <h3>Locations</h3>
-            <button type="button" className="world-panel__compact-action" title="Create a location in the world overview." onClick={createLocation}>
+            <h3>{t("Locations")}</h3>
+            <button type="button" className="world-panel__compact-action" title={t("Create a location in the world overview.")} onClick={createLocation}>
               <WorldPanelIcon kind="locationAdd" />
-              <span>Add Location</span>
+              <span>{t("Add Location")}</span>
             </button>
           </div>
 
@@ -295,8 +301,8 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
             <label className="world-panel__search-field">
               <WorldPanelIcon kind="search" />
               <input
-                aria-label="Search locations"
-                placeholder="Search locations..."
+                aria-label={t("Search locations")}
+                placeholder={t("Search locations...")}
                 value={locationSearch}
                 onChange={(event) => setLocationSearch(event.target.value)}
               />
@@ -304,9 +310,9 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
             <button
               type="button"
               className={showWithTransitionsOnly ? "world-panel__icon-action world-panel__icon-action--active" : "world-panel__icon-action"}
-              aria-label="Show locations with world transitions only"
+              aria-label={t("Show locations with world transitions only")}
               aria-pressed={showWithTransitionsOnly}
-              title="Show locations with cross-location scene transitions only."
+              title={t("Show locations with cross-location scene transitions only.")}
               onClick={() => setShowWithTransitionsOnly((value) => !value)}
             >
               <WorldPanelIcon kind="filter" />
@@ -326,32 +332,33 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                     className={isSelected ? "world-panel__location-row world-panel__location-row--selected" : "world-panel__location-row"}
                     aria-pressed={isSelected}
                     onClick={() => setSelectedLocationId(location.id)}
-                    title={`Select ${location.name}.`}
+                    title={t("Select {name}.", { name: location.name })}
+                    style={direction === "rtl" ? { textAlign: "right" } : undefined}
                   >
                     <WorldPanelIcon kind={resolveLocationIconKind(location)} />
                     <span className="world-panel__location-row-copy">
                       <strong>{location.name}</strong>
                     </span>
-                    <span className="world-panel__location-row-count">{formatCount(location.sceneIds.length, "scene")}</span>
+                    <span className="world-panel__location-row-count">{formatCount(t, location.sceneIds.length, "scene")}</span>
                   </button>
                 );
               })
               ) : (
                 <div className="world-panel__empty-state world-panel__empty-state--rail">
                   <WorldPanelIcon kind="search" />
-                  <strong>No matching locations</strong>
+                  <strong>{t("No matching locations")}</strong>
                 </div>
               )}
             </div>
           ) : (
             <div className="world-panel__empty-state world-panel__empty-state--rail">
               <WorldPanelIcon kind="locationAdd" />
-              <strong>No locations yet</strong>
+              <strong>{t("No locations yet")}</strong>
             </div>
           )}
 
           <div className="world-panel__rail-footer">
-            <span>{formatCount(project.locations.items.length, "location")}</span>
+            <span>{formatCount(t, project.locations.items.length, "location")}</span>
             <WorldPanelIcon kind="menu" />
           </div>
         </aside>
@@ -373,7 +380,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
           <>
             <div className="world-panel__details-header">
               <div>
-                <h3>Location Details</h3>
+                <h3>{t("Location Details")}</h3>
               </div>
               <div className="world-panel__location-settings" ref={locationSettingsRef}>
                 <button
@@ -382,33 +389,40 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                   aria-controls={locationSettingsId}
                   aria-expanded={showLocationSettings}
                   aria-haspopup="menu"
-                  aria-label="Location settings"
-                  title="Location settings."
+                  aria-label={t("Location settings")}
+                  title={t("Location settings.")}
                   onClick={() => setShowLocationSettings((value) => !value)}
                 >
                   <WorldPanelIcon kind="gear" />
                 </button>
                 {showLocationSettings ? (
-                  <div id={locationSettingsId} className="world-panel__location-settings-menu" role="menu" aria-label="Location settings">
+                  <div
+                    id={locationSettingsId}
+                    className="world-panel__location-settings-menu"
+                    role="menu"
+                    aria-label={t("Location settings")}
+                    style={direction === "rtl" ? { right: "auto", left: 0, textAlign: "right" } : undefined}
+                  >
                     <button
                       type="button"
                       className="world-panel__settings-menu-item"
+                      style={direction === "rtl" ? { textAlign: "right" } : undefined}
                       disabled={currentLocationIsStart || !currentLocationFirstScene}
                       title={
                         currentLocationIsStart
-                          ? "This is already the start location."
+                          ? t("This is already the start location.")
                           : currentLocationFirstScene
-                            ? `Start the project at ${currentLocation.name}.`
-                            : "Add a scene before making this the start location."
+                            ? t("Start the project at {name}.", { name: currentLocation.name })
+                            : t("Add a scene before making this the start location.")
                       }
                       onClick={setCurrentLocationAsStart}
                     >
                       <WorldPanelIcon kind="mapPin" />
-                      <span>{currentLocationIsStart ? "Start location" : "Set as start location"}</span>
+                      <span>{currentLocationIsStart ? t("Start location") : t("Set as start location")}</span>
                     </button>
 
                     <div className="world-panel__settings-section">
-                      <span className="world-panel__settings-label">Map icon</span>
+                      <span className="world-panel__settings-label">{t("Map icon")}</span>
                       <div className="world-panel__icon-choice-grid">
                         <button
                           type="button"
@@ -418,11 +432,11 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                               : "world-panel__icon-choice world-panel__icon-choice--active"
                           }
                           aria-pressed={!currentLocation.icon}
-                          title={`Use the automatic icon (${resolveLocationIconLabel(currentLocationIconKind)}).`}
+                          title={t("Use the automatic icon ({icon}).", { icon: t(resolveLocationIconLabel(currentLocationIconKind)) })}
                           onClick={() => setLocationIconOverride(undefined)}
                         >
                           <WorldPanelIcon kind={resolveLocationIconKind({ ...currentLocation, icon: undefined })} />
-                          <span>Automatic</span>
+                          <span>{t("Automatic")}</span>
                         </button>
                         {LOCATION_ICON_OPTIONS.map((option) => (
                           <button
@@ -434,11 +448,11 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                                 : "world-panel__icon-choice"
                             }
                             aria-pressed={currentLocation.icon === option.icon}
-                            title={`Use ${option.label.toLowerCase()} icon.`}
+                            title={t("Use {icon} icon.", { icon: t(option.label).toLocaleLowerCase() })}
                             onClick={() => setLocationIconOverride(option.icon)}
                           >
                             <WorldPanelIcon kind={option.icon} />
-                            <span>{option.label}</span>
+                            <span>{t(option.label)}</span>
                           </button>
                         ))}
                       </div>
@@ -450,10 +464,11 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                         className="button-danger-quiet world-panel__settings-menu-item world-panel__settings-menu-item--danger"
                         disabled={!canDeleteCurrentLocation}
                         title={deleteLocationTitle}
+                        style={direction === "rtl" ? { textAlign: "right" } : undefined}
                         onClick={() => void deleteCurrentLocation()}
                       >
                         <WorldPanelIcon kind="trash" />
-                        <span>Delete location...</span>
+                        <span>{t("Delete location...")}</span>
                       </button>
                     </div>
                   </div>
@@ -461,10 +476,10 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               </div>
             </div>
             <label>
-              <span className="field-label--inset">Name</span>
+              <span className="field-label--inset">{t("Name")}</span>
               <input
                 value={currentLocation.name}
-                title="Rename this location."
+                title={t("Rename this location.")}
                 onChange={(event) =>
                   mutateProject((draft) => {
                     const location = draft.locations.items.find((entry) => entry.id === currentLocation.id);
@@ -476,20 +491,23 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               />
             </label>
 
-            <div className="world-panel__stat-grid" aria-label="Location summary">
+            <div className="world-panel__stat-grid" aria-label={t("Location summary")}>
               {currentLocationSummary
                 ? [
-                    { icon: "scene" as const, label: "Scenes", value: currentLocationSummary.scenes },
-                    { icon: "dialogue" as const, label: "Dialogues", value: currentLocationSummary.dialogues },
-                    { icon: "speaker" as const, label: "Speakers", value: currentLocationSummary.speakers },
-                    { icon: "flag" as const, label: "Flags", value: currentLocationSummary.flags },
-                    { icon: "item" as const, label: "Items", value: currentLocationSummary.items },
+                    { icon: "scene" as const, label: t("Scenes"), value: currentLocationSummary.scenes },
+                    { icon: "dialogue" as const, label: t("Dialogues"), value: currentLocationSummary.dialogues },
+                    { icon: "speaker" as const, label: t("Speakers"), value: currentLocationSummary.speakers },
+                    { icon: "flag" as const, label: t("Flags"), value: currentLocationSummary.flags },
+                    { icon: "item" as const, label: t("Items"), value: currentLocationSummary.items },
                     {
                       icon: "transition" as const,
-                      label: "World transitions",
+                      label: t("World transitions"),
                       value: currentLocationSummary.transitions,
-                      title: `${formatCount(currentLocationSummary.outgoingTransitions, "outgoing world transition")}; ${formatCount(
+                      // i18n-ignore-next-line -- source key is translated inside formatCount
+                      title: `${formatCount(t, currentLocationSummary.outgoingTransitions, "outgoing world transition")}; ${formatCount(
+                        t,
                         currentLocationSummary.incomingTransitions,
+                        // i18n-ignore-next-line -- source key is translated inside formatCount
                         "incoming world transition"
                       )}.`
                     }
@@ -505,16 +523,16 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
 
             <div className="world-panel__scenes">
               <div className="world-panel__section-header">
-                <h4>Scenes</h4>
+                <h4>{t("Scenes")}</h4>
                 {currentLocation.sceneIds.length > 0 ? (
                   <button
                     type="button"
                     className="world-panel__compact-action world-panel__compact-action--primary"
-                    title={`Add a scene to ${currentLocation.name}.`}
+                    title={t("Add a scene to {name}.", { name: currentLocation.name })}
                     onClick={createSceneInCurrentLocation}
                   >
                     <WorldPanelIcon kind="sceneAdd" />
-                    <span>Add Scene</span>
+                    <span>{t("Add Scene")}</span>
                   </button>
                 ) : null}
               </div>
@@ -528,7 +546,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                       <div key={sceneId} className="world-panel__scene-row world-panel__scene-row--missing" role="listitem">
                         <span className="world-panel__scene-index">{formatIndex(index)}</span>
                         <span className="world-panel__scene-copy">
-                          <strong>Missing scene</strong>
+                          <strong>{t("Missing scene")}</strong>
                           <span>{sceneId}</span>
                         </span>
                       </div>
@@ -543,20 +561,21 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                       type="button"
                       className={scene.id === selectedSceneId ? "world-panel__scene-row world-panel__scene-row--selected" : "world-panel__scene-row"}
                       onClick={() => openScene(scene)}
-                      title={`Open ${scene.name} in Scenes.`}
+                      title={t("Open {name} in Scenes.", { name: scene.name })}
+                      style={direction === "rtl" ? { textAlign: "right" } : undefined}
                     >
                       <span className="world-panel__scene-index">{formatIndex(index)}</span>
                       <span className="world-panel__scene-copy">
                         <strong>{scene.name}</strong>
                         <span className="world-panel__scene-meta">
-                          {scene.id === project.manifest.startSceneId ? <span>Start scene</span> : null}
+                          {scene.id === project.manifest.startSceneId ? <span>{t("Start scene")}</span> : null}
                           <span>
                             <WorldPanelIcon kind="speaker" />
-                            Speakers {sceneSummary.speakers}
+                            {t("Speakers {count}", { count: sceneSummary.speakers })}
                           </span>
                           <span>
                             <WorldPanelIcon kind="dialogue" />
-                            Dialogues {sceneSummary.dialogues}
+                            {t("Dialogues {count}", { count: sceneSummary.dialogues })}
                           </span>
                         </span>
                       </span>
@@ -568,23 +587,23 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
               ) : (
                 <div className="world-panel__empty-state world-panel__empty-state--details">
                   <WorldPanelIcon kind="emptyScene" />
-                  <strong>No scenes here</strong>
+                  <strong>{t("No scenes here")}</strong>
                   <button type="button" onClick={createSceneInCurrentLocation}>
                     <WorldPanelIcon kind="sceneAdd" />
-                    <span>Add Scene</span>
+                    <span>{t("Add Scene")}</span>
                   </button>
                 </div>
               )}
-              <div className="world-panel__details-footer">{formatCount(currentLocation.sceneIds.length, "scene")}</div>
+              <div className="world-panel__details-footer">{formatCount(t, currentLocation.sceneIds.length, "scene")}</div>
             </div>
           </>
         ) : (
           <div className="world-panel__empty-state world-panel__empty-state--details">
             <WorldPanelIcon kind="locationAdd" />
-            <strong>Choose a location</strong>
+            <strong>{t("Choose a location")}</strong>
             <button type="button" onClick={createLocation}>
               <WorldPanelIcon kind="locationAdd" />
-              <span>Add Location</span>
+              <span>{t("Add Location")}</span>
             </button>
           </div>
         )}
@@ -651,18 +670,49 @@ function resolveTransitionCounts(
   return counts.get(locationId) ?? { incoming: 0, outgoing: 0, total: 0 };
 }
 
-function formatCount(count: number, singular: string) {
-  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+type WorldCountNoun =
+  | "scene"
+  | "location"
+  | "cross-location transition"
+  | "cross-location scene transition"
+  | "outgoing world transition"
+  | "incoming world transition";
+
+function formatCount(t: EditorTranslator, count: number, noun: WorldCountNoun) {
+  if (noun === "scene") {
+    return count === 1 ? t("{count} scene", { count }) : t("{count} scenes", { count });
+  }
+  if (noun === "location") {
+    return count === 1 ? t("{count} location", { count }) : t("{count} locations", { count });
+  }
+  if (noun === "cross-location transition") {
+    return count === 1
+      ? t("{count} cross-location transition", { count })
+      : t("{count} cross-location transitions", { count });
+  }
+  if (noun === "cross-location scene transition") {
+    return count === 1
+      ? t("{count} cross-location scene transition", { count })
+      : t("{count} cross-location scene transitions", { count });
+  }
+  if (noun === "outgoing world transition") {
+    return count === 1
+      ? t("{count} outgoing world transition", { count })
+      : t("{count} outgoing world transitions", { count });
+  }
+  return count === 1
+    ? t("{count} incoming world transition", { count })
+    : t("{count} incoming world transitions", { count });
 }
 
-function formatTransitionDirectionCounts(counts: WorldLocationTransitionCounts) {
+function formatTransitionDirectionCounts(t: EditorTranslator, counts: WorldLocationTransitionCounts) {
   const directions: string[] = [];
 
   if (counts.outgoing > 0) {
-    directions.push(`${counts.outgoing} out`);
+    directions.push(t("{count} out", { count: counts.outgoing }));
   }
   if (counts.incoming > 0) {
-    directions.push(`${counts.incoming} in`);
+    directions.push(t("{count} in", { count: counts.incoming }));
   }
 
   return directions.join(" · ");
@@ -888,6 +938,7 @@ function WorldLocationMap({
   onMoveLocation: (locationId: string, position: { x: number; y: number }) => void;
   onSelectLocation: (locationId: string) => void;
 }) {
+  const { direction, t } = useEditorI18n();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const autoFitSignatureRef = useRef<string | null>(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
@@ -1099,19 +1150,19 @@ function WorldLocationMap({
       <div className="panel__toolbar world-panel__map-toolbar">
         <div className="world-panel__map-toolbar-main">
           <div className="world-panel__toolbar-title">
-            <h3>World Overview</h3>
+            <h3>{t("World Overview")}</h3>
             <span>
-              {formatCount(locations.length, "location")} · {formatCount(worldTransitionCount, "cross-location transition")}
+              {formatCount(t, locations.length, "location")} · {formatCount(t, worldTransitionCount, "cross-location transition")}
             </span>
           </div>
 
-          <div className="world-panel__map-tools" role="toolbar" aria-label="World overview tools">
+          <div className="world-panel__map-tools" role="toolbar" aria-label={t("World overview tools")}>
             <button
               type="button"
               className={mapTool === "select" ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
-              aria-label="Select map tool"
+              aria-label={t("Select map tool")}
               aria-pressed={mapTool === "select"}
-              title="Select and arrange locations"
+              title={t("Select and arrange locations")}
               onClick={() => setMapTool("select")}
             >
               <WorldPanelIcon kind="select" />
@@ -1119,31 +1170,31 @@ function WorldLocationMap({
             <button
               type="button"
               className={mapTool === "pan" ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
-              aria-label="Pan map tool"
+              aria-label={t("Pan map tool")}
               aria-pressed={mapTool === "pan"}
-              title="Pan the map"
+              title={t("Pan the map")}
               onClick={() => setMapTool("pan")}
             >
               <WorldPanelIcon kind="pan" />
             </button>
-            <button type="button" className="world-panel__map-tool" aria-label="Fit map" title="Fit locations in view" onClick={fitMap}>
+            <button type="button" className="world-panel__map-tool" aria-label={t("Fit map")} title={t("Fit locations in view")} onClick={fitMap}>
               <WorldPanelIcon kind="fit" />
             </button>
-            <button type="button" className="world-panel__map-tool" aria-label="Add location" title="Add location" onClick={onCreateLocation}>
+            <button type="button" className="world-panel__map-tool" aria-label={t("Add location")} title={t("Add location")} onClick={onCreateLocation}>
               <WorldPanelIcon kind="locationAdd" />
             </button>
-            <button type="button" className="world-panel__map-tool" aria-label="Zoom in" title="Zoom in" onClick={() => zoomMap(1.16)}>
+            <button type="button" className="world-panel__map-tool" aria-label={t("Zoom in")} title={t("Zoom in")} onClick={() => zoomMap(1.16)}>
               <WorldPanelIcon kind="zoomIn" />
             </button>
-            <button type="button" className="world-panel__map-tool" aria-label="Zoom out" title="Zoom out" onClick={() => zoomMap(0.86)}>
+            <button type="button" className="world-panel__map-tool" aria-label={t("Zoom out")} title={t("Zoom out")} onClick={() => zoomMap(0.86)}>
               <WorldPanelIcon kind="zoomOut" />
             </button>
             <button
               type="button"
               className={showGrid ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
-              aria-label="Toggle map grid"
+              aria-label={t("Toggle map grid")}
               aria-pressed={showGrid}
-              title="Toggle map grid"
+              title={t("Toggle map grid")}
               onClick={() => setShowGrid((value) => !value)}
             >
               <WorldPanelIcon kind="grid" />
@@ -1151,9 +1202,9 @@ function WorldLocationMap({
             <button
               type="button"
               className={showTransitions ? "world-panel__map-tool world-panel__map-tool--active" : "world-panel__map-tool"}
-              aria-label="Toggle cross-location scene transitions"
+              aria-label={t("Toggle cross-location scene transitions")}
               aria-pressed={showTransitions}
-              title="Show or hide cross-location scene transitions"
+              title={t("Show or hide cross-location scene transitions")}
               onClick={() => setShowTransitions((value) => !value)}
             >
               <WorldPanelIcon kind="transition" />
@@ -1165,8 +1216,8 @@ function WorldLocationMap({
           <label className="world-panel__search-field world-panel__search-field--map">
             <WorldPanelIcon kind="search" />
             <input
-              aria-label="Search map"
-              placeholder="Search map..."
+              aria-label={t("Search map")}
+              placeholder={t("Search map...")}
               value={mapSearch}
               onChange={(event) => setMapSearch(event.target.value)}
               onKeyDown={(event) => {
@@ -1179,18 +1230,21 @@ function WorldLocationMap({
           <button
             type="button"
             className={showMapOptions ? "world-panel__icon-action world-panel__icon-action--active" : "world-panel__icon-action"}
-            aria-label="Map options"
+            aria-label={t("Map options")}
             aria-expanded={showMapOptions}
-            title="Map options."
+            title={t("Map options.")}
             onClick={() => setShowMapOptions((value) => !value)}
           >
             <WorldPanelIcon kind="gear" />
           </button>
           {showMapOptions ? (
-            <div className="world-panel__map-options">
+            <div
+              className="world-panel__map-options"
+              style={direction === "rtl" ? { right: "auto", left: 0, textAlign: "right" } : undefined}
+            >
               <label>
                 <input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} />
-                <span>Grid</span>
+                <span>{t("Grid")}</span>
               </label>
               <label>
                 <input
@@ -1198,11 +1252,11 @@ function WorldLocationMap({
                   checked={showTransitions}
                   onChange={(event) => setShowTransitions(event.target.checked)}
                 />
-                <span>World transitions</span>
+                <span>{t("World transitions")}</span>
               </label>
               <label>
                 <input type="checkbox" checked={showSceneCounts} onChange={(event) => setShowSceneCounts(event.target.checked)} />
-                <span>Scene counts</span>
+                <span>{t("Scene counts")}</span>
               </label>
             </div>
           ) : null}
@@ -1215,7 +1269,8 @@ function WorldLocationMap({
           interaction?.type === "pan" ? " world-panel__map-stage--panning" : ""
         }`}
         role="application"
-        aria-label="World overview of locations and cross-location scene transitions"
+        aria-label={t("World overview of locations and cross-location scene transitions")}
+        dir="ltr"
         onPointerDown={handleStagePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endInteraction}
@@ -1237,7 +1292,7 @@ function WorldLocationMap({
               width={canvasSize.width}
               height={canvasSize.height}
               role="img"
-              aria-label="Read-only cross-location scene transitions between locations"
+              aria-label={t("Read-only cross-location scene transitions between locations")}
             >
               <defs>
                 <marker
@@ -1288,7 +1343,13 @@ function WorldLocationMap({
                         : "world-panel__map-transition"
                     }
                   >
-                    <title>{`${sourceName} to ${targetName}: ${formatCount(edge.transitionCount, "cross-location scene transition")}`}</title>
+                    <title>
+                      {t("{source} to {target}: {transitionCount}", {
+                        source: sourceName,
+                        target: targetName,
+                        transitionCount: formatCount(t, edge.transitionCount, "cross-location scene transition")
+                      })}
+                    </title>
                     <path
                       d={path.d}
                       markerEnd={
@@ -1320,30 +1381,35 @@ function WorldLocationMap({
                   key={location.id}
                   type="button"
                   className={isSelected ? "world-panel__map-node world-panel__map-node--selected" : "world-panel__map-node"}
-                  style={{ left: position.x, top: position.y } as CSSProperties}
+                  style={{ left: position.x, top: position.y, textAlign: direction === "rtl" ? "right" : "left" } as CSSProperties}
                   aria-pressed={isSelected}
-                  title={`Select ${location.name}. Drag to arrange its map position.`}
+                  title={t("Select {name}. Drag to arrange its map position.", { name: location.name })}
                   onPointerDown={(event) => handleNodePointerDown(event, location)}
                   onClick={() => onSelectLocation(location.id)}
                 >
                   <WorldPanelIcon kind={resolveLocationIconKind(location)} />
-                  <span className="world-panel__map-node-copy">
+                  <span className="world-panel__map-node-copy" dir={direction}>
                     <strong>{location.name}</strong>
-                    {showSceneCounts ? <span>{formatCount(location.sceneIds.length, "scene")}</span> : null}
+                    {showSceneCounts ? <span>{formatCount(t, location.sceneIds.length, "scene")}</span> : null}
                   </span>
-                  {location.id === startLocationId ? <span className="world-panel__start-badge">Start</span> : null}
+                  {location.id === startLocationId ? <span className="world-panel__start-badge" dir={direction}>{t("Start")}</span> : null}
                   {resolveTransitionCounts(transitionCounts, location.id).total > 0 ? (
                     <span
                       className="world-panel__map-node-transitions"
+                      dir={direction}
                       title={`${formatCount(
+                        t,
                         resolveTransitionCounts(transitionCounts, location.id).outgoing,
+                        // i18n-ignore-next-line -- source key is translated inside formatCount
                         "outgoing world transition"
                       )}; ${formatCount(
+                        t,
                         resolveTransitionCounts(transitionCounts, location.id).incoming,
+                        // i18n-ignore-next-line -- source key is translated inside formatCount
                         "incoming world transition"
                       )}.`}
                     >
-                      {formatTransitionDirectionCounts(resolveTransitionCounts(transitionCounts, location.id))}
+                      {formatTransitionDirectionCounts(t, resolveTransitionCounts(transitionCounts, location.id))}
                     </span>
                   ) : null}
                 </button>
@@ -1353,19 +1419,19 @@ function WorldLocationMap({
         ) : (
           <div className="world-panel__empty-state world-panel__empty-state--map">
             <WorldPanelIcon kind="locationAdd" />
-            <strong>No locations yet</strong>
+            <strong dir={direction}>{t("No locations yet")}</strong>
             <button type="button" onClick={onCreateLocation}>
               <WorldPanelIcon kind="locationAdd" />
-              <span>Add Location</span>
+              <span dir={direction}>{t("Add Location")}</span>
             </button>
           </div>
         )}
         {locations.length > 0 ? (
-          <div className="world-panel__topology-note" aria-label="Cross-location scene transition behavior">
+          <div className="world-panel__topology-note" aria-label={t("Cross-location scene transition behavior")} dir={direction}>
             <WorldPanelIcon kind="transition" />
             <span>
-              <strong>Cross-location scene transitions</strong>
-              <small>Read-only · derived from hotspot targets and scene effects authored in Scenes</small>
+              <strong>{t("Cross-location scene transitions")}</strong>
+              <small>{t("Read-only · derived from hotspot targets and scene effects authored in Scenes")}</small>
             </span>
           </div>
         ) : null}

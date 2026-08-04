@@ -24,6 +24,8 @@ import {
   isSceneAudioImportPath
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { useEditorI18n } from "../i18n/EditorI18nProvider";
+import { translateRuntimeMessage } from "../i18n/runtime-message";
 import { getLocalizedAssetVariant } from "../localized-project";
 import {
   addHotspot,
@@ -131,6 +133,7 @@ export function ScenesPanel({
   setBusyLabel
 }: ScenesPanelProps) {
   const dialogs = useDialogs();
+  const { t } = useEditorI18n();
   const scenesPanelRef = useRef<HTMLDivElement>(null);
   const inventoryPickerAnchorRef = useRef<HTMLButtonElement>(null);
   const hotspotKeyboardTransformBatchRef = useRef<{ hotspotId?: string; signature?: string }>({});
@@ -195,7 +198,8 @@ export function ScenesPanel({
     localeStrings,
     selectedHotspot
       ? resolveHotspotInventoryAction(selectedHotspot).itemId ?? selectedHotspot.inventoryItemId
-      : undefined
+      : undefined,
+    t
   );
   const eligibleLinkedInventoryOptions = linkedInventoryOptions.filter((option) => option.eligible);
   const visibleInventoryPickerOptions = filterInventoryPlacementOptions(eligibleLinkedInventoryOptions, inventoryPickerSearch);
@@ -316,17 +320,17 @@ export function ScenesPanel({
     }
 
     if (currentScene.sceneAudioAssetId && isVideoImportPath(filePath)) {
-      reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
+      reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
       return;
     }
 
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Importing background");
+      setBusyLabel(t("Importing background"));
       const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
@@ -340,7 +344,7 @@ export function ScenesPanel({
           : undefined;
         if (duplicateAsset) {
           if (!canAssignSceneBackgroundAsset(currentScene, duplicateAsset.kind)) {
-            reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
+            reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
             return;
           }
 
@@ -352,7 +356,10 @@ export function ScenesPanel({
           });
           useEditorStore.getState().setSelectedAssetId(duplicateAsset.id);
           reportSceneOperation(
-            `Assigned existing ${duplicateAsset.name} as the background for ${currentScene.name}. Save the project to keep this change.`,
+            t("Assigned existing {assetName} as the background for {sceneName}. Save the project to keep this change.", {
+              assetName: duplicateAsset.name,
+              sceneName: currentScene.name
+            }),
             "success"
           );
           return;
@@ -360,18 +367,18 @@ export function ScenesPanel({
 
         if (duplicateFilePaths.length > 0) {
           reportSceneOperation(
-            "That file already exists as a background asset. Choose it from the background picker.",
+            t("That file already exists as a background asset. Choose it from the background picker."),
             "warning"
           );
         } else {
-          reportSceneOperation("No new background asset was created.", "warning");
+          reportSceneOperation(t("No new background asset was created."), "warning");
         }
         return;
       }
 
       const importedAsset = importedAssets[0]!;
       if (!canAssignSceneBackgroundAsset(currentScene, importedAsset.kind)) {
-        reportSceneOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
+        reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
         return;
       }
 
@@ -385,12 +392,15 @@ export function ScenesPanel({
       });
       useEditorStore.getState().setSelectedAssetId(importedAsset.id);
       reportSceneOperation(
-        `Imported ${importedAsset.name} and assigned it as the background for ${currentScene.name}. Save the project to keep this change.`,
+        t("Imported {assetName} and assigned it as the background for {sceneName}. Save the project to keep this change.", {
+          assetName: importedAsset.name,
+          sceneName: currentScene.name
+        }),
         "success"
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      reportSceneOperation(`Background import failed: ${message}`, "error");
+      const message = translateRuntimeMessage(error, t);
+      reportSceneOperation(t("Background import failed: {message}", { message }), "error");
     } finally {
       setBusyLabel(undefined);
     }
@@ -402,12 +412,14 @@ export function ScenesPanel({
     }
 
     const filePaths = await dialogs.pickFiles({
-      title: currentAsset ? `Replace Background for ${currentScene.name}` : `Upload Background for ${currentScene.name}`,
+      title: currentAsset
+        ? t("Replace Background for {sceneName}", { sceneName: currentScene.name })
+        : t("Upload Background for {sceneName}", { sceneName: currentScene.name }),
       description: backgroundImportAcceptsVideo
-        ? "Choose an image or video file to create a background asset and assign it to this scene."
-        : "Choose an image file to create a background asset and assign it to this scene.",
+        ? t("Choose an image or video file to create a background asset and assign it to this scene.")
+        : t("Choose an image file to create a background asset and assign it to this scene."),
       initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: currentAsset ? "Use as Background" : "Upload Background",
+      confirmLabel: currentAsset ? t("Use as Background") : t("Upload Background"),
       allowedExtensions: [...(backgroundImportAcceptsVideo ? BACKGROUND_IMPORT_EXTENSIONS : IMAGE_IMPORT_EXTENSIONS)]
     });
     const filePath = filePaths[0];
@@ -424,17 +436,17 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
+      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
       return;
     }
 
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Importing scene audio");
+      setBusyLabel(t("Importing scene audio"));
       const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
@@ -456,7 +468,10 @@ export function ScenesPanel({
           });
           useEditorStore.getState().setSelectedAssetId(duplicateAsset.id);
           reportSceneOperation(
-            `Assigned existing ${duplicateAsset.name} as the scene audio for ${currentScene.name}. Save the project to keep this change.`,
+            t("Assigned existing {assetName} as the scene audio for {sceneName}. Save the project to keep this change.", {
+              assetName: duplicateAsset.name,
+              sceneName: currentScene.name
+            }),
             "success"
           );
           return;
@@ -464,11 +479,11 @@ export function ScenesPanel({
 
         if (duplicateFilePaths.length > 0) {
           reportSceneOperation(
-            "That file already exists as a scene audio asset. Choose it from the scene audio picker.",
+            t("That file already exists as a scene audio asset. Choose it from the scene audio picker."),
             "warning"
           );
         } else {
-          reportSceneOperation("No new scene audio asset was created.", "warning");
+          reportSceneOperation(t("No new scene audio asset was created."), "warning");
         }
         return;
       }
@@ -485,12 +500,15 @@ export function ScenesPanel({
       });
       useEditorStore.getState().setSelectedAssetId(importedAsset.id);
       reportSceneOperation(
-        `Imported ${importedAsset.name} and assigned it as the scene audio for ${currentScene.name}. Save the project to keep this change.`,
+        t("Imported {assetName} and assigned it as the scene audio for {sceneName}. Save the project to keep this change.", {
+          assetName: importedAsset.name,
+          sceneName: currentScene.name
+        }),
         "success"
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      reportSceneOperation(`Scene audio import failed: ${message}`, "error");
+      const message = translateRuntimeMessage(error, t);
+      reportSceneOperation(t("Scene audio import failed: {message}", { message }), "error");
     } finally {
       setBusyLabel(undefined);
     }
@@ -502,15 +520,17 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
+      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
       return;
     }
 
     const filePaths = await dialogs.pickFiles({
-      title: currentSceneAudioAsset ? `Replace Scene Audio for ${currentScene.name}` : `Upload Scene Audio for ${currentScene.name}`,
-      description: "Choose an audio file to create a scene audio asset and assign it to this scene.",
+      title: currentSceneAudioAsset
+        ? t("Replace Scene Audio for {sceneName}", { sceneName: currentScene.name })
+        : t("Upload Scene Audio for {sceneName}", { sceneName: currentScene.name }),
+      description: t("Choose an audio file to create a scene audio asset and assign it to this scene."),
       initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: currentSceneAudioAsset ? "Use as Scene Audio" : "Upload Scene Audio",
+      confirmLabel: currentSceneAudioAsset ? t("Use as Scene Audio") : t("Upload Scene Audio"),
       allowedExtensions: [...SCENE_AUDIO_IMPORT_EXTENSIONS]
     });
     const filePath = filePaths[0];
@@ -525,10 +545,10 @@ export function ScenesPanel({
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Importing interaction media");
+      setBusyLabel(t("Importing interaction media"));
       const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
@@ -545,8 +565,8 @@ export function ScenesPanel({
       if (!assignedAsset) {
         setStatusMessage(
           duplicateFilePaths.length > 0
-            ? "That file already exists as foreground media. Choose it from the interaction media picker."
-            : "No new interaction media asset was created."
+            ? t("That file already exists as foreground media. Choose it from the interaction media picker.")
+            : t("No new interaction media asset was created.")
         );
         return;
       }
@@ -563,12 +583,18 @@ export function ScenesPanel({
         }
       });
       useEditorStore.getState().setSelectedAssetId(assignedAsset.id);
-      setStatusMessage(
-        `${importedAssets[0] ? "Imported" : "Assigned existing"} ${assignedAsset.name} as interaction media for ${hotspotName}. Save the project to keep this change.`
-      );
+      setStatusMessage(importedAssets[0]
+        ? t("Imported {assetName} as interaction media for {hotspotName}. Save the project to keep this change.", {
+            assetName: assignedAsset.name,
+            hotspotName
+          })
+        : t("Assigned existing {assetName} as interaction media for {hotspotName}. Save the project to keep this change.", {
+            assetName: assignedAsset.name,
+            hotspotName
+          }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Interaction media import failed: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Interaction media import failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -576,10 +602,10 @@ export function ScenesPanel({
 
   async function handleImportInteractionMedia(hotspot: Hotspot) {
     const filePaths = await dialogs.pickFiles({
-      title: `Import Interaction Media for ${hotspot.name}`,
-      description: "Choose an audio or video file to play once when this hotspot is activated.",
+      title: t("Import Interaction Media for {hotspotName}", { hotspotName: hotspot.name }),
+      description: t("Choose an audio or video file to play once when this hotspot is activated."),
       initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: "Use as Interaction Media",
+      confirmLabel: t("Use as Interaction Media"),
       allowedExtensions: [...FOREGROUND_MEDIA_IMPORT_EXTENSIONS]
     });
     const filePath = filePaths[0];
@@ -686,10 +712,10 @@ export function ScenesPanel({
     if (!filePath) {
       const message =
         !backgroundImportAcceptsVideo && droppedFilePaths.some(isVideoImportPath)
-          ? VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE
+          ? t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE)
           : backgroundImportAcceptsVideo
-            ? "Drop an image or video file onto the scene preview to replace the background."
-            : "Drop an image file onto the scene preview to replace the background.";
+            ? t("Drop an image or video file onto the scene preview to replace the background.")
+            : t("Drop an image file onto the scene preview to replace the background.");
       reportSceneOperation(message, "error");
       return;
     }
@@ -818,13 +844,13 @@ export function ScenesPanel({
     setIsSceneAudioDropActive(false);
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation("Scene audio is only available when the scene uses an image background.", "error");
+      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
       return;
     }
 
     if (resolveSceneAudioDataTransferAcceptance(event.dataTransfer) === "reject") {
       event.dataTransfer.dropEffect = "none";
-      reportSceneOperation(SCENE_AUDIO_DROP_REJECTION_MESSAGE, "error");
+      reportSceneOperation(t(SCENE_AUDIO_DROP_REJECTION_MESSAGE), "error");
       return;
     }
 
@@ -834,7 +860,7 @@ export function ScenesPanel({
     const filePath = droppedFilePaths.find(isSceneAudioImportPath);
 
     if (!filePath) {
-      reportSceneOperation(SCENE_AUDIO_DROP_REJECTION_MESSAGE, "error");
+      reportSceneOperation(t(SCENE_AUDIO_DROP_REJECTION_MESSAGE), "error");
       return;
     }
 
@@ -843,11 +869,11 @@ export function ScenesPanel({
 
   function deleteHotspot(hotspotId: string | undefined) {
     if (!currentSceneId || !hotspotId) {
-      reportSceneOperation("Select a hotspot or placed inventory item before deleting it.", "error");
+      reportSceneOperation(t("Select a hotspot or placed inventory item before deleting it."), "error");
       return;
     }
 
-    const hotspotName = currentScene.hotspots.find((entry) => entry.id === hotspotId)?.name ?? "selected scene object";
+    const hotspotName = currentScene.hotspots.find((entry) => entry.id === hotspotId)?.name ?? t("selected scene object");
     let deleted = false;
     mutateProject((draft) => {
       const scene = draft.scenes.items.find((entry) => entry.id === currentSceneId);
@@ -869,8 +895,11 @@ export function ScenesPanel({
 
     reportSceneOperation(
       deleted
-        ? `Deleted ${hotspotName} from ${currentScene.name}. Save the project to keep this change.`
-        : `Could not delete ${hotspotName} because it is no longer in this scene.`,
+        ? t("Deleted {hotspotName} from {sceneName}. Save the project to keep this change.", {
+            hotspotName,
+            sceneName: currentScene.name
+          })
+        : t("Could not delete {hotspotName} because it is no longer in this scene.", { hotspotName }),
       deleted ? "success" : "error"
     );
   }
@@ -974,13 +1003,13 @@ export function ScenesPanel({
     inspectorSelectionMode: HotspotInspectorSelectionMode = "open"
   ) {
     if (!currentSceneId) {
-      reportSceneOperation("Select a scene before placing an inventory item.", "error");
+      reportSceneOperation(t("Select a scene before placing an inventory item."), "error");
       return;
     }
 
     const option = linkedInventoryOptions.find((entry) => entry.itemId === itemId);
     if (!option?.eligible) {
-      reportSceneOperation("Add artwork to an item to make it available here.", "error");
+      reportSceneOperation(t("Add artwork to an item to make it available here."), "error");
       return;
     }
 
@@ -1029,14 +1058,17 @@ export function ScenesPanel({
     });
 
     if (!createdHotspotId) {
-      reportSceneOperation("Could not place that inventory item in this scene.", "error");
+      reportSceneOperation(t("Could not place that inventory item in this scene."), "error");
       return;
     }
 
     setIsInventoryPickerOpen(false);
     selectHotspot(createdHotspotId, inspectorSelectionMode);
     reportSceneOperation(
-      `Placed ${option.label} in ${currentScene.name}. Save the project to keep this change.`,
+      t("Placed {itemLabel} in {sceneName}. Save the project to keep this change.", {
+        itemLabel: option.baseLabel,
+        sceneName: currentScene.name
+      }),
       "success"
     );
   }
@@ -1290,13 +1322,13 @@ export function ScenesPanel({
   ]);
 
   if (!currentScene) {
-    return <div className="panel"><p>Create a scene to begin.</p></div>;
+    return <div className="panel"><p>{t("Create a scene to begin.")}</p></div>;
   }
 
   async function handleDeleteScene(sceneId = currentScene.id) {
     const targetScene = project.scenes.items.find((scene) => scene.id === sceneId);
     if (!targetScene) {
-      reportSceneOperation("Could not delete scene because it is no longer present in the project.", "error");
+      reportSceneOperation(t("Could not delete scene because it is no longer present in the project."), "error");
       return;
     }
 
@@ -1319,7 +1351,7 @@ export function ScenesPanel({
     );
 
     if (!deletion.deleted) {
-      reportSceneOperation(resolveDeleteSceneBlockedMessage(targetScene.name, deletion.blockedReason), "error");
+      reportSceneOperation(resolveDeleteSceneBlockedMessage(targetScene.name, deletion.blockedReason, t), "error");
       return;
     }
 
@@ -1344,7 +1376,8 @@ export function ScenesPanel({
         deletion,
         replacementSceneName,
         validationReport.valid,
-        validationReport.issues.length
+        validationReport.issues.length,
+        t
       ),
       validationReport.valid ? "success" : "warning"
     );
@@ -1357,7 +1390,7 @@ export function ScenesPanel({
     setSelectedHotspotId(undefined);
     setSelectedSceneId(scene.id);
     updateProject(nextProject);
-    setStatusMessage(`Created ${scene.name}.`);
+    setStatusMessage(t("Created {sceneName}.", { sceneName: scene.name }));
   }
 
   return (

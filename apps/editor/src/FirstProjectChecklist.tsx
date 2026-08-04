@@ -1,4 +1,5 @@
 import type { FirstProjectChecklistState, FirstProjectChecklistStepId } from "./first-project-checklist";
+import { useEditorI18n, type EditorTranslator } from "./i18n";
 
 interface FirstProjectChecklistProps {
   state: FirstProjectChecklistState;
@@ -19,19 +20,20 @@ export function FirstProjectChecklist({
   onOpenPlaytest,
   onDismiss
 }: FirstProjectChecklistProps) {
+  const { t } = useEditorI18n();
   return (
     <section className="first-project-checklist" aria-labelledby="first-project-checklist-title">
       <header className="first-project-checklist__header">
         <div>
-          <p className="first-project-checklist__eyebrow">First project</p>
-          <h3 id="first-project-checklist-title">Turn the starter into a playable scene</h3>
-          <p>{state.completedCount} of {state.steps.length} setup steps complete</p>
+          <p className="first-project-checklist__eyebrow">{t("First project")}</p>
+          <h3 id="first-project-checklist-title">{t("Turn the starter into a playable scene")}</h3>
+          <p>{t("{completedCount} of {stepCount} setup steps complete", { completedCount: state.completedCount, stepCount: state.steps.length })}</p>
         </div>
         <button
           type="button"
           className="first-project-checklist__dismiss"
-          aria-label="Hide first project guide"
-          title="Hide this guide for the current editor session."
+          aria-label={t("Hide first project guide")}
+          title={t("Hide this guide for the current editor session.")}
           onClick={onDismiss}
         >
           ×
@@ -41,7 +43,7 @@ export function FirstProjectChecklist({
       <div
         className="first-project-checklist__progress"
         role="progressbar"
-        aria-label="First project setup progress"
+        aria-label={t("First project setup progress")}
         aria-valuemin={0}
         aria-valuemax={state.steps.length}
         aria-valuenow={state.completedCount}
@@ -73,7 +75,7 @@ export function FirstProjectChecklist({
                 onOpenPlaytest
               })}
             >
-              {resolveStepActionLabel(step.id, step.complete)}
+              {resolveStepActionLabel(step.id, step.complete, t)}
             </button>
           </li>
         ))}
@@ -102,15 +104,15 @@ function resolveStepAction(
   return complete ? actions.onOpenPlaytest : actions.onReviewValidation;
 }
 
-function resolveStepActionLabel(stepId: FirstProjectChecklistStepId, complete: boolean): string {
+function resolveStepActionLabel(stepId: FirstProjectChecklistStepId, complete: boolean, t: EditorTranslator): string {
   if (stepId === "media") {
-    return complete ? "Open scene" : "Add media";
+    return complete ? t("Open scene") : t("Add media");
   }
   if (stepId === "interaction") {
-    return complete ? "Open hotspot" : "Wire hotspot";
+    return complete ? t("Open hotspot") : t("Wire hotspot");
   }
   if (stepId === "player") {
-    return "Open player";
+    return t("Open player");
   }
-  return complete ? "Playtest" : "Review issues";
+  return complete ? t("Playtest") : t("Review issues");
 }

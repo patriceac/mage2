@@ -5,6 +5,12 @@ import {
   type ProjectBundle,
   type SaveState
 } from "@mage2/schema";
+import type { EditorTranslator } from "./i18n";
+
+const identityTranslator: EditorTranslator = (source, params) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params ?? {}, name) ? String(params?.[name]) : placeholder
+  );
 
 export const PLAYTEST_SAVE_SLOT_IDS = [1, 2, 3] as const;
 export type PlaytestSaveSlotId = (typeof PLAYTEST_SAVE_SLOT_IDS)[number];
@@ -60,24 +66,28 @@ export function createPlaytestSaveEnvelope(
   };
 }
 
-export function createEmptyPlaytestSaveSlotInspection(slotId: PlaytestSaveSlotId): PlaytestSaveSlotInspection {
+export function createEmptyPlaytestSaveSlotInspection(
+  slotId: PlaytestSaveSlotId,
+  t: EditorTranslator = identityTranslator
+): PlaytestSaveSlotInspection {
   return {
     slotId,
     status: "empty",
-    message: "No save stored in this slot."
+    message: t("No save stored in this slot.")
   };
 }
 
 export function readPlaytestSaveSlot(
   storage: PlaytestSaveStorage | undefined,
   project: ProjectBundle,
-  slotId: PlaytestSaveSlotId
+  slotId: PlaytestSaveSlotId,
+  t: EditorTranslator = identityTranslator
 ): PlaytestSaveSlotInspection {
   if (!storage) {
     return {
       slotId,
       status: "unavailable",
-      message: "Local save storage is unavailable."
+      message: t("Local save storage is unavailable.")
     };
   }
 
@@ -88,20 +98,21 @@ export function readPlaytestSaveSlot(
     return {
       slotId,
       status: "unavailable",
-      message: `Local save storage could not be read: ${resolveErrorMessage(error)}`
+      message: t("Local save storage could not be read: {message}", { message: resolveErrorMessage(error) })
     };
   }
 
-  return inspectPlaytestSaveSlot(raw, project, slotId);
+  return inspectPlaytestSaveSlot(raw, project, slotId, t);
 }
 
 export function inspectPlaytestSaveSlot(
   raw: string | null,
   project: ProjectBundle,
-  slotId: PlaytestSaveSlotId
+  slotId: PlaytestSaveSlotId,
+  t: EditorTranslator = identityTranslator
 ): PlaytestSaveSlotInspection {
   if (!raw) {
-    return createEmptyPlaytestSaveSlotInspection(slotId);
+    return createEmptyPlaytestSaveSlotInspection(slotId, t);
   }
 
   let parsed: unknown;
@@ -111,12 +122,12 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "corrupt",
-      message: `Stored data is not valid JSON: ${resolveErrorMessage(error)}`
+      message: t("Stored data is not valid JSON: {message}", { message: resolveErrorMessage(error) })
     };
   }
 
   if (isRecord(parsed) && parsed.format === SAVE_ENVELOPE_FORMAT) {
-    return inspectVersionedEditorSave(raw, project, slotId);
+    return inspectVersionedEditorSave(raw, project, slotId, t);
   }
 
   if (!isRecord(parsed) || parsed.format !== PLAYTEST_SAVE_FORMAT) {
@@ -125,13 +136,13 @@ export function inspectPlaytestSaveSlot(
       return {
         slotId,
         status: "incompatible",
-        message: "Legacy save data has no project identity. Overwrite or clear this slot before loading."
+        message: t("Legacy save data has no project identity. Overwrite or clear this slot before loading.")
       };
     } catch {
       return {
         slotId,
         status: "corrupt",
-        message: "Stored data is not a recognized MAGE2 playtest save."
+        message: t("Stored data is not a recognized MAGE2 playtest save.")
       };
     }
   }
@@ -141,7 +152,7 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "corrupt",
-      message: "The save timestamp is missing or invalid."
+      message: t("The save timestamp is missing or invalid.")
     };
   }
 
@@ -149,7 +160,7 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "incompatible",
-      message: `Save format ${String(parsed.formatVersion)} is not supported by this editor.`,
+      message: t("Save format {version} is not supported by this editor.", { version: String(parsed.formatVersion) }),
       savedAt
     };
   }
@@ -162,7 +173,7 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "corrupt",
-      message: "The save is missing project compatibility metadata.",
+      message: t("The save is missing project compatibility metadata."),
       savedAt
     };
   }
@@ -171,7 +182,7 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "incompatible",
-      message: `Saved for a different project (${parsed.projectId}).`,
+      message: t("Saved for a different project ({projectId}).", { projectId: parsed.projectId }),
       savedAt
     };
   }
@@ -183,7 +194,10 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "incompatible",
-      message: `Saved for compatibility version ${parsed.saveCompatibilityVersion}; this project uses ${project.manifest.saveCompatibilityVersion}.`,
+      message: t("Saved for compatibility version {savedVersion}; this project uses {projectVersion}.", {
+        savedVersion: parsed.saveCompatibilityVersion,
+        projectVersion: project.manifest.saveCompatibilityVersion
+      }),
       savedAt
     };
   }
@@ -196,7 +210,10 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "incompatible",
-      message: `This legacy slot targets project schema ${parsed.projectSchemaVersion} and engine ${parsed.projectEngineVersion}.`,
+      message: t("This legacy slot targets project schema {schemaVersion} and engine {engineVersion}.", {
+        schemaVersion: parsed.projectSchemaVersion,
+        engineVersion: parsed.projectEngineVersion
+      }),
       savedAt
     };
   }
@@ -208,12 +225,12 @@ export function inspectPlaytestSaveSlot(
     return {
       slotId,
       status: "corrupt",
-      message: `The saved runtime state is malformed: ${resolveErrorMessage(error)}`,
+      message: t("The saved runtime state is malformed: {message}", { message: resolveErrorMessage(error) }),
       savedAt
     };
   }
 
-  const compatibilityIssue = resolvePlaytestSaveCompatibilityIssue(project, state);
+  const compatibilityIssue = resolvePlaytestSaveCompatibilityIssue(project, state, t);
   if (compatibilityIssue) {
     return {
       slotId,
@@ -240,7 +257,7 @@ export function inspectPlaytestSaveSlot(
   return {
     slotId,
     status: "ready",
-    message: "Compatible with the open project.",
+    message: t("Compatible with the open project."),
     savedAt,
     envelope
   };
@@ -248,89 +265,98 @@ export function inspectPlaytestSaveSlot(
 
 export function resolvePlaytestSaveCompatibilityIssue(
   project: ProjectBundle,
-  state: SaveState
+  state: SaveState,
+  t: EditorTranslator = identityTranslator
 ): string | undefined {
   const scene = project.scenes.items.find((entry) => entry.id === state.currentSceneId);
   if (!scene) {
-    return `Saved scene '${state.currentSceneId}' no longer exists.`;
+    return t("Saved scene '{sceneId}' no longer exists.", { sceneId: state.currentSceneId });
   }
 
   const location = project.locations.items.find((entry) => entry.id === state.currentLocationId);
   if (!location) {
-    return `Saved location '${state.currentLocationId}' no longer exists.`;
+    return t("Saved location '{locationId}' no longer exists.", { locationId: state.currentLocationId });
   }
 
   if (scene.locationId !== location.id) {
-    return "The saved scene and location no longer belong together.";
+    return t("The saved scene and location no longer belong together.");
   }
 
   const inventoryIds = new Set(project.inventory.items.map((item) => item.id));
   const missingInventoryItemId = state.inventory.find((itemId) => !inventoryIds.has(itemId));
   if (missingInventoryItemId) {
-    return `Saved inventory item '${missingInventoryItemId}' no longer exists.`;
+    return t("Saved inventory item '{itemId}' no longer exists.", { itemId: missingInventoryItemId });
   }
 
   const sceneIds = new Set(project.scenes.items.map((entry) => entry.id));
   const missingVisitedSceneId = state.visitedSceneIds.find((sceneId) => !sceneIds.has(sceneId));
   if (missingVisitedSceneId) {
-    return `Visited scene '${missingVisitedSceneId}' no longer exists.`;
+    return t("Visited scene '{sceneId}' no longer exists.", { sceneId: missingVisitedSceneId });
   }
 
   if (Boolean(state.activeDialogueTreeId) !== Boolean(state.activeDialogueNodeId)) {
-    return "The active dialogue pointer is incomplete.";
+    return t("The active dialogue pointer is incomplete.");
   }
 
   if (state.activeDialogueTreeId && state.activeDialogueNodeId) {
     const dialogue = project.dialogues.items.find((entry) => entry.id === state.activeDialogueTreeId);
     if (!dialogue) {
-      return `Active dialogue '${state.activeDialogueTreeId}' no longer exists.`;
+      return t("Active dialogue '{dialogueId}' no longer exists.", { dialogueId: state.activeDialogueTreeId });
     }
     if (!dialogue.nodes.some((node) => node.id === state.activeDialogueNodeId)) {
-      return `Active dialogue node '${state.activeDialogueNodeId}' no longer exists.`;
+      return t("Active dialogue node '{nodeId}' no longer exists.", { nodeId: state.activeDialogueNodeId });
     }
   }
 
   return undefined;
 }
 
-export function formatPlaytestSaveTimestamp(savedAt: string): string {
+export function formatPlaytestSaveTimestamp(
+  savedAt: string,
+  locale = "en",
+  t: EditorTranslator = identityTranslator
+): string {
   const timestamp = Date.parse(savedAt);
   if (!Number.isFinite(timestamp)) {
-    return "Unknown time";
+    return t("Unknown time");
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(timestamp));
 }
 
-export function resolvePlaytestSaveStatusLabel(status: PlaytestSaveSlotStatus): string {
+export function resolvePlaytestSaveStatusLabel(
+  status: PlaytestSaveSlotStatus,
+  t: EditorTranslator = identityTranslator
+): string {
   switch (status) {
     case "empty":
-      return "Empty";
+      return t("Empty");
     case "ready":
-      return "Ready";
+      return t("Ready");
     case "incompatible":
-      return "Incompatible";
+      return t("Incompatible");
     case "corrupt":
-      return "Corrupt";
+      return t("Corrupt");
     case "unavailable":
-      return "Unavailable";
+      return t("Unavailable");
   }
 }
 
 function inspectVersionedEditorSave(
   raw: string,
   project: ProjectBundle,
-  slotId: PlaytestSaveSlotId
+  slotId: PlaytestSaveSlotId,
+  t: EditorTranslator
 ): PlaytestSaveSlotInspection {
   const result = loadSaveForProject(raw, project);
   if ((result.status === "compatible" || result.status === "migrated") && result.envelope) {
     return {
       slotId,
       status: "ready",
-      message: result.message ?? "Compatible with the open project.",
+      message: result.message ? t(result.message) : t("Compatible with the open project."),
       savedAt: result.envelope.savedAt,
       envelope: {
         format: PLAYTEST_SAVE_FORMAT,
@@ -348,7 +374,7 @@ function inspectVersionedEditorSave(
   return {
     slotId,
     status: result.status === "corrupt" ? "corrupt" : "incompatible",
-    message: result.message ?? "This versioned editor save cannot be loaded for the open project."
+    message: t("This versioned editor save cannot be loaded for the open project.")
   };
 }
 

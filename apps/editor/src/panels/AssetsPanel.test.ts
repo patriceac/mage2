@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle, type Asset } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
 import { useEditorStore } from "../store";
@@ -12,7 +12,108 @@ import {
   resolveVisibleAssetSelection
 } from "./AssetsPanel";
 
+const editorI18n = vi.hoisted(() => ({
+  direction: "ltr" as "ltr" | "rtl",
+  t: (source: string, params?: Readonly<Record<string, string | number>>) =>
+    source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+      params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+    )
+}));
+
+vi.mock("../i18n", () => ({
+  useEditorI18n: () => ({ direction: editorI18n.direction, t: editorI18n.t })
+}));
+
+function createTestTranslator(translations: Readonly<Record<string, string>>) {
+  return (source: string, params?: Readonly<Record<string, string | number>>) =>
+    (translations[source] ?? source).replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+      params && Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+    );
+}
+
+afterEach(() => {
+  editorI18n.direction = "ltr";
+  editorI18n.t = createTestTranslator({});
+});
+
+function renderAuthoredAsset() {
+  const project = createDefaultProjectBundle("Assets localization");
+  const asset: Asset = {
+    id: "asset_authored_01",
+    kind: "image",
+    name: "Moon Poster.png",
+    variants: {
+      en: {
+        sourcePath: "D:\\project\\assets\\Moon Poster.png",
+        importedAt: "2026-08-04T00:00:00.000Z",
+        sha256: "authored-hash-123"
+      }
+    }
+  };
+  project.assets.assets = [asset];
+  useEditorStore.setState({ activeTab: "assets", selectedAssetId: asset.id });
+
+  return renderToStaticMarkup(
+    React.createElement(
+      DialogProvider,
+      null,
+      React.createElement(AssetsPanel, {
+        project,
+        setSavedProject: () => {},
+        setStatusMessage: () => {},
+        setBusyLabel: () => {}
+      })
+    )
+  );
+}
+
 describe("AssetsPanel workbench UI", () => {
+  it("localizes editor chrome in French while preserving authored asset data", () => {
+    editorI18n.t = createTestTranslator({
+      "Asset Library": "Bibliothèque de ressources",
+      "Search assets...": "Rechercher des ressources...",
+      "Import Asset": "Importer une ressource",
+      "Usage and Safety": "Utilisation et sécurité",
+      "Localized Variants": "Variantes localisées",
+      "Project default locale": "Langue par défaut du projet",
+      "Safe to delete": "Suppression sûre"
+    });
+
+    const markup = renderAuthoredAsset();
+
+    expect(markup).toContain("Bibliothèque de ressources");
+    expect(markup).toContain('placeholder="Rechercher des ressources..."');
+    expect(markup).toContain("Variantes localisées");
+    expect(markup).toContain("Moon Poster.png");
+    expect(markup).toContain("asset_authored_01");
+    expect(markup).toContain("D:\\project\\assets\\Moon Poster.png");
+    expect(markup).toContain("authored-hash-123");
+    expect(markup).toContain("Langue par défaut du projet: en");
+  });
+
+  it("renders Arabic editor chrome right-to-left while preserving authored asset data", () => {
+    editorI18n.direction = "rtl";
+    editorI18n.t = createTestTranslator({
+      "Asset library controls": "عناصر تحكم مكتبة الأصول",
+      "Asset Library": "مكتبة الأصول",
+      "Search assets...": "البحث في الأصول...",
+      "Import Asset": "استيراد أصل",
+      "Usage and Safety": "الاستخدام والأمان",
+      "Localized Variants": "المتغيرات المترجمة",
+      "Project default locale": "لغة المشروع الافتراضية"
+    });
+
+    const markup = renderAuthoredAsset();
+
+    expect(markup).toContain('class="assets-workbench-page" dir="rtl"');
+    expect(markup).toContain('aria-label="عناصر تحكم مكتبة الأصول"');
+    expect(markup).toContain('placeholder="البحث في الأصول..."');
+    expect(markup).toContain("Moon Poster.png");
+    expect(markup).toContain("asset_authored_01");
+    expect(markup).toContain("authored-hash-123");
+    expect(markup).toContain("لغة المشروع الافتراضية: en");
+  });
+
   it("renders the asset workbench without localization proxy copy", () => {
     const project = createDefaultProjectBundle("Assets");
     const asset: Asset = {

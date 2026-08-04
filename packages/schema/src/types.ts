@@ -418,4 +418,5 @@ export interface ExportProjectData {
   starterResponsesVersion?: number;
   inventoryItems: InventoryItem[];
   strings: Record<string, Record<string, string>>;
+  playerUiOverrides?: import("./player-experience").PlayerUiOverrides;
 }

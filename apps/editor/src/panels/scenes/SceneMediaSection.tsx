@@ -2,6 +2,7 @@ import type { DragEvent, RefObject } from "react";
 import type { Asset, ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "../../DropdownSelect";
 import { AssetPreview } from "../../previews";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
 import {
   VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE,
   applySceneBackgroundAsset,
@@ -62,6 +63,7 @@ export function SceneMediaSection({
   sceneTimelineDurationMs,
   setPlayheadMs
 }: SceneMediaSectionProps) {
+  const { t } = useEditorI18n();
   const isVideoScene = currentAsset?.kind === "video";
   const hasPlayableSceneAudio = sceneSupportsAudio && Boolean(currentSceneAudioAsset);
 
@@ -80,25 +82,25 @@ export function SceneMediaSection({
     return (
       <div className={`scenes-panel__playhead-row scenes-panel__playhead-row--${placement}`}>
         <label className="scenes-panel__playhead-field">
-          <span className="scenes-panel__playhead-label">Playhead {Math.round(playheadMs)}ms</span>
+          <span className="scenes-panel__playhead-label">{t("Playhead {playheadMs}ms", { playheadMs: Math.round(playheadMs) })}</span>
           <input
             className="scenes-panel__playhead-range"
             type="range"
             min={0}
             max={sceneTimelineDurationMs}
             value={Math.min(playheadMs, sceneTimelineDurationMs)}
-            title="Scrub through the current scene asset to line up hotspot timing."
+            title={t("Scrub through the current scene asset to line up hotspot timing.")}
             onChange={(event) => setPlayheadMs(Number(event.target.value))}
           />
         </label>
         {isVideoPlacement ? (
           <label
             className="scene-video-loop-toggle scenes-panel__background-loop-toggle"
-            title="When enabled, this scene's background video restarts automatically after it reaches the end."
+            title={t("When enabled, this scene's background video restarts automatically after it reaches the end.")}
           >
             <input
               type="checkbox"
-              aria-label="Loop background video indefinitely"
+              aria-label={t("Loop background video indefinitely")}
               checked={scene.backgroundVideoLoop}
               onChange={(event) => {
                 const checked = event.target.checked;
@@ -110,7 +112,7 @@ export function SceneMediaSection({
             <span className="scene-video-loop-toggle__track" aria-hidden="true">
               <span className="scene-video-loop-toggle__thumb" />
             </span>
-            <span className="scene-video-loop-toggle__label">Loop video</span>
+            <span className="scene-video-loop-toggle__label">{t("Loop video")}</span>
           </label>
         ) : null}
       </div>
@@ -120,18 +122,18 @@ export function SceneMediaSection({
   return (
     <details className="scenes-panel__details">
       <summary className="scenes-panel__details-summary">
-        <span>Scene media</span>
-        <span>Background, audio, and playback</span>
+        <span>{t("Scene media")}</span>
+        <span>{t("Background, audio, and playback")}</span>
       </summary>
       <div className="scenes-panel__details-body">
         <label
           title={
             backgroundImportAcceptsVideo
-              ? "Background media shown for this scene in the editor and runtime."
-              : "Background media shown for this scene in the editor and runtime. Clear scene audio before choosing a video background."
+              ? t("Background media shown for this scene in the editor and runtime.")
+              : t("Background media shown for this scene in the editor and runtime. Clear scene audio before choosing a video background.")
           }
         >
-          <span className="field-label--inset">Background Asset</span>
+          <span className="field-label--inset">{t("Background Asset")}</span>
           <div className="asset-assignment-row">
             <DropdownSelect
               value={scene.backgroundAssetId ?? ""}
@@ -142,16 +144,16 @@ export function SceneMediaSection({
                     ? draft.assets.assets.find((entry) => entry.id === backgroundAssetId)
                     : undefined;
                   if (!applySceneBackgroundAsset(draftScene, backgroundAssetId, backgroundAsset?.kind)) {
-                    onReportOperation(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE, "error");
+                    onReportOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
                   }
                 });
               }}
             >
-              <option value="">No background assigned</option>
+              <option value="">{t("No background assigned")}</option>
               {scene.backgroundAssetId &&
               !availableBackgroundAssets.some((asset) => asset.id === scene.backgroundAssetId) ? (
                 <option value={scene.backgroundAssetId}>
-                  {scene.backgroundAssetId === "asset_placeholder" ? "Starter placeholder" : "Invalid background selection"}
+                  {scene.backgroundAssetId === "asset_placeholder" ? t("Starter placeholder") : t("Invalid background selection")}
                 </option>
               ) : null}
               {availableBackgroundAssets.map((asset) => (
@@ -166,11 +168,11 @@ export function SceneMediaSection({
               onClick={() => void onImportBackground()}
               title={
                 backgroundImportAcceptsVideo
-                  ? "Create a new background asset from an image or video file and assign it to this scene."
-                  : "Create a new image background asset and assign it to this scene. Clear scene audio before using video."
+                  ? t("Create a new background asset from an image or video file and assign it to this scene.")
+                  : t("Create a new image background asset and assign it to this scene. Clear scene audio before using video.")
               }
             >
-              {currentAsset ? "Replace Background" : "Upload Background"}
+              {currentAsset ? t("Replace Background") : t("Upload Background")}
             </button>
           </div>
         </label>
@@ -178,11 +180,11 @@ export function SceneMediaSection({
         <label
           title={
             sceneSupportsAudio
-              ? "Optional ambient or music track that plays for this scene when it uses an image background."
-              : "Scene audio is disabled while this scene uses a video background."
+              ? t("Optional ambient or music track that plays for this scene when it uses an image background.")
+              : t("Scene audio is disabled while this scene uses a video background.")
           }
         >
-          <span className="field-label--inset">Scene Audio</span>
+          <span className="field-label--inset">{t("Scene Audio")}</span>
           <div className="asset-assignment-row">
             <DropdownSelect
               value={scene.sceneAudioAssetId ?? ""}
@@ -191,7 +193,7 @@ export function SceneMediaSection({
                 const sceneAudioAssetId = event.target.value || undefined;
                 mutateScene((draftScene) => {
                   if (!sceneSupportsAudio && sceneAudioAssetId) {
-                    onReportOperation("Scene audio is only available when the scene uses an image background.", "error");
+                    onReportOperation(t("Scene audio is only available when the scene uses an image background."), "error");
                     return;
                   }
 
@@ -199,10 +201,10 @@ export function SceneMediaSection({
                 });
               }}
             >
-              <option value="">No scene audio assigned</option>
+              <option value="">{t("No scene audio assigned")}</option>
               {scene.sceneAudioAssetId &&
               !availableSceneAudioAssets.some((asset) => asset.id === scene.sceneAudioAssetId) ? (
-                <option value={scene.sceneAudioAssetId}>Invalid scene audio selection</option>
+                <option value={scene.sceneAudioAssetId}>{t("Invalid scene audio selection")}</option>
               ) : null}
               {availableSceneAudioAssets.map((asset) => (
                 <option key={asset.id} value={asset.id}>
@@ -217,11 +219,11 @@ export function SceneMediaSection({
               onClick={() => void onImportSceneAudio()}
               title={
                 sceneSupportsAudio
-                  ? "Create a new scene audio asset from an audio file and assign it to this scene."
-                  : "Scene audio imports are disabled while this scene uses a video background."
+                  ? t("Create a new scene audio asset from an audio file and assign it to this scene.")
+                  : t("Scene audio imports are disabled while this scene uses a video background.")
               }
             >
-              {currentSceneAudioAsset ? "Replace Scene Audio" : "Upload Scene Audio"}
+              {currentSceneAudioAsset ? t("Replace Scene Audio") : t("Upload Scene Audio")}
             </button>
           </div>
         </label>
@@ -241,15 +243,15 @@ export function SceneMediaSection({
             onDragLeave={onSceneAudioDragLeave}
             onDrop={(event) => void onSceneAudioDrop(event)}
           >
-            <strong>{currentSceneAudioAsset ? "Drop to replace scene audio" : "Drop scene audio here"}</strong>
-            <span>Use an audio file to attach optional ambience or music to this image scene.</span>
+            <strong>{currentSceneAudioAsset ? t("Drop to replace scene audio") : t("Drop scene audio here")}</strong>
+            <span>{t("Use an audio file to attach optional ambience or music to this image scene.")}</span>
             {scene.sceneAudioAssetId ? (
               <div className="scenes-panel__scene-audio-frame">
                 <div className="scenes-panel__scene-audio-preview">
                   {sceneAudioUrl ? (
                     <div
                       className="asset-preview asset-preview--audio"
-                      title={`Preview ${currentSceneAudioAsset?.name ?? "scene audio"}.`}
+                      title={t("Preview {assetName}.", { assetName: currentSceneAudioAsset?.name ?? t("scene audio") })}
                     >
                       <audio ref={sceneAudioRef} src={sceneAudioUrl} controls preload="metadata" className="asset-preview__audio" />
                     </div>
@@ -258,8 +260,8 @@ export function SceneMediaSection({
                       asset={currentSceneAudioAsset}
                       locale={activeLocale}
                       allowSourceFallback
-                      emptyTitle="No scene audio"
-                      emptyBody="Assign or drop an audio file here to attach optional scene audio."
+                      emptyTitle={t("No scene audio")}
+                      emptyBody={t("Assign or drop an audio file here to attach optional scene audio.")}
                     />
                   )}
                 </div>
@@ -269,17 +271,17 @@ export function SceneMediaSection({
                       type="button"
                       className="button-danger-quiet scenes-panel__scene-audio-clear-button"
                       onClick={onClearSceneAudio}
-                      title="Remove the current scene audio assignment from this scene."
+                      title={t("Remove the current scene audio assignment from this scene.")}
                     >
-                      Clear audio
+                      {t("Clear audio")}
                     </button>
                   </div>
                   <div className="scenes-panel__scene-audio-settings">
                     <label
                       className="scenes-panel__scene-audio-delay"
-                      title="Delay before scene audio starts, and before it restarts again when looping."
+                      title={t("Delay before scene audio starts, and before it restarts again when looping.")}
                     >
-                      <span className="scenes-panel__scene-audio-delay-label">Delay (ms)</span>
+                      <span className="scenes-panel__scene-audio-delay-label">{t("Delay (ms)")}</span>
                       <input
                         type="number"
                         min={0}
@@ -295,7 +297,7 @@ export function SceneMediaSection({
                     </label>
                     <label
                       className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
-                      title="When enabled, scene audio waits for the configured delay, then restarts again after it ends."
+                      title={t("When enabled, scene audio waits for the configured delay, then restarts again after it ends.")}
                     >
                       <input
                         type="checkbox"
@@ -307,7 +309,7 @@ export function SceneMediaSection({
                           });
                         }}
                       />
-                      <span>Loop</span>
+                      <span>{t("Loop")}</span>
                     </label>
                   </div>
                 </div>
@@ -317,19 +319,19 @@ export function SceneMediaSection({
         ) : (
           <div className="scenes-panel__scene-audio-disabled">
             <div className="scenes-panel__scene-audio-disabled-copy">
-              <strong>Scene audio unavailable for video backgrounds</strong>
-              <span>Use an image background to import or play a separate audio file.</span>
+              <strong>{t("Scene audio unavailable for video backgrounds")}</strong>
+              <span>{t("Use an image background to import or play a separate audio file.")}</span>
             </div>
             {currentSceneAudioAsset ? (
               <div className="scenes-panel__scene-audio-disabled-actions">
-                <span>Assigned for reference: {currentSceneAudioAsset.name}</span>
+                <span>{t("Assigned for reference: {assetName}", { assetName: currentSceneAudioAsset.name })}</span>
                 <button
                   type="button"
                   className="button-danger-quiet scenes-panel__scene-audio-clear-button"
                   onClick={onClearSceneAudio}
-                  title="Remove the current scene audio assignment from this scene."
+                  title={t("Remove the current scene audio assignment from this scene.")}
                 >
-                  Clear audio
+                  {t("Clear audio")}
                 </button>
               </div>
             ) : null}

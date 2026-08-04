@@ -22,7 +22,7 @@ describe("native close protection", () => {
 
   it("keeps failed saves open and requires an explicit discard", () => {
     expect(appSource).toContain("confirmProjectCanClose");
-    expect(appSource).toContain("The project remains open, and your unsaved changes are still in the editor.");
+    expect(appSource).toContain('t("The project remains open, and your unsaved changes are still in the editor.")');
     expect(dialogsSource).toContain("Discard Changes");
     expect(dialogsSource).toContain("Save and Close");
     expect(dialogsSource).toContain('onClick={() => onResolve("save")} autoFocus');

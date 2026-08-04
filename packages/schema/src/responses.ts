@@ -1,7 +1,8 @@
 import type { ResponseGroup } from "./types";
+import { BUILT_IN_LOCALES } from "./built-in-locales";
 
 export const STARTER_RESPONSE_LIBRARY_VERSION = 2;
-export const STARTER_RESPONSE_LOCALES = ["en", "fr", "es", "zh-Hans", "ja", "ko", "ar"] as const;
+export const STARTER_RESPONSE_LOCALES = BUILT_IN_LOCALES;
 
 type StarterResponseLocale = (typeof STARTER_RESPONSE_LOCALES)[number];
 type StarterResponseGroupKey =

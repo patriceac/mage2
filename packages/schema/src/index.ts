@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./built-in-locales";
 export * from "./hotspot-actions";
 export * from "./hotspots";
 export * from "./hotspot-hit-testing";

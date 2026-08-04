@@ -1,8 +1,21 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
 import { addDialogueTree, addInventoryItem } from "./project-helpers";
+import { playtestMessages } from "./i18n/catalogs/playtest";
+
+const editorI18n = vi.hoisted(() => ({ locale: "en" as "en" | "ar" }));
+vi.mock("./i18n", () => ({
+  useEditorI18n: () => ({
+    locale: editorI18n.locale,
+    t: (source: string, params?: Record<string, string | number>) =>
+      source.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+        Object.prototype.hasOwnProperty.call(params ?? {}, name) ? String(params?.[name]) : placeholder
+      )
+  })
+}));
+
 import {
   PlaytestPanel,
   PlaytestDialogueBox,
@@ -12,6 +25,7 @@ import {
   resolvePlaytestInventoryItemInitial,
   resolvePlaytestInventorySlotSelection,
   resolvePlaytestInventorySummary,
+  resolvePlaytestLocaleStrings,
   resolvePlaytestInventoryToggleLabel,
   resolvePlaytestInventoryItemTooltip,
   resolvePlaytestPlayerCopy,
@@ -23,6 +37,12 @@ import {
 import { useEditorStore } from "./store";
 
 describe("resolvePlaytestInventorySummary", () => {
+  it("provides genuine translations for every editor playtest message", () => {
+    expect(Object.keys(playtestMessages).length).toBeGreaterThan(50);
+    expect(playtestMessages["Save slots"].fr).toBe("Emplacements de sauvegarde");
+    expect(playtestMessages["Save slots"].ar).toBe("خانات الحفظ");
+  });
+
   it("prefers localized inventory names over plain item names", () => {
     const project = createDefaultProjectBundle("Playtest inventory");
     const item = addInventoryItem(project);
@@ -42,6 +62,18 @@ describe("resolvePlaytestInventorySummary", () => {
 describe("resolveStoredPlaytestLocale", () => {
   it("uses the stored locale when it is supported", () => {
     expect(resolveStoredPlaytestLocale("fr", ["en", "fr"], "en")).toBe("fr");
+  });
+
+  it("merges missing target strings from the project default locale", () => {
+    const project = createDefaultProjectBundle("Fallback strings");
+    project.manifest.supportedLocales = ["en", "fr"];
+    project.strings.byLocale.en.fallback_only = "Authored fallback";
+    project.strings.byLocale.fr = { localized_only: "Texte traduit" };
+
+    expect(resolvePlaytestLocaleStrings(project, "fr")).toMatchObject({
+      fallback_only: "Authored fallback",
+      localized_only: "Texte traduit"
+    });
   });
 
   it("falls back to the default locale when the stored locale is missing or unsupported", () => {
@@ -220,6 +252,23 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup.match(/data-playtest-save-slot-status="empty"/g)).toHaveLength(3);
     expect(markup).toContain("No save stored in this slot.");
     expect(markup).not.toContain("Back to Editor");
+  });
+
+  it("uses Arabic RTL interface chrome while the game remains on its selected project locale", () => {
+    editorI18n.locale = "ar";
+    const project = createDefaultProjectBundle("Authored Playtest Name");
+    project.manifest.supportedLocales = ["en", "fr"];
+    project.strings.byLocale.fr = {};
+    useEditorStore.setState({ activeTab: "playtest", playtestLocale: "en" });
+
+    const markup = renderToStaticMarkup(React.createElement(PlaytestPanel, { project }));
+    editorI18n.locale = "en";
+
+    expect(markup).toContain('lang="ar"');
+    expect(markup).toContain('dir="rtl"');
+    expect(markup).toContain('class="mage2-player playtest-shared-renderer" lang="en" dir="ltr"');
+    expect(markup).toContain("Opening Scene");
+    expect(project.manifest.defaultLanguage).toBe("en");
   });
 
   it("renders inventory inside the playtest canvas while keeping runtime state in the side panel", () => {

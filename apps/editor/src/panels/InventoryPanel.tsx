@@ -11,6 +11,7 @@ import {
 import { INVENTORY_IMAGE_EXTENSIONS, isInventoryImageImportPath } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
+import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "../i18n";
 import { setEditorLocalizedText } from "../localized-project";
 import {
   addAssetRoots,
@@ -75,7 +76,6 @@ interface InventoryUsageSummary {
 interface InventoryValidationRow {
   key: string;
   label: string;
-  status: "Valid" | "Warning";
   tone: "valid" | "warning";
 }
 
@@ -87,6 +87,7 @@ export function InventoryPanel({
   onOpenScenesHotspot
 }: InventoryPanelProps) {
   const dialogs = useDialogs();
+  const { direction, t } = useEditorI18n();
   const selectedInventoryItemId = useEditorStore((state) => state.selectedInventoryItemId);
   const setSelectedInventoryItemId = useEditorStore((state) => state.setSelectedInventoryItemId);
   const setSelectedAssetId = useEditorStore((state) => state.setSelectedAssetId);
@@ -109,8 +110,8 @@ export function InventoryPanel({
   const selectedDescription =
     selectedItem && selectedItem.descriptionTextId ? localeStrings[selectedItem.descriptionTextId] ?? "" : "";
   const selectedUsage = useMemo(
-    () => (selectedItem ? collectInventoryUsage(project, selectedItem.id) : createEmptyUsageSummary()),
-    [project, selectedItem]
+    () => (selectedItem ? collectInventoryUsage(project, selectedItem.id, t) : createEmptyUsageSummary()),
+    [project, selectedItem, t]
   );
   const selectedValidationRows = selectedItem
     ? collectInventoryValidationRows(
@@ -118,7 +119,8 @@ export function InventoryPanel({
         selectedAssignedAsset,
         selectedAssetIsValid,
         selectedDisplayText,
-        selectedUsage
+        selectedUsage,
+        t
       )
     : [];
   const selectedWarningCount = selectedValidationRows.filter((row) => row.tone === "warning").length;
@@ -166,15 +168,15 @@ export function InventoryPanel({
     const description = selectedDescription;
     mutateProject((draft) => {
       const item = addInventoryItem(draft);
-      item.name = `${selectedItem.name} Copy`;
+      item.name = t("{name} Copy", { name: selectedItem.name });
       item.imageAssetId = selectedItem.imageAssetId;
-      setEditorLocalizedText(draft, activeLocale, item.textId, `${displayText} Copy`);
+      setEditorLocalizedText(draft, activeLocale, item.textId, t("{name} Copy", { name: displayText }));
       if (item.descriptionTextId && description.trim()) {
         setEditorLocalizedText(draft, activeLocale, item.descriptionTextId, description);
       }
       setSelectedInventoryItemId(item.id);
     });
-    setStatusMessage(`Duplicated ${selectedItem.name}. Save the project to keep this change.`);
+    setStatusMessage(t("Duplicated {name}. Save the project to keep this change.", { name: selectedItem.name }));
   }
 
   async function deleteSelectedInventoryItem() {
@@ -209,8 +211,10 @@ export function InventoryPanel({
     if (!deletion?.deleted) {
       setStatusMessage(
         deletion?.blockedReason === "replacement-item-not-found"
-          ? `Could not delete ${selectedItem.name} because the replacement item is no longer available.`
-          : `Could not delete ${selectedItem.name} because it is no longer in the project.`
+          ? t("Could not delete {name} because the replacement item is no longer available.", {
+              name: selectedItem.name
+            })
+          : t("Could not delete {name} because it is no longer in the project.", { name: selectedItem.name })
       );
       return;
     }
@@ -223,8 +227,20 @@ export function InventoryPanel({
         : undefined;
     setStatusMessage(
       dialogResult.action === "rewire" && replacementItemName
-        ? `Deleted ${selectedItem.name} and rewired ${formatCount(referenceCount, "reference")} to ${replacementItemName}. Save the project to keep this change.`
-        : `Deleted ${selectedItem.name}${referenceCount > 0 ? ` and cleaned ${formatCount(referenceCount, "reference")}` : ""}. Save the project to keep this change.`
+        ? t(
+            referenceCount === 1
+              ? "Deleted {name} and rewired {count} reference to {replacement}. Save the project to keep this change."
+              : "Deleted {name} and rewired {count} references to {replacement}. Save the project to keep this change.",
+            { name: selectedItem.name, count: referenceCount, replacement: replacementItemName }
+          )
+        : referenceCount > 0
+          ? t(
+              referenceCount === 1
+                ? "Deleted {name} and cleaned {count} reference. Save the project to keep this change."
+                : "Deleted {name} and cleaned {count} references. Save the project to keep this change.",
+              { name: selectedItem.name, count: referenceCount }
+            )
+          : t("Deleted {name}. Save the project to keep this change.", { name: selectedItem.name })
     );
   }
 
@@ -232,10 +248,10 @@ export function InventoryPanel({
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Importing inventory image");
+      setBusyLabel(t("Importing inventory image"));
       const { importedAssets, duplicateFilePaths, duplicateAssets } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
@@ -257,15 +273,18 @@ export function InventoryPanel({
           setSelectedInventoryItemId(itemId);
           setSelectedAssetId(duplicateAsset.id);
           setStatusMessage(
-            `Assigned existing ${duplicateAsset.name} to ${itemName}. Save the project to keep this change.`
+            t("Assigned existing {asset} to {item}. Save the project to keep this change.", {
+              asset: duplicateAsset.name,
+              item: itemName
+            })
           );
           return;
         }
 
         if (duplicateFilePaths.length > 0) {
-          setStatusMessage("That file already exists as an inventory asset. Choose it from the item image picker.");
+          setStatusMessage(t("That file already exists as an inventory asset. Choose it from the item image picker."));
         } else {
-          setStatusMessage("No new inventory image asset was created.");
+          setStatusMessage(t("No new inventory image asset was created."));
         }
         return;
       }
@@ -282,11 +301,14 @@ export function InventoryPanel({
       setSelectedInventoryItemId(itemId);
       setSelectedAssetId(importedAsset.id);
       setStatusMessage(
-        `Imported ${importedAsset.name} and assigned it to ${itemName}. Save the project to keep this change.`
+        t("Imported {asset} and assigned it to {item}. Save the project to keep this change.", {
+          asset: importedAsset.name,
+          item: itemName
+        })
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Inventory image import failed: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Inventory image import failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -294,10 +316,12 @@ export function InventoryPanel({
 
   async function handleImportInventoryImage(itemId: string, itemName: string, hasExistingImage: boolean) {
     const filePaths = await dialogs.pickFiles({
-      title: hasExistingImage ? `Replace Image for ${itemName}` : `Upload Image for ${itemName}`,
-      description: "Choose an image file to create an inventory asset and assign it to this item.",
+      title: hasExistingImage
+        ? t("Replace Image for {name}", { name: itemName })
+        : t("Upload Image for {name}", { name: itemName }),
+      description: t("Choose an image file to create an inventory asset and assign it to this item."),
       initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: hasExistingImage ? "Use Inventory Image" : "Upload Inventory Image",
+      confirmLabel: hasExistingImage ? t("Use Inventory Image") : t("Upload Inventory Image"),
       allowedExtensions: [...INVENTORY_IMAGE_EXTENSIONS]
     });
     const filePath = filePaths[0];
@@ -363,7 +387,7 @@ export function InventoryPanel({
     const filePath = droppedFilePaths.find(isInventoryImageImportPath);
 
     if (!filePath) {
-      setStatusMessage("Drop an image file onto the item preview to assign inventory art.");
+      setStatusMessage(t("Drop an image file onto the item preview to assign inventory art."));
       return;
     }
 
@@ -371,23 +395,25 @@ export function InventoryPanel({
   }
 
   return (
-    <section className="inventory-workbench" aria-label="Inventory">
+    <section className="inventory-workbench" aria-label={t("Inventory")} dir={direction}>
       <header className="inventory-workbench__toolbar">
-        <div className="inventory-workbench__title">Inventory</div>
-        <div className="inventory-workbench__actions" aria-label="Inventory actions">
+        <div className="inventory-workbench__title">{t("Inventory")}</div>
+        <div className="inventory-workbench__actions" aria-label={t("Inventory actions")}>
           <button
             type="button"
             className="inventory-tool-button inventory-tool-button--primary"
-            title="Create a new inventory item."
+            title={t("Create a new inventory item.")}
             onClick={createInventoryItem}
           >
             <InventoryPanelIcon kind="add" />
-            <span>Add Item</span>
+            <span>{t("Add Item")}</span>
           </button>
           <button
             type="button"
             className="inventory-tool-button inventory-tool-button--icon"
-            title={selectedItem ? `Duplicate ${selectedItem.name}.` : "Select an item to duplicate."}
+            title={selectedItem
+              ? t("Duplicate {name}.", { name: selectedItem.name })
+              : t("Select an item to duplicate.")}
             disabled={!selectedItem}
             onClick={duplicateSelectedInventoryItem}
           >
@@ -396,8 +422,10 @@ export function InventoryPanel({
           <button
             type="button"
             className="inventory-tool-button inventory-tool-button--icon inventory-tool-button--danger"
-            title={selectedItem ? `Delete ${selectedItem.name} with reference cleanup or rewiring options.` : "Select an item to delete."}
-            aria-label={selectedItem ? `Delete ${selectedItem.name}` : "Delete inventory item"}
+            title={selectedItem
+              ? t("Delete {name} with reference cleanup or rewiring options.", { name: selectedItem.name })
+              : t("Select an item to delete.")}
+            aria-label={selectedItem ? t("Delete {name}", { name: selectedItem.name }) : t("Delete inventory item")}
             disabled={!selectedItem}
             onClick={() => void deleteSelectedInventoryItem()}
           >
@@ -406,7 +434,9 @@ export function InventoryPanel({
           <button
             type="button"
             className="inventory-tool-button inventory-tool-button--icon"
-            title={selectedItem ? `Upload image for ${selectedItem.name}.` : "Select an item to upload art."}
+            title={selectedItem
+              ? t("Upload image for {name}.", { name: selectedItem.name })
+              : t("Select an item to upload art.")}
             disabled={!selectedItem}
             onClick={() =>
               selectedItem
@@ -417,24 +447,24 @@ export function InventoryPanel({
             <InventoryPanelIcon kind="upload" />
           </button>
         </div>
-        <span className="inventory-workbench__count">{formatCount(project.inventory.items.length, "item")}</span>
+        <span className="inventory-workbench__count">{formatInventoryCount(t, project.inventory.items.length, "item")}</span>
         <div className="inventory-workbench__spacer" />
         <label className="inventory-sort-control">
-          <span className="sr-only">Sort inventory items</span>
+          <span className="sr-only">{t("Sort inventory items")}</span>
           <DropdownSelect
             value={sortMode}
             onChange={(event) => setSortMode(event.target.value as "name-asc" | "name-desc" | "status")}
           >
-            <option value="name-asc">Sort: Name (A-Z)</option>
-            <option value="name-desc">Sort: Name (Z-A)</option>
-            <option value="status">Sort: Status</option>
+            <option value="name-asc">{t("Sort: Name (A-Z)")}</option>
+            <option value="name-desc">{t("Sort: Name (Z-A)")}</option>
+            <option value="status">{t("Sort: Status")}</option>
           </DropdownSelect>
         </label>
-        <div className="inventory-view-toggle" aria-label="Inventory view">
+        <div className="inventory-view-toggle" aria-label={t("Inventory view")}>
           <button
             type="button"
             className={viewMode === "grid" ? "inventory-tool-button inventory-tool-button--icon inventory-tool-button--active" : "inventory-tool-button inventory-tool-button--icon"}
-            title="Compact grid view."
+            title={t("Compact grid view.")}
             onClick={() => setViewMode("grid")}
           >
             <InventoryPanelIcon kind="grid" />
@@ -442,7 +472,7 @@ export function InventoryPanel({
           <button
             type="button"
             className={viewMode === "list" ? "inventory-tool-button inventory-tool-button--icon inventory-tool-button--active" : "inventory-tool-button inventory-tool-button--icon"}
-            title="Detailed list view."
+            title={t("Detailed list view.")}
             onClick={() => setViewMode("list")}
           >
             <InventoryPanelIcon kind="list" />
@@ -451,13 +481,13 @@ export function InventoryPanel({
       </header>
 
       <div className="inventory-workbench__body">
-        <aside className="inventory-browser" aria-label="Inventory items">
+        <aside className="inventory-browser" aria-label={t("Inventory items")}>
           <div className="inventory-browser__search-row">
             <label className="inventory-search-field">
               <InventoryPanelIcon kind="search" />
               <input
-                aria-label="Search items"
-                placeholder="Search items"
+                aria-label={t("Search items")}
+                placeholder={t("Search items")}
                 value={itemSearch}
                 onChange={(event) => setItemSearch(event.target.value)}
               />
@@ -465,9 +495,9 @@ export function InventoryPanel({
           </div>
 
           <div className="inventory-browser-table__header" aria-hidden="true">
-            <span className="inventory-browser-table__name-heading">Name ↑</span>
-            <span>ID</span>
-            <span>Status</span>
+            <span className="inventory-browser-table__name-heading">{t("Name ↑")}</span>
+            <span>{t("ID")}</span>
+            <span>{t("Status")}</span>
           </div>
 
           <div
@@ -488,7 +518,7 @@ export function InventoryPanel({
                     className={isSelected ? "inventory-item-row inventory-item-row--selected" : "inventory-item-row"}
                     aria-pressed={isSelected}
                     onClick={() => setSelectedInventoryItemId(item.id)}
-                    title={`Select ${displayLabel}.`}
+                    title={t("Select {name}.", { name: displayLabel })}
                   >
                     <span className="inventory-item-row__thumb">
                       <AssetPreview
@@ -497,7 +527,7 @@ export function InventoryPanel({
                         allowSourceFallback
                         preferPosterForImages
                         fit="contain"
-                        emptyTitle="No image"
+                        emptyTitle={t("No image")}
                         emptyBody=""
                       />
                     </span>
@@ -505,25 +535,25 @@ export function InventoryPanel({
                     <span className="inventory-item-row__id">{item.id}</span>
                     <span className={status === "valid" ? "inventory-status-chip inventory-status-chip--valid" : "inventory-status-chip inventory-status-chip--warning"}>
                       <span aria-hidden="true" />
-                      {status === "valid" ? "Valid" : "Warning"}
+                      {status === "valid" ? t("Valid") : t("Warning")}
                     </span>
                   </button>
                 );
               })
             ) : (
               <div className="inventory-empty-state">
-                <strong>No matching items</strong>
+                <strong>{t("No matching items")}</strong>
               </div>
             )}
           </div>
 
           <footer className="inventory-browser__footer">
-            <span>{formatCount(project.inventory.items.length, "item")}</span>
+            <span>{formatInventoryCount(t, project.inventory.items.length, "item")}</span>
             <InventoryPanelIcon kind="replace" />
           </footer>
         </aside>
 
-        <main className="inventory-detail" aria-label="Inventory item details">
+        <main className="inventory-detail" aria-label={t("Inventory item details")}>
           {selectedItem ? (
             <>
               <header className="inventory-detail__header">
@@ -532,16 +562,16 @@ export function InventoryPanel({
 
               <div className="inventory-detail__form">
                 <label>
-                  <span className="field-label--inset">ID (Internal Name)</span>
-                  <input value={selectedItem.id} readOnly title="Inventory item identifier." />
-                  <span className="inventory-field-help">Unique identifier used in data and scripts.</span>
+                  <span className="field-label--inset">{t("ID (Internal Name)")}</span>
+                  <input value={selectedItem.id} readOnly title={t("Inventory item identifier.")} />
+                  <span className="inventory-field-help">{t("Unique identifier used in data and scripts.")}</span>
                 </label>
 
                 <label>
-                  <span className="field-label--inset">Display Text</span>
+                  <span className="field-label--inset">{t("Display Text")}</span>
                   <input
                     value={localeStrings[selectedItem.textId] ?? ""}
-                    title="Shown to players in the inventory UI."
+                    title={t("Shown to players in the inventory UI.")}
                     onFocus={() => setSelectedInventoryItemId(selectedItem.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
@@ -549,14 +579,14 @@ export function InventoryPanel({
                       })
                     }
                   />
-                  <span className="inventory-field-help">Shown to players in the inventory UI.</span>
+                  <span className="inventory-field-help">{t("Shown to players in the inventory UI.")}</span>
                 </label>
 
                 <label>
-                  <span className="field-label--inset">Description</span>
+                  <span className="field-label--inset">{t("Description")}</span>
                   <textarea
                     value={selectedDescription}
-                    title="Longer inspection text shown when the player looks at this item."
+                    title={t("Longer inspection text shown when the player looks at this item.")}
                     onFocus={() => setSelectedInventoryItemId(selectedItem.id)}
                     onChange={(event) =>
                       mutateProject((draft) => {
@@ -569,8 +599,8 @@ export function InventoryPanel({
                   <span className="inventory-field-counter">{selectedDescription.length} / 500</span>
                 </label>
 
-                <section className="inventory-image-editor" aria-label="Inventory image">
-                  <h4>Inventory Image</h4>
+                <section className="inventory-image-editor" aria-label={t("Inventory image")}>
+                  <h4>{t("Inventory Image")}</h4>
                   <div className="inventory-image-editor__body">
                     <div
                       className={
@@ -589,23 +619,23 @@ export function InventoryPanel({
                         allowSourceFallback
                         preferPosterForImages
                         fit="contain"
-                        emptyTitle="No image"
-                        emptyBody="Upload or drop an image."
+                        emptyTitle={t("No image")}
+                        emptyBody={t("Upload or drop an image.")}
                       />
                       {activeDropItemId === selectedItem.id ? (
                         <div className="inventory-image-stage__overlay" aria-hidden="true">
-                          <strong>{selectedItem.imageAssetId ? "Drop to replace image" : "Drop image here"}</strong>
-                          <span>Images only</span>
+                          <strong>{selectedItem.imageAssetId ? t("Drop to replace image") : t("Drop image here")}</strong>
+                          <span>{t("Images only")}</span>
                         </div>
                       ) : null}
                     </div>
                     <div className="inventory-image-editor__meta">
-                      <span>{formatAssetDimensions(selectedAssignedAsset, activeLocale)}</span>
+                      <span>{formatAssetDimensions(selectedAssignedAsset, activeLocale, t)}</span>
                       <span className={selectedItem.imageAssetId ? "inventory-inline-valid" : "inventory-inline-warning"}>
                         <span aria-hidden="true" />
-                        {selectedItem.imageAssetId ? "Valid" : "Missing"}
+                        {selectedItem.imageAssetId ? t("Valid") : t("Missing")}
                       </span>
-                      <p>Recommended: 512x512 PNG with transparent background.</p>
+                      <p>{t("Recommended: 512x512 PNG with transparent background.")}</p>
                     </div>
                   </div>
                   <div className="inventory-image-editor__actions">
@@ -613,19 +643,19 @@ export function InventoryPanel({
                       type="button"
                       className="inventory-tool-button inventory-tool-button--primary"
                       onClick={() => void handleImportInventoryImage(selectedItem.id, selectedItem.name, Boolean(selectedItem.imageAssetId))}
-                      title="Create a new inventory image asset from disk and assign it to this item."
+                      title={t("Create a new inventory image asset from disk and assign it to this item.")}
                     >
                       <InventoryPanelIcon kind="upload" />
-                      <span>Upload</span>
+                      <span>{t("Upload")}</span>
                     </button>
                     <button
                       type="button"
                       className="inventory-tool-button"
                       onClick={() => void handleImportInventoryImage(selectedItem.id, selectedItem.name, Boolean(selectedItem.imageAssetId))}
-                      title="Replace the current inventory image."
+                      title={t("Replace the current inventory image.")}
                     >
                       <InventoryPanelIcon kind="replace" />
-                      <span>Replace</span>
+                      <span>{t("Replace")}</span>
                     </button>
                     <button
                       type="button"
@@ -641,12 +671,12 @@ export function InventoryPanel({
                       }
                       title={
                         selectedItem.imageAssetId
-                          ? "Remove the current image assignment from this inventory item."
-                          : "No inventory image is currently assigned."
+                          ? t("Remove the current image assignment from this inventory item.")
+                          : t("No inventory image is currently assigned.")
                       }
                     >
                       <InventoryPanelIcon kind="clear" />
-                      <span>Clear</span>
+                      <span>{t("Clear")}</span>
                     </button>
                   </div>
                 </section>
@@ -655,23 +685,23 @@ export function InventoryPanel({
             </>
           ) : (
             <div className="inventory-empty-state inventory-empty-state--center">
-              <strong>No inventory item selected</strong>
+              <strong>{t("No inventory item selected")}</strong>
               <button type="button" className="inventory-tool-button inventory-tool-button--primary" onClick={createInventoryItem}>
                 <InventoryPanelIcon kind="add" />
-                <span>Add Item</span>
+                <span>{t("Add Item")}</span>
               </button>
             </div>
           )}
         </main>
 
-        <aside className="inventory-reference" aria-label="Inventory usage and validation">
+        <aside className="inventory-reference" aria-label={t("Inventory usage and validation")}>
           {selectedItem ? (
             <>
-              <InventoryReferenceSection title="Used in Scenes" count={selectedUsage.scenes.length}>
+              <InventoryReferenceSection title={t("Used in Scenes")} count={selectedUsage.scenes.length}>
                 <div className="inventory-reference-table inventory-reference-table--two">
                   <div className="inventory-reference-table__header">
-                    <span>Scene</span>
-                    <span>References</span>
+                    <span>{t("Scene")}</span>
+                    <span>{t("References")}</span>
                   </div>
                   {selectedUsage.scenes.length > 0 ? (
                     selectedUsage.scenes.map((entry) => (
@@ -687,17 +717,17 @@ export function InventoryPanel({
                       </button>
                     ))
                   ) : (
-                    <p className="inventory-reference-empty">No scene references</p>
+                    <p className="inventory-reference-empty">{t("No scene references")}</p>
                   )}
                 </div>
               </InventoryReferenceSection>
 
-              <InventoryReferenceSection title="Pickup hotspots" count={selectedUsage.pickups.length}>
+              <InventoryReferenceSection title={t("Pickup hotspots")} count={selectedUsage.pickups.length}>
                 <div className="inventory-reference-table inventory-reference-table--three">
                   <div className="inventory-reference-table__header">
-                    <span>Scene</span>
-                    <span>Entity</span>
-                    <span>Name</span>
+                    <span>{t("Scene")}</span>
+                    <span>{t("Entity")}</span>
+                    <span>{t("Name")}</span>
                   </div>
                   {selectedUsage.pickups.length > 0 ? (
                     selectedUsage.pickups.map((entry) => (
@@ -714,17 +744,17 @@ export function InventoryPanel({
                       </button>
                     ))
                   ) : (
-                    <p className="inventory-reference-empty">No pickup hotspots</p>
+                    <p className="inventory-reference-empty">{t("No pickup hotspots")}</p>
                   )}
                 </div>
               </InventoryReferenceSection>
 
-              <InventoryReferenceSection title="Placement targets" count={selectedUsage.placements.length}>
+              <InventoryReferenceSection title={t("Placement targets")} count={selectedUsage.placements.length}>
                 <div className="inventory-reference-table inventory-reference-table--three">
                   <div className="inventory-reference-table__header">
-                    <span>Scene</span>
-                    <span>Entity</span>
-                    <span>Socket / Target</span>
+                    <span>{t("Scene")}</span>
+                    <span>{t("Entity")}</span>
+                    <span>{t("Socket / Target")}</span>
                   </div>
                   {selectedUsage.placements.length > 0 ? (
                     selectedUsage.placements.map((entry) => (
@@ -741,19 +771,19 @@ export function InventoryPanel({
                       </button>
                     ))
                   ) : (
-                    <p className="inventory-reference-empty">No placement targets</p>
+                    <p className="inventory-reference-empty">{t("No placement targets")}</p>
                   )}
                 </div>
               </InventoryReferenceSection>
 
-              <InventoryReferenceSection title="Validation" count={selectedValidationRows.length}>
+              <InventoryReferenceSection title={t("Validation")} count={selectedValidationRows.length}>
                 <div className="inventory-validation-list">
                   {selectedValidationRows.map((row) => (
                     <div key={row.key} className="inventory-validation-row">
                       <InventoryPanelIcon kind={row.tone === "valid" ? "check" : "warning"} />
                       <span>{row.label}</span>
                       <strong className={row.tone === "valid" ? "inventory-validation-row__status--valid" : "inventory-validation-row__status--warning"}>
-                        {row.status}
+                        {row.tone === "valid" ? t("Valid") : t("Warning")}
                       </strong>
                     </div>
                   ))}
@@ -763,16 +793,16 @@ export function InventoryPanel({
               <footer className="inventory-reference__summary">
                 <span className="inventory-inline-valid">
                   <span aria-hidden="true" />
-                  No errors
+                  {t("No errors")}
                 </span>
                 <span className={selectedWarningCount > 0 ? "inventory-inline-warning" : "inventory-inline-valid"}>
                   <span aria-hidden="true" />
-                  {formatCount(selectedWarningCount, "warning")}
+                  {formatInventoryCount(t, selectedWarningCount, "warning")}
                 </span>
               </footer>
             </>
           ) : (
-            <p className="inventory-reference-empty">Select an item to inspect references.</p>
+            <p className="inventory-reference-empty">{t("Select an item to inspect references.")}</p>
           )}
         </aside>
       </div>
@@ -800,7 +830,7 @@ function InventoryReferenceSection({
   );
 }
 
-function collectInventoryUsage(project: ProjectBundle, itemId: string): InventoryUsageSummary {
+function collectInventoryUsage(project: ProjectBundle, itemId: string, t: EditorTranslator): InventoryUsageSummary {
   const scenes = new Map<string, InventoryUsageScene>();
   const pickups: InventoryUsageHotspot[] = [];
   const placements: InventoryUsageHotspot[] = [];
@@ -836,8 +866,8 @@ function collectInventoryUsage(project: ProjectBundle, itemId: string): Inventor
           sceneId: scene.id,
           sceneName: scene.name,
           hotspotId: hotspot.id,
-          entityName: hotspot.name || `Hotspot ${index + 1}`,
-          label: hasInventoryEffect(hotspot.effects, "addItem", itemId) ? "Key Pickup" : "Pickup"
+          entityName: hotspot.name || t("Hotspot {number}", { number: index + 1 }),
+          label: hasInventoryEffect(hotspot.effects, "addItem", itemId) ? t("Key Pickup") : t("Pickup")
         });
       }
 
@@ -848,8 +878,8 @@ function collectInventoryUsage(project: ProjectBundle, itemId: string): Inventor
           sceneId: scene.id,
           sceneName: scene.name,
           hotspotId: hotspot.id,
-          entityName: hotspot.name || `Hotspot ${index + 1}`,
-          label: "Keyhole"
+          entityName: hotspot.name || t("Hotspot {number}", { number: index + 1 }),
+          label: t("Keyhole")
         });
       }
 
@@ -880,33 +910,34 @@ function collectInventoryValidationRows(
   assignedAsset: Asset | undefined,
   isValidInventoryAsset: boolean,
   displayText: string,
-  usage: InventoryUsageSummary
+  usage: InventoryUsageSummary,
+  t: EditorTranslator
 ): InventoryValidationRow[] {
   const rows: InventoryValidationRow[] = [];
   if (!item.imageAssetId) {
-    rows.push({ key: "image-missing", label: "Has inventory image", status: "Warning", tone: "warning" });
+    rows.push({ key: "image-missing", label: t("Has inventory image"), tone: "warning" });
   } else if (!assignedAsset || !isValidInventoryAsset) {
-    rows.push({ key: "image-invalid", label: "Has inventory image", status: "Warning", tone: "warning" });
+    rows.push({ key: "image-invalid", label: t("Has inventory image"), tone: "warning" });
   } else {
-    rows.push({ key: "image-valid", label: "Has inventory image", status: "Valid", tone: "valid" });
+    rows.push({ key: "image-valid", label: t("Has inventory image"), tone: "valid" });
   }
 
   rows.push(
     displayText.trim()
-      ? { key: "display-valid", label: "Display text is set", status: "Valid", tone: "valid" }
-      : { key: "display-missing", label: "Display text is set", status: "Warning", tone: "warning" }
+      ? { key: "display-valid", label: t("Display text is set"), tone: "valid" }
+      : { key: "display-missing", label: t("Display text is set"), tone: "warning" }
   );
 
   rows.push(
     usage.pickups.length > 0
-      ? { key: "pickup-valid", label: "Used by a pickup hotspot", status: "Valid", tone: "valid" }
-      : { key: "pickup-missing", label: "Not used by a pickup hotspot.", status: "Warning", tone: "warning" }
+      ? { key: "pickup-valid", label: t("Used by a pickup hotspot"), tone: "valid" }
+      : { key: "pickup-missing", label: t("Not used by a pickup hotspot."), tone: "warning" }
   );
 
   rows.push(
     usage.placements.length > 0
-      ? { key: "target-valid", label: "Used as a placement target", status: "Valid", tone: "valid" }
-      : { key: "target-missing", label: "Not used as a placement target.", status: "Warning", tone: "warning" }
+      ? { key: "target-valid", label: t("Used as a placement target"), tone: "valid" }
+      : { key: "target-missing", label: t("Not used as a placement target."), tone: "warning" }
   );
 
   return rows;
@@ -939,17 +970,22 @@ function resolveInventoryItemDisplayLabel(item: InventoryItem, localeStrings: Re
   return localeStrings[item.textId]?.trim() || item.name || item.id;
 }
 
-function formatCount(count: number, singular: string) {
-  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+function formatInventoryCount(t: EditorTranslator, count: number, kind: "item" | "warning") {
+  if (kind === "item") {
+    return t(count === 1 ? "{count} item" : "{count} items", { count });
+  }
+  return t(count === 1 ? "{count} warning" : "{count} warnings", { count });
 }
 
-function formatAssetDimensions(asset: Asset | undefined, locale: string): string {
+function formatAssetDimensions(asset: Asset | undefined, locale: string, t: EditorTranslator): string {
   if (!asset) {
-    return "No image assigned";
+    return t("No image assigned");
   }
 
   const variant = asset.variants[locale] ?? Object.values(asset.variants)[0];
-  const dimensions = variant?.width && variant?.height ? `${variant.width} x ${variant.height}` : "Image asset";
+  const dimensions = variant?.width && variant?.height
+    ? t("{width} x {height}", { width: variant.width, height: variant.height })
+    : t("Image asset");
   const extension = resolveAssetExtension(variant?.sourcePath ?? variant?.proxyPath ?? asset.name);
   return extension ? `${dimensions} (${extension})` : dimensions;
 }

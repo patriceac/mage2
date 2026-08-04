@@ -177,11 +177,13 @@ export function resolveIssueNavigation(
     case "PLAYER_TEXT_SOURCE_INCOMPLETE":
     case "PLAYER_TEXT_LOCALE_INCOMPLETE":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "player presentation",
         tab: "player"
       };
     case "MISSING_START_LOCATION":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "start location",
         tab: "world",
         locationId: project.manifest.startLocationId,
@@ -189,6 +191,7 @@ export function resolveIssueNavigation(
       };
     case "MISSING_START_SCENE":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "start scene",
         tab: "scenes",
         sceneId: project.manifest.startSceneId
@@ -196,6 +199,7 @@ export function resolveIssueNavigation(
     case "SCENE_BACKGROUND_MISSING":
     case "SCENE_AUDIO_MISSING":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "scene media",
         tab: "scenes",
         sceneId: project.manifest.startSceneId
@@ -207,6 +211,7 @@ export function resolveIssueNavigation(
     case "INVENTORY_IMAGE_LOCALE_MISSING":
     case "RESPONSE_MEDIA_LOCALE_MISSING":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "localized media",
         tab: "localization",
         locale: issue.locale ?? project.manifest.defaultLanguage,
@@ -253,6 +258,7 @@ export function resolveIssueNavigation(
     case "SCENE_AUDIO_KIND_INVALID":
     case "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND":
       return {
+        // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "scene media",
         tab: "scenes",
         sceneId: issue.entityId

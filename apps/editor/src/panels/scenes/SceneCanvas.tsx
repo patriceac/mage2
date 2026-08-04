@@ -11,6 +11,7 @@ import {
 } from "../../MediaSurface";
 import type { HotspotGeometry } from "../../hotspot-geometry";
 import type { HotspotVisual } from "../../hotspot-visuals";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
 import { SceneToolIcon } from "./SceneEditorIcons";
 import {
   loadCornerFirstHotspotHandlesPreference,
@@ -89,6 +90,7 @@ export function SceneCanvas({
   selectedHotspotId,
   setPlayheadMs
 }: SceneCanvasProps) {
+  const { t } = useEditorI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasTool, setCanvasTool] = useState<MediaSurfaceViewportTool>("select");
   const [cornerFirstHotspotHandles, setCornerFirstHotspotHandles] = useState<boolean>(() =>
@@ -157,70 +159,70 @@ export function SceneCanvas({
 
   return (
     <>
-      <div className="scenes-panel__canvas-toolbar" aria-label="Scene canvas toolbar">
-        <div className="scenes-panel__canvas-toolset" role="toolbar" aria-label="Canvas tools">
+      <div className="scenes-panel__canvas-toolbar" aria-label={t("Scene canvas toolbar")}>
+        <div className="scenes-panel__canvas-toolset" role="toolbar" aria-label={t("Canvas tools")}>
           <button
             type="button"
             className={resolveCanvasToolButtonClassName(canvasTool === "select")}
-            aria-label="Select tool"
+            aria-label={t("Select tool")}
             aria-pressed={canvasTool === "select"}
             onClick={() => setCanvasTool("select")}
-            title="Select and edit hotspots."
+            title={t("Select and edit hotspots.")}
           >
             <SceneToolIcon kind="select" />
           </button>
           <button
             type="button"
             className={resolveCanvasToolButtonClassName(canvasTool === "pan")}
-            aria-label="Pan tool"
+            aria-label={t("Pan tool")}
             aria-pressed={canvasTool === "pan"}
             onClick={() => setCanvasTool("pan")}
-            title="Pan the scene view."
+            title={t("Pan the scene view.")}
           >
             <SceneToolIcon kind="pan" />
           </button>
           <button
             type="button"
             className={resolveCanvasToolButtonClassName(canvasTool === "zoom")}
-            aria-label="Zoom tool"
+            aria-label={t("Zoom tool")}
             aria-pressed={canvasTool === "zoom"}
             onClick={() => setCanvasTool("zoom")}
-            title="Zoom the scene view. Click the preview to zoom in; Shift-click to zoom out."
+            title={t("Zoom the scene view. Click the preview to zoom in; Shift-click to zoom out.")}
           >
             <SceneToolIcon kind="zoom" />
           </button>
           <button
             type="button"
             className="scenes-panel__canvas-tool"
-            aria-label="Fit scene preview"
+            aria-label={t("Fit scene preview")}
             onClick={resetCanvasView}
-            title="Fit the scene preview."
+            title={t("Fit the scene preview.")}
           >
             <SceneToolIcon kind="fit" />
           </button>
         </div>
-        <div className="scenes-panel__canvas-handle-controls" role="toolbar" aria-label="Hotspot handle settings">
+        <div className="scenes-panel__canvas-handle-controls" role="toolbar" aria-label={t("Hotspot handle settings")}>
           <button
             type="button"
             className={`${resolveCanvasToolButtonClassName(cornerFirstHotspotHandles)} scenes-panel__canvas-tool--setting`}
-            aria-label="Corner-first handles"
+            aria-label={t("Corner-first handles")}
             aria-pressed={cornerFirstHotspotHandles}
             onClick={() => setCornerFirstHotspotHandles((enabled) => !enabled)}
             title={
               cornerFirstHotspotHandles
-                ? "Corner-first handles: center handles stay derived until moved."
-                : "Independent center handles: corner drags keep current center dots."
+                ? t("Corner-first handles: center handles stay derived until moved.")
+                : t("Independent center handles: corner drags keep current center dots.")
             }
           >
             <SceneToolIcon kind="corner-first" />
           </button>
         </div>
-        <div className="scenes-panel__canvas-view-controls" aria-label="Scene view controls">
+        <div className="scenes-panel__canvas-view-controls" aria-label={t("Scene view controls")}>
           <button
             type="button"
             className="scenes-panel__view-select"
             onClick={cycleCanvasZoomLevel}
-            title="Cycle the scene preview zoom level."
+            title={t("Cycle the scene preview zoom level.")}
           >
             <span>{formatCanvasZoomLabel(canvasViewportTransform.scale)}</span>
           </button>
@@ -239,8 +241,8 @@ export function SceneCanvas({
           <button
             type="button"
             className="scenes-panel__operation-feedback-dismiss"
-            aria-label="Dismiss scene message"
-            title="Dismiss this scene message."
+            aria-label={t("Dismiss scene message")}
+            title={t("Dismiss this scene message.")}
             onClick={onDismissOperationFeedback}
           >
             <span aria-hidden="true">×</span>
@@ -291,16 +293,16 @@ export function SceneCanvas({
           />
           {isBackgroundDropActive ? (
             <div className="scenes-panel__background-dropzone-overlay" aria-hidden="true">
-              <strong>{asset ? "Drop to replace background" : "Drop to assign background"}</strong>
-              <span>{backgroundImportAcceptsVideo ? "Use an image or video file." : "Use an image file."}</span>
+              <strong>{asset ? t("Drop to replace background") : t("Drop to assign background")}</strong>
+              <span>{backgroundImportAcceptsVideo ? t("Use an image or video file.") : t("Use an image file.")}</span>
             </div>
           ) : isInventoryPlacementDropActive ? (
             <div
               className="scenes-panel__background-dropzone-overlay scenes-panel__background-dropzone-overlay--inventory"
               aria-hidden="true"
             >
-              <strong>Drop to place item</strong>
-              <span>Release to create a linked inventory hotspot at this position.</span>
+              <strong>{t("Drop to place item")}</strong>
+              <span>{t("Release to create a linked inventory hotspot at this position.")}</span>
             </div>
           ) : null}
         </div>

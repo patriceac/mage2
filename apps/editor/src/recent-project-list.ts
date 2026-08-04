@@ -6,25 +6,25 @@ export interface RecentProjectSummary {
 
 const MAX_RECENT_PROJECTS = 5;
 
-export function resolveProjectName(input: string, directoryPath: string): string {
+export function resolveProjectName(input: string, directoryPath: string, t: EditorTranslator = (source) => source): string {
   const trimmed = input.trim();
   if (trimmed.length > 0) {
     return trimmed;
   }
 
   const parts = directoryPath.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? "New FMV Project";
+  return parts[parts.length - 1] ?? t("New FMV Project");
 }
 
 function normalizeProjectDirectory(projectDir: string): string {
   return projectDir.trim().replaceAll("/", "\\");
 }
 
-export function createRecentProjectSummary(projectDir: string, projectName?: string): RecentProjectSummary {
+export function createRecentProjectSummary(projectDir: string, projectName?: string, t?: EditorTranslator): RecentProjectSummary {
   const normalizedProjectDir = normalizeProjectDirectory(projectDir);
   return {
     projectDir: normalizedProjectDir,
-    projectName: resolveProjectName(projectName ?? "", normalizedProjectDir),
+    projectName: resolveProjectName(projectName ?? "", normalizedProjectDir, t),
     lastOpenedAt: new Date().toISOString()
   };
 }
@@ -36,10 +36,11 @@ export function isSameProjectDirectory(leftProjectDir: string, rightProjectDir: 
 export function upsertRecentProjects(
   recentProjects: RecentProjectSummary[],
   projectDir: string,
-  projectName?: string
+  projectName?: string,
+  t?: EditorTranslator
 ): RecentProjectSummary[] {
   return [
-    createRecentProjectSummary(projectDir, projectName),
+    createRecentProjectSummary(projectDir, projectName, t),
     ...recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir))
   ].slice(0, MAX_RECENT_PROJECTS);
 }
@@ -70,3 +71,4 @@ export function removeRecentProjectEntry(
 ): RecentProjectSummary[] {
   return recentProjects.filter((recentProject) => !isSameProjectDirectory(recentProject.projectDir, projectDir));
 }
+import type { EditorTranslator } from "./i18n/translate";

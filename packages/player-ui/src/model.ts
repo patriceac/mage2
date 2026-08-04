@@ -1,4 +1,6 @@
 import {
+  BUILT_IN_LOCALE_DIRECTIONS,
+  resolveBuiltInLocale,
   hasHotspotEvent,
   resolveAssetCategory,
   resolveAssetVariant,
@@ -31,7 +33,7 @@ export interface PlayerSystemCopy {
   responseMediaUnavailable: string;
 }
 
-const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh" | "ja" | "ko" | "ar", PlayerSystemCopy> = {
+const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | "ar", PlayerSystemCopy> = {
   en: {
     narrator: "Narrator",
     continue: "Continue",
@@ -85,7 +87,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh" | "ja" | "ko" | "ar",
     responseAudioPlaying: "Respuesta de audio",
     responseMediaUnavailable: "Este contenido de respuesta no está disponible."
   },
-  zh: {
+  "zh-Hans": {
     narrator: "旁白",
     continue: "继续",
     inventory: "物品栏",
@@ -152,15 +154,11 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh" | "ja" | "ko" | "ar",
 };
 
 export function resolvePlayerSystemCopy(locale: string): PlayerSystemCopy {
-  const baseLanguage = locale.trim().toLowerCase().replaceAll("_", "-").split("-")[0];
-  return PLAYER_SYSTEM_COPY[baseLanguage as keyof typeof PLAYER_SYSTEM_COPY] ?? PLAYER_SYSTEM_COPY.en;
+  return PLAYER_SYSTEM_COPY[resolveBuiltInLocale([locale])];
 }
 
 export function resolvePlayerTextDirection(locale: string): "ltr" | "rtl" {
-  const baseLanguage = locale.trim().toLowerCase().replaceAll("_", "-").split("-")[0];
-  return baseLanguage === "ar" || baseLanguage === "fa" || baseLanguage === "he" || baseLanguage === "ur"
-    ? "rtl"
-    : "ltr";
+  return BUILT_IN_LOCALE_DIRECTIONS[resolveBuiltInLocale([locale])];
 }
 
 export interface PlayerInventoryItemView {

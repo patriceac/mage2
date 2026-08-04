@@ -1,4 +1,5 @@
 import type { Effect, ProjectBundle } from "@mage2/schema";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
 import { JsonField, parseJsonWithFallback } from "./JsonField";
 
 type ProjectScene = ProjectBundle["scenes"]["items"][number];
@@ -9,6 +10,8 @@ interface SceneWiringSectionProps {
 }
 
 export function SceneWiringSection({ scene, mutateProject }: SceneWiringSectionProps) {
+  const { t } = useEditorI18n();
+
   function updateEffects(field: "onEnterEffects" | "onExitEffects", input: string) {
     mutateProject((draft) => {
       const draftScene = draft.scenes.items.find((entry) => entry.id === scene.id);
@@ -21,23 +24,23 @@ export function SceneWiringSection({ scene, mutateProject }: SceneWiringSectionP
   return (
     <details className="scenes-panel__details">
       <summary className="scenes-panel__details-summary">
-        <span>Scene wiring</span>
-        <span>Enter and exit effects</span>
+        <span>{t("Scene wiring")}</span>
+        <span>{t("Enter and exit effects")}</span>
       </summary>
       <div className="scenes-panel__details-body">
         <div className="split-columns">
           <section>
             <JsonField
-              label="On Enter Effects JSON"
+              label={t("On Enter Effects JSON")}
               value={JSON.stringify(scene.onEnterEffects, null, 2)}
-              tooltip="JSON effect list that runs automatically when the player enters this scene."
+              tooltip={t("JSON effect list that runs automatically when the player enters this scene.")}
               labelClassName="field-label--inset"
               onCommit={(nextValue) => updateEffects("onEnterEffects", nextValue)}
             />
             <JsonField
-              label="On Exit Effects JSON"
+              label={t("On Exit Effects JSON")}
               value={JSON.stringify(scene.onExitEffects, null, 2)}
-              tooltip="JSON effect list that runs automatically when the player leaves this scene."
+              tooltip={t("JSON effect list that runs automatically when the player leaves this scene.")}
               labelClassName="field-label--inset"
               onCommit={(nextValue) => updateEffects("onExitEffects", nextValue)}
             />

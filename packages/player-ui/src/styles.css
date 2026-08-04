@@ -1151,7 +1151,7 @@
   position: absolute;
   z-index: 32;
   top: max(0.8rem, env(safe-area-inset-top));
-  right: max(0.8rem, env(safe-area-inset-right));
+  inset-inline-end: max(0.8rem, env(safe-area-inset-right));
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
@@ -1233,7 +1233,7 @@
 
 .mage2-experience__panel {
   top: max(4.25rem, calc(env(safe-area-inset-top) + 4rem));
-  right: max(0.85rem, env(safe-area-inset-right));
+  inset-inline-end: max(0.85rem, env(safe-area-inset-right));
   width: min(23rem, calc(100% - 1.7rem));
   max-height: calc(100% - 5.2rem);
   padding: 1.1rem;
@@ -1284,7 +1284,7 @@
 .mage2-experience__settings > button {
   width: 100%;
   border-radius: 11px;
-  text-align: left;
+  text-align: start;
 }
 
 .mage2-experience__settings label {
@@ -1296,6 +1296,14 @@
   padding: 0.55rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   color: #d8dde3;
+}
+
+.mage2-experience__settings label > span small {
+  display: block;
+  margin-block-start: 0.2rem;
+  color: #9da6b0;
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .mage2-experience__settings select {
@@ -1403,16 +1411,16 @@
   .mage2-experience__panel,
   .mage2-experience__confirmation {
     top: auto;
-    right: 0;
+    inset-inline-end: 0;
     bottom: 0;
-    left: 0;
+    inset-inline-start: 0;
     width: 100%;
     max-height: calc(100% - env(safe-area-inset-top));
     padding: 1.15rem max(1rem, env(safe-area-inset-right)) calc(1.15rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     overflow: auto;
-    border-right: 0;
+    border-inline-end: 0;
     border-bottom: 0;
-    border-left: 0;
+    border-inline-start: 0;
     border-radius: 22px 22px 0 0;
     transform: none;
   }

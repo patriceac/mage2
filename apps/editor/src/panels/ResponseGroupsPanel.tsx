@@ -11,6 +11,7 @@ import {
 import { DropdownSelect } from "../DropdownSelect";
 import { AUDIO_IMPORT_EXTENSIONS, VIDEO_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "../i18n";
 import { setEditorLocalizedText } from "../localized-project";
 import { addAssetRoots, createId } from "../project-helpers";
 import { AssetPreview } from "../previews";
@@ -40,6 +41,7 @@ export function ResponseGroupsPanel({
   onOpenScenesHotspot
 }: ResponseGroupsPanelProps) {
   const dialogs = useDialogs();
+  const { direction, t } = useEditorI18n();
   const selectedGroupId = useEditorStore((state) => state.selectedResponseGroupId);
   const selectedEntryId = useEditorStore((state) => state.selectedResponseEntryId);
   const setSelectedGroupId = useEditorStore((state) => state.setSelectedResponseGroupId);
@@ -52,11 +54,11 @@ export function ResponseGroupsPanel({
   const locale = project.manifest.defaultLanguage;
   const strings = getLocaleStringValues(project, locale);
   const filteredGroups = groups.filter((group) =>
-    group.name.toLocaleLowerCase().includes(groupFilter.trim().toLocaleLowerCase())
+    formatResponseGroupName(t, group).toLocaleLowerCase().includes(groupFilter.trim().toLocaleLowerCase())
   );
   const usages = useMemo(
-    () => (currentGroup ? collectResponseUsage(project, currentGroup, currentEntry) : []),
-    [currentEntry, currentGroup, project]
+    () => (currentGroup ? collectResponseUsage(project, t, currentGroup, currentEntry) : []),
+    [currentEntry, currentGroup, project, t]
   );
 
   function selectGroup(group: ResponseGroup) {
@@ -67,7 +69,7 @@ export function ResponseGroupsPanel({
   function createGroup() {
     const group: ResponseGroup = {
       id: createId("response_group"),
-      name: "New response group",
+      name: t("New response group"),
       entries: []
     };
     mutateProject((draft) => {
@@ -75,7 +77,7 @@ export function ResponseGroupsPanel({
     });
     setSelectedGroupId(group.id);
     setSelectedEntryId(undefined);
-    setStatusMessage("Created a response group. Add text, audio, or video responses to it.");
+    setStatusMessage(t("Created a response group. Add text, audio, or video responses to it."));
   }
 
   async function deleteGroup() {
@@ -83,24 +85,26 @@ export function ResponseGroupsPanel({
       return;
     }
     const groupUsageCount =
-      collectResponseUsage(project, currentGroup).length +
+      collectResponseUsage(project, t, currentGroup).length +
       currentGroup.entries.reduce(
-        (count, entry) => count + collectResponseUsage(project, undefined, entry).length,
+        (count, entry) => count + collectResponseUsage(project, t, undefined, entry).length,
         0
       );
     const confirmed = await dialogs.confirm({
-      title: `Delete “${currentGroup.name}”?`,
+      title: t("Delete “{name}”?", { name: formatResponseGroupName(t, currentGroup) }),
       body: (
         <>
-          <p>{`This removes ${formatEntryCount(currentGroup.entries.length)} from the response library.`}</p>
+          <p>{t("This removes {responses} from the response library.", { responses: formatEntryCount(t, currentGroup.entries.length) })}</p>
           <p>
             {groupUsageCount > 0
-              ? `${groupUsageCount} hotspot assignment${groupUsageCount === 1 ? "" : "s"} will be changed to no player feedback.`
-              : "No hotspots currently use this group."}
+              ? groupUsageCount === 1
+                ? t("1 hotspot assignment will be changed to no player feedback.")
+                : t("{count} hotspot assignments will be changed to no player feedback.", { count: groupUsageCount })
+              : t("No hotspots currently use this group.")}
           </p>
         </>
       ),
-      confirmLabel: "Delete Group",
+      confirmLabel: t("Delete Group"),
       tone: "danger"
     });
     if (!confirmed) {
@@ -124,7 +128,7 @@ export function ResponseGroupsPanel({
     });
     setSelectedGroupId(nextGroup?.id);
     setSelectedEntryId(nextGroup?.entries[0]?.id);
-    setStatusMessage(`Deleted ${currentGroup.name}.`);
+    setStatusMessage(t("Deleted {name}.", { name: formatResponseGroupName(t, currentGroup) }));
   }
 
   function addEntry(kind: ResponseEntry["kind"]) {
@@ -143,28 +147,30 @@ export function ResponseGroupsPanel({
       }
       group.entries.push(entry);
       if (entry.kind === "text") {
-        setEditorLocalizedText(draft, locale, entry.textId, "New response");
+        setEditorLocalizedText(draft, locale, entry.textId, t("New response"));
       }
     });
     setSelectedEntryId(entry.id);
-    setStatusMessage(`Added a ${kind} response to ${currentGroup.name}.`);
+    setStatusMessage(t("Added a {kind} response to {name}.", { kind: formatResponseKind(t, kind).toLocaleLowerCase(), name: formatResponseGroupName(t, currentGroup) }));
   }
 
   async function deleteEntry() {
     if (!currentGroup || !currentEntry) {
       return;
     }
-    const directUsageCount = collectResponseUsage(project, undefined, currentEntry).length;
+    const directUsageCount = collectResponseUsage(project, t, undefined, currentEntry).length;
     const confirmed = await dialogs.confirm({
-      title: "Delete this response?",
+      title: t("Delete this response?"),
       body: (
         <p>
           {directUsageCount > 0
-            ? `${directUsageCount} direct hotspot assignment${directUsageCount === 1 ? "" : "s"} will be changed to no player feedback.`
-            : "The response will be removed from this group."}
+              ? directUsageCount === 1
+                ? t("1 direct hotspot assignment will be changed to no player feedback.")
+                : t("{count} direct hotspot assignments will be changed to no player feedback.", { count: directUsageCount })
+              : t("The response will be removed from this group.")}
         </p>
       ),
-      confirmLabel: "Delete Response",
+      confirmLabel: t("Delete Response"),
       tone: "danger"
     });
     if (!confirmed) {
@@ -184,7 +190,7 @@ export function ResponseGroupsPanel({
       group.entries = group.entries.filter((candidate) => candidate.id !== entry.id);
     });
     setSelectedEntryId(nextEntry?.id);
-    setStatusMessage(`Deleted a response from ${currentGroup.name}.`);
+    setStatusMessage(t("Deleted a response from {name}.", { name: formatResponseGroupName(t, currentGroup) }));
   }
 
   function changeEntryKind(kind: ResponseEntry["kind"]) {
@@ -207,7 +213,7 @@ export function ResponseGroupsPanel({
           : { id: previous.id, kind };
       group.entries[index] = replacement;
       if (replacement.kind === "text") {
-        setEditorLocalizedText(draft, locale, replacement.textId, "New response");
+        setEditorLocalizedText(draft, locale, replacement.textId, t("New response"));
       }
     });
   }
@@ -218,14 +224,16 @@ export function ResponseGroupsPanel({
     }
     const projectDir = useEditorStore.getState().projectDir;
     if (!projectDir || !window.editorApi) {
-      setStatusMessage("Open this project in the desktop editor to import media.");
+      setStatusMessage(t("Open this project in the desktop editor to import media."));
       return;
     }
     const filePaths = await dialogs.pickFiles({
-      title: `Import ${kind === "audio" ? "Audio" : "Video"} Response`,
-      description: `Choose a ${kind} file. It will become a normal project asset and be assigned to this response.`,
+      title: t("Import {kind} Response", { kind: formatResponseKind(t, kind) }),
+      description: t("Choose a {kind} file. It will become a normal project asset and be assigned to this response.", {
+        kind: formatResponseKind(t, kind).toLocaleLowerCase()
+      }),
       initialPath: projectDir,
-      confirmLabel: `Import ${kind === "audio" ? "Audio" : "Video"}`,
+      confirmLabel: t("Import {kind}", { kind: formatResponseKind(t, kind) }),
       allowedExtensions: [...(kind === "audio" ? AUDIO_IMPORT_EXTENSIONS : VIDEO_IMPORT_EXTENSIONS)]
     });
     const filePath = filePaths[0];
@@ -233,7 +241,7 @@ export function ResponseGroupsPanel({
       return;
     }
     try {
-      setBusyLabel(`Importing response ${kind}`);
+      setBusyLabel(t("Importing response {kind}", { kind: formatResponseKind(t, kind).toLocaleLowerCase() }));
       const result = await window.editorApi.importAssets(
         projectDir,
         locale,
@@ -247,7 +255,9 @@ export function ResponseGroupsPanel({
         : undefined;
       const assignedAsset = importedAsset ?? duplicateAsset;
       if (!assignedAsset || assignedAsset.kind !== kind) {
-        throw new Error(`The selected file did not create a usable ${kind} asset.`);
+        throw new Error(t("The selected file did not create a usable {kind} asset.", {
+          kind: formatResponseKind(t, kind).toLocaleLowerCase()
+        }));
       }
       mutateProject((draft) => {
         if (importedAsset) {
@@ -261,30 +271,34 @@ export function ResponseGroupsPanel({
         }
       });
       useEditorStore.getState().setSelectedAssetId(assignedAsset.id);
-      setStatusMessage(`${importedAsset ? "Imported" : "Reused"} ${assignedAsset.name} for this response.`);
+      setStatusMessage(importedAsset
+        ? t("Imported {name} for this response.", { name: assignedAsset.name })
+        : t("Reused {name} for this response.", { name: assignedAsset.name }));
     } catch (error) {
-      setStatusMessage(`Response media import failed: ${error instanceof Error ? error.message : String(error)}`);
+      setStatusMessage(t("Response media import failed: {message}", {
+        message: translateRuntimeMessage(error, t)
+      }));
     } finally {
       setBusyLabel(undefined);
     }
   }
 
   return (
-    <div className="response-workspace">
-      <aside className="panel response-library" aria-label="Response group library">
+    <div className="response-workspace" dir={direction}>
+      <aside className="panel response-library" aria-label={t("Response group library")}>
         <header className="response-library__header">
           <div>
-            <p className="eyebrow">Player Feedback</p>
-            <h3>Response Groups</h3>
+            <p className="eyebrow">{t("Player Feedback")}</p>
+            <h3>{t("Response Groups")}</h3>
           </div>
-          <button type="button" className="button-accent" onClick={createGroup}>New Group</button>
+          <button type="button" className="button-accent" onClick={createGroup}>{t("New Group")}</button>
         </header>
         <p className="muted response-library__intro">
-          Groups pick one response at random and avoid repeating the most recent choice.
+          {t("Groups pick one response at random and avoid repeating the most recent choice.")}
         </p>
         <label className="dialogue-search">
-          <span className="field-label--inset">Find group</span>
-          <input value={groupFilter} placeholder="Search by name" onChange={(event) => setGroupFilter(event.target.value)} />
+          <span className="field-label--inset">{t("Find group")}</span>
+          <input value={groupFilter} placeholder={t("Search by name")} onChange={(event) => setGroupFilter(event.target.value)} />
         </label>
         <div className="response-library__list">
           {filteredGroups.map((group) => (
@@ -294,28 +308,28 @@ export function ResponseGroupsPanel({
               className={group.id === currentGroup?.id ? "response-group-item response-group-item--selected" : "response-group-item"}
               onClick={() => selectGroup(group)}
             >
-              <span>{group.name}</span>
-              <small>{formatEntryCount(group.entries.length)}</small>
+              <span>{formatResponseGroupName(t, group)}</span>
+              <small>{formatEntryCount(t, group.entries.length)}</small>
             </button>
           ))}
         </div>
         {groups.length === 0 ? (
           <div className="dialogue-empty-state">
-            <h4>Create a response group</h4>
-            <p className="muted">Collect related text, audio, or video feedback in one reusable set.</p>
-            <button type="button" className="button-accent" onClick={createGroup}>New Group</button>
+            <h4>{t("Create a response group")}</h4>
+            <p className="muted">{t("Collect related text, audio, or video feedback in one reusable set.")}</p>
+            <button type="button" className="button-accent" onClick={createGroup}>{t("New Group")}</button>
           </div>
-        ) : filteredGroups.length === 0 ? <p className="muted">No groups match this search.</p> : null}
+        ) : filteredGroups.length === 0 ? <p className="muted">{t("No groups match this search.")}</p> : null}
       </aside>
 
-      <main className="panel response-builder" aria-label="Response group editor">
+      <main className="panel response-builder" aria-label={t("Response group editor")}>
         {currentGroup ? (
           <>
             <header className="response-builder__header">
               <label className="response-group-name">
-                <span className="field-label--inset">Group name</span>
+                <span className="field-label--inset">{t("Group name")}</span>
                 <input
-                  value={currentGroup.name}
+                  value={formatResponseGroupName(t, currentGroup)}
                   onChange={(event) => mutateProject((draft) => {
                     const group = draft.dialogues.responseGroups.find((candidate) => candidate.id === currentGroup.id);
                     if (group) group.name = event.target.value;
@@ -324,19 +338,19 @@ export function ResponseGroupsPanel({
                     if (event.target.value.trim()) return;
                     mutateProject((draft) => {
                       const group = draft.dialogues.responseGroups.find((candidate) => candidate.id === currentGroup.id);
-                      if (group) group.name = "Untitled response group";
+                      if (group) group.name = t("Untitled response group");
                     });
                   }}
                 />
               </label>
-              <button type="button" className="button-danger" onClick={() => void deleteGroup()}>Delete Group</button>
+              <button type="button" className="button-danger" onClick={() => void deleteGroup()}>{t("Delete Group")}</button>
             </header>
 
-            <section className="response-add-row" aria-label="Add response">
-              <span>Add response</span>
-              <button type="button" onClick={() => addEntry("text")}>Text</button>
-              <button type="button" onClick={() => addEntry("audio")}>Audio</button>
-              <button type="button" onClick={() => addEntry("video")}>Video</button>
+            <section className="response-add-row" aria-label={t("Add response")}>
+              <span>{t("Add response")}</span>
+              <button type="button" onClick={() => addEntry("text")}>{t("Text")}</button>
+              <button type="button" onClick={() => addEntry("audio")}>{t("Audio")}</button>
+              <button type="button" onClick={() => addEntry("video")}>{t("Video")}</button>
             </section>
 
             {currentGroup.entries.length > 0 ? (
@@ -348,15 +362,15 @@ export function ResponseGroupsPanel({
                     className={entry.id === currentEntry?.id ? "response-entry-item response-entry-item--selected" : "response-entry-item"}
                     onClick={() => setSelectedEntryId(entry.id)}
                   >
-                    <span className={`response-kind response-kind--${entry.kind}`}>{entry.kind}</span>
-                    <span className="response-entry-item__label">{formatResponseEntryLabel(entry, project, strings, index)}</span>
+                    <span className={`response-kind response-kind--${entry.kind}`}>{formatResponseKind(t, entry.kind)}</span>
+                    <span className="response-entry-item__label">{formatResponseEntryLabel(t, entry, project, strings, index)}</span>
                   </button>
                 ))}
               </div>
             ) : (
               <div className="dialogue-empty-state response-empty-state">
-                <h4>This group is empty</h4>
-                <p className="muted">Add a response above. Text appears quietly; audio plays without blocking; video pauses the game.</p>
+                <h4>{t("This group is empty")}</h4>
+                <p className="muted">{t("Add a response above. Text appears quietly; audio plays without blocking; video pauses the game.")}</p>
               </div>
             )}
 
@@ -376,20 +390,20 @@ export function ResponseGroupsPanel({
           </>
         ) : (
           <div className="dialogue-empty-state dialogue-empty-state--wide">
-            <h4>No response group selected</h4>
-            <p className="muted">Create a group to author reusable player feedback.</p>
-            <button type="button" className="button-accent" onClick={createGroup}>New Group</button>
+            <h4>{t("No response group selected")}</h4>
+            <p className="muted">{t("Create a group to author reusable player feedback.")}</p>
+            <button type="button" className="button-accent" onClick={createGroup}>{t("New Group")}</button>
           </div>
         )}
       </main>
 
-      <aside className="panel response-usage" aria-label="Response usage">
+      <aside className="panel response-usage" aria-label={t("Response usage")}>
         <section>
-          <p className="eyebrow">How it plays</p>
-          <h4>{currentEntry ? formatKindHeading(currentEntry.kind) : "Select a response"}</h4>
-          <p className="muted">{currentEntry ? formatKindDescription(currentEntry.kind) : "Choose an entry to edit and preview it."}</p>
+          <p className="eyebrow">{t("How it plays")}</p>
+          <h4>{currentEntry ? formatKindHeading(t, currentEntry.kind) : t("Select a response")}</h4>
+          <p className="muted">{currentEntry ? formatKindDescription(t, currentEntry.kind) : t("Choose an entry to edit and preview it.")}</p>
           {currentEntry?.kind === "text" ? (
-            <blockquote className="response-text-preview">{strings[currentEntry.textId]?.trim() || "No text yet"}</blockquote>
+            <blockquote className="response-text-preview">{strings[currentEntry.textId]?.trim() || t("No text yet")}</blockquote>
           ) : currentEntry ? (
             <div className="response-media-preview">
               <AssetPreview
@@ -397,15 +411,15 @@ export function ResponseGroupsPanel({
                 locale={locale}
                 allowSourceFallback
                 fit="contain"
-                emptyTitle={`No ${currentEntry.kind} selected`}
-                emptyBody="Choose an existing asset or import one in the editor."
+                emptyTitle={t("No {kind} selected", { kind: formatResponseKind(t, currentEntry.kind).toLocaleLowerCase() })}
+                emptyBody={t("Choose an existing asset or import one in the editor.")}
               />
             </div>
           ) : null}
         </section>
         <section className="response-usage__connections">
-          <p className="eyebrow">Used From</p>
-          <h4>{usages.length === 0 ? "Not assigned yet" : `${usages.length} hotspot ${usages.length === 1 ? "assignment" : "assignments"}`}</h4>
+          <p className="eyebrow">{t("Used From")}</p>
+          <h4>{usages.length === 0 ? t("Not assigned yet") : formatHotspotAssignmentCount(t, usages.length)}</h4>
           {usages.length > 0 ? (
             <div className="response-usage__list">
               {usages.map((usage) => (
@@ -420,10 +434,10 @@ export function ResponseGroupsPanel({
               ))}
             </div>
           ) : (
-            <p className="muted">In Scenes, choose this group or line in an event’s Player feedback field.</p>
+            <p className="muted">{t("In Scenes, choose this group or line in an event’s Player feedback field.")}</p>
           )}
           <button type="button" className="button-accent" onClick={() => onOpenScenesHotspot?.(usages[0]?.sceneId, usages[0]?.hotspotId)}>
-            Go to Scenes
+            {t("Go to Scenes")}
           </button>
         </section>
       </aside>
@@ -452,18 +466,19 @@ function ResponseEntryEditor({
   onDelete: () => void;
   onImportMedia: (kind: "audio" | "video") => Promise<void>;
 }) {
+  const { t } = useEditorI18n();
   const mediaAssets = entry.kind === "text" ? [] : project.assets.assets.filter((asset) => asset.kind === entry.kind);
   return (
     <section className="response-entry-editor">
       <header>
         <div>
-          <p className="eyebrow">Selected Response</p>
-          <h4>Edit response</h4>
+          <p className="eyebrow">{t("Selected Response")}</p>
+          <h4>{t("Edit response")}</h4>
         </div>
-        <button type="button" className="button-danger" onClick={onDelete}>Delete Response</button>
+        <button type="button" className="button-danger" onClick={onDelete}>{t("Delete Response")}</button>
       </header>
       <fieldset className="response-kind-picker">
-        <legend>Type</legend>
+        <legend>{t("Type")}</legend>
         {(["text", "audio", "video"] as const).map((kind) => (
           <button
             key={kind}
@@ -472,17 +487,17 @@ function ResponseEntryEditor({
             aria-pressed={entry.kind === kind}
             onClick={() => onChangeKind(kind)}
           >
-            {kind.charAt(0).toUpperCase() + kind.slice(1)}
+            {formatResponseKind(t, kind)}
           </button>
         ))}
       </fieldset>
       {entry.kind === "text" ? (
         <>
           <label>
-            <span className="field-label--inset">Text ({locale})</span>
+            <span className="field-label--inset">{t("Text ({locale})", { locale })}</span>
             <textarea
               value={strings[entry.textId] ?? ""}
-              placeholder="What should the player see?"
+              placeholder={t("What should the player see?")}
               onChange={(event) => mutateProject((draft) => {
                 setEditorLocalizedText(draft, locale, entry.textId, event.target.value);
               })}
@@ -498,13 +513,13 @@ function ResponseEntryEditor({
               useEditorStore.getState().setActiveTab("localization");
             }}
           >
-            Edit translations
+            {t("Edit translations")}
           </button>
         </>
       ) : (
         <div className="response-media-fields">
           <label>
-            <span className="field-label--inset">{entry.kind === "audio" ? "Audio" : "Video"} asset</span>
+            <span className="field-label--inset">{t("{kind} asset", { kind: formatResponseKind(t, entry.kind) })}</span>
             <DropdownSelect
               value={entry.assetId ?? ""}
               onChange={(event) => mutateProject((draft) => {
@@ -515,18 +530,18 @@ function ResponseEntryEditor({
                 }
               })}
             >
-              <option value="">Choose an existing asset</option>
+              <option value="">{t("Choose an existing asset")}</option>
               {entry.assetId && !mediaAssets.some((asset) => asset.id === entry.assetId) ? (
-                <option value={entry.assetId}>Missing or incompatible asset</option>
+                <option value={entry.assetId}>{t("Missing or incompatible asset")}</option>
               ) : null}
               {mediaAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
             </DropdownSelect>
           </label>
-          <span className="response-media-or">or</span>
+          <span className="response-media-or">{t("or")}</span>
           <button type="button" className="button-accent" onClick={() => void onImportMedia(entry.kind)}>
-            Import {entry.kind === "audio" ? "Audio" : "Video"}
+            {t("Import {kind}", { kind: formatResponseKind(t, entry.kind) })}
           </button>
-          <p className="muted">Imported files become normal project assets and remain available in Assets.</p>
+          <p className="muted">{t("Imported files become normal project assets and remain available in Assets.")}</p>
         </div>
       )}
     </section>
@@ -535,6 +550,7 @@ function ResponseEntryEditor({
 
 function collectResponseUsage(
   project: ProjectBundle,
+  t: EditorTranslator,
   group?: ResponseGroup,
   entry?: ResponseEntry
 ): ResponseUsage[] {
@@ -542,9 +558,9 @@ function collectResponseUsage(
   for (const scene of project.scenes.items) {
     for (const hotspot of scene.hotspots) {
       const candidates: Array<{ event: HotspotEvent | undefined; branchLabel: string }> = [
-        { event: hotspot, branchLabel: "Main action" },
-        { event: hotspot.clickEvent, branchLabel: "On click" },
-        { event: hotspot.otherItemEvent, branchLabel: "Any other item" }
+        { event: hotspot, branchLabel: t("Main action") },
+        { event: hotspot.clickEvent, branchLabel: t("On click") },
+        { event: hotspot.otherItemEvent, branchLabel: t("Any other item") }
       ];
       for (const candidate of candidates) {
         const selection = candidate.event?.response;
@@ -600,29 +616,54 @@ function deleteTextFromEveryLocale(project: ProjectBundle, textId: string) {
 }
 
 function formatResponseEntryLabel(
+  t: EditorTranslator,
   entry: ResponseEntry,
   project: ProjectBundle,
   strings: Record<string, string>,
   index: number
 ): string {
   if (entry.kind === "text") {
-    return strings[entry.textId]?.trim() || `Untitled text response ${index + 1}`;
+    return strings[entry.textId]?.trim() || t("Untitled text response {number}", { number: index + 1 });
   }
-  return project.assets.assets.find((asset) => asset.id === entry.assetId)?.name ?? `Choose ${entry.kind}`;
+  return project.assets.assets.find((asset) => asset.id === entry.assetId)?.name ??
+    t("Choose {kind}", { kind: formatResponseKind(t, entry.kind).toLocaleLowerCase() });
 }
 
-function formatEntryCount(count: number): string {
-  return `${count} ${count === 1 ? "response" : "responses"}`;
+function formatEntryCount(t: EditorTranslator, count: number): string {
+  return count === 1 ? t("1 response") : t("{count} responses", { count });
 }
 
-function formatKindHeading(kind: ResponseEntry["kind"]): string {
-  if (kind === "text") return "Quiet text message";
-  if (kind === "audio") return "Nonblocking audio";
-  return "Full-screen video";
+const STARTER_RESPONSE_GROUP_NAMES: Readonly<Record<string, string>> = {
+  response_group_wrong_item: "Wrong item",
+  response_group_missing_prerequisite: "Missing prerequisite",
+  response_group_already_completed: "Already completed",
+  response_group_no_effect: "No effect",
+  response_group_nothing_useful: "Nothing useful"
+};
+
+function formatResponseGroupName(t: EditorTranslator, group: ResponseGroup): string {
+  const starterName = STARTER_RESPONSE_GROUP_NAMES[group.id];
+  return starterName && group.name === starterName ? t(starterName) : group.name;
 }
 
-function formatKindDescription(kind: ResponseEntry["kind"]): string {
-  if (kind === "text") return "Appears without blocking the game, then disappears automatically based on its length.";
-  if (kind === "audio") return "Plays without blocking other gameplay and can be stopped by the player.";
-  return "Pauses gameplay until it ends or the player skips it. In Playtest, it stays inside the playtest area.";
+function formatHotspotAssignmentCount(t: EditorTranslator, count: number): string {
+  return count === 1 ? t("1 hotspot assignment") : t("{count} hotspot assignments", { count });
+}
+
+function formatResponseKind(t: EditorTranslator, kind: ResponseEntry["kind"]): string {
+  if (kind === "text") return t("Text");
+  if (kind === "audio") return t("Audio");
+  return t("Video");
+}
+
+function formatKindHeading(t: EditorTranslator, kind: ResponseEntry["kind"]): string {
+  if (kind === "text") return t("Quiet text message");
+  if (kind === "audio") return t("Nonblocking audio");
+  return t("Full-screen video");
+}
+
+function formatKindDescription(t: EditorTranslator, kind: ResponseEntry["kind"]): string {
+  if (kind === "text") return t("Appears without blocking the game, then disappears automatically based on its length.");
+  if (kind === "audio") return t("Plays without blocking other gameplay and can be stopped by the player.");
+  return t("Pauses gameplay until it ends or the player skips it. In Playtest, it stays inside the playtest area.");
 }

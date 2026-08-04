@@ -17,6 +17,35 @@ import {
 } from "./index";
 
 describe("project defaults", () => {
+  it("exports only genuine player UI overrides without mutating the project", () => {
+    const project = createDefaultProjectBundle("Override export");
+    project.manifest.supportedLocales = ["en", "fr"];
+    project.strings.byLocale.en!["player.ui.startGame"] = "Enter the observatory";
+    project.strings.byLocale.fr = {
+      "player.ui.startGame": "Begin",
+      "player.ui.settings": "Paramètres du jeu",
+      "player.ui.menu": "Menu provisoire"
+    };
+    project.strings.translationStateByLocale.fr = {
+      "player.ui.startGame": "inherited",
+      "player.ui.settings": "reviewed",
+      "player.ui.menu": "draft"
+    };
+    const before = structuredClone(project);
+
+    const exported = toExportProjectData(project);
+
+    expect(exported.playerUiOverrides).toEqual({
+      en: { "player.ui.startGame": "Enter the observatory" },
+      fr: { "player.ui.settings": "Paramètres du jeu" }
+    });
+    expect(project).toEqual(before);
+  });
+
+  it("keeps player UI override export metadata optional when no authored override exists", () => {
+    expect(toExportProjectData(createDefaultProjectBundle())).not.toHaveProperty("playerUiOverrides");
+  });
+
   it("creates starter projects and save states without segment fields", () => {
     const project = createDefaultProjectBundle();
 

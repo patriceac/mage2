@@ -136,4 +136,25 @@ describe("playtest save slots", () => {
 
     expect(resolvePlaytestSaveCompatibilityIssue(project, state)).toBe("The active dialogue pointer is incomplete.");
   });
+
+  it("localizes save-slot labels and messages while preserving authored identifiers", () => {
+    const project = createDefaultProjectBundle("Localized saves");
+    const otherProject = createDefaultProjectBundle("Other saves");
+    otherProject.manifest.projectId = "authored-project-id";
+    const envelope = createPlaytestSaveEnvelope(otherProject, createInitialSaveState(otherProject));
+    const translations: Record<string, string> = {
+      Ready: "جاهز",
+      "Saved for a different project ({projectId}).": "الحفظ لمشروع مختلف ({projectId})."
+    };
+    const t = (source: string, params?: Record<string, string | number>) =>
+      (translations[source] ?? source).replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+        Object.prototype.hasOwnProperty.call(params ?? {}, name) ? String(params?.[name]) : placeholder
+      );
+
+    expect(resolvePlaytestSaveStatusLabel("ready", t)).toBe("جاهز");
+    expect(inspectPlaytestSaveSlot(JSON.stringify(envelope), project, 1, t)).toMatchObject({
+      status: "incompatible",
+      message: "الحفظ لمشروع مختلف (authored-project-id)."
+    });
+  });
 });

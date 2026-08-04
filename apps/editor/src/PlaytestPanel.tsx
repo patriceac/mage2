@@ -13,9 +13,11 @@ import {
   type PlayerSceneRendererHandle
 } from "@mage2/player-ui";
 import {
+  collectPlayerUiOverrides,
   getLocaleStringValues,
   normalizeSupportedLocales,
   type Asset,
+  type BuiltInLocale,
   type InventoryItem,
   type ProjectBundle
 } from "@mage2/schema";
@@ -24,6 +26,7 @@ import { ForegroundMediaPlayer } from "./ForegroundMedia";
 import { resolveFileUrl } from "./file-url-cache";
 import { useEditorAssetFileUrl } from "./player-asset-url";
 import { getLocalizedAssetVariant } from "./localized-project";
+import { useEditorI18n } from "./i18n";
 import type { EditorAutomationPlaytestState } from "./automation-commands";
 import {
   PLAYTEST_SAVE_SLOT_IDS,
@@ -58,13 +61,14 @@ interface PlaytestSaveFeedback {
 
 export function resolvePlaytestInventorySummary(
   items: Array<Pick<InventoryItem, "name" | "textId">>,
-  strings: Record<string, string>
+  strings: Record<string, string>,
+  emptyLabel = "Empty"
 ): string {
   const labels = items
     .map((item) => strings[item.textId] ?? item.name ?? item.textId)
     .filter((label) => label.length > 0);
 
-  return labels.join(", ") || "Empty";
+  return labels.join(", ") || emptyLabel;
 }
 
 export function resolveStoredPlaytestLocale(
@@ -73,6 +77,13 @@ export function resolveStoredPlaytestLocale(
   fallbackLocale: string
 ): string {
   return storedLocale && supportedLocales.includes(storedLocale) ? storedLocale : fallbackLocale;
+}
+
+export function resolvePlaytestLocaleStrings(project: ProjectBundle, locale: string): Record<string, string> {
+  return {
+    ...getLocaleStringValues(project, project.manifest.defaultLanguage),
+    ...getLocaleStringValues(project, locale)
+  };
 }
 
 export function resolvePlaytestVisualDurationMs(
@@ -100,6 +111,7 @@ export function resolvePlaytestInventoryToggleLabel(itemCount: number, isExpande
 }
 
 export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
+  const { locale: editorLocale, t } = useEditorI18n();
   const activeLocale = useEditorStore((state) => state.playtestLocale) ?? project.manifest.defaultLanguage;
   const setActiveLocale = useEditorStore((state) => state.setPlaytestLocale);
   const [controller, setController] = useState(() => createPlayerController(project));
@@ -116,6 +128,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [playerPreferences, setPlayerPreferences] = useState<PlayerExperiencePreferences>(
     DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
   );
+  const [interfaceLocalePreference, setInterfaceLocalePreference] = useState<"automatic" | BuiltInLocale>("automatic");
   const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const selectedInventoryItemIdRef = useRef<string | undefined>(undefined);
@@ -125,22 +138,25 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const interactionMediaSequenceRef = useRef(0);
   const [activeResponse, setActiveResponse] = useState<ActivePlayerResponse>();
   const [saveSlotInspections, setSaveSlotInspections] = useState<PlaytestSaveSlotInspection[]>(() =>
-    PLAYTEST_SAVE_SLOT_IDS.map(createEmptyPlaytestSaveSlotInspection)
+    PLAYTEST_SAVE_SLOT_IDS.map((slotId) => createEmptyPlaytestSaveSlotInspection(slotId, t))
   );
   const [saveFeedback, setSaveFeedback] = useState<PlaytestSaveFeedback>();
   const supportedLocales = useMemo(
     () => normalizeSupportedLocales(project.manifest.defaultLanguage, project.manifest.supportedLocales),
     [project.manifest.defaultLanguage, project.manifest.supportedLocales]
   );
-  const localeStrings = getLocaleStringValues(project, activeLocale);
-  const playerCopy = resolvePlaytestPlayerCopy(activeLocale);
+  const contentLocale = supportedLocales.includes(activeLocale) ? activeLocale : project.manifest.defaultLanguage;
+  const interfaceLocale = interfaceLocalePreference === "automatic" ? editorLocale : interfaceLocalePreference;
+  const localeStrings = resolvePlaytestLocaleStrings(project, contentLocale);
+  const playerCopy = resolvePlaytestPlayerCopy(interfaceLocale);
+  const playerUiOverrides = collectPlayerUiOverrides(project);
   const presentation = project.manifest.playerPresentation;
   const titleAsset = project.assets.assets.find((asset) => asset.id === presentation.titleBackgroundAssetId);
   const logoAsset = project.assets.assets.find((asset) => asset.id === presentation.logoAssetId);
   const iconAsset = project.assets.assets.find((asset) => asset.id === presentation.appIconAssetId);
-  const titleBackgroundUrl = useEditorAssetFileUrl(titleAsset, activeLocale);
-  const logoUrl = useEditorAssetFileUrl(logoAsset, activeLocale);
-  const iconUrl = useEditorAssetFileUrl(iconAsset, activeLocale);
+  const titleBackgroundUrl = useEditorAssetFileUrl(titleAsset, contentLocale);
+  const logoUrl = useEditorAssetFileUrl(logoAsset, contentLocale);
+  const iconUrl = useEditorAssetFileUrl(iconAsset, contentLocale);
 
   useEffect(() => {
     const nextController = createPlayerController(project);
@@ -155,7 +171,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   useEffect(() => {
     refreshPlaytestSaveSlots();
     setSaveFeedback(undefined);
-  }, [project]);
+  }, [project, t]);
 
   useEffect(() => {
     const nextLocale = resolveStoredPlaytestLocale(
@@ -169,8 +185,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   }, [project.manifest.defaultLanguage, setActiveLocale, supportedLocales]);
 
   useEffect(() => {
-    localStorage.setItem(LOCALE_STORAGE_KEY, activeLocale);
-  }, [activeLocale]);
+    localStorage.setItem(LOCALE_STORAGE_KEY, contentLocale);
+  }, [contentLocale]);
 
   useEffect(() => {
     if (!onExit) {
@@ -220,7 +236,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
 
   function refreshPlaytestSaveSlots() {
     const storage = resolveBrowserPlaytestSaveStorage();
-    setSaveSlotInspections(PLAYTEST_SAVE_SLOT_IDS.map((slotId) => readPlaytestSaveSlot(storage, project, slotId)));
+    setSaveSlotInspections(PLAYTEST_SAVE_SLOT_IDS.map((slotId) => readPlaytestSaveSlot(storage, project, slotId, t)));
   }
 
   function replaceSaveSlotInspection(nextInspection: PlaytestSaveSlotInspection) {
@@ -234,8 +250,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   function savePlaytestSlot(slotId: PlaytestSaveSlotId) {
     const storage = resolveBrowserPlaytestSaveStorage();
     if (!storage) {
-      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be saved because local storage is unavailable.` });
-      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+      setSaveFeedback({ tone: "error", message: t("Slot {slotId} could not be saved because local storage is unavailable.", { slotId }) });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId, t));
       return;
     }
 
@@ -244,26 +260,26 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       nextSave.playheadMs = playheadMs;
       const envelope = createPlaytestSaveEnvelope(project, nextSave);
       storage.setItem(getPlaytestSaveSlotStorageKey(slotId), JSON.stringify(envelope));
-      const inspection = readPlaytestSaveSlot(storage, project, slotId);
+      const inspection = readPlaytestSaveSlot(storage, project, slotId, t);
       replaceSaveSlotInspection(inspection);
       setSaveFeedback({
         tone: "success",
-        message: `Saved Slot ${slotId} at ${formatPlaytestSaveTimestamp(envelope.savedAt)}.`
+        message: t("Saved Slot {slotId} at {time}.", { slotId, time: formatPlaytestSaveTimestamp(envelope.savedAt, editorLocale, t) })
       });
     } catch (error) {
-      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be saved: ${resolvePlaytestSaveError(error)}` });
-      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+      setSaveFeedback({ tone: "error", message: t("Slot {slotId} could not be saved: {message}", { slotId, message: resolvePlaytestSaveError(error) }) });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId, t));
     }
   }
 
   function loadPlaytestSlot(slotId: PlaytestSaveSlotId) {
     const storage = resolveBrowserPlaytestSaveStorage();
-    const inspection = readPlaytestSaveSlot(storage, project, slotId);
+    const inspection = readPlaytestSaveSlot(storage, project, slotId, t);
     replaceSaveSlotInspection(inspection);
     if (inspection.status !== "ready" || !inspection.envelope) {
       setSaveFeedback({
         tone: "error",
-        message: `Slot ${slotId} cannot be loaded. ${inspection.message}`
+        message: t("Slot {slotId} cannot be loaded. {message}", { slotId, message: inspection.message })
       });
       return;
     }
@@ -281,27 +297,27 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       setActiveResponse(undefined);
       setSaveFeedback({
         tone: "success",
-        message: `Loaded Slot ${slotId} from ${formatPlaytestSaveTimestamp(inspection.envelope.savedAt)}.`
+        message: t("Loaded Slot {slotId} from {time}.", { slotId, time: formatPlaytestSaveTimestamp(inspection.envelope.savedAt, editorLocale, t) })
       });
     } catch (error) {
-      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be loaded safely: ${resolvePlaytestSaveError(error)}` });
+      setSaveFeedback({ tone: "error", message: t("Slot {slotId} could not be loaded safely: {message}", { slotId, message: resolvePlaytestSaveError(error) }) });
     }
   }
 
   function clearPlaytestSlot(slotId: PlaytestSaveSlotId) {
     const storage = resolveBrowserPlaytestSaveStorage();
     if (!storage) {
-      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be cleared because local storage is unavailable.` });
+      setSaveFeedback({ tone: "error", message: t("Slot {slotId} could not be cleared because local storage is unavailable.", { slotId }) });
       return;
     }
 
     try {
       storage.removeItem(getPlaytestSaveSlotStorageKey(slotId));
-      replaceSaveSlotInspection(createEmptyPlaytestSaveSlotInspection(slotId));
-      setSaveFeedback({ tone: "success", message: `Cleared Slot ${slotId}.` });
+      replaceSaveSlotInspection(createEmptyPlaytestSaveSlotInspection(slotId, t));
+      setSaveFeedback({ tone: "success", message: t("Cleared Slot {slotId}.", { slotId }) });
     } catch (error) {
-      setSaveFeedback({ tone: "error", message: `Slot ${slotId} could not be cleared: ${resolvePlaytestSaveError(error)}` });
-      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId));
+      setSaveFeedback({ tone: "error", message: t("Slot {slotId} could not be cleared: {message}", { slotId, message: resolvePlaytestSaveError(error) }) });
+      replaceSaveSlotInspection(readPlaytestSaveSlot(storage, project, slotId, t));
     }
   }
 
@@ -348,20 +364,20 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   }, []);
 
   const sceneAsset = project.assets.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId);
-  const sceneAssetVariant = getLocalizedAssetVariant(sceneAsset, activeLocale);
+  const sceneAssetVariant = getLocalizedAssetVariant(sceneAsset, contentLocale);
   const sceneAudioAsset = snapshot.scene.sceneAudioAssetId
     ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
     : undefined;
-  const sceneAudioVariant = getLocalizedAssetVariant(sceneAudioAsset, activeLocale);
+  const sceneAudioVariant = getLocalizedAssetVariant(sceneAudioAsset, contentLocale);
   const dialogueMediaAssetId = snapshot.activeDialogue?.node.mediaAssetId;
   const foregroundMediaAssetId = dialogueMediaAssetId ?? interactionMediaPlayback?.assetId;
   const foregroundMediaAsset = foregroundMediaAssetId
     ? project.assets.assets.find((asset) => asset.id === foregroundMediaAssetId)
     : undefined;
   const foregroundMediaPlaybackKey = dialogueMediaAssetId
-    ? `dialogue:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${activeLocale}`
+    ? `dialogue:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${contentLocale}`
     : interactionMediaPlayback
-      ? `interaction:${interactionMediaPlayback.sequence}:${activeLocale}`
+      ? `interaction:${interactionMediaPlayback.sequence}:${contentLocale}`
       : undefined;
 
   useEffect(() => {
@@ -388,7 +404,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     hotspots: sceneHotspots.surfaceHotspots,
     inventoryItems: project.inventory.items,
     assets: project.assets.assets,
-    locale: activeLocale,
+    locale: contentLocale,
     strings: localeStrings,
     flags: snapshot.flags
   });
@@ -437,7 +453,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       },
       selectInventoryItem: (itemId?: string) => {
         if (itemId && !snapshot.inventoryItems.some((item) => item.id === itemId)) {
-          throw new Error(`Inventory item '${itemId}' is not currently available in playtest.`);
+          throw new Error(t("Inventory item '{itemId}' is not currently available in playtest.", { itemId }));
         }
 
         playerRendererRef.current?.selectInventoryItem(itemId);
@@ -446,7 +462,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       assertPlacedItemVisible: (hotspotId: string, itemId: string) => {
         const state = resolvePlaytestAutomationState();
         if (state.placedVisuals[hotspotId] !== itemId) {
-          throw new Error(`Expected '${itemId}' to be visibly placed on hotspot '${hotspotId}'.`);
+          throw new Error(t("Expected '{itemId}' to be visibly placed on hotspot '{hotspotId}'.", { itemId, hotspotId }));
         }
 
         return state;
@@ -471,20 +487,20 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       <section className="panel">
         <div className="panel__toolbar playtest-panel__toolbar">
           <label className="playtest-panel__toolbar-field playtest-panel__toolbar-field--playhead">
-            <span className="playtest-panel__toolbar-label">Playhead</span>
+            <span className="playtest-panel__toolbar-label">{t("Playhead")}</span>
             <input
               className="playtest-panel__toolbar-range"
               type="range"
               min={0}
               max={sceneTimelineDurationMs}
               value={Math.min(playheadMs, sceneTimelineDurationMs)}
-              title="Scrub through the current scene preview to inspect timing and hotspot visibility."
+              title={t("Scrub through the current scene preview to inspect timing and hotspot visibility.")}
               onChange={(event) => setPlayheadMs(Number(event.target.value))}
             />
           </label>
           <label className="playtest-panel__toolbar-field playtest-panel__toolbar-field--locale">
-            <span className="playtest-panel__toolbar-label">Locale</span>
-            <DropdownSelect value={activeLocale} onChange={(event) => setActiveLocale(event.target.value)}>
+            <span className="playtest-panel__toolbar-label">{t("Game locale")}</span>
+            <DropdownSelect value={contentLocale} onChange={(event) => setActiveLocale(event.target.value)}>
               {supportedLocales.map((locale) => (
                 <option key={locale} value={locale}>
                   {locale}
@@ -492,39 +508,39 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               ))}
             </DropdownSelect>
           </label>
-          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--session" aria-label="Playtest session controls">
+          <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--session" aria-label={t("Playtest session controls")}>
             <button
               type="button"
               className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
-              title="Preview the creator-configured title screen and player menu used by exported builds."
+              title={t("Preview the creator-configured title screen and player menu used by exported builds.")}
               onClick={() => setPlayerScreen("title")}
             >
-              Title Screen
+              {t("Title Screen")}
             </button>
             <button
               type="button"
               className="playtest-panel__toolbar-button playtest-panel__toolbar-button--secondary"
-              title="Reset this playtest run to the project's starting scene without changing the saved slot."
+              title={t("Reset this playtest run to the project's starting scene without changing the saved slot.")}
               onClick={resetPlaytestRun}
             >
-              Reset Run
+              {t("Reset Run")}
             </button>
           </div>
           <div className="playtest-panel__toolbar-field playtest-panel__toolbar-field--toggle">
             <label
               className="playtest-hotspot-visibility-toggle playtest-panel__toolbar-toggle"
-              title="Show translucent hotspot regions in playtest for debugging. Labels remain hidden so playtest matches runtime."
+              title={t("Show translucent hotspot regions in playtest for debugging. Labels remain hidden so playtest matches runtime.")}
             >
               <input
                 type="checkbox"
-                aria-label="Show hotspots in playtest"
+                aria-label={t("Show hotspots in playtest")}
                 checked={showHotspots}
                 onChange={(event) => setShowHotspots(event.target.checked)}
               />
               <span className="playtest-hotspot-visibility-toggle__track" aria-hidden="true">
                 <span className="playtest-hotspot-visibility-toggle__thumb" />
               </span>
-              <span className="playtest-hotspot-visibility-toggle__label">Show hotspots</span>
+              <span className="playtest-hotspot-visibility-toggle__label">{t("Show hotspots")}</span>
             </label>
           </div>
         </div>
@@ -532,8 +548,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
         <section className="playtest-save-slots" aria-labelledby="playtest-save-slots-title">
           <header className="playtest-save-slots__header">
             <div>
-              <h3 id="playtest-save-slots-title">Save slots</h3>
-              <p>Stored on this computer and checked against the open project before loading.</p>
+              <h3 id="playtest-save-slots-title">{t("Save slots")}</h3>
+              <p>{t("Stored on this computer and checked against the open project before loading.")}</p>
             </div>
             {saveFeedback ? (
               <div
@@ -548,7 +564,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           </header>
           <div className="playtest-save-slots__grid">
             {saveSlotInspections.map((slot) => {
-              const statusLabel = resolvePlaytestSaveStatusLabel(slot.status);
+              const statusLabel = resolvePlaytestSaveStatusLabel(slot.status, t);
               const canLoad = slot.status === "ready";
               const canClear = slot.status !== "empty" && slot.status !== "unavailable";
               const canSave = slot.status !== "unavailable";
@@ -561,13 +577,17 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                   data-playtest-save-slot-status={slot.status}
                 >
                   <div className="playtest-save-slot__summary">
-                    <strong>Slot {slot.slotId}</strong>
+                    <strong>{t("Slot {slotId}", { slotId: slot.slotId })}</strong>
                     <span className={`playtest-save-slot__status playtest-save-slot__status--${slot.status}`}>
                       {statusLabel}
                     </span>
                   </div>
                   <p className="playtest-save-slot__timestamp">
-                    {slot.savedAt ? formatPlaytestSaveTimestamp(slot.savedAt) : slot.status === "empty" ? "Available" : "Not loadable"}
+                    {slot.savedAt
+                      ? formatPlaytestSaveTimestamp(slot.savedAt, editorLocale, t)
+                      : slot.status === "empty"
+                        ? t("Available")
+                        : t("Not loadable")}
                   </p>
                   <p className="playtest-save-slot__detail" title={slot.message}>{slot.message}</p>
                   <div className="playtest-save-slot__actions">
@@ -577,9 +597,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                       disabled={!canSave}
                       data-playtest-save-action="save"
                       onClick={() => savePlaytestSlot(slot.slotId)}
-                      title={canSave ? `Save the current run to Slot ${slot.slotId}.` : slot.message}
+                      title={canSave ? t("Save the current run to Slot {slotId}.", { slotId: slot.slotId }) : slot.message}
                     >
-                      {slot.status === "empty" ? "Save" : "Overwrite"}
+                      {slot.status === "empty" ? t("Save") : t("Overwrite")}
                     </button>
                     <button
                       type="button"
@@ -587,9 +607,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                       disabled={!canLoad}
                       data-playtest-save-action="load"
                       onClick={() => loadPlaytestSlot(slot.slotId)}
-                      title={canLoad ? `Load Slot ${slot.slotId}.` : slot.message}
+                      title={canLoad ? t("Load Slot {slotId}.", { slotId: slot.slotId }) : slot.message}
                     >
-                      Load
+                      {t("Load")}
                     </button>
                     {canClear ? (
                       <button
@@ -597,9 +617,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                         className="playtest-save-slot__clear"
                         data-playtest-save-action="clear"
                         onClick={() => clearPlaytestSlot(slot.slotId)}
-                        title={`Clear Slot ${slot.slotId}.`}
+                        title={t("Clear Slot {slotId}.", { slotId: slot.slotId })}
                       >
-                        Clear
+                        {t("Clear")}
                       </button>
                     ) : null}
                   </div>
@@ -616,10 +636,14 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             presentation={presentation}
             screen={playerScreen}
             onScreenChange={setPlayerScreen}
-            locale={activeLocale}
+            locale={contentLocale}
             supportedLocales={supportedLocales}
             localeStrings={localeStrings}
             onLocaleChange={setActiveLocale}
+            interfaceLocale={interfaceLocale}
+            interfaceLocalePreference={interfaceLocalePreference}
+            onInterfaceLocalePreferenceChange={setInterfaceLocalePreference}
+            playerUiOverrides={playerUiOverrides}
             preferences={playerPreferences}
             onPreferencesChange={setPlayerPreferences}
             hasSavedGame={Boolean(preferredLoadSlotId)}
@@ -644,7 +668,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             className="playtest-shared-renderer"
             project={project}
             snapshot={snapshot}
-            locale={activeLocale}
+            locale={contentLocale}
             strings={localeStrings}
             visibleHotspots={visibleHotspots}
             playheadMs={playheadMs}
@@ -687,8 +711,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             <ForegroundMediaPlayer
               key={foregroundMediaPlaybackKey}
               asset={foregroundMediaAsset}
-              locale={activeLocale}
-              label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
+              locale={contentLocale}
+              label={dialogueMediaAssetId ? t("Dialogue media") : t("Interaction media")}
               className="foreground-media-player--playtest"
               volume={playerPreferences.volume}
               onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
@@ -716,19 +740,19 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
       </section>
 
       <aside className="panel">
-        <h3>Runtime State</h3>
+        <h3>{t("Runtime State")}</h3>
         <dl className="inspector-grid">
-          <dt>Location</dt>
+          <dt>{t("Location")}</dt>
           <dd>{snapshot.location.name}</dd>
-          <dt>Scene</dt>
+          <dt>{t("Scene")}</dt>
           <dd>{snapshot.scene.name}</dd>
-          <dt>Flags</dt>
+          <dt>{t("Flags")}</dt>
           <dd>
             <pre>{JSON.stringify(snapshot.flags, null, 2)}</pre>
           </dd>
-          <dt>Inventory</dt>
-          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, localeStrings)}</dd>
-          <dt>Visited Scenes</dt>
+          <dt>{t("Inventory")}</dt>
+          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, localeStrings, t("Empty"))}</dd>
+          <dt>{t("Visited Scenes")}</dt>
           <dd>{snapshot.saveState.visitedSceneIds.join(", ")}</dd>
         </dl>
       </aside>

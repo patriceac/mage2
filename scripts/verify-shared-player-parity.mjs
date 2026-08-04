@@ -11,6 +11,12 @@ import {
   getCanonicalPackagedEditorExePath
 } from "./editor-windows-launch-targets.mjs";
 import { startPlayerServer } from "../apps/runtime-electron/server.mjs";
+import {
+  BUILT_IN_LOCALE_CASES,
+  FALLBACK_LOCALE_CASES,
+  assertRuntimeLocaleState,
+  directionForLocale
+} from "./localization-verification.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectDirectory = resolveProjectDirectory(process.argv.slice(2));
@@ -116,6 +122,7 @@ const report = {
   desktop: undefined,
   mobile: undefined,
   hostChecks: undefined,
+  localization: undefined,
   electron: undefined,
   parity: []
 };
@@ -137,11 +144,22 @@ try {
 
   webServer = await startPlayerServer(buildDirectory, 43173);
   browser = await launchChrome();
+  report.localization = {
+    desktop: await verifyRuntimeLocalization(browser, webServer.url, "desktop", {
+      viewport: { width: 1440, height: 900 }
+    }),
+    mobile: await verifyRuntimeLocalization(browser, webServer.url, "mobile-390x844", {
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 1,
+      hasTouch: true,
+      isMobile: true
+    })
+  };
 
   const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const desktopPage = await desktopContext.newPage();
   await openFreshRuntime(desktopPage, webServer.url);
-  report.desktop = await runSharedPlayerFlow(desktopPage, "desktop", createRuntimeAdapter(desktopPage));
+  report.desktop = await runVerificationFlow(desktopPage, "desktop", createRuntimeAdapter(desktopPage));
   await desktopPage.screenshot({ path: path.join(outputDirectory, "desktop-full-final.png"), fullPage: true });
 
   const mobileContext = await browser.newContext({
@@ -152,10 +170,10 @@ try {
   });
   const mobilePage = await mobileContext.newPage();
   await openFreshRuntime(mobilePage, webServer.url);
-  report.mobile = await runSharedPlayerFlow(mobilePage, "mobile-390x844", createRuntimeAdapter(mobilePage));
+  report.mobile = await runVerificationFlow(mobilePage, "mobile-390x844", createRuntimeAdapter(mobilePage));
   await mobilePage.screenshot({ path: path.join(outputDirectory, "mobile-390x844-full-final.png"), fullPage: true });
 
-  report.parity = compareCaptureSets(report.editor.captures, report.desktop.captures, report.mobile.captures);
+  report.parity = compareVerificationCaptures(report.editor.captures, report.desktop.captures, report.mobile.captures);
   report.hostChecks = await runRuntimeHostChecks(browser, webServer.url);
 
   await desktopContext.close();
@@ -185,7 +203,14 @@ async function exportAndVerifyPackagedEditor() {
   try {
     const { page } = editorApp;
     await page.waitForLoadState("domcontentloaded");
-    await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
+    try {
+      await page.locator(".mage2-player").waitFor({ state: "visible", timeout: 30_000 });
+    } catch (error) {
+      const diagnosticPath = path.join(outputDirectory, "packaged-editor-playtest-startup-timeout.png");
+      await page.screenshot({ path: diagnosticPath, fullPage: true }).catch(() => undefined);
+      const bodyText = normalizeText(await page.locator("body").innerText().catch(() => ""));
+      throw new Error(`Packaged editor did not reach Playtest. URL: ${page.url()}. UI: ${bodyText.slice(0, 1200)}. Screenshot: ${diagnosticPath}`, { cause: error });
+    }
     const localeSelect = page.locator(".playtest-panel__toolbar-field--locale select");
     await localeSelect.selectOption("en");
 
@@ -224,9 +249,11 @@ async function exportAndVerifyPackagedEditor() {
 
     await page.evaluate(() => window.__mage2PlaytestAutomation?.reset());
     const adapter = createEditorAdapter(page);
-    const flow = await runSharedPlayerFlow(page, "packaged-editor", adapter);
+    const flow = await runVerificationFlow(page, "packaged-editor", adapter);
     await page.screenshot({ path: path.join(outputDirectory, "packaged-editor-full-final.png"), fullPage: true });
-    const itemEventAuthoring = await verifyPackagedEditorItemEvents(page);
+    const itemEventAuthoring = hasCanonicalGameplayFixture()
+      ? await verifyPackagedEditorItemEvents(page)
+      : { skipped: true, reason: "The representative localization project does not include the parity gameplay fixture." };
 
     return {
       exportStatus,
@@ -556,6 +583,25 @@ async function runSharedPlayerFlow(page, host, adapter) {
 
   assert.equal(captures.length, gameplaySteps.length);
   return { captures, checks };
+}
+
+function hasCanonicalGameplayFixture() {
+  return runtimeContent.scenes.some((scene) => scene.id === "scene_dock");
+}
+
+async function runVerificationFlow(page, host, adapter) {
+  if (hasCanonicalGameplayFixture()) {
+    return runSharedPlayerFlow(page, host, adapter);
+  }
+
+  await adapter.reset();
+  const expectedSceneId = runtimeContent.manifest.startSceneId;
+  const state = { ...await adapter.getState(), sceneId: expectedSceneId };
+  const capture = await captureSurface(page, host, "starter-scene", state);
+  return {
+    captures: [capture],
+    checks: { representativeStarterScene: true, expectedSceneId }
+  };
 }
 
 function createEditorAdapter(page) {
@@ -906,6 +952,33 @@ function compareCaptureSets(editorCaptures, desktopCaptures, mobileCaptures) {
   });
 }
 
+function compareVerificationCaptures(editorCaptures, desktopCaptures, mobileCaptures) {
+  if (hasCanonicalGameplayFixture()) {
+    return compareCaptureSets(editorCaptures, desktopCaptures, mobileCaptures);
+  }
+
+  assert.equal(editorCaptures.length, 1);
+  assert.equal(desktopCaptures.length, 1);
+  assert.equal(mobileCaptures.length, 1);
+  const [editor] = editorCaptures;
+  const [desktop] = desktopCaptures;
+  const [mobile] = mobileCaptures;
+  assert.deepEqual(resolveParitySignature(desktop.snapshot), resolveParitySignature(editor.snapshot));
+  assert.deepEqual(resolveParitySignature(mobile.snapshot), resolveParitySignature(editor.snapshot));
+  assert(desktop.snapshot.layout.width >= 1200, "Desktop starter scene is not immersive.");
+  assert(mobile.snapshot.layout.width >= 389, "Mobile starter scene does not maximize the available width.");
+  assert(
+    mobile.snapshot.layout.scrollWidth <= mobile.snapshot.layout.viewportWidth,
+    "Mobile starter scene overflows horizontally."
+  );
+  return [{
+    label: "starter-scene",
+    sceneId: runtimeContent.manifest.startSceneId,
+    editorDesktopExact: true,
+    editorMobileExact: true
+  }];
+}
+
 function resolveParitySignature(snapshot) {
   return {
     text: snapshot.text,
@@ -993,24 +1066,18 @@ async function runRuntimeHostChecks(activeBrowser, url) {
   assert.equal(await page.getByText("Raw save state", { exact: true }).count(), 0, "Production player exposes raw save state.");
   assert.equal(await page.getByText("Playhead", { exact: false }).count(), 0, "Production player exposes the playhead.");
 
-  const englishSettings = resolveAuthoredPlayerText("en", "player.ui.settings", "Settings");
-  const englishSettingsHeading = resolveAuthoredPlayerText("en", "player.ui.settingsHeading", "Player settings");
-  const englishLanguage = resolveAuthoredPlayerText("en", "player.ui.language", "Language");
-  await openRuntimeMenu(page);
-  await page.getByRole("button", { name: englishSettings, exact: true }).click();
-  await page.getByRole("heading", { name: englishSettingsHeading, exact: true }).waitFor({ state: "visible" });
-  await page.getByRole("combobox", { name: englishLanguage, exact: true }).selectOption("fr");
+  let hostLocaleControls = await openRuntimeSettingsAndGetLocaleControls(page);
+  await hostLocaleControls.interface.selectOption("fr");
   await page.waitForFunction(() => document.documentElement.lang === "fr");
-  const frenchSave = resolveAuthoredPlayerText("fr", "player.ui.saveGame", "Save game");
   await page.locator(".mage2-experience__close").click();
   await page.getByRole("button", { name: /Ouvrir l’inventaire \(0 objets\)/u }).waitFor({ state: "visible" });
 
-  const frenchSettings = resolveAuthoredPlayerText("fr", "player.ui.settings", englishSettings);
-  const frenchLanguage = resolveAuthoredPlayerText("fr", "player.ui.language", englishLanguage);
   await openRuntimeMenu(page);
-  assert.equal(await page.getByRole("button", { name: frenchSave, exact: true }).count(), 1);
-  await page.getByRole("button", { name: frenchSettings, exact: true }).click();
-  await page.getByRole("combobox", { name: frenchLanguage, exact: true }).selectOption("en");
+  assert.equal(await page.getByRole("button", { name: "Sauvegarder", exact: true }).count(), 1);
+  await page.locator(".mage2-experience__panel-actions button").nth(4).click();
+  await page.locator(".mage2-experience__settings").waitFor({ state: "visible" });
+  hostLocaleControls = await getRuntimeLocaleControls(page);
+  await hostLocaleControls.interface.selectOption("en");
   await page.waitForFunction(() => document.documentElement.lang === "en");
   await page.waitForFunction(
     () => Boolean(document.querySelector(".mage2-experience__panel")?.contains(document.activeElement)),
@@ -1034,6 +1101,24 @@ async function runRuntimeHostChecks(activeBrowser, url) {
     true,
     "Closing the player menu did not restore focus."
   );
+
+  if (!hasCanonicalGameplayFixture()) {
+    const layout = await page.evaluate(() => ({
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      document: {
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight
+      }
+    }));
+    await context.close();
+    return {
+      productionAuthorToolsAbsent: true,
+      localeUpdatesDocumentLanguage: true,
+      menuFocusIsTrappedAndRestored: true,
+      gameplayFixtureChecksSkipped: true,
+      layout
+    };
+  }
 
   await progressToDockWithKey(page);
   await openRuntimeMenu(page);
@@ -1102,6 +1187,9 @@ async function runRuntimeHostChecks(activeBrowser, url) {
 }
 
 async function verifyElectronPersistence() {
+  if (!hasCanonicalGameplayFixture()) {
+    return verifyGenericElectronLocalePersistence();
+  }
   await closeRunningWindowsProcessesAtPath(runtimeExecutablePath);
   const firstApp = await electron.launch({
     executablePath: runtimeExecutablePath,
@@ -1175,6 +1263,215 @@ async function openRuntimeMenu(page) {
   }
   await page.locator(".mage2-experience__menu-button").click();
   await menu.waitFor({ state: "visible" });
+}
+
+async function verifyGenericElectronLocalePersistence() {
+  await closeRunningWindowsProcessesAtPath(runtimeExecutablePath);
+  const firstApp = await electron.launch({
+    executablePath: runtimeExecutablePath,
+    cwd: path.dirname(runtimeExecutablePath)
+  });
+  let firstUrl;
+  try {
+    const page = await firstApp.firstWindow();
+    await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await enterRuntimeGameIfTitle(page);
+    const controls = await openRuntimeSettingsAndGetLocaleControls(page);
+    await controls.interface.selectOption("ja");
+    await page.waitForFunction(() => document.documentElement.lang === "ja");
+    firstUrl = page.url();
+    await page.screenshot({ path: path.join(outputDirectory, "electron-before-relaunch.png") });
+  } finally {
+    await firstApp.close().catch(() => {});
+  }
+
+  const secondApp = await electron.launch({
+    executablePath: runtimeExecutablePath,
+    cwd: path.dirname(runtimeExecutablePath)
+  });
+  try {
+    const page = await secondApp.firstWindow();
+    await page.locator(".mage2-experience").waitFor({ state: "visible", timeout: 30_000 });
+    await enterRuntimeGameIfTitle(page);
+    assert.equal(page.url(), firstUrl, "Electron player origin changed across launches.");
+    const controls = await openRuntimeSettingsAndGetLocaleControls(page);
+    assert.equal(await controls.interface.inputValue(), "ja");
+    assert.equal(await page.evaluate(() => document.documentElement.lang), "ja");
+    await page.screenshot({ path: path.join(outputDirectory, "electron-after-relaunch.png") });
+    return { stableUrl: firstUrl, persistedInterfaceLocale: "ja", restartedCleanlyAfterProof: true };
+  } finally {
+    await secondApp.close().catch(() => {});
+  }
+}
+
+async function verifyRuntimeLocalization(activeBrowser, url, host, viewportOptions) {
+  const automatic = [];
+  for (const localeCase of BUILT_IN_LOCALE_CASES) {
+    automatic.push(await verifyAutomaticRuntimeLocale(activeBrowser, url, host, viewportOptions, {
+      label: localeCase.locale,
+      browserLocale: localeCase.browserLocale,
+      expectedLocale: localeCase.locale
+    }));
+  }
+  for (const fallbackCase of FALLBACK_LOCALE_CASES) {
+    automatic.push(await verifyAutomaticRuntimeLocale(activeBrowser, url, host, viewportOptions, fallbackCase));
+  }
+
+  const context = await activeBrowser.newContext({ ...viewportOptions, locale: "en-US" });
+  const page = await context.newPage();
+  const explicit = [];
+  try {
+    await openFreshRuntime(page, url);
+    let controls = await openRuntimeSettingsAndGetLocaleControls(page);
+    const initialGameLocale = await controls.game.inputValue();
+    for (const localeCase of BUILT_IN_LOCALE_CASES) {
+      await controls.interface.selectOption(localeCase.locale);
+      await page.waitForFunction(
+        ([language, direction]) => document.documentElement.lang === language && document.documentElement.dir === direction,
+        [localeCase.locale, localeCase.direction]
+      );
+      controls = await getRuntimeLocaleControls(page);
+      const state = await readRuntimeLocaleState(page, controls);
+      assertRuntimeLocaleState(state, {
+        locale: localeCase.locale,
+        preference: localeCase.locale,
+        direction: localeCase.direction,
+        gameLocale: initialGameLocale
+      }, `${host} explicit ${localeCase.locale}`);
+      const screenshotPath = path.join(outputDirectory, `${host}-localization-explicit-${localeCase.locale}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      explicit.push({ locale: localeCase.locale, ...state, screenshotPath });
+    }
+
+    await controls.interface.selectOption("ja");
+    await page.waitForFunction(() => document.documentElement.lang === "ja");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await enterRuntimeGameIfTitle(page);
+    controls = await openRuntimeSettingsAndGetLocaleControls(page);
+    const persisted = await readRuntimeLocaleState(page, controls);
+    assertRuntimeLocaleState(persisted, {
+      locale: "ja",
+      preference: "ja",
+      direction: "ltr",
+      gameLocale: initialGameLocale
+    }, `${host} persisted override`);
+
+    await controls.interface.selectOption("automatic");
+    await page.waitForFunction(() => document.documentElement.lang === "en" && document.documentElement.dir === "ltr");
+    controls = await getRuntimeLocaleControls(page);
+    const reset = await readRuntimeLocaleState(page, controls);
+    assertRuntimeLocaleState(reset, {
+      locale: "en",
+      preference: "automatic",
+      direction: "ltr",
+      gameLocale: initialGameLocale
+    }, `${host} automatic reset`);
+
+    const alternateGameLocale = getRuntimeSupportedLocales().find((locale) => locale !== initialGameLocale);
+    const separationGameLocale = alternateGameLocale ?? initialGameLocale;
+    await controls.interface.selectOption("ar");
+    await page.waitForFunction(() => document.documentElement.lang === "ar" && document.documentElement.dir === "rtl");
+    controls = await getRuntimeLocaleControls(page);
+    if (alternateGameLocale) {
+      await controls.game.selectOption(alternateGameLocale);
+    }
+    const separated = await readRuntimeLocaleState(page, controls);
+    assertRuntimeLocaleState(separated, {
+      locale: "ar",
+      preference: "ar",
+      direction: "rtl",
+      gameLocale: separationGameLocale
+    }, `${host} interface/game separation`);
+    const separationScreenshotPath = path.join(outputDirectory, `${host}-localization-interface-ar-game-${separationGameLocale}.png`);
+    await page.screenshot({ path: separationScreenshotPath, fullPage: true });
+
+    return {
+      viewport: viewportOptions,
+      automatic,
+      explicit,
+      persistence: persisted,
+      reset,
+      interfaceGameSeparation: { ...separated, screenshotPath: separationScreenshotPath }
+    };
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyAutomaticRuntimeLocale(activeBrowser, url, host, viewportOptions, localeCase) {
+  const context = await activeBrowser.newContext({ ...viewportOptions, locale: localeCase.browserLocale });
+  const page = await context.newPage();
+  try {
+    await openFreshRuntime(page, url);
+    const controls = await openRuntimeSettingsAndGetLocaleControls(page);
+    const state = await readRuntimeLocaleState(page, controls);
+    const expectedGameLocale = resolveExpectedInitialGameLocale(localeCase.expectedLocale);
+    assertRuntimeLocaleState(state, {
+      locale: localeCase.expectedLocale,
+      preference: "automatic",
+      direction: directionForLocale(localeCase.expectedLocale),
+      gameLocale: expectedGameLocale
+    }, `${host} automatic ${localeCase.browserLocale}`);
+    const screenshotPath = path.join(outputDirectory, `${host}-localization-automatic-${localeCase.label}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+    return { ...localeCase, ...state, screenshotPath };
+  } finally {
+    await context.close();
+  }
+}
+
+async function openRuntimeSettingsAndGetLocaleControls(page) {
+  await openRuntimeMenu(page);
+  const menuActions = page.locator(".mage2-experience__panel-actions button");
+  assert((await menuActions.count()) >= 5, "Player menu does not expose the expected settings action.");
+  await menuActions.nth(4).click();
+  await page.locator(".mage2-experience__settings").waitFor({ state: "visible" });
+  return getRuntimeLocaleControls(page);
+}
+
+async function getRuntimeLocaleControls(page) {
+  const selects = page.locator(".mage2-experience__settings select");
+  const interfaceIndex = await selects.evaluateAll((elements) =>
+    elements.findIndex((element) => Array.from(element.options).some((option) => option.value === "automatic"))
+  );
+  assert(interfaceIndex >= 0, "Player settings do not expose an interface locale selector.");
+  const gameIndex = await selects.evaluateAll((elements) =>
+    elements.findIndex((element) => !Array.from(element.options).some((option) => option.value === "automatic"))
+  );
+  assert(gameIndex >= 0, "Player settings do not expose a game locale selector.");
+  return { interface: selects.nth(interfaceIndex), game: selects.nth(gameIndex) };
+}
+
+async function readRuntimeLocaleState(page, controls) {
+  const documentLocale = await page.evaluate(() => ({
+    documentLanguage: document.documentElement.lang,
+    documentDirection: document.documentElement.dir
+  }));
+  return {
+    ...documentLocale,
+    interfacePreference: await controls.interface.inputValue(),
+    gameLocale: await controls.game.inputValue()
+  };
+}
+
+function resolveExpectedInitialGameLocale(interfaceLocale) {
+  const supportedLocales = getRuntimeSupportedLocales();
+  const matchingLocale = supportedLocales.find((locale) => {
+    if (interfaceLocale === "zh-Hans") {
+      return locale === "zh" || locale.toLowerCase().startsWith("zh-hans") || locale.toLowerCase().startsWith("zh-cn");
+    }
+    return locale.toLowerCase().split("-")[0] === interfaceLocale;
+  });
+  return matchingLocale ?? runtimeContent.manifest.defaultLanguage;
+}
+
+function getRuntimeSupportedLocales() {
+  return Array.from(new Set([
+    runtimeContent.manifest.defaultLanguage,
+    ...(runtimeContent.manifest.supportedLocales ?? [])
+  ]));
 }
 
 async function openInventoryIfCollapsed(page) {
@@ -1289,6 +1586,10 @@ async function openFreshRuntime(page, url) {
 }
 
 async function enterRuntimeGameIfTitle(page) {
+  await page.locator('.mage2-experience[data-player-screen="title"], .mage2-experience[data-player-screen="game"]').first().waitFor({
+    state: "visible",
+    timeout: 30_000
+  });
   const title = page.locator('.mage2-experience[data-player-screen="title"]');
   if (await title.isVisible().catch(() => false)) {
     await title.locator(".mage2-experience__primary-action").first().click();

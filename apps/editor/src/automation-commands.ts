@@ -1,4 +1,7 @@
+import type { BuiltInLocale } from "@mage2/schema";
 import type { EditorTab } from "./store";
+import { isBuiltInLocale } from "./i18n/preference";
+import { interpolateEditorMessage, type EditorTranslator } from "./i18n/translate";
 
 export type EditorAutomationHotspotAction = "none" | "pickupItem" | "placeItem";
 
@@ -13,7 +16,10 @@ export interface EditorAutomationHotspotGeometry {
 export type EditorAutomationCommand =
   | { command: "ping" }
   | { command: "getState" }
+  | { command: "closeApplication" }
   | { command: "security.getState" }
+  | { command: "setInterfaceLocale"; locale: BuiltInLocale }
+  | { command: "resetInterfaceLocale" }
   | { command: "createProject"; projectDir: string; projectName: string }
   | { command: "saveProject" }
   | { command: "exportProject" }
@@ -85,21 +91,23 @@ const EDITOR_TABS = new Set<EditorTab>([
 
 const HOTSPOT_ACTIONS = new Set<EditorAutomationHotspotAction>(["none", "pickupItem", "placeItem"]);
 
-export function parseEditorAutomationCommand(input: unknown): EditorAutomationCommand {
+export function parseEditorAutomationCommand(input: unknown, t: EditorTranslator = interpolateEditorMessage): EditorAutomationCommand {
   if (!input || typeof input !== "object" || !("command" in input)) {
-    throw new Error("Automation command must be an object with a command field.");
+    throw new Error(t("Automation command must be an object with a command field."));
   }
 
   const candidate = input as Record<string, unknown>;
   const command = candidate.command;
   if (typeof command !== "string") {
-    throw new Error("Automation command field must be a string.");
+    throw new Error(t("Automation command field must be a string."));
   }
 
   switch (command) {
     case "ping":
     case "getState":
+    case "closeApplication":
     case "security.getState":
+    case "resetInterfaceLocale":
     case "saveProject":
     case "exportProject":
     case "listInventoryItems":
@@ -109,6 +117,8 @@ export function parseEditorAutomationCommand(input: unknown): EditorAutomationCo
     case "editor.undo":
     case "editor.redo":
       return { command };
+    case "setInterfaceLocale":
+      return { command, locale: requireBuiltInLocale(candidate.locale, "locale", t) };
     case "createProject":
       return {
         command,
@@ -182,13 +192,20 @@ export function parseEditorAutomationCommand(input: unknown): EditorAutomationCo
         itemId: requireString(candidate.itemId, "itemId")
       };
     default:
-      throw new Error(`Unknown automation command '${command}'.`);
+      throw new Error(t("Unknown automation command '{command}'.", { command }));
   }
 }
 
-function requireString(value: unknown, field: string): string {
+function requireBuiltInLocale(value: unknown, field: string, t: EditorTranslator = interpolateEditorMessage): BuiltInLocale {
+  if (!isBuiltInLocale(value)) {
+    throw new Error(t("Automation command field '{field}' must be a built-in interface locale.", { field }));
+  }
+  return value;
+}
+
+function requireString(value: unknown, field: string, t: EditorTranslator = interpolateEditorMessage): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Automation command field '${field}' must be a non-empty string.`);
+    throw new Error(t("Automation command field '{field}' must be a non-empty string.", { field }));
   }
 
   return value;

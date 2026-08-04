@@ -1,5 +1,6 @@
 import { resolveAssetCategory, type Hotspot, type ProjectBundle } from "@mage2/schema";
 import { STARTER_PLACEHOLDER_ASSET_ID } from "./project-helpers";
+import type { EditorTranslator } from "./i18n/translate";
 
 export type FirstProjectChecklistStepId = "media" | "interaction" | "player" | "validation";
 
@@ -25,7 +26,10 @@ const STARTER_HOTSPOT_ID = "hotspot_inspect";
 export function resolveFirstProjectChecklist(
   project: ProjectBundle,
   validationValid: boolean,
-  validationIssueCount: number
+  validationIssueCount: number,
+  t: EditorTranslator = (source, params) => source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name) =>
+    Object.prototype.hasOwnProperty.call(params ?? {}, name) ? String(params?.[name]) : placeholder
+  )
 ): FirstProjectChecklistState {
   const starterScene =
     project.scenes.items.find((scene) => scene.id === STARTER_SCENE_ID) ??
@@ -71,34 +75,36 @@ export function resolveFirstProjectChecklist(
     {
       id: "media",
       complete: sceneMediaComplete,
-      title: "Replace the starter scene",
+      title: t("Replace the starter scene"),
       description: sceneMediaComplete
-        ? "Your opening scene uses project media."
-        : "Upload your own image or video for the opening scene."
+        ? t("Your opening scene uses project media.")
+        : t("Upload your own image or video for the opening scene.")
     },
     {
       id: "interaction",
       complete: interactionComplete,
-      title: "Wire the first interaction",
+      title: t("Wire the first interaction"),
       description: interactionComplete
-        ? "At least one scene hotspot has a real player-facing purpose."
-        : "Turn the placeholder hotspot into a transition, dialogue, pickup, or placement."
+        ? t("At least one scene hotspot has a real player-facing purpose.")
+        : t("Turn the placeholder hotspot into a transition, dialogue, pickup, or placement.")
     },
     {
       id: "player",
       complete: playerPresentationComplete,
-      title: "Review the player experience",
+      title: t("Review the player experience"),
       description: playerPresentationComplete
-        ? "The title screen and release identity have a usable starting point."
-        : "Choose title artwork and set the version players will see."
+        ? t("The title screen and release identity have a usable starting point.")
+        : t("Choose title artwork and set the version players will see.")
     },
     {
       id: "validation",
       complete: validationValid,
-      title: "Clear project issues",
+      title: t("Clear project issues"),
       description: validationValid
-        ? "The project is valid and ready to playtest."
-        : `Resolve ${validationIssueCount} validation ${validationIssueCount === 1 ? "issue" : "issues"} before playtesting.`
+        ? t("The project is valid and ready to playtest.")
+        : validationIssueCount === 1
+          ? t("Resolve {count} validation issue before playtesting.", { count: validationIssueCount })
+          : t("Resolve {count} validation issues before playtesting.", { count: validationIssueCount })
     }
   ];
   const completedCount = steps.filter((step) => step.complete).length;

@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_PLAYER_CREDITS_TEXT_ID,
   DEFAULT_PLAYER_TAGLINE_TEXT_ID,
+  collectPlayerUiOverrides,
   getLocaleStringValues,
   normalizeSupportedLocales,
   type Asset,
+  type BuiltInLocale,
   type PlayerPresentation,
   type ProjectBundle
 } from "@mage2/schema";
@@ -15,6 +17,7 @@ import {
   type PlayerExperienceScreen
 } from "@mage2/player-ui";
 import { setEditorLocalizedText } from "../localized-project";
+import { useEditorI18n } from "../i18n";
 import { useEditorAssetFileUrl } from "../player-asset-url";
 import { isPlayerPresentationAsset } from "../project-helpers";
 
@@ -24,7 +27,17 @@ interface PlayerPanelProps {
   setStatusMessage: (message: string) => void;
 }
 
+export type EditorPlayerInterfaceLocalePreference = "automatic" | BuiltInLocale;
+
+export function resolveEditorPlayerInterfaceLocale(
+  preference: EditorPlayerInterfaceLocalePreference,
+  editorLocale: BuiltInLocale
+): BuiltInLocale {
+  return preference === "automatic" ? editorLocale : preference;
+}
+
 export function PlayerPanel({ project, mutateProject, setStatusMessage }: PlayerPanelProps) {
+  const { locale: editorLocale, t } = useEditorI18n();
   const presentation = project.manifest.playerPresentation;
   const defaultLocale = project.manifest.defaultLanguage;
   const supportedLocales = normalizeSupportedLocales(defaultLocale, project.manifest.supportedLocales);
@@ -36,11 +49,10 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
   const titleAsset = findAsset(playerAssets, presentation.titleBackgroundAssetId);
   const logoAsset = findAsset(playerAssets, presentation.logoAssetId);
   const iconAsset = findAsset(playerAssets, presentation.appIconAssetId);
-  const titleBackgroundUrl = useEditorAssetFileUrl(titleAsset, defaultLocale);
-  const logoUrl = useEditorAssetFileUrl(logoAsset, defaultLocale);
-  const iconUrl = useEditorAssetFileUrl(iconAsset, defaultLocale);
   const [previewScreen, setPreviewScreen] = useState<PlayerExperienceScreen>("title");
   const [previewLocale, setPreviewLocale] = useState(defaultLocale);
+  const [previewInterfaceLocalePreference, setPreviewInterfaceLocalePreference] =
+    useState<EditorPlayerInterfaceLocalePreference>("automatic");
   const [previewPreferences, setPreviewPreferences] = useState<PlayerExperiencePreferences>(
     DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
   );
@@ -51,10 +63,16 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
     }
   }, [defaultLocale, previewLocale, supportedLocales]);
 
+  const previewContentLocale = supportedLocales.includes(previewLocale) ? previewLocale : defaultLocale;
+  const titleBackgroundUrl = useEditorAssetFileUrl(titleAsset, previewContentLocale);
+  const logoUrl = useEditorAssetFileUrl(logoAsset, previewContentLocale);
+  const iconUrl = useEditorAssetFileUrl(iconAsset, previewContentLocale);
   const previewStrings = {
     ...sourceStrings,
-    ...getLocaleStringValues(project, previewLocale)
+    ...getLocaleStringValues(project, previewContentLocale)
   };
+  const previewInterfaceLocale = resolveEditorPlayerInterfaceLocale(previewInterfaceLocalePreference, editorLocale);
+  const playerUiOverrides = collectPlayerUiOverrides(project);
   const taglineTextId = presentation.taglineTextId ?? DEFAULT_PLAYER_TAGLINE_TEXT_ID;
   const creditsTextId = presentation.creditsTextId ?? DEFAULT_PLAYER_CREDITS_TEXT_ID;
 
@@ -62,7 +80,7 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
     mutateProject((draft) => {
       Object.assign(draft.manifest.playerPresentation, update);
     });
-    setStatusMessage(`${message} Save the project to keep this change.`);
+    setStatusMessage(t("{message} Save the project to keep this change.", { message }));
   }
 
   function updateSourceText(textId: string, value: string, field: "tagline" | "credits") {
@@ -82,11 +100,11 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
       <section className="panel player-panel__preview-panel">
         <div className="panel__toolbar">
           <div>
-            <p className="dialog-eyebrow">Player preview</p>
-            <h3>Landscape-first shell</h3>
-            <p className="muted">This is the same title, pause, settings, and credits layer used by exports.</p>
+            <p className="dialog-eyebrow">{t("Player preview")}</p>
+            <h3>{t("Landscape-first shell")}</h3>
+            <p className="muted">{t("This is the same title, pause, settings, and credits layer used by exports.")}</p>
           </div>
-          <button type="button" onClick={() => setPreviewScreen("title")}>Preview title</button>
+          <button type="button" onClick={() => setPreviewScreen("title")}>{t("Preview title")}</button>
         </div>
 
         <div className="player-panel__preview" data-title-enabled={presentation.titleScreenEnabled ? "true" : "false"}>
@@ -96,10 +114,14 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             presentation={presentation}
             screen={previewScreen}
             onScreenChange={setPreviewScreen}
-            locale={previewLocale}
+            locale={previewContentLocale}
             supportedLocales={supportedLocales}
             localeStrings={previewStrings}
             onLocaleChange={setPreviewLocale}
+            interfaceLocale={previewInterfaceLocale}
+            interfaceLocalePreference={previewInterfaceLocalePreference}
+            onInterfaceLocalePreferenceChange={setPreviewInterfaceLocalePreference}
+            playerUiOverrides={playerUiOverrides}
             preferences={previewPreferences}
             onPreferencesChange={setPreviewPreferences}
             hasSavedGame={false}
@@ -112,139 +134,146 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             resolveLocaleName={resolveLocaleName}
           >
             <div className="player-panel__game-placeholder">
-              <strong>Game canvas</strong>
-              <span>Open the menu to preview the paused state, or return to the title.</span>
+              <strong>{t("Game canvas")}</strong>
+              <span>{t("Open the menu to preview the paused state, or return to the title.")}</span>
             </div>
           </PlayerExperienceShell>
         </div>
         {!presentation.titleScreenEnabled ? (
-          <p className="player-panel__preview-note">The title screen is disabled for exported builds; the preview remains available for editing.</p>
+          <p className="player-panel__preview-note">{t("The title screen is disabled for exported builds; the preview remains available for editing.")}</p>
         ) : null}
       </section>
 
       <aside className="panel panel--flow player-panel__controls">
         <div className="panel__toolbar">
           <div>
-            <p className="dialog-eyebrow">Creator controls</p>
-            <h3>Player presentation</h3>
-            <p className="muted">Start from the bundled cinematic kit, then replace only what your game needs.</p>
+            <p className="dialog-eyebrow">{t("Creator controls")}</p>
+            <h3>{t("Player presentation")}</h3>
+            <p className="muted">{t("Start from the bundled cinematic kit, then replace only what your game needs.")}</p>
           </div>
         </div>
 
         <fieldset className="player-panel__fieldset">
-          <legend>Title screen</legend>
+          <legend>{t("Title screen")}</legend>
           <label className="player-panel__check-row">
-            <span>Show title screen on launch</span>
+            <span>{t("Show title screen on launch")}</span>
             <input
               type="checkbox"
               checked={presentation.titleScreenEnabled}
-              onChange={(event) => updatePresentation({ titleScreenEnabled: event.target.checked }, "Updated title-screen launch behavior.")}
+              onChange={(event) => updatePresentation({ titleScreenEnabled: event.target.checked }, t("Updated title-screen launch behavior."))}
             />
           </label>
           <AssetSelect
-            label="Background"
+            label={t("Background")}
             value={presentation.titleBackgroundAssetId}
             assets={playerAssets}
             allowNone
-            onChange={(titleBackgroundAssetId) => updatePresentation({ titleBackgroundAssetId }, "Updated the title background.")}
+            noneLabel={t("None")}
+            starterLabel={t("Starter")}
+            onChange={(titleBackgroundAssetId) => updatePresentation({ titleBackgroundAssetId }, t("Updated the title background."))}
           />
           <AssetSelect
-            label="Logo"
+            label={t("Logo")}
             value={presentation.logoAssetId}
             assets={playerAssets}
             allowNone
-            onChange={(logoAssetId) => updatePresentation({ logoAssetId }, "Updated the title logo.")}
+            noneLabel={t("None")}
+            starterLabel={t("Starter")}
+            onChange={(logoAssetId) => updatePresentation({ logoAssetId }, t("Updated the title logo."))}
           />
           <AssetSelect
-            label="App icon"
+            label={t("App icon")}
             value={presentation.appIconAssetId}
             assets={playerAssets}
             allowNone
-            help="Use a square PNG, ideally 512 by 512 pixels or larger."
-            onChange={(appIconAssetId) => updatePresentation({ appIconAssetId }, "Updated the player icon.")}
+            noneLabel={t("None")}
+            starterLabel={t("Starter")}
+            help={t("Use a square PNG, ideally 512 by 512 pixels or larger.")}
+            onChange={(appIconAssetId) => updatePresentation({ appIconAssetId }, t("Updated the player icon."))}
           />
           <label>
-            <span>Title alignment</span>
+            <span>{t("Title alignment")}</span>
             <select
               value={presentation.titleLayout}
-              onChange={(event) => updatePresentation({ titleLayout: event.target.value as PlayerPresentation["titleLayout"] }, "Updated title alignment.")}
+              onChange={(event) => updatePresentation({ titleLayout: event.target.value as PlayerPresentation["titleLayout"] }, t("Updated title alignment."))}
             >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
+              <option value="left">{t("Left")}</option>
+              <option value="center">{t("Center")}</option>
             </select>
           </label>
           <label>
-            <span>Tagline ({defaultLocale})</span>
+            <span>{t("Tagline ({locale})", { locale: defaultLocale })}</span>
             <input
               value={sourceStrings[taglineTextId] ?? ""}
               onChange={(event) => updateSourceText(taglineTextId, event.target.value, "tagline")}
-              placeholder="An interactive story"
+              placeholder={t("An interactive story")}
             />
           </label>
         </fieldset>
 
         <fieldset className="player-panel__fieldset">
-          <legend>Look and feel</legend>
+          <legend>{t("Look and feel")}</legend>
           <label>
-            <span>Font preset</span>
+            <span>{t("Font preset")}</span>
             <select
               value={presentation.fontPreset}
-              onChange={(event) => updatePresentation({ fontPreset: event.target.value as PlayerPresentation["fontPreset"] }, "Updated player typography.")}
+              onChange={(event) => updatePresentation({ fontPreset: event.target.value as PlayerPresentation["fontPreset"] }, t("Updated player typography."))}
             >
-              <option value="cinematic">Cinematic</option>
-              <option value="modern">Modern</option>
-              <option value="classic">Classic</option>
+              <option value="cinematic">{t("Cinematic")}</option>
+              <option value="modern">{t("Modern")}</option>
+              <option value="classic">{t("Classic")}</option>
             </select>
           </label>
           <label>
-            <span>Overlay tone</span>
+            <span>{t("Overlay tone")}</span>
             <select
               value={presentation.overlayTone}
-              onChange={(event) => updatePresentation({ overlayTone: event.target.value as PlayerPresentation["overlayTone"] }, "Updated overlay tone.")}
+              onChange={(event) => updatePresentation({ overlayTone: event.target.value as PlayerPresentation["overlayTone"] }, t("Updated overlay tone."))}
             >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
+              <option value="dark">{t("Dark")}</option>
+              <option value="light">{t("Light")}</option>
             </select>
           </label>
           <label className="player-panel__color-row">
-            <span>Accent</span>
+            <span>{t("Accent")}</span>
             <input
               type="color"
               value={presentation.accentColor}
-              onChange={(event) => updatePresentation({ accentColor: event.target.value }, "Updated player accent color.")}
+              aria-label={t("Player accent color")}
+              onChange={(event) => updatePresentation({ accentColor: event.target.value }, t("Updated player accent color."))}
             />
             <code>{presentation.accentColor}</code>
           </label>
           <label className="player-panel__check-row">
-            <span>Show a landscape hint in portrait</span>
+            <span>{t("Show a landscape hint in portrait")}</span>
             <input
               type="checkbox"
               checked={presentation.showLandscapeHintInPortrait}
-              onChange={(event) => updatePresentation({ showLandscapeHintInPortrait: event.target.checked }, "Updated the portrait hint.")}
+              onChange={(event) => updatePresentation({ showLandscapeHintInPortrait: event.target.checked }, t("Updated the portrait hint."))}
             />
           </label>
         </fieldset>
 
         <fieldset className="player-panel__fieldset">
-          <legend>Credits and release identity</legend>
+          <legend>{t("Credits and release identity")}</legend>
           <label>
-            <span>Creator name</span>
+            <span>{t("Creator name")}</span>
             <input
               value={presentation.creatorName ?? ""}
-              onChange={(event) => updatePresentation({ creatorName: event.target.value || undefined }, "Updated creator credits.")}
+              onChange={(event) => updatePresentation({ creatorName: event.target.value || undefined }, t("Updated creator credits."))}
             />
           </label>
           <label>
-            <span>Website</span>
+            <span>{t("Website")}</span>
             <input
               type="url"
               value={presentation.websiteUrl ?? ""}
-              onChange={(event) => updatePresentation({ websiteUrl: event.target.value || undefined }, "Updated creator website.")}
+              onChange={(event) => updatePresentation({ websiteUrl: event.target.value || undefined }, t("Updated creator website."))}
               placeholder="https://example.com"
             />
           </label>
           <label>
-            <span>Credits ({defaultLocale})</span>
+            <span>{t("Credits ({locale})", { locale: defaultLocale })}</span>
             <textarea
               rows={3}
               value={sourceStrings[creditsTextId] ?? ""}
@@ -252,16 +281,16 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             />
           </label>
           <label>
-            <span>Game version</span>
+            <span>{t("Game version")}</span>
             <input
               value={project.manifest.gameVersion}
               onChange={(event) => mutateProject((draft) => { draft.manifest.gameVersion = event.target.value; })}
               placeholder="1.0.0"
             />
-            <small>Use semantic versioning, such as 1.0.0 or 1.2.0-beta.1.</small>
+            <small>{t("Use semantic versioning, such as 1.0.0 or 1.2.0-beta.1.")}</small>
           </label>
           <label>
-            <span>Save compatibility version</span>
+            <span>{t("Save compatibility version")}</span>
             <input
               type="number"
               min={1}
@@ -270,17 +299,17 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
               onChange={(event) => {
                 const saveCompatibilityVersion = Math.max(1, Math.trunc(Number(event.target.value) || 1));
                 mutateProject((draft) => { draft.manifest.saveCompatibilityVersion = saveCompatibilityVersion; });
-                setStatusMessage("Updated save compatibility. Existing saves with a different value will recover into a fresh game.");
+                setStatusMessage(t("Updated save compatibility. Existing saves with a different value will recover into a fresh game."));
               }}
             />
-            <small>Increase only when a release intentionally breaks existing player saves.</small>
+            <small>{t("Increase only when a release intentionally breaks existing player saves.")}</small>
           </label>
         </fieldset>
 
         <div className="player-panel__starter-note">
-          <strong>Starter kit</strong>
-          <span>{presentation.starterKitId ?? "Custom"} v{presentation.starterKitVersion ?? 1}</span>
-          <p>Bundled assets are ordinary project assets: keep, localize, replace, or delete them once no screen references them.</p>
+          <strong>{t("Starter kit")}</strong>
+          <span>{presentation.starterKitId ?? t("Custom")} v{presentation.starterKitVersion ?? 1}</span>
+          <p>{t("Bundled assets are ordinary project assets: keep, localize, replace, or delete them once no screen references them.")}</p>
         </div>
       </aside>
     </div>
@@ -292,6 +321,8 @@ function AssetSelect({
   value,
   assets,
   allowNone,
+  noneLabel,
+  starterLabel,
   help,
   onChange
 }: {
@@ -299,6 +330,8 @@ function AssetSelect({
   value?: string;
   assets: Asset[];
   allowNone?: boolean;
+  noneLabel: string;
+  starterLabel: string;
   help?: string;
   onChange: (assetId?: string) => void;
 }) {
@@ -306,10 +339,10 @@ function AssetSelect({
     <label>
       <span>{label}</span>
       <select value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)}>
-        {allowNone ? <option value="">None</option> : null}
+        {allowNone ? <option value="">{noneLabel}</option> : null}
         {assets.map((asset) => (
           <option key={asset.id} value={asset.id}>
-            {asset.name}{asset.provenance?.source === "starter-kit" ? " (Starter)" : ""}
+            {asset.name}{asset.provenance?.source === "starter-kit" ? ` (${starterLabel})` : ""}
           </option>
         ))}
       </select>

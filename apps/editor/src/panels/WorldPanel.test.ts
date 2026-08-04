@@ -1,8 +1,12 @@
 import React from "react";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
+import { createEditorCatalog } from "../i18n/catalog";
+import { worldMessages } from "../i18n/catalogs/world";
+import { createEditorTranslator } from "../i18n/translate";
 import { addLocation, addScene } from "../project-helpers";
 import { useEditorStore } from "../store";
 import { resolveLocationIconKind, resolveWorldLocationEdges, WorldPanel } from "./WorldPanel";
@@ -140,5 +144,34 @@ describe("WorldPanel", () => {
     expect(markup).toContain("1 out");
     expect(markup).not.toContain("map-node-port");
     expect(markup).not.toContain("map-edge-terminal");
+  });
+
+  it("provides complete World translations with named project-authored values", () => {
+    const catalog = createEditorCatalog([{ feature: "world", messages: worldMessages }]);
+    const french = createEditorTranslator(catalog, "fr");
+    const arabic = createEditorTranslator(catalog, "ar");
+
+    expect(french("Add Location")).toBe("Ajouter un lieu");
+    expect(french("Open {name} in Scenes.", { name: "Citadel_01" })).toBe("Ouvrir Citadel_01 dans Scènes.");
+    expect(arabic("{source} to {target}: {transitionCount}", {
+      source: "location_intro",
+      target: "الميناء",
+      transitionCount: arabic("{count} cross-location scene transitions", { count: 3 })
+    })).toContain("location_intro");
+    expect(arabic("{source} to {target}: {transitionCount}", {
+      source: "location_intro",
+      target: "الميناء",
+      transitionCount: arabic("{count} cross-location scene transitions", { count: 3 })
+    })).toContain("الميناء");
+  });
+
+  it("keeps map coordinates LTR while restoring translated text direction", () => {
+    const source = readFileSync(new URL("./WorldPanel.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('aria-label={t("World overview of locations and cross-location scene transitions")}');
+    expect(source).toContain('dir="ltr"');
+    expect(source).toContain('style={{ left: position.x, top: position.y, textAlign: direction === "rtl" ? "right" : "left" } as CSSProperties}');
+    expect(source).toContain('className="world-panel__map-node-copy" dir={direction}');
+    expect(source).toContain('style={direction === "rtl" ? { right: "auto", left: 0, textAlign: "right" } : undefined}');
   });
 });

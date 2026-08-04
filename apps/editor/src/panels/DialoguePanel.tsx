@@ -10,6 +10,7 @@ import {
 import { FOREGROUND_MEDIA_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
 import { DropdownSelect } from "../DropdownSelect";
+import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "../i18n";
 import { addAssetRoots, addDialogueTree, createId, ensureString, isForegroundMediaAsset } from "../project-helpers";
 import { setEditorLocalizedText } from "../localized-project";
 import { AssetPreview } from "../previews";
@@ -45,19 +46,20 @@ interface DialogueUsage {
 const LINE_LABEL_PREVIEW_LENGTH = 64;
 
 export function DialoguePanel(props: DialoguePanelProps) {
+  const { direction, t } = useEditorI18n();
   const dialogueSection = useEditorStore((state) => state.dialogueSection) ?? "dialogues";
   const setDialogueSection = useEditorStore((state) => state.setDialogueSection);
 
   return (
-    <div className="dialogue-screen">
-      <nav className="dialogue-section-tabs" aria-label="Dialogue authoring sections">
+    <div className="dialogue-screen" dir={direction}>
+      <nav className="dialogue-section-tabs" aria-label={t("Dialogue authoring sections")}>
         <button
           type="button"
           className={dialogueSection === "dialogues" ? "dialogue-section-tab dialogue-section-tab--active" : "dialogue-section-tab"}
           aria-pressed={dialogueSection === "dialogues"}
           onClick={() => setDialogueSection("dialogues")}
         >
-          Dialogues
+          {t("Dialogues")}
         </button>
         <button
           type="button"
@@ -65,7 +67,7 @@ export function DialoguePanel(props: DialoguePanelProps) {
           aria-pressed={dialogueSection === "responses"}
           onClick={() => setDialogueSection("responses")}
         >
-          Responses
+          {t("Responses")}
         </button>
       </nav>
       {dialogueSection === "dialogues" ? (
@@ -91,6 +93,7 @@ function DialogueAuthoringPanel({
   onOpenScenesHotspot
 }: DialoguePanelProps) {
   const dialogs = useDialogs();
+  const { t } = useEditorI18n();
   const selectedDialogueId = useEditorStore((state) => state.selectedDialogueId);
   const selectedDialogueNodeId = useEditorStore((state) => state.selectedDialogueNodeId);
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
@@ -99,7 +102,7 @@ function DialogueAuthoringPanel({
   const activeLocale = project.manifest.defaultLanguage;
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const foregroundMediaAssets = project.assets.assets.filter(isForegroundMediaAsset);
-  const usageByDialogue = useMemo(() => collectDialogueUsage(project), [project]);
+  const usageByDialogue = useMemo(() => collectDialogueUsage(project, t), [project, t]);
   const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
   const currentUsage = currentDialogue ? usageByDialogue.get(currentDialogue.id) ?? [] : [];
   const filteredDialogues = project.dialogues.items.filter((dialogue) =>
@@ -114,7 +117,7 @@ function DialogueAuthoringPanel({
   const nodeOptions: DialogueNodeOption[] =
     currentDialogue?.nodes.map((node, index) => ({
       id: node.id,
-      label: formatDialogueNodeOption(node, index, localeStrings)
+      label: formatDialogueNodeOption(t, node, index, localeStrings)
     })) ?? [];
 
   const selectDialogue = (dialogue: DialogueTree) => {
@@ -143,7 +146,7 @@ function DialogueAuthoringPanel({
 
       const nodeId = createId("node");
       const textId = `text.${nodeId}.line`;
-      ensureString(draft, textId, "New line");
+      ensureString(draft, textId, t("New line"));
       dialogue.nodes.push({
         id: nodeId,
         speaker: selectedNode?.speaker ?? "NPC",
@@ -205,7 +208,7 @@ function DialogueAuthoringPanel({
 
       const choiceId = createId("choice");
       const textId = `text.${choiceId}.label`;
-      ensureString(draft, textId, "Player reply");
+      ensureString(draft, textId, t("Player reply"));
       target.choices.push({
         id: choiceId,
         textId,
@@ -241,10 +244,10 @@ function DialogueAuthoringPanel({
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
-        throw new Error("No project directory is currently open.");
+        throw new Error(t("No project directory is currently open."));
       }
 
-      setBusyLabel("Importing dialogue media");
+      setBusyLabel(t("Importing dialogue media"));
       const { importedAssets, duplicateAssets, duplicateFilePaths } = await window.editorApi.importAssets(
         projectDir,
         activeLocale,
@@ -261,8 +264,8 @@ function DialogueAuthoringPanel({
       if (!assignedAsset) {
         setStatusMessage(
           duplicateFilePaths.length > 0
-            ? "That file already exists as foreground media. Choose it from the line media picker."
-            : "No new dialogue media asset was created."
+            ? t("That file already exists as foreground media. Choose it from the line media picker.")
+            : t("No new dialogue media asset was created.")
         );
         return;
       }
@@ -279,11 +282,13 @@ function DialogueAuthoringPanel({
       });
       useEditorStore.getState().setSelectedAssetId(assignedAsset.id);
       setStatusMessage(
-        `${importedAssets[0] ? "Imported" : "Assigned existing"} ${assignedAsset.name} as foreground media for this dialogue line. Save the project to keep this change.`
+        importedAssets[0]
+          ? t("Imported {name} as foreground media for this dialogue line. Save the project to keep this change.", { name: assignedAsset.name })
+          : t("Assigned existing {name} as foreground media for this dialogue line. Save the project to keep this change.", { name: assignedAsset.name })
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Dialogue media import failed: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Dialogue media import failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -291,10 +296,10 @@ function DialogueAuthoringPanel({
 
   const handleImportDialogueMedia = async (dialogueId: string, node: DialogueNode) => {
     const filePaths = await dialogs.pickFiles({
-      title: `Import Media for ${node.speaker || "Dialogue Line"}`,
-      description: "Choose an audio or video file to play once when this dialogue line opens.",
+      title: t("Import Media for {name}", { name: node.speaker || t("Dialogue Line") }),
+      description: t("Choose an audio or video file to play once when this dialogue line opens."),
       initialPath: useEditorStore.getState().projectDir,
-      confirmLabel: "Use as Line Media",
+      confirmLabel: t("Use as Line Media"),
       allowedExtensions: [...FOREGROUND_MEDIA_IMPORT_EXTENSIONS]
     });
     const filePath = filePaths[0];
@@ -305,21 +310,21 @@ function DialogueAuthoringPanel({
 
   return (
     <div className="panel-grid panel-grid--dialogue dialogue-workspace">
-      <aside className="panel dialogue-library" aria-label="Dialogue library">
+      <aside className="panel dialogue-library" aria-label={t("Dialogue library")}>
         <div className="dialogue-library__header">
           <div>
-            <p className="eyebrow">Dialogue Authoring</p>
-            <h3>Dialogues</h3>
+            <p className="eyebrow">{t("Dialogue Authoring")}</p>
+            <h3>{t("Dialogues")}</h3>
           </div>
           <button type="button" className="button-accent" onClick={createDialogue}>
-            New Dialogue
+            {t("New Dialogue")}
           </button>
         </div>
         <label className="dialogue-search">
-          <span className="field-label--inset">Find dialogue</span>
+          <span className="field-label--inset">{t("Find dialogue")}</span>
           <input
             value={dialogueFilter}
-            placeholder="Search by name"
+            placeholder={t("Search by name")}
             onChange={(event) => setDialogueFilter(event.target.value)}
           />
         </label>
@@ -337,7 +342,7 @@ function DialogueAuthoringPanel({
                 >
                   <span className="dialogue-library-item__name">{dialogue.name}</span>
                   <span className="dialogue-library-item__meta">
-                    {formatLineCount(dialogue.nodes.length)} · {formatUsageBadge(usage.length)}
+                    {formatLineCount(t, dialogue.nodes.length)} · {formatUsageBadge(t, usage.length)}
                   </span>
                 </button>
               );
@@ -345,26 +350,26 @@ function DialogueAuthoringPanel({
           </div>
         ) : (
           <div className="dialogue-empty-state">
-            <h4>Create your first dialogue</h4>
-            <p className="muted">Write the conversation here, then start it from a hotspot in Scenes.</p>
+            <h4>{t("Create your first dialogue")}</h4>
+            <p className="muted">{t("Write the conversation here, then start it from a hotspot in Scenes.")}</p>
             <button type="button" className="button-accent" onClick={createDialogue}>
-              New Dialogue
+              {t("New Dialogue")}
             </button>
           </div>
         )}
         {project.dialogues.items.length > 0 && filteredDialogues.length === 0 ? (
-          <p className="muted">No dialogues match this search.</p>
+          <p className="muted">{t("No dialogues match this search.")}</p>
         ) : null}
       </aside>
 
-      <main className="panel dialogue-builder" aria-label="Conversation builder">
+      <main className="panel dialogue-builder" aria-label={t("Conversation builder")}>
         {currentDialogue ? (
           <>
             <header className="dialogue-builder__header">
               <div>
-                <p className="eyebrow">Write dialogue here. Start it from a hotspot in Scenes.</p>
+                <p className="eyebrow">{t("Write dialogue here. Start it from a hotspot in Scenes.")}</p>
                 <label className="dialogue-title-field">
-                  <span className="field-label--inset">Dialogue name</span>
+                  <span className="field-label--inset">{t("Dialogue name")}</span>
                   <input
                     value={currentDialogue.name}
                     onChange={(event) =>
@@ -380,17 +385,17 @@ function DialogueAuthoringPanel({
               </div>
               <div className="dialogue-builder__actions">
                 <button type="button" className="button-secondary" onClick={() => openScenes(currentUsage[0])}>
-                  Set up in Scenes
+                  {t("Set up in Scenes")}
                 </button>
                 <button type="button" className="button-accent" onClick={addLine}>
-                  Add Line
+                  {t("Add Line")}
                 </button>
               </div>
             </header>
 
             <section className="dialogue-start-panel">
-              <label title="First line shown when this dialogue starts.">
-                <span className="field-label--inset">First line</span>
+              <label title={t("First line shown when this dialogue starts.")}>
+                <span className="field-label--inset">{t("First line")}</span>
                 <DropdownSelect
                   value={currentDialogue.startNodeId}
                   onChange={(event) =>
@@ -411,7 +416,7 @@ function DialogueAuthoringPanel({
                 </DropdownSelect>
               </label>
               <div className={currentUsage.length > 0 ? "dialogue-connection-badge" : "dialogue-connection-badge dialogue-connection-badge--warning"}>
-                {currentUsage.length > 0 ? formatUsageBadge(currentUsage.length) : "Not connected to a hotspot yet"}
+                {currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("Not connected to a hotspot yet")}
               </div>
             </section>
 
@@ -440,33 +445,33 @@ function DialogueAuthoringPanel({
               </div>
             ) : (
               <div className="dialogue-empty-state dialogue-empty-state--wide">
-                <h4>Add the first line</h4>
-                <p className="muted">Start with who speaks and what they say. Branches can come later.</p>
+                <h4>{t("Add the first line")}</h4>
+                <p className="muted">{t("Start with who speaks and what they say. Branches can come later.")}</p>
                 <button type="button" className="button-accent" onClick={addLine}>
-                  Add Line
+                  {t("Add Line")}
                 </button>
               </div>
             )}
           </>
         ) : (
           <div className="dialogue-empty-state dialogue-empty-state--wide">
-            <h4>No dialogue selected</h4>
-            <p className="muted">Create a dialogue to begin authoring conversations.</p>
+            <h4>{t("No dialogue selected")}</h4>
+            <p className="muted">{t("Create a dialogue to begin authoring conversations.")}</p>
             <button type="button" className="button-accent" onClick={createDialogue}>
-              New Dialogue
+              {t("New Dialogue")}
             </button>
           </div>
         )}
       </main>
 
-      <aside className="panel dialogue-launch-panel" aria-label="Dialogue preview and launch locations">
+      <aside className="panel dialogue-launch-panel" aria-label={t("Dialogue preview and launch locations")}>
         {currentDialogue ? (
           <>
             <section className="dialogue-preview">
               <div className="dialogue-panel-heading">
                 <div>
-                  <p className="eyebrow">Preview</p>
-                  <h4>{selectedNode ? `Line ${getLineNumber(currentDialogue, selectedNode.id)}` : "No line selected"}</h4>
+                  <p className="eyebrow">{t("Preview")}</p>
+                  <h4>{selectedNode ? t("Line {number}", { number: getLineNumber(currentDialogue, selectedNode.id) }) : t("No line selected")}</h4>
                 </div>
               </div>
               {selectedNode ? (
@@ -478,26 +483,26 @@ function DialogueAuthoringPanel({
                   strings={localeStrings}
                 />
               ) : (
-                <p className="muted">Select a line to preview it.</p>
+                <p className="muted">{t("Select a line to preview it.")}</p>
               )}
             </section>
 
             <section className="dialogue-start-callout">
               <div>
-                <p className="eyebrow">Launch</p>
-                <h4>Start this dialogue from a hotspot in Scenes</h4>
-                <p>Choose this dialogue in the selected hotspot's Start Dialogue field.</p>
+                <p className="eyebrow">{t("Launch")}</p>
+                <h4>{t("Start this dialogue from a hotspot in Scenes")}</h4>
+                <p>{t("Choose this dialogue in the selected hotspot's Start Dialogue field.")}</p>
               </div>
               <button type="button" className="button-accent" onClick={() => openScenes(currentUsage[0])}>
-                Go to Scenes
+                {t("Go to Scenes")}
               </button>
             </section>
 
             <section className="dialogue-usage-list">
               <div className="dialogue-panel-heading">
                 <div>
-                  <p className="eyebrow">Started From</p>
-                  <h4>{currentUsage.length > 0 ? formatUsageBadge(currentUsage.length) : "No hotspots yet"}</h4>
+                  <p className="eyebrow">{t("Started From")}</p>
+                  <h4>{currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("No hotspots yet")}</h4>
                 </div>
               </div>
               {currentUsage.length > 0 ? (
@@ -515,12 +520,12 @@ function DialogueAuthoringPanel({
                   ))}
                 </div>
               ) : (
-                <p className="muted">No hotspot starts this dialogue yet.</p>
+                <p className="muted">{t("No hotspot starts this dialogue yet.")}</p>
               )}
             </section>
           </>
         ) : (
-          <p className="muted">Create a dialogue to see preview and launch details.</p>
+          <p className="muted">{t("Create a dialogue to see preview and launch details.")}</p>
         )}
       </aside>
     </div>
@@ -560,6 +565,7 @@ function LineCard({
   onImportMedia: (node: DialogueNode) => void;
   onToggle: () => void;
 }) {
+  const { t } = useEditorI18n();
   const lineText = localeStrings[node.textId] ?? "";
   const hasReplies = node.choices.length > 0;
   const branchOptions = nodeOptions.filter((option) => option.id !== node.id);
@@ -571,15 +577,15 @@ function LineCard({
           type="button"
           className="dialogue-line-card__select"
           aria-expanded={isSelected}
-          title={isSelected ? "Collapse this line." : "Edit this line."}
+          title={isSelected ? t("Collapse this line.") : t("Edit this line.")}
           onClick={onToggle}
         >
           <span className="dialogue-line-card__number">{index + 1}</span>
           <span>
-            <span className="dialogue-line-card__title">{formatDialogueNodeLabel(node, localeStrings)}</span>
+            <span className="dialogue-line-card__title">{formatDialogueNodeLabel(t, node, localeStrings)}</span>
             <span className="dialogue-line-card__meta">
-              {isFirstLine ? "First line" : "Line"} · {formatChoiceCount(node.choices.length)}
-              {node.mediaAssetId ? " · Media" : ""}
+              {isFirstLine ? t("First line") : t("Line")} · {formatChoiceCount(t, node.choices.length)}
+              {node.mediaAssetId ? ` · ${t("Media")}` : ""}
             </span>
           </span>
         </button>
@@ -590,7 +596,7 @@ function LineCard({
             disabled={currentDialogue.nodes.length <= 1}
             onClick={() => onDeleteLine(node.id)}
           >
-            Delete
+            {t("Delete")}
           </button>
         </div>
       </header>
@@ -599,7 +605,7 @@ function LineCard({
         <div className="dialogue-line-editor">
           <div className="dialogue-line-editor__fields">
             <label>
-              <span className="field-label--inset">Who speaks</span>
+              <span className="field-label--inset">{t("Who speaks")}</span>
               <input
                 value={node.speaker}
                 onChange={(event) =>
@@ -612,8 +618,8 @@ function LineCard({
                 }
               />
             </label>
-            <label title="Next line when there are no player replies.">
-              <span className="field-label--inset">After this line</span>
+            <label title={t("Next line when there are no player replies.")}>
+              <span className="field-label--inset">{t("After this line")}</span>
               <DropdownSelect
                 value={node.nextNodeId ?? ""}
                 disabled={hasReplies}
@@ -626,19 +632,19 @@ function LineCard({
                   })
                 }
               >
-                <option value="">End dialogue</option>
+                <option value="">{t("End dialogue")}</option>
                 {branchOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
                   </option>
                 ))}
               </DropdownSelect>
-              {hasReplies ? <span className="dialogue-field-note">Player replies decide what happens next.</span> : null}
+              {hasReplies ? <span className="dialogue-field-note">{t("Player replies decide what happens next.")}</span> : null}
             </label>
           </div>
 
           <label>
-            <span className="field-label--inset">What they say</span>
+            <span className="field-label--inset">{t("What they say")}</span>
             <textarea
               value={lineText}
               onChange={(event) =>
@@ -649,10 +655,10 @@ function LineCard({
             />
           </label>
 
-          <section className="dialogue-line-media" aria-label="Dialogue line media">
+          <section className="dialogue-line-media" aria-label={t("Dialogue line media")}>
             <div className="dialogue-line-media__controls">
-              <label title="Audio or video that plays once when this line opens, independently of scene background media.">
-                <span className="field-label--inset">Line media</span>
+              <label title={t("Audio or video that plays once when this line opens, independently of scene background media.")}>
+                <span className="field-label--inset">{t("Line media")}</span>
                 <DropdownSelect
                   value={node.mediaAssetId ?? ""}
                   onChange={(event) =>
@@ -664,29 +670,29 @@ function LineCard({
                     })
                   }
                 >
-                  <option value="">No line media</option>
+                  <option value="">{t("No line media")}</option>
                   {node.mediaAssetId && !mediaAssets.some((asset) => asset.id === node.mediaAssetId) ? (
-                    <option value={node.mediaAssetId}>Missing foreground media</option>
+                    <option value={node.mediaAssetId}>{t("Missing foreground media")}</option>
                   ) : null}
                   {mediaAssets.map((asset) => (
                     <option key={asset.id} value={asset.id}>
-                      {asset.name} ({asset.kind})
+                      {asset.name} ({formatMediaKind(t, asset.kind)})
                     </option>
                   ))}
                 </DropdownSelect>
               </label>
               <button type="button" className="button-secondary" onClick={() => onImportMedia(node)}>
-                Import Audio / Video
+                {t("Import Audio / Video")}
               </button>
             </div>
-            <p className="dialogue-field-note">Plays once when this line opens; it does not replace or loop with the scene background.</p>
+            <p className="dialogue-field-note">{t("Plays once when this line opens; it does not replace or loop with the scene background.")}</p>
           </section>
 
           <section className="dialogue-replies">
             <div className="dialogue-replies__header">
-              <h5>Player replies</h5>
+              <h5>{t("Player replies")}</h5>
               <button type="button" className="button-secondary" onClick={() => onAddReply(node.id)}>
-                Add Reply
+                {t("Add Reply")}
               </button>
             </div>
             {node.choices.length > 0 ? (
@@ -717,16 +723,16 @@ function LineCard({
                 ))}
               </div>
             ) : (
-              <p className="muted">No player replies. The line follows After this line.</p>
+              <p className="muted">{t("No player replies. The line follows After this line.")}</p>
             )}
           </section>
 
           <details className="dialogue-advanced">
-            <summary>Advanced line effects</summary>
+            <summary>{t("Advanced line effects")}</summary>
             <JsonField
-              label="When this line starts"
+              label={t("When this line starts")}
               value={JSON.stringify(node.effects, null, 2)}
-              tooltip="JSON effect list that runs when this line opens."
+              tooltip={t("JSON effect list that runs when this line opens.")}
               labelClassName="field-label--inset"
               onCommit={(nextValue) =>
                 mutateProject((draft) => {
@@ -740,7 +746,7 @@ function LineCard({
           </details>
         </div>
       ) : (
-        <p className="dialogue-line-card__summary">{lineText || "Untitled line"}</p>
+        <p className="dialogue-line-card__summary">{lineText || t("Untitled line")}</p>
       )}
     </article>
   );
@@ -763,21 +769,22 @@ function ChoiceEditor({
   onTextChange: (value: string) => void;
   onUpdate: (nextChoice: DialogueChoice) => void;
 }) {
+  const { t } = useEditorI18n();
   return (
     <div className="choice-editor dialogue-reply-card">
       <div className="dialogue-reply-card__marker">{String.fromCharCode(65 + choiceIndex)}</div>
       <div className="dialogue-reply-card__fields">
-        <label title="Text shown to the player for this reply.">
-          <span className="field-label--inset">Player reply</span>
+        <label title={t("Text shown to the player for this reply.")}>
+          <span className="field-label--inset">{t("Player reply")}</span>
           <input value={strings[choice.textId] ?? ""} onChange={(event) => onTextChange(event.target.value)} />
         </label>
-        <label title="Line that opens when the player selects this reply.">
-          <span className="field-label--inset">After reply</span>
+        <label title={t("Line that opens when the player selects this reply.")}>
+          <span className="field-label--inset">{t("After reply")}</span>
           <DropdownSelect
             value={choice.nextNodeId ?? ""}
             onChange={(event) => onUpdate({ ...choice, nextNodeId: event.target.value || undefined })}
           >
-            <option value="">End dialogue</option>
+            <option value="">{t("End dialogue")}</option>
             {nodeOptions.map((node) => (
               <option key={node.id} value={node.id}>
                 {node.label}
@@ -786,25 +793,25 @@ function ChoiceEditor({
           </DropdownSelect>
         </label>
         <details className="dialogue-advanced dialogue-advanced--choice">
-          <summary>Advanced reply rules</summary>
+          <summary>{t("Advanced reply rules")}</summary>
           <JsonField
-            label="Show reply when"
+            label={t("Show reply when")}
             value={JSON.stringify(choice.conditions, null, 2)}
-            tooltip="JSON condition list that must pass before this reply appears."
+            tooltip={t("JSON condition list that must pass before this reply appears.")}
             labelClassName="field-label--inset"
             onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
           />
           <JsonField
-            label="After reply effects"
+            label={t("After reply effects")}
             value={JSON.stringify(choice.effects, null, 2)}
-            tooltip="JSON effect list that runs after the player selects this reply."
+            tooltip={t("JSON effect list that runs after the player selects this reply.")}
             labelClassName="field-label--inset"
             onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
           />
         </details>
       </div>
       <button type="button" className="button-danger dialogue-reply-card__delete" onClick={onDelete}>
-        Delete
+        {t("Delete")}
       </button>
     </div>
   );
@@ -823,7 +830,8 @@ function DialoguePreview({
   nodeOptions: DialogueNodeOption[];
   strings: Record<string, string>;
 }) {
-  const lineText = strings[node.textId] ?? "Untitled line";
+  const { t } = useEditorI18n();
+  const lineText = strings[node.textId] ?? t("Untitled line");
   const nextLineLabel = nodeOptions.find((option) => option.id === node.nextNodeId)?.label;
 
   return (
@@ -835,13 +843,13 @@ function DialoguePreview({
             locale={activeLocale}
             allowSourceFallback
             fit="contain"
-            emptyTitle="Line media unavailable"
-            emptyBody="Add the active locale variant in Localization."
+            emptyTitle={t("Line media unavailable")}
+            emptyBody={t("Add the active locale variant in Localization.")}
           />
         </div>
       ) : null}
       <div className="dialogue-preview-card__bubble">
-        <strong>{node.speaker || "Speaker"}</strong>
+        <strong>{node.speaker || t("Speaker")}</strong>
         <p>{lineText}</p>
       </div>
       {node.choices.length > 0 ? (
@@ -849,12 +857,12 @@ function DialoguePreview({
           {node.choices.map((choice, index) => (
             <div key={choice.id} className="dialogue-preview-choice">
               <span>{String.fromCharCode(65 + index)}</span>
-              <p>{strings[choice.textId] ?? "Player reply"}</p>
+              <p>{strings[choice.textId] ?? t("Player reply")}</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="muted">{nextLineLabel ? `Continues to ${nextLineLabel}` : "Ends after this line"}</p>
+        <p className="muted">{nextLineLabel ? t("Continues to {line}", { line: nextLineLabel }) : t("Ends after this line")}</p>
       )}
     </div>
   );
@@ -881,7 +889,7 @@ function JsonField({
   );
 }
 
-function collectDialogueUsage(project: ProjectBundle): Map<string, DialogueUsage[]> {
+function collectDialogueUsage(project: ProjectBundle, t: EditorTranslator): Map<string, DialogueUsage[]> {
   const usageByDialogue = new Map<string, DialogueUsage[]>();
   for (const scene of project.scenes.items) {
     scene.hotspots.forEach((hotspot, index) => {
@@ -892,14 +900,14 @@ function collectDialogueUsage(project: ProjectBundle): Map<string, DialogueUsage
           sceneId: scene.id,
           sceneName: scene.name,
           hotspotId: hotspot.id,
-          hotspotLabel: `Hotspot ${index + 1} (${formatCompactId(hotspot.id)})`
+          hotspotLabel: t("Hotspot {number} ({id})", { number: index + 1, id: formatCompactId(hotspot.id) })
         });
         usageByDialogue.set(hotspot.dialogueTreeId, usages);
       }
 
       for (const [event, label] of [
-        [hotspot.clickEvent, "On click"],
-        [hotspot.otherItemEvent, "Any other item"]
+        [hotspot.clickEvent, t("On click")],
+        [hotspot.otherItemEvent, t("Any other item")]
       ] as const) {
         if (event?.dialogueTreeId) {
           const usages = usageByDialogue.get(event.dialogueTreeId) ?? [];
@@ -908,7 +916,11 @@ function collectDialogueUsage(project: ProjectBundle): Map<string, DialogueUsage
             sceneId: scene.id,
             sceneName: scene.name,
             hotspotId: hotspot.id,
-            hotspotLabel: `Hotspot ${index + 1} ${label} (${formatCompactId(hotspot.id)})`
+            hotspotLabel: t("Hotspot {number} {label} ({id})", {
+              number: index + 1,
+              label,
+              id: formatCompactId(hotspot.id)
+            })
           });
           usageByDialogue.set(event.dialogueTreeId, usages);
         }
@@ -930,29 +942,35 @@ function getLineNumber(dialogue: DialogueTree, nodeId: string): number {
   return Math.max(1, dialogue.nodes.findIndex((node) => node.id === nodeId) + 1);
 }
 
-function formatDialogueNodeOption(node: DialogueNode, index: number, strings: Record<string, string>): string {
-  return `${index + 1}. ${formatDialogueNodeLabel(node, strings)}`;
+function formatDialogueNodeOption(t: EditorTranslator, node: DialogueNode, index: number, strings: Record<string, string>): string {
+  return `${index + 1}. ${formatDialogueNodeLabel(t, node, strings)}`;
 }
 
-function formatDialogueNodeLabel(node: DialogueNode, strings: Record<string, string>): string {
-  const speaker = node.speaker.trim() || "Speaker";
-  const line = strings[node.textId]?.trim() || "Untitled line";
+function formatDialogueNodeLabel(t: EditorTranslator, node: DialogueNode, strings: Record<string, string>): string {
+  const speaker = node.speaker.trim() || t("Speaker");
+  const line = strings[node.textId]?.trim() || t("Untitled line");
   return `${speaker}: ${truncateText(line, LINE_LABEL_PREVIEW_LENGTH)}`;
 }
 
-function formatChoiceCount(choiceCount: number): string {
-  return choiceCount === 1 ? "1 reply" : `${choiceCount} replies`;
+function formatChoiceCount(t: EditorTranslator, choiceCount: number): string {
+  return choiceCount === 1 ? t("1 reply") : t("{count} replies", { count: choiceCount });
 }
 
-function formatLineCount(lineCount: number): string {
-  return lineCount === 1 ? "1 line" : `${lineCount} lines`;
+function formatLineCount(t: EditorTranslator, lineCount: number): string {
+  return lineCount === 1 ? t("1 line") : t("{count} lines", { count: lineCount });
 }
 
-function formatUsageBadge(usageCount: number): string {
+function formatUsageBadge(t: EditorTranslator, usageCount: number): string {
   if (usageCount === 0) {
-    return "Not started anywhere";
+    return t("Not started anywhere");
   }
-  return usageCount === 1 ? "Starts from 1 hotspot" : `Starts from ${usageCount} hotspots`;
+  return usageCount === 1 ? t("Starts from 1 hotspot") : t("Starts from {count} hotspots", { count: usageCount });
+}
+
+function formatMediaKind(t: EditorTranslator, kind: Asset["kind"]): string {
+  if (kind === "audio") return t("audio");
+  if (kind === "video") return t("video");
+  return kind;
 }
 
 function formatCompactId(id: string): string {

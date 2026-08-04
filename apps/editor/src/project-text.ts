@@ -13,6 +13,11 @@ import { getLocaleStringValues, getStringTranslationState, resolveProjectLocale 
 import { collectPlayerExperienceTextIds } from "@mage2/schema";
 import type { EditorNavigationTarget } from "./navigation-target";
 
+export type ProjectTextTranslator = (source: string, params?: Record<string, string | number>) => string;
+
+const identityProjectTextTranslator: ProjectTextTranslator = (source, params) =>
+  source.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => String(params?.[key] ?? match));
+
 export type ProjectTextUsageKind =
   | "hotspotComment"
   | "dialogueLine"
@@ -50,6 +55,7 @@ export interface ProjectTextViewOptions {
   status: ProjectTextStatusFilter;
   area: ProjectTextAreaFilter;
   sort: ProjectTextSortOption;
+  translate?: ProjectTextTranslator;
 }
 
 const ISSUE_KIND_MAP: Partial<Record<ValidationIssue["code"], ProjectTextUsageKind>> = {
@@ -66,7 +72,10 @@ const STATUS_ORDER: Record<ProjectTextEntryStatus, number> = {
   orphaned: 2
 };
 
-export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsage[] {
+export function collectProjectTextUsages(
+  project: ProjectBundle,
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): ProjectTextUsage[] {
   const usages: ProjectTextUsage[] = [];
 
   for (const scene of project.scenes.items) {
@@ -175,9 +184,9 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
       textId,
       kind: "playerUi",
       ownerId: textId,
-      ownerLabel: textId.startsWith("player.ui.") ? "Player interface" : "Player presentation",
+      ownerLabel: textId.startsWith("player.ui.") ? t("Player interface") : t("Player presentation"),
       navigation: {
-        label: "Player presentation",
+        label: t("Player presentation"),
         tab: "player",
         textId
       }
@@ -187,8 +196,12 @@ export function collectProjectTextUsages(project: ProjectBundle): ProjectTextUsa
   return usages;
 }
 
-export function collectProjectTextEntries(project: ProjectBundle, locale: string): ProjectTextEntry[] {
-  const usages = collectProjectTextUsages(project);
+export function collectProjectTextEntries(
+  project: ProjectBundle,
+  locale: string,
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): ProjectTextEntry[] {
+  const usages = collectProjectTextUsages(project, t);
   const usagesByTextId = new Map<string, ProjectTextUsage[]>();
 
   for (const usage of usages) {
@@ -253,14 +266,17 @@ export function resolveProjectTextUsageForIssue(
   );
 }
 
-export function getProjectTextStatusLabel(status: ProjectTextEntryStatus): string {
+export function getProjectTextStatusLabel(
+  status: ProjectTextEntryStatus,
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): string {
   switch (status) {
     case "missing":
-      return "Missing";
+      return t("Missing");
     case "referenced":
-      return "Referenced";
+      return t("Referenced");
     case "orphaned":
-      return "Orphaned";
+      return t("Orphaned");
   }
 }
 
@@ -280,54 +296,67 @@ export function resolveProjectTextArea(kind: ProjectTextUsageKind): ProjectTextA
   }
 }
 
-export function getProjectTextAreaLabel(area: ProjectTextArea): string {
+export function getProjectTextAreaLabel(
+  area: ProjectTextArea,
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): string {
   switch (area) {
     case "scenes":
-      return "Scenes";
+      return t("Scenes");
     case "dialogue":
-      return "Dialogue";
+      return t("Dialogue");
     case "inventory":
-      return "Inventory";
+      return t("Inventory");
     case "player":
-      return "Player";
+      return t("Player");
   }
 }
 
-export function formatProjectTextUsageKind(kind: ProjectTextUsageKind): string {
+export function formatProjectTextUsageKind(
+  kind: ProjectTextUsageKind,
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): string {
   switch (kind) {
     case "hotspotComment":
-      return "Hotspot Comment";
+      return t("Hotspot Comment");
     case "dialogueLine":
-      return "Dialogue Line";
+      return t("Dialogue Line");
     case "dialogueChoice":
-      return "Dialogue Choice";
+      return t("Dialogue Choice");
     case "responseText":
-      return "Response Text";
+      return t("Response Text");
     case "inventoryName":
-      return "Inventory Name";
+      return t("Inventory Name");
     case "inventoryDescription":
-      return "Inventory Description";
+      return t("Inventory Description");
     case "playerUi":
-      return "Player Interface";
+      return t("Player Interface");
   }
 }
 
-export function summarizeProjectTextUsages(usages: ProjectTextUsage[]): string {
+export function summarizeProjectTextUsages(
+  usages: ProjectTextUsage[],
+  t: ProjectTextTranslator = identityProjectTextTranslator
+): string {
   if (usages.length === 0) {
-    return "No current references. This entry remains stored in the project.";
+    return t("No current references. This entry remains stored in the project.");
   }
 
   if (usages.length === 1) {
     const [usage] = usages;
-    return `${formatProjectTextUsageKind(usage.kind)} in ${usage.ownerLabel}`;
+    return t("{kind} in {owner}", {
+      kind: formatProjectTextUsageKind(usage.kind, t),
+      owner: usage.ownerLabel
+    });
   }
 
-  const areas = [...new Set(usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind))))];
-  return `${usages.length} uses across ${areas.join(", ")}`;
+  const areas = [...new Set(usages.map((usage) => getProjectTextAreaLabel(resolveProjectTextArea(usage.kind), t)))];
+  return t("{count} uses across {areas}", { count: usages.length, areas: areas.join(", ") });
 }
 
 export function filterProjectTextEntries(entries: ProjectTextEntry[], options: ProjectTextViewOptions): ProjectTextEntry[] {
   const search = options.search.trim().toLowerCase();
+  const t = options.translate ?? identityProjectTextTranslator;
 
   return entries
     .filter((entry) => {
@@ -346,7 +375,7 @@ export function filterProjectTextEntries(entries: ProjectTextEntry[], options: P
       const searchableParts = [
         entry.textId,
         entry.value,
-        ...entry.usages.flatMap((usage) => [formatProjectTextUsageKind(usage.kind), usage.ownerLabel])
+        ...entry.usages.flatMap((usage) => [formatProjectTextUsageKind(usage.kind, t), usage.ownerLabel])
       ];
 
       return searchableParts.some((part) => part.toLowerCase().includes(search));

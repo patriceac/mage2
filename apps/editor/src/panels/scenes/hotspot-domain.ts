@@ -9,6 +9,12 @@ import {
   type HotspotEvent,
   type InventoryItem
 } from "@mage2/schema";
+import type { EditorTranslator } from "../../i18n/translate";
+
+const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
 
 export type HotspotInventoryActionType = "none" | "pickupItem" | "placeItem";
 export type OptionalHotspotEventKey = "clickEvent" | "otherItemEvent";
@@ -64,36 +70,38 @@ export function updateOptionalHotspotEvent(
 
 export function resolveHotspotInventoryActionSummary(
   actionType: HotspotInventoryActionType,
-  itemLabel: string
+  itemLabel: string,
+  t: EditorTranslator = identityEditorTranslator
 ): string {
   if (actionType === "pickupItem") {
     return itemLabel
-      ? `Adds ${itemLabel} to inventory and hides this hotspot after pickup.`
-      : "Choose the inventory item this hotspot adds to inventory.";
+      ? t("Adds {itemLabel} to inventory and hides this hotspot after pickup.", { itemLabel })
+      : t("Choose the inventory item this hotspot adds to inventory.");
   }
 
   if (actionType === "placeItem") {
     return itemLabel
-      ? `Requires ${itemLabel}, removes it from inventory, and reveals it here after placement.`
-      : "Choose the inventory item that can be placed here.";
+      ? t("Requires {itemLabel}, removes it from inventory, and reveals it here after placement.", { itemLabel })
+      : t("Choose the inventory item that can be placed here.");
   }
 
-  return "Choose whether this hotspot changes inventory, starts dialogue, or only uses advanced fields.";
+  return t("Choose whether this hotspot changes inventory, starts dialogue, or only uses advanced fields.");
 }
 
 export function resolveHotspotInventoryActivationSummary(
   actionType: HotspotInventoryActionType,
-  hasItem: boolean
+  hasItem: boolean,
+  t: EditorTranslator = identityEditorTranslator
 ): string {
   if (actionType === "pickupItem") {
-    return hasItem ? "Add item to inventory" : "Choose item to pick up";
+    return hasItem ? t("Add item to inventory") : t("Choose item to pick up");
   }
 
   if (actionType === "placeItem") {
-    return hasItem ? "Require selected inventory item" : "Choose item to place";
+    return hasItem ? t("Require selected inventory item") : t("Choose item to place");
   }
 
-  return "No inventory change";
+  return t("No inventory change");
 }
 
 export function applyHotspotInventoryAction(

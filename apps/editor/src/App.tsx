@@ -14,6 +14,9 @@ import {
   resolveAssetVariant,
   resolveHotspotInventoryAction,
   resolvePlacedInventoryHotspotInstance,
+  BUILT_IN_LOCALES,
+  BUILT_IN_LOCALE_AUTONYMS,
+  BUILT_IN_LOCALE_DIRECTIONS,
   type Condition,
   type Effect,
   type Hotspot,
@@ -56,6 +59,14 @@ import {
   type EditorAutomationCommand,
   type EditorAutomationHotspotAction
 } from "./automation-commands";
+import {
+  getPreferredSystemLocales,
+  resolveEditorLocalePreference,
+  translateRuntimeMessage,
+  useEditorI18n,
+  type EditorLocalePreference,
+  type EditorTranslator
+} from "./i18n";
 
 const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "world", label: "World" },
@@ -85,6 +96,7 @@ interface InitialLaunchOptions {
 }
 
 export function App() {
+  const { locale, automaticLocale, direction, preference: localePreference, setPreference: setLocalePreference, t } = useEditorI18n();
   const {
     project,
     projectDir,
@@ -116,19 +128,25 @@ export function App() {
     setDialogueSection
   } = useEditorStore();
   const [busyLabel, setBusyLabel] = useState<string>();
-  const [statusMessage, setStatusMessage] = useState("Create or open a project folder to begin.");
+  const [statusMessage, setStatusMessage] = useState(() => t("Create or open a project folder to begin."));
   const [newProjectName, setNewProjectName] = useState("");
   const [showValidationDetails, setShowValidationDetails] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const [isFileLanguageSubmenuOpen, setIsFileLanguageSubmenuOpen] = useState(false);
+  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [hotspotInspectorOpenRequest, setHotspotInspectorOpenRequest] = useState(0);
   const [dismissedFirstProjectGuideId, setDismissedFirstProjectGuideId] = useState<string>();
   const [recentProjects, setRecentProjects] = useState<RecentProjectSummary[]>(() => getInitialRecentProjects());
   const [initialLaunchOptions] = useState(() => getInitialLaunchOptions());
   const fileMenuId = useId();
+  const fileLanguageSubmenuId = useId();
+  const languageMenuId = useId();
   const fileMenuRef = useRef<HTMLDivElement | null>(null);
   const fileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
-  const closeMenuItemRef = useRef<HTMLButtonElement | null>(null);
-  const exportMenuItemRef = useRef<HTMLButtonElement | null>(null);
+  const fileLanguageSubmenuRef = useRef<HTMLDivElement | null>(null);
+  const fileLanguageSubmenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const languageMenuRef = useRef<HTMLDivElement | null>(null);
+  const languageMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastAuthoringTabRef = useRef<EditorTab>("scenes");
   const nativeCloseHandlerRef = useRef<() => Promise<boolean>>(async () => true);
   const busyOperationRef = useRef<string | undefined>(undefined);
@@ -139,16 +157,17 @@ export function App() {
   async function withBusy<T>(
     label: string,
     action: () => Promise<T>,
-    onError?: (message: string) => void | Promise<void>
+    onError?: (message: string, rawMessage: string) => void | Promise<void>
   ): Promise<T | undefined> {
     try {
       busyOperationRef.current = label;
       setBusyLabel(label);
       return await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`${label} failed: ${message}`);
-      await onError?.(message);
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("{operation} failed: {message}", { operation: label, message }));
+      await onError?.(message, rawMessage);
       return undefined;
     } finally {
       if (busyOperationRef.current === label) {
@@ -178,7 +197,7 @@ export function App() {
       const nextRecentProjects = await window.editorApi.rememberRecentProject(targetProjectDir, projectName);
       setRecentProjects(nextRecentProjects);
     } catch {
-      setRecentProjects((currentProjects) => upsertRecentProjects(currentProjects, targetProjectDir, projectName));
+      setRecentProjects((currentProjects) => upsertRecentProjects(currentProjects, targetProjectDir, projectName, t));
     }
   }
 
@@ -192,13 +211,13 @@ export function App() {
   }
 
   async function refreshRecentProjects() {
-    const nextRecentProjects = await withBusy("Refreshing recent projects", () => window.editorApi.getRecentProjects());
+    const nextRecentProjects = await withBusy(t("Refreshing recent projects"), () => window.editorApi.getRecentProjects());
     if (!nextRecentProjects) {
       return;
     }
 
     setRecentProjects(nextRecentProjects);
-    setStatusMessage("Recent projects refreshed.");
+    setStatusMessage(t("Recent projects refreshed."));
   }
 
   async function revealRecentProjectEntry(event: ReactMouseEvent<HTMLButtonElement>, targetProjectDir: string) {
@@ -207,10 +226,10 @@ export function App() {
 
     try {
       await window.editorApi.revealPath(targetProjectDir);
-      setStatusMessage("Revealed project folder.");
+      setStatusMessage(t("Revealed project folder."));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Could not reveal that folder: ${message}`);
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Could not reveal that folder: {message}", { message }));
     }
   }
 
@@ -218,7 +237,7 @@ export function App() {
     event.preventDefault();
     event.stopPropagation();
     await forgetRecentProjectEntry(targetProjectDir);
-    setStatusMessage("Removed project from recents.");
+    setStatusMessage(t("Removed project from recents."));
   }
 
   async function openProjectDirectory(
@@ -227,7 +246,7 @@ export function App() {
     nextActiveTab?: EditorTab
   ) {
     const loadedProject = await withBusy(
-      source === "recent" ? "Opening recent project" : source === "launch" ? "Opening launch project" : "Loading project",
+      source === "recent" ? t("Opening recent project") : source === "launch" ? t("Opening launch project") : t("Loading project"),
       () => window.editorApi.loadProject(targetProjectDir)
     );
     if (!loadedProject) {
@@ -235,8 +254,8 @@ export function App() {
         await forgetRecentProjectEntry(targetProjectDir);
         setStatusMessage(
           source === "launch"
-            ? "Could not open the project requested on launch. It has been removed from the recent list."
-            : "Could not open that recent project. It has been removed from the recent list."
+            ? t("Could not open the project requested on launch. It has been removed from the recent list.")
+            : t("Could not open that recent project. It has been removed from the recent list.")
         );
       }
       return;
@@ -249,16 +268,18 @@ export function App() {
     await rememberRecentProjectEntry(targetProjectDir, loadedProject.manifest.projectName);
     setStatusMessage(
       source === "recent"
-        ? `Reopened ${loadedProject.manifest.projectName}`
+        ? t("Reopened {projectName}", { projectName: loadedProject.manifest.projectName })
         : source === "launch"
-          ? `Opened ${loadedProject.manifest.projectName}${nextActiveTab ? ` on ${resolveTabLabel(nextActiveTab)}` : ""}.`
-        : `Loaded ${loadedProject.manifest.projectName}`
+          ? nextActiveTab
+            ? t("Opened {projectName} on {screen}.", { projectName: loadedProject.manifest.projectName, screen: resolveTabLabel(nextActiveTab, t) })
+            : t("Opened {projectName}.", { projectName: loadedProject.manifest.projectName })
+        : t("Loaded {projectName}", { projectName: loadedProject.manifest.projectName })
     );
   }
 
   useEffect(() => {
-    document.title = formatEditorWindowTitle(project?.manifest.projectName, hasUnsavedChanges);
-  }, [hasUnsavedChanges, project?.manifest.projectName]);
+    document.title = formatEditorWindowTitle(project?.manifest.projectName, hasUnsavedChanges, t);
+  }, [hasUnsavedChanges, project?.manifest.projectName, t]);
 
   useEffect(() => {
     if (!hasEditorApi) {
@@ -277,8 +298,8 @@ export function App() {
   const handleExitPlaytest = useCallback(() => {
     const nextTab = lastAuthoringTabRef.current === "playtest" ? "scenes" : lastAuthoringTabRef.current;
     setActiveTab(nextTab);
-    setStatusMessage(`Returned to ${resolveTabLabel(nextTab)}.`);
-  }, [setActiveTab]);
+    setStatusMessage(t("Returned to {screen}.", { screen: resolveTabLabel(nextTab, t) }));
+  }, [setActiveTab, t]);
 
   useEffect(() => {
     if (!hasEditorApi) {
@@ -383,6 +404,7 @@ export function App() {
   useEffect(() => {
     if (!project || !projectDir) {
       setIsFileMenuOpen(false);
+      setIsFileLanguageSubmenuOpen(false);
     }
   }, [project, projectDir]);
 
@@ -392,12 +414,13 @@ export function App() {
     }
 
     const focusFrame = window.requestAnimationFrame(() => {
-      closeMenuItemRef.current?.focus();
+      focusFileMenuItem(0);
     });
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node) || !fileMenuRef.current?.contains(event.target)) {
         setIsFileMenuOpen(false);
+        setIsFileLanguageSubmenuOpen(false);
       }
     };
 
@@ -408,11 +431,13 @@ export function App() {
 
       event.preventDefault();
       setIsFileMenuOpen(false);
+      setIsFileLanguageSubmenuOpen(false);
       fileMenuButtonRef.current?.focus();
     };
 
     const handleBlur = () => {
       setIsFileMenuOpen(false);
+      setIsFileLanguageSubmenuOpen(false);
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -427,41 +452,86 @@ export function App() {
     };
   }, [isFileMenuOpen]);
 
+  useEffect(() => {
+    if (!isFileLanguageSubmenuOpen) {
+      return;
+    }
+    const focusFrame = window.requestAnimationFrame(() => focusFileLanguageSubmenuItem(0));
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [isFileLanguageSubmenuOpen]);
+
+  useEffect(() => {
+    if (!isLanguageMenuOpen) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      focusLanguageMenuItem(0);
+    });
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !languageMenuRef.current?.contains(event.target)) {
+        setIsLanguageMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      setIsLanguageMenuOpen(false);
+      languageMenuButtonRef.current?.focus();
+    };
+
+    const handleBlur = () => setIsLanguageMenuOpen(false);
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isLanguageMenuOpen]);
+
   async function handleCreateProject() {
     if (!hasEditorApi) {
       return;
     }
     const chosenDirectory = await dialogs.chooseDirectory({
-      title: "Create Project",
-      description: "Browse to the folder that should hold your new project files.",
+      title: t("Create Project"),
+      description: t("Browse to the folder that should hold your new project files."),
       initialPath: projectDir ?? recentProjects[0]?.projectDir,
-      confirmLabel: "Create Project Here",
+      confirmLabel: t("Create Project Here"),
       allowCreateDirectory: true
     });
     if (!chosenDirectory) {
       return;
     }
 
-    const projectName = resolveProjectName(newProjectName, chosenDirectory);
+    const projectName = resolveProjectName(newProjectName, chosenDirectory, t);
 
     const createdProject = await withBusy(
-      "Creating project",
+      t("Creating project"),
       () => window.editorApi.createProject(chosenDirectory, projectName),
-      async (message) => {
-        const folderIsNotEmpty = /not empty|already contains files|must be empty/i.test(message);
+      async (message, rawMessage) => {
+        const folderIsNotEmpty = /not empty|already contains files|must be empty/i.test(rawMessage);
         await dialogs.alert({
-          title: folderIsNotEmpty ? "Folder Is Not Empty" : "Project Was Not Created",
+          title: folderIsNotEmpty ? t("Folder Is Not Empty") : t("Project Was Not Created"),
           body: (
             <>
               <p>
                 {folderIsNotEmpty
-                  ? "MAGE2 cannot create a project here because the folder already contains files. Existing files were not changed."
-                  : "MAGE2 could not create the project. Nothing was intentionally overwritten."}
+                  ? t("MAGE2 cannot create a project here because the folder already contains files. Existing files were not changed.")
+                  : t("MAGE2 could not create the project. Nothing was intentionally overwritten.")}
               </p>
-              <p>{`Details: ${message}`}</p>
+              <p>{t("Details: {message}", { message })}</p>
             </>
           ),
-          confirmLabel: folderIsNotEmpty ? "Choose Another Folder" : "Close",
+          confirmLabel: folderIsNotEmpty ? t("Choose Another Folder") : t("Close"),
           tone: folderIsNotEmpty ? "danger" : "default"
         });
       }
@@ -472,7 +542,7 @@ export function App() {
 
     setProjectContext(createdProject, chosenDirectory);
     await rememberRecentProjectEntry(chosenDirectory, createdProject.manifest.projectName);
-    setStatusMessage(`Created project in ${chosenDirectory}`);
+    setStatusMessage(t("Created project in {projectDir}", { projectDir: chosenDirectory }));
   }
 
   async function handleOpenProject() {
@@ -480,10 +550,10 @@ export function App() {
       return;
     }
     const chosenDirectory = await dialogs.chooseDirectory({
-      title: "Open Project",
-      description: "Browse to an existing MAGE2 project folder and open it in the editor.",
+      title: t("Open Project"),
+      description: t("Browse to an existing MAGE2 project folder and open it in the editor."),
       initialPath: projectDir ?? recentProjects[0]?.projectDir,
-      confirmLabel: "Open This Project",
+      confirmLabel: t("Open This Project"),
       directoryRequirement: "project"
     });
     if (!chosenDirectory) {
@@ -498,7 +568,7 @@ export function App() {
       return undefined;
     }
 
-    const result = await withBusy("Saving project", () =>
+    const result = await withBusy(t("Saving project"), () =>
       window.editorApi.saveProject(projectDir, project)
     );
     if (!result) {
@@ -508,8 +578,10 @@ export function App() {
     markProjectSaved(result.project);
     setStatusMessage(
       result.validationReport.valid
-        ? "Project saved successfully."
-        : `Project saved with ${result.validationReport.issues.length} validation issue(s).`
+        ? t("Project saved successfully.")
+        : result.validationReport.issues.length === 1
+          ? t("Project saved with {count} validation issue.", { count: result.validationReport.issues.length })
+          : t("Project saved with {count} validation issues.", { count: result.validationReport.issues.length })
     );
     return result.project;
   }
@@ -529,7 +601,7 @@ export function App() {
 
     const activeBusyLabel = busyOperationRef.current ?? busyLabel;
     if (activeBusyLabel) {
-      setStatusMessage(`Wait for ${activeBusyLabel.toLowerCase()} to finish before closing MAGE2.`);
+      setStatusMessage(t("Wait for {operation} to finish before closing MAGE2.", { operation: activeBusyLabel.toLowerCase() }));
       return false;
     }
 
@@ -539,7 +611,7 @@ export function App() {
 
     const closeAction = await dialogs.confirmCloseProject(currentProject.manifest.projectName);
     if (closeAction === "cancel") {
-      setStatusMessage(`Kept ${currentProject.manifest.projectName} open.`);
+      setStatusMessage(t("Kept {projectName} open.", { projectName: currentProject.manifest.projectName }));
       return false;
     }
 
@@ -553,14 +625,14 @@ export function App() {
     }
 
     await dialogs.alert({
-      title: "Save Failed",
+      title: t("Save Failed"),
       body: (
         <>
-          <p>{`MAGE2 could not save “${currentProject.manifest.projectName}”.`}</p>
-          <p>The project remains open, and your unsaved changes are still in the editor.</p>
+          <p>{t("MAGE2 could not save “{projectName}”.", { projectName: currentProject.manifest.projectName })}</p>
+          <p>{t("The project remains open, and your unsaved changes are still in the editor.")}</p>
         </>
       ),
-      confirmLabel: "Keep Editing",
+      confirmLabel: t("Keep Editing"),
       tone: "danger"
     });
     return false;
@@ -580,7 +652,7 @@ export function App() {
     const closingProjectName = project.manifest.projectName;
     setIsFileMenuOpen(false);
     clearProjectContext();
-    setStatusMessage(`Closed ${closingProjectName}.`);
+    setStatusMessage(t("Closed {projectName}.", { projectName: closingProjectName }));
   }
 
   async function handleExportProject() {
@@ -592,13 +664,15 @@ export function App() {
     if (!preflightReport.valid) {
       const blockingIssueCount = preflightReport.issues.filter((issue) => issue.level === "error").length;
       setShowValidationDetails(true);
-      setStatusMessage("Export blocked. Review the project issues and try again.");
+      setStatusMessage(t("Export blocked. Review the project issues and try again."));
       await dialogs.alert({
-        title: "Project Is Not Ready to Export",
+        title: t("Project Is Not Ready to Export"),
         body: (
-          <p>{`Fix ${blockingIssueCount} blocking ${blockingIssueCount === 1 ? "issue" : "issues"} before creating a runtime build. No export files were changed.`}</p>
+          <p>{blockingIssueCount === 1
+            ? t("Fix {count} blocking issue before creating a runtime build. No export files were changed.", { count: blockingIssueCount })
+            : t("Fix {count} blocking issues before creating a runtime build. No export files were changed.", { count: blockingIssueCount })}</p>
         ),
-        confirmLabel: "Review Issues",
+        confirmLabel: t("Review Issues"),
         tone: "danger"
       });
       return;
@@ -610,26 +684,26 @@ export function App() {
     }
 
     const result = await withBusy(
-      "Exporting runtime build",
+      t("Exporting runtime build"),
       () => window.editorApi.exportProject(projectDir, savedProject),
-      async (message) => {
+      async (message, rawMessage) => {
         const unsafeDestination =
           /unsafe|refused|output folder|outside|absolute|traversal|not a recognized MAGE2|contains other files/i.test(
-            message
+            rawMessage
           );
         await dialogs.alert({
-          title: unsafeDestination ? "Export Folder Is Unsafe" : "Export Failed",
+          title: unsafeDestination ? t("Export Folder Is Unsafe") : t("Export Failed"),
           body: (
             <>
               <p>
                 {unsafeDestination
-                  ? "MAGE2 exports only to this project’s reserved build folder. It must be empty or an unchanged build previously created by MAGE2."
-                  : "MAGE2 could not create the new runtime build. Any previous build was kept unchanged."}
+                  ? t("MAGE2 exports only to this project’s reserved build folder. It must be empty or an unchanged build previously created by MAGE2.")
+                  : t("MAGE2 could not create the new runtime build. Any previous build was kept unchanged.")}
               </p>
-              <p>{`Details: ${message}`}</p>
+              <p>{t("Details: {message}", { message })}</p>
             </>
           ),
-          confirmLabel: "Close",
+          confirmLabel: t("Close"),
           tone: "danger"
         });
       }
@@ -638,17 +712,25 @@ export function App() {
       return;
     }
 
-    setStatusMessage(`Runtime build exported to ${result.outputDirectory}.`);
+    setStatusMessage(t("Runtime build exported to {outputDirectory}.", { outputDirectory: result.outputDirectory }));
     return result;
   }
 
   async function handleFileMenuAction(action: () => Promise<unknown>) {
     setIsFileMenuOpen(false);
+    setIsFileLanguageSubmenuOpen(false);
     await action();
   }
 
   function focusFileMenuItem(index: number) {
-    const items = [closeMenuItemRef.current, exportMenuItemRef.current];
+    const panel = fileMenuRef.current?.querySelector<HTMLElement>(':scope > [role="menu"]');
+    const items = Array.from(panel?.children ?? []).flatMap((child) => {
+      if (child instanceof HTMLButtonElement) {
+        return [child];
+      }
+      const trigger = child.querySelector<HTMLButtonElement>(':scope > [role="menuitem"]');
+      return trigger ? [trigger] : [];
+    });
     items[(index + items.length) % items.length]?.focus();
   }
 
@@ -686,15 +768,131 @@ export function App() {
 
     if (event.key === "End") {
       event.preventDefault();
-      focusFileMenuItem(1);
+      focusFileMenuItem(2);
       return;
     }
 
     if (event.key === "Escape") {
       event.preventDefault();
       setIsFileMenuOpen(false);
+      setIsFileLanguageSubmenuOpen(false);
       fileMenuButtonRef.current?.focus();
     }
+  }
+
+  function focusFileLanguageSubmenuItem(index: number) {
+    const items = Array.from(
+      fileLanguageSubmenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? []
+    );
+    items[(index + items.length) % items.length]?.focus();
+  }
+
+  function handleFileLanguageSubmenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsFileLanguageSubmenuOpen(true);
+    }
+  }
+
+  function handleFileLanguageSubmenuItemKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const itemCount = BUILT_IN_LOCALES.length + 1;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusFileLanguageSubmenuItem(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusFileLanguageSubmenuItem(index - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusFileLanguageSubmenuItem(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusFileLanguageSubmenuItem(itemCount - 1);
+    } else if (event.key === "ArrowLeft" || event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsFileLanguageSubmenuOpen(false);
+      fileLanguageSubmenuButtonRef.current?.focus();
+    }
+  }
+
+  function focusLanguageMenuItem(index: number) {
+    const items = Array.from(languageMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? []);
+    items[(index + items.length) % items.length]?.focus();
+  }
+
+  function handleLanguageMenuTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setIsFileMenuOpen(false);
+      setIsLanguageMenuOpen(true);
+      return;
+    }
+    if (event.key === "Escape" && isLanguageMenuOpen) {
+      event.preventDefault();
+      setIsLanguageMenuOpen(false);
+    }
+  }
+
+  function handleLanguageMenuItemKeyDown(index: number, event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const itemCount = BUILT_IN_LOCALES.length + 1;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusLanguageMenuItem(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusLanguageMenuItem(index - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusLanguageMenuItem(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusLanguageMenuItem(itemCount - 1);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setIsLanguageMenuOpen(false);
+      languageMenuButtonRef.current?.focus();
+    }
+  }
+
+  function chooseInterfaceLocale(nextPreference: EditorLocalePreference, menu: "file-submenu" | "language") {
+    setLocalePreference(nextPreference);
+    if (menu === "file-submenu") {
+      setIsFileMenuOpen(false);
+      setIsFileLanguageSubmenuOpen(false);
+      fileMenuButtonRef.current?.focus();
+    } else {
+      setIsLanguageMenuOpen(false);
+      languageMenuButtonRef.current?.focus();
+    }
+  }
+
+  function renderInterfaceLanguageItems(menu: "file-submenu" | "language") {
+    const preferences: readonly EditorLocalePreference[] = ["automatic", ...BUILT_IN_LOCALES];
+    return (
+      <div className="titlebar-menu__language-group" role="group" aria-label={t("Interface language")}>
+        <div className="titlebar-menu__section-label">{t("Interface language")}</div>
+        {preferences.map((entry, index) => (
+          <button
+            key={entry}
+            type="button"
+            className="titlebar-menu__item titlebar-menu__language-item"
+            role="menuitemradio"
+            aria-checked={localePreference === entry}
+            onClick={() => chooseInterfaceLocale(entry, menu)}
+            onKeyDown={(event) =>
+              menu === "file-submenu"
+                ? handleFileLanguageSubmenuItemKeyDown(index, event)
+                : handleLanguageMenuItemKeyDown(index, event)
+            }
+          >
+            <span aria-hidden="true">{localePreference === entry ? "✓" : ""}</span>
+            <span>{entry === "automatic" ? t("Automatic ({autonym})", { autonym: BUILT_IN_LOCALE_AUTONYMS[automaticLocale] }) : BUILT_IN_LOCALE_AUTONYMS[entry]}</span>
+          </button>
+        ))}
+      </div>
+    );
   }
 
   function handleNavigateToIssueTarget(target: EditorNavigationTarget | undefined) {
@@ -723,7 +921,7 @@ export function App() {
     } else if (target.tab === "playtest") {
       setPlaytestLocale(target.locale);
     }
-    setStatusMessage(`Navigated to ${target.label}`);
+    setStatusMessage(t("Navigated to {target}", { target: t(target.label) }));
   }
 
   function handleTabSelect(tabId: EditorTab) {
@@ -731,46 +929,75 @@ export function App() {
   }
 
   async function handleAutomationCommand(rawCommand: unknown): Promise<unknown> {
-    const command = parseEditorAutomationCommand(rawCommand);
+    const command = parseEditorAutomationCommand(rawCommand, t);
+    const currentAutomationState = () =>
+      resolveEditorAutomationState(statusMessage, locale, localePreference, direction, automaticLocale);
 
     switch (command.command) {
       case "ping":
         return { ok: true, app: "MAGE2 Editor" };
       case "getState":
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
+      case "closeApplication": {
+        const state = currentAutomationState();
+        window.setTimeout(() => window.close(), 0);
+        return state;
+      }
       case "security.getState":
         return resolveRendererSecurityState();
+      case "setInterfaceLocale":
+        setLocalePreference(command.locale);
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(
+          statusMessage,
+          command.locale,
+          command.locale,
+          BUILT_IN_LOCALE_DIRECTIONS[command.locale],
+          automaticLocale
+        );
+      case "resetInterfaceLocale": {
+        const automaticLocale = resolveEditorLocalePreference("automatic", getPreferredSystemLocales());
+        setLocalePreference("automatic");
+        await waitForAutomationUpdate();
+        return resolveEditorAutomationState(
+          statusMessage,
+          automaticLocale,
+          "automatic",
+          BUILT_IN_LOCALE_DIRECTIONS[automaticLocale],
+          automaticLocale
+        );
+      }
       case "createProject": {
-        const createdProject = await withBusy("Creating automation project", () =>
+        const createdProject = await withBusy(t("Creating automation project"), () =>
           window.editorApi.createProject(command.projectDir, command.projectName)
         );
         if (!createdProject) {
-          throw new Error(`Automation could not create a project at '${command.projectDir}'.`);
+          throw new Error(t("Automation could not create a project at '{projectDir}'.", { projectDir: command.projectDir }));
         }
         setProjectContext(createdProject, command.projectDir);
         await rememberRecentProjectEntry(command.projectDir, createdProject.manifest.projectName);
-        setStatusMessage(`Created project in ${command.projectDir}`);
+        setStatusMessage(t("Created project in {projectDir}", { projectDir: command.projectDir }));
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       }
       case "saveProject": {
         requireCurrentProject(command);
         const savedProject = await saveCurrentProject();
         if (!savedProject) {
-          throw new Error("Automation could not save the current project.");
+          throw new Error(t("Automation could not save the current project."));
         }
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       }
       case "exportProject": {
         requireCurrentProject(command);
         const exportResult = await handleExportProject();
         if (!exportResult) {
-          throw new Error("Automation could not export the current project.");
+          throw new Error(t("Automation could not export the current project."));
         }
         await waitForAutomationUpdate();
         return {
-          ...resolveEditorAutomationState(statusMessage),
+          ...currentAutomationState(),
           export: {
             outputDirectory: exportResult.outputDirectory,
             validationReport: exportResult.validationReport
@@ -784,27 +1011,29 @@ export function App() {
       case "openProject":
         await openProjectDirectory(command.projectDir, "launch", command.tab);
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "selectTab":
         setActiveTab(command.tab);
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "selectScene":
         requireCurrentProject(command);
         setSelectedSceneId(command.sceneId);
-        setStatusMessage(`Automation selected scene ${command.sceneId}.`);
+        setStatusMessage(t("Automation selected scene {sceneId}.", { sceneId: command.sceneId }));
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "selectHotspot":
         requireCurrentProject(command);
         setSelectedHotspotId(command.hotspotId);
-        setStatusMessage(command.hotspotId ? `Automation selected hotspot ${command.hotspotId}.` : "Automation cleared hotspot selection.");
+        setStatusMessage(command.hotspotId
+          ? t("Automation selected hotspot {hotspotId}.", { hotspotId: command.hotspotId })
+          : t("Automation cleared hotspot selection."));
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "setHotspotInventoryAction":
         applyAutomationHotspotInventoryCommand(command);
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "editor.undo":
         requireCurrentProject(command);
         undoProject();
@@ -819,7 +1048,7 @@ export function App() {
         const result = openAutomationHotspotInspector(command);
         await waitForAutomationUpdate();
         return {
-          ...resolveEditorAutomationState(statusMessage),
+          ...currentAutomationState(),
           hotspotInspector: result
         };
       }
@@ -836,7 +1065,7 @@ export function App() {
       case "enterPlaytest":
         setActiveTab("playtest");
         await waitForAutomationUpdate();
-        return resolveEditorAutomationState(statusMessage);
+        return currentAutomationState();
       case "playtest.getState":
         return requirePlaytestAutomation(command).getState();
       case "playtest.reset": {
@@ -867,7 +1096,7 @@ export function App() {
   function requireCurrentProject(command: EditorAutomationCommand): ProjectBundle {
     const currentProject = useEditorStore.getState().project;
     if (!currentProject) {
-      throw new Error(`Cannot run '${command.command}' without an open project.`);
+      throw new Error(t("Cannot run '{command}' without an open project.", { command: command.command }));
     }
 
     return currentProject;
@@ -876,7 +1105,7 @@ export function App() {
   function requirePlaytestAutomation(command: EditorAutomationCommand) {
     const playtestAutomation = window.__mage2PlaytestAutomation;
     if (!playtestAutomation) {
-      throw new Error(`Cannot run '${command.command}' because Playtest is not active yet.`);
+      throw new Error(t("Cannot run '{command}' because Playtest is not active yet.", { command: command.command }));
     }
 
     return playtestAutomation;
@@ -886,7 +1115,7 @@ export function App() {
     const currentProject = requireCurrentProject(command);
     const targetHotspotId = command.hotspotId ?? useEditorStore.getState().selectedHotspotId;
     if (!targetHotspotId) {
-      throw new Error(`Command '${command.command}' requires hotspotId or a selected hotspot.`);
+      throw new Error(t("Command '{command}' requires hotspotId or a selected hotspot.", { command: command.command }));
     }
 
     const target = resolveAutomationHotspotTarget(currentProject, targetHotspotId);
@@ -895,7 +1124,7 @@ export function App() {
     setSelectedHotspotId(target.hotspot.id);
     setActiveTab("scenes");
     setHotspotInspectorOpenRequest((request) => request + 1);
-    setStatusMessage(`Automation opened hotspot inspector for ${target.hotspot.id}.`);
+    setStatusMessage(t("Automation opened hotspot inspector for {hotspotId}.", { hotspotId: target.hotspot.id }));
 
     return {
       opened: true,
@@ -911,11 +1140,11 @@ export function App() {
     );
     const targetHotspot = targetScene?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
     if (!targetScene || !targetHotspot) {
-      throw new Error(`Hotspot '${command.hotspotId}' was not found.`);
+      throw new Error(t("Hotspot '{hotspotId}' was not found.", { hotspotId: command.hotspotId }));
     }
 
     if (command.action !== "none" && !command.itemId) {
-      throw new Error(`Command '${command.command}' requires itemId when action is '${command.action}'.`);
+      throw new Error(t("Command '{command}' requires itemId when action is '{action}'.", { command: command.command, action: command.action }));
     }
 
     mutateProject((draft) => {
@@ -932,7 +1161,7 @@ export function App() {
     setSelectedSceneId(targetScene.id);
     setSelectedHotspotId(command.hotspotId);
     setActiveTab("scenes");
-    setStatusMessage(`Automation set ${command.action} on hotspot ${command.hotspotId}.`);
+    setStatusMessage(t("Automation set {action} on hotspot {hotspotId}.", { action: command.action, hotspotId: command.hotspotId }));
   }
 
   function applyAutomationHotspotActionItemCommand(
@@ -944,7 +1173,7 @@ export function App() {
     );
     const targetHotspot = targetScene?.hotspots.find((hotspot) => hotspot.id === command.hotspotId);
     if (!targetScene || !targetHotspot) {
-      throw new Error(`Hotspot '${command.hotspotId}' was not found.`);
+      throw new Error(t("Hotspot '{hotspotId}' was not found.", { hotspotId: command.hotspotId }));
     }
 
     mutateProject((draft) => {
@@ -961,7 +1190,7 @@ export function App() {
     setSelectedSceneId(targetScene.id);
     setSelectedHotspotId(command.hotspotId);
     setActiveTab("scenes");
-    setStatusMessage(`Automation selected action item ${command.itemId} on hotspot ${command.hotspotId}.`);
+    setStatusMessage(t("Automation selected action item {itemId} on hotspot {hotspotId}.", { itemId: command.itemId, hotspotId: command.hotspotId }));
   }
 
   function applyAutomationPlacedObjectGeometryCommand(
@@ -989,7 +1218,7 @@ export function App() {
     setSelectedSceneId(target.scene.id);
     setSelectedHotspotId(target.instance.dropTargetHotspotId);
     setActiveTab("scenes");
-    setStatusMessage(`Automation updated placed object ${target.instance.id}.`);
+    setStatusMessage(t("Automation updated placed object {placedObjectId}.", { placedObjectId: target.instance.id }));
   }
 
   function assertAutomationPlacedObjectExists(project: ProjectBundle, dropTargetHotspotId: string, itemId: string) {
@@ -1017,10 +1246,9 @@ export function App() {
       <main className="landing">
         <div className="landing__card">
           <p className="eyebrow">MAGE2</p>
-          <h1>Editor bridge unavailable</h1>
+          <h1>{t("Editor bridge unavailable")}</h1>
           <p>
-            The React UI loaded, but the Electron preload bridge did not. Launch the app through the desktop
-            shortcut or run <code>D:\Disk\Dev\MAGE2\launch-editor.cmd</code> instead of opening the HTML directly.
+            {t("The React UI loaded, but the Electron preload bridge did not. Launch the app through the desktop shortcut or run {command} instead of opening the HTML directly.", { command: "D:\\Disk\\Dev\\MAGE2\\launch-editor.cmd" })}
           </p>
         </div>
       </main>
@@ -1032,11 +1260,34 @@ export function App() {
       <div className="app-shell app-shell--landing">
         <header className="titlebar-shell titlebar-shell--landing">
           <div className="titlebar-shell__inner titlebar-shell__inner--landing">
-            <div className="titlebar-shell__identity" title="MAGE2 Editor">
+            <div className="titlebar-shell__identity" title={t("MAGE2 Editor")}>
               <span className="titlebar-shell__mark" aria-hidden="true">
                 M2
               </span>
-              <h1 className="titlebar-shell__title">MAGE2 Editor</h1>
+              <h1 className="titlebar-shell__title">{t("MAGE2 Editor")}</h1>
+            </div>
+            <div className="titlebar-shell__actions app-region-no-drag">
+              <div className="titlebar-menu" ref={languageMenuRef}>
+                <button
+                  ref={languageMenuButtonRef}
+                  type="button"
+                  className={isLanguageMenuOpen ? "titlebar-menu__trigger titlebar-menu__trigger--open" : "titlebar-menu__trigger"}
+                  aria-haspopup="menu"
+                  aria-expanded={isLanguageMenuOpen}
+                  aria-controls={languageMenuId}
+                  onClick={() => setIsLanguageMenuOpen((value) => !value)}
+                  onKeyDown={handleLanguageMenuTriggerKeyDown}
+                  title={t("Choose the editor interface language.")}
+                >
+                  <span>{t("Language")}</span>
+                  <ChevronDownIcon />
+                </button>
+                {isLanguageMenuOpen ? (
+                  <div id={languageMenuId} className="titlebar-menu__panel" role="menu" aria-label={t("Language")}>
+                    {renderInterfaceLanguageItems("language")}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>
@@ -1045,82 +1296,82 @@ export function App() {
           <section className="landing__workspace" aria-labelledby="landing-projects-title">
             <aside className="landing__start-panel" aria-labelledby="landing-projects-title">
               <header className="landing__intro">
-                <p className="landing__product">MAGE2 Editor</p>
-                <h1 id="landing-projects-title">Projects</h1>
-                <p>Create a full-motion adventure project, or reopen an existing one.</p>
+                <p className="landing__product">{t("MAGE2 Editor")}</p>
+                <h1 id="landing-projects-title">{t("Projects")}</h1>
+                <p>{t("Create a full-motion adventure project, or reopen an existing one.")}</p>
               </header>
 
               <div className="landing__divider" aria-hidden="true" />
 
               <div className="landing__start-form">
                 <label className="landing__field">
-                  <span className="field-label--inset">Project name</span>
+                  <span className="field-label--inset">{t("Project name")}</span>
                   <input
                     value={newProjectName}
                     onChange={(event) => setNewProjectName(event.target.value)}
-                    placeholder="Untitled project"
-                    title="Name used for the project manifest and editor header. Leave it blank to use the chosen folder name."
+                    placeholder={t("Untitled project")}
+                    title={t("Name used for the project manifest and editor header. Leave it blank to use the chosen folder name.")}
                   />
                 </label>
-                <p className="landing__field-help">If left blank, the selected folder name will be used.</p>
+                <p className="landing__field-help">{t("If left blank, the selected folder name will be used.")}</p>
                 <div className="landing__actions">
                   <button
                     type="button"
                     className="landing__primary-action"
                     onClick={handleCreateProject}
-                    title="Create a new project structure inside a folder you choose."
+                    title={t("Create a new project structure inside a folder you choose.")}
                   >
                     <FolderPlusIcon />
-                    Create project
+                    {t("Create project")}
                   </button>
                   <button
                     type="button"
                     className="button-secondary landing__secondary-action"
                     onClick={handleOpenProject}
-                    title="Open an existing project folder from disk."
+                    title={t("Open an existing project folder from disk.")}
                   >
                     <OpenFolderIcon />
-                    Open folder
+                    {t("Open folder")}
                   </button>
                 </div>
               </div>
 
               <p className="landing__tip">
                 <InfoIcon />
-                <span>Tip: You can also open a folder by dragging it onto this window.</span>
+                <span>{t("Tip: You can also open a folder by dragging it onto this window.")}</span>
               </p>
             </aside>
 
             <section className="recent-projects" aria-labelledby="recent-projects-title">
               <header className="recent-projects__header">
                 <div>
-                  <h2 id="recent-projects-title">Recent projects</h2>
-                  <p className="muted">Your last five projects stay here on this device.</p>
+                  <h2 id="recent-projects-title">{t("Recent projects")}</h2>
+                  <p className="muted">{t("Your last five projects stay here on this device.")}</p>
                 </div>
                 <button
                   type="button"
                   className="recent-projects__refresh"
                   onClick={() => void refreshRecentProjects()}
-                  title="Refresh recent projects from this device."
+                  title={t("Refresh recent projects from this device.")}
                 >
                   <RefreshIcon />
-                  Refresh
+                  {t("Refresh")}
                 </button>
               </header>
 
-              <div className="recent-projects__table" role="table" aria-label="Recent projects">
+              <div className="recent-projects__table" role="table" aria-label={t("Recent projects")}>
                 <div className="recent-projects__columns" role="row">
-                  <span role="columnheader">Project name</span>
-                  <span role="columnheader">Last opened</span>
-                  <span role="columnheader">Location</span>
+                  <span role="columnheader">{t("Project name")}</span>
+                  <span role="columnheader">{t("Last opened")}</span>
+                  <span role="columnheader">{t("Location")}</span>
                   <span className="sr-only" role="columnheader">
-                    Actions
+                    {t("Actions")}
                   </span>
                 </div>
                 {recentProjects.length > 0 ? (
                   <div className="recent-projects__list" role="rowgroup">
                     {recentProjects.map((recentProject) => {
-                      const openedAtLabel = formatRecentProjectOpenedAt(recentProject.lastOpenedAt);
+                      const openedAtLabel = formatRecentProjectOpenedAt(recentProject.lastOpenedAt, locale, t);
 
                       return (
                         <div key={recentProject.projectDir} className="recent-project" role="row">
@@ -1128,7 +1379,7 @@ export function App() {
                             type="button"
                             className="recent-project__open"
                             onClick={() => void openProjectDirectory(recentProject.projectDir, "recent")}
-                            title={`Open ${recentProject.projectName}`}
+                            title={t("Open {projectName}", { projectName: recentProject.projectName })}
                           >
                             <span className="recent-project__name-cell">
                               <span className="recent-project__folder-tile" aria-hidden="true">
@@ -1146,8 +1397,8 @@ export function App() {
                               type="button"
                               className="recent-project__icon-button"
                               onClick={(event) => void revealRecentProjectEntry(event, recentProject.projectDir)}
-                              title="Reveal in folder"
-                              aria-label={`Reveal ${recentProject.projectName} in folder`}
+                              title={t("Reveal in folder")}
+                              aria-label={t("Reveal {projectName} in folder", { projectName: recentProject.projectName })}
                             >
                               <RevealFolderIcon />
                             </button>
@@ -1155,8 +1406,8 @@ export function App() {
                               type="button"
                               className="recent-project__icon-button"
                               onClick={(event) => void removeRecentProject(event, recentProject.projectDir)}
-                              title="Remove from recents"
-                              aria-label={`Remove ${recentProject.projectName} from recent projects`}
+                              title={t("Remove from recents")}
+                              aria-label={t("Remove {projectName} from recent projects", { projectName: recentProject.projectName })}
                             >
                               <TrashIcon />
                             </button>
@@ -1167,8 +1418,8 @@ export function App() {
                   </div>
                 ) : (
                   <div className="recent-projects__empty">
-                    <h3>No recent projects</h3>
-                    <p>Create a project or open an existing folder to add it here.</p>
+                    <h3>{t("No recent projects")}</h3>
+                    <p>{t("Create a project or open an existing folder to add it here.")}</p>
                   </div>
                 )}
               </div>
@@ -1176,11 +1427,11 @@ export function App() {
               <p className="recent-projects__missing">
                 <InfoIcon />
                 <span>
-                  Missing a project?{" "}
+                  {t("Missing a project?")} {" "}
                   <button type="button" onClick={handleOpenProject}>
-                    Open folder...
+                    {t("Open folder...")}
                   </button>{" "}
-                  to add it back.
+                  {t("to add it back.")}
                 </span>
               </p>
             </section>
@@ -1216,7 +1467,8 @@ export function App() {
   const firstProjectChecklist = resolveFirstProjectChecklist(
     project,
     validationReport.valid,
-    validationReport.issues.length
+    validationReport.issues.length,
+    t
   );
   const shouldShowFirstProjectChecklist =
     firstProjectChecklist.shouldShow && dismissedFirstProjectGuideId !== project.manifest.projectId;
@@ -1226,24 +1478,25 @@ export function App() {
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
   const isSceneEditorSurface = activeTab === "scenes";
-  const activeTabLabel = resolveTabLabel(activeTab);
+  const activeTabLabel = resolveTabLabel(activeTab, t);
   const activeScene = project.scenes.items.find((scene) => scene.id === selectedSceneId) ?? project.scenes.items[0];
   const activeSceneAsset = project.assets.assets.find((asset) => asset.id === activeScene?.backgroundAssetId);
   const activeSceneAssetVariant = activeSceneAsset ? resolveAssetVariant(activeSceneAsset, project.manifest.defaultLanguage) : undefined;
   const sceneResolutionLabel =
     activeSceneAssetVariant?.width && activeSceneAssetVariant.height
       ? `${activeSceneAssetVariant.width}x${activeSceneAssetVariant.height}`
-      : "No media";
+      : t("No media");
   const sceneAspectLabel =
     activeSceneAssetVariant?.width && activeSceneAssetVariant.height
       ? formatAspectRatio(activeSceneAssetVariant.width, activeSceneAssetVariant.height)
       : "--";
-  const sceneSaveStatusLabel = busyLabel ? `${busyLabel}...` : hasUnsavedChanges ? "Unsaved changes" : "Saved";
-  const issuesPanelTitle = resolveIssuesPanelTitle(activeTab);
+  const sceneSaveStatusLabel = busyLabel ? t("{operation}...", { operation: busyLabel }) : hasUnsavedChanges ? t("Unsaved changes") : t("Saved");
+  const issuesPanelTitle = resolveIssuesPanelTitle(activeTab, t);
   const issuesPanelSummary = resolveIssuesPanelSummary(
     activeTab,
     visibleValidationIssues.length,
-    validationReport.issues.length
+    validationReport.issues.length,
+    t
   );
   const shellClassName = isSceneEditorSurface
     ? "app-shell app-shell--project app-shell--editor-workbench app-shell--scene-editor"
@@ -1255,7 +1508,7 @@ export function App() {
       ? openProject.scenes.items.find((entry) => entry.id === firstProjectChecklist.sceneId)
       : openProject.scenes.items[0];
     if (!scene) {
-      setStatusMessage("Create an opening scene before continuing project setup.");
+      setStatusMessage(t("Create an opening scene before continuing project setup."));
       setActiveTab("world");
       return;
     }
@@ -1267,19 +1520,19 @@ export function App() {
     if (openHotspotInspector) {
       if (firstProjectChecklist.hotspotId) {
         setHotspotInspectorOpenRequest((request) => request + 1);
-        setStatusMessage("Opened the starter hotspot. Choose what should happen when the player activates it.");
+        setStatusMessage(t("Opened the starter hotspot. Choose what should happen when the player activates it."));
       } else {
-        setStatusMessage("Create a hotspot, then give it a transition, dialogue, pickup, or placement behavior.");
+        setStatusMessage(t("Create a hotspot, then give it a transition, dialogue, pickup, or placement behavior."));
       }
     } else {
-      setStatusMessage("Opened the starter scene. Replace its background in Scene media.");
+      setStatusMessage(t("Opened the starter scene. Replace its background in Scene media."));
     }
   }
 
   function reviewFirstProjectValidation() {
     setActiveTab("world");
     setShowValidationDetails(true);
-    setStatusMessage("Review the project issues and follow each issue link to finish setup.");
+    setStatusMessage(t("Review the project issues and follow each issue link to finish setup."));
   }
 
   return (
@@ -1287,10 +1540,10 @@ export function App() {
       <header className="titlebar-shell">
         <div className="titlebar-shell__inner">
           <div className="titlebar-shell__identity titlebar-shell__identity--scene" title={projectDir}>
-            <h1 className="titlebar-shell__title">MAGE2 Editor</h1>
+            <h1 className="titlebar-shell__title">{t("MAGE2 Editor")}</h1>
           </div>
 
-          <nav className="scene-screen-tabs" aria-label="Editor screens">
+          <nav className="scene-screen-tabs" aria-label={t("Editor screens")}>
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -1301,22 +1554,22 @@ export function App() {
                     : "scene-screen-tabs__tab app-region-no-drag"
                 }
                 onClick={() => handleTabSelect(tab.id)}
-                title={TAB_TOOLTIPS[tab.id]}
+                title={t(TAB_TOOLTIPS[tab.id])}
               >
-                {tab.label}
+                {t(tab.label)}
               </button>
             ))}
           </nav>
 
           <div className="titlebar-shell__actions app-region-no-drag">
-            <div className="titlebar-shell__history-actions" role="toolbar" aria-label="Edit history">
+            <div className="titlebar-shell__history-actions" role="toolbar" aria-label={t("Edit history")}>
               <button
                 type="button"
                 className="titlebar-shell__history-button"
                 onClick={undoProject}
                 disabled={isUndoDisabled}
-                aria-label="Undo"
-                title={canUndo ? "Undo the last project edit. Shortcut: Ctrl+Z or Cmd+Z." : "No edits to undo."}
+                aria-label={t("Undo")}
+                title={canUndo ? t("Undo the last project edit. Shortcut: Ctrl+Z or Cmd+Z.") : t("No edits to undo.")}
               >
                 <UndoIcon />
               </button>
@@ -1325,8 +1578,8 @@ export function App() {
                 className="titlebar-shell__history-button"
                 onClick={redoProject}
                 disabled={isRedoDisabled}
-                aria-label="Redo"
-                title={canRedo ? "Redo the last undone project edit. Shortcut: Ctrl+Y or Cmd+Shift+Z." : "No edits to redo."}
+                aria-label={t("Redo")}
+                title={canRedo ? t("Redo the last undone project edit. Shortcut: Ctrl+Y or Cmd+Shift+Z.") : t("No edits to redo.")}
               >
                 <RedoIcon />
               </button>
@@ -1343,12 +1596,12 @@ export function App() {
               disabled={isSaveDisabled}
               title={
                 hasUnsavedChanges
-                  ? "Write the current project manifest and assets metadata back to disk. Shortcut: Ctrl+S or Cmd+S."
-                  : "No unsaved changes to save. Shortcut: Ctrl+S or Cmd+S."
+                  ? t("Write the current project manifest and assets metadata back to disk. Shortcut: Ctrl+S or Cmd+S.")
+                  : t("No unsaved changes to save. Shortcut: Ctrl+S or Cmd+S.")
               }
             >
               <SaveIcon />
-              <span>Save</span>
+              <span>{t("Save")}</span>
             </button>
 
             <div className="titlebar-menu" ref={fileMenuRef}>
@@ -1359,38 +1612,70 @@ export function App() {
                 aria-haspopup="menu"
                 aria-expanded={isFileMenuOpen}
                 aria-controls={fileMenuId}
-                onClick={() => setIsFileMenuOpen((value) => !value)}
+                onClick={() => {
+                  setIsLanguageMenuOpen(false);
+                  setIsFileLanguageSubmenuOpen(false);
+                  setIsFileMenuOpen((value) => !value);
+                }}
                 onKeyDown={handleFileMenuTriggerKeyDown}
-                title="Open the file actions menu."
+                title={t("Open the file actions menu.")}
               >
-                <span>File</span>
+                <span>{t("File")}</span>
                 <ChevronDownIcon />
               </button>
 
               {isFileMenuOpen ? (
-                <div id={fileMenuId} className="titlebar-menu__panel" role="menu" aria-label="File">
+                <div id={fileMenuId} className="titlebar-menu__panel" role="menu" aria-label={t("File")}>
                   <button
-                    ref={closeMenuItemRef}
                     type="button"
                     className="titlebar-menu__item"
                     role="menuitem"
                     onClick={() => void handleFileMenuAction(handleCloseProject)}
                     onKeyDown={(event) => handleFileMenuItemKeyDown(0, event)}
-                    title="Close the current project and return to the welcome screen."
+                    title={t("Close the current project and return to the welcome screen.")}
                   >
-                    Close Project
+                    {t("Close Project")}
                   </button>
                   <button
-                    ref={exportMenuItemRef}
                     type="button"
                     className="titlebar-menu__item"
                     role="menuitem"
                     onClick={() => void handleFileMenuAction(handleExportProject)}
                     onKeyDown={(event) => handleFileMenuItemKeyDown(1, event)}
-                    title="Save the project and build a static runtime export for play or distribution."
+                    title={t("Save the project and build a static runtime export for play or distribution.")}
                   >
-                    Export Runtime
+                    {t("Export Runtime")}
                   </button>
+                  <div className="titlebar-menu__submenu" ref={fileLanguageSubmenuRef}>
+                    <button
+                      ref={fileLanguageSubmenuButtonRef}
+                      type="button"
+                      className="titlebar-menu__item titlebar-menu__submenu-trigger"
+                      role="menuitem"
+                      aria-haspopup="menu"
+                      aria-expanded={isFileLanguageSubmenuOpen}
+                      aria-controls={fileLanguageSubmenuId}
+                      onClick={() => setIsFileLanguageSubmenuOpen((value) => !value)}
+                      onPointerEnter={() => setIsFileLanguageSubmenuOpen(true)}
+                      onKeyDown={(event) => {
+                        handleFileMenuItemKeyDown(2, event);
+                        handleFileLanguageSubmenuTriggerKeyDown(event);
+                      }}
+                    >
+                      <span>{t("Language")}</span>
+                      <ChevronDownIcon />
+                    </button>
+                    {isFileLanguageSubmenuOpen ? (
+                      <div
+                        id={fileLanguageSubmenuId}
+                        className="titlebar-menu__panel titlebar-menu__submenu-panel"
+                        role="menu"
+                        aria-label={t("Language")}
+                      >
+                        {renderInterfaceLanguageItems("file-submenu")}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -1431,8 +1716,8 @@ export function App() {
                     setActiveTab("scenes");
                     setStatusMessage(
                       hotspotId
-                        ? "Opened the hotspot that uses this player feedback."
-                        : "Choose a hotspot, then set its Player feedback field."
+                        ? t("Opened the hotspot that uses this player feedback.")
+                        : t("Choose a hotspot, then set its Player feedback field.")
                     );
                   }}
                 />
@@ -1455,8 +1740,8 @@ export function App() {
                     setActiveTab("scenes");
                     setStatusMessage(
                       hotspotId
-                        ? "Opened the hotspot that uses this item."
-                        : "Opened the scene that uses this item."
+                        ? t("Opened the hotspot that uses this item.")
+                        : t("Opened the scene that uses this item.")
                     );
                   }}
                 />
@@ -1490,13 +1775,13 @@ export function App() {
                     ? "validation-panel__pin-toggle validation-panel__pin-toggle--active"
                     : "validation-panel__pin-toggle"
                 }
-                aria-label={showValidationDetails ? "Unpin issues sidebar" : "Pin issues sidebar open"}
+                aria-label={showValidationDetails ? t("Unpin issues sidebar") : t("Pin issues sidebar open")}
                 aria-pressed={showValidationDetails}
                 onClick={() => setShowValidationDetails((value) => !value)}
                 title={
                   showValidationDetails
-                    ? "Unpin the issues sidebar. If validation passes, it will collapse again."
-                    : "Pin the issues sidebar open."
+                    ? t("Unpin the issues sidebar. If validation passes, it will collapse again.")
+                    : t("Pin the issues sidebar open.")
                 }
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1510,8 +1795,8 @@ export function App() {
                     {visibleValidationIssues.length > 0
                       ? issuesPanelSummary
                       : hasProjectIssues
-                        ? "No issues for this screen. Open World to review the full project list."
-                        : "No validation issues detected."}
+                        ? t("No issues for this screen. Open World to review the full project list.")
+                        : t("No validation issues detected.")}
                   </p>
                 </div>
               </div>
@@ -1523,12 +1808,12 @@ export function App() {
                   onOpenInteraction={() => openFirstProjectScene(true)}
                   onOpenPlayer={() => {
                     setActiveTab("player");
-                    setStatusMessage("Opened Player. Review the title screen, credits, and release version.");
+                    setStatusMessage(t("Opened Player. Review the title screen, credits, and release version."));
                   }}
                   onReviewValidation={reviewFirstProjectValidation}
                   onOpenPlaytest={() => {
                     setActiveTab("playtest");
-                    setStatusMessage("Opened Playtest. Exercise the first scene and its interaction before exporting.");
+                    setStatusMessage(t("Opened Playtest. Exercise the first scene and its interaction before exporting."));
                   }}
                   onDismiss={() => setDismissedFirstProjectGuideId(project.manifest.projectId)}
                 />
@@ -1546,7 +1831,7 @@ export function App() {
                       >
                         <div className="validation-item__header">
                           <span className={issue.level === "error" ? "validation-tag validation-tag--error" : "validation-tag validation-tag--warning"}>
-                            {issue.level}
+                            {issue.level === "error" ? t("error") : t("warning")}
                           </span>
                           <strong>{issue.code}</strong>
                           {entityLabel ? (
@@ -1558,14 +1843,14 @@ export function App() {
                             />
                           ) : null}
                         </div>
-                        <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget)}</p>
-                        <p className="muted">{getIssueHint(issue)}</p>
+                        <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget, t)}</p>
+                        <p className="muted">{t(getIssueHint(issue))}</p>
                       </article>
                     );
                   })}
                 </div>
               ) : (
-                <p className="muted">No issues right now.</p>
+                <p className="muted">{t("No issues right now.")}</p>
               )}
             </aside>
           ) : null}
@@ -1575,14 +1860,14 @@ export function App() {
       <footer className="status-bar status-bar--chrome status-bar--workbench">
         <div className="status-bar__scene-group">
           <span className="status-bar__project-dot" aria-hidden="true" />
-          <span>Project: {project.manifest.projectName}</span>
+          <span>{t("Project: {projectName}", { projectName: project.manifest.projectName })}</span>
           <span className="status-bar__divider" aria-hidden="true" />
           <span>{sceneSaveStatusLabel}</span>
         </div>
         <div className="status-bar__scene-group status-bar__scene-group--right">
           {isSceneEditorSurface ? (
             <>
-              <span>Scene: {activeScene?.name ?? "No scene"}</span>
+              <span>{t("Scene: {sceneName}", { sceneName: activeScene?.name ?? t("No scene") })}</span>
               <span className="status-bar__divider" aria-hidden="true" />
               <span>{sceneResolutionLabel}</span>
               <span className="status-bar__divider" aria-hidden="true" />
@@ -1590,9 +1875,9 @@ export function App() {
             </>
           ) : (
             <>
-              <span>Screen: {activeTabLabel}</span>
+              <span>{t("Screen: {screen}", { screen: activeTabLabel })}</span>
               <span className="status-bar__divider" aria-hidden="true" />
-              <span>{busyLabel ? `${busyLabel}...` : statusMessage}</span>
+              <span>{busyLabel ? t("{operation}...", { operation: busyLabel }) : translateRuntimeMessage(statusMessage, t)}</span>
             </>
           )}
         </div>
@@ -1602,18 +1887,24 @@ export function App() {
           onClick={() => setShowValidationDetails((value) => !value)}
           title={
             hasProjectIssues
-              ? "Open or close the validation issues sidebar. World shows the full issue list."
-              : "Validation passed. Click to pin the issues sidebar open anyway."
+              ? t("Open or close the validation issues sidebar. World shows the full issue list.")
+              : t("Validation passed. Click to pin the issues sidebar open anyway.")
           }
         >
-          {hasProjectIssues ? formatIssueCount(validationReport.issues.length) : "Valid"}
+          {hasProjectIssues ? formatIssueCount(validationReport.issues.length, t) : t("Valid")}
         </button>
       </footer>
     </div>
   );
 }
 
-function resolveEditorAutomationState(statusMessage: string) {
+function resolveEditorAutomationState(
+  statusMessage: string,
+  uiLocale: string,
+  uiLocalePreference: EditorLocalePreference,
+  uiDirection: "ltr" | "rtl",
+  uiAutomaticLocale: string
+) {
   const state = useEditorStore.getState();
   const validationReport = state.project ? validateProjectForRelease(state.project) : undefined;
   return {
@@ -1626,6 +1917,10 @@ function resolveEditorAutomationState(statusMessage: string) {
     selectedHotspotId: state.selectedHotspotId,
     selectedInventoryItemId: state.selectedInventoryItemId,
     statusMessage,
+    uiLocale,
+    uiLocalePreference,
+    uiDirection,
+    uiAutomaticLocale,
     validation: validationReport
       ? {
           valid: validationReport.valid,
@@ -1806,8 +2101,18 @@ function resolveAutomationPlacedObjectTarget(
 
 function waitForAutomationUpdate(): Promise<void> {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.clearTimeout(fallbackTimeout);
+      resolve();
+    };
+    const fallbackTimeout = window.setTimeout(finish, 250);
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
+      window.requestAnimationFrame(finish);
     });
   });
 }
@@ -1924,45 +2229,48 @@ function resolveLaunchTab(tab: InitialLaunchOptions["tab"]): EditorTab | undefin
   return TABS.find((candidate) => candidate.id === tab)?.id;
 }
 
-function resolveTabLabel(tab: EditorTab): string {
-  return TABS.find((candidate) => candidate.id === tab)?.label ?? tab;
+function resolveTabLabel(tab: EditorTab, t: EditorTranslator): string {
+  return t(TABS.find((candidate) => candidate.id === tab)?.label ?? tab);
 }
 
-function resolveIssuesPanelTitle(tab: EditorTab): string {
+function resolveIssuesPanelTitle(tab: EditorTab, t: EditorTranslator): string {
   switch (tab) {
     case "world":
-      return "All Issues";
+      return t("All Issues");
     case "assets":
-      return "Asset Issues";
+      return t("Asset Issues");
     case "scenes":
-      return "Scene Issues";
+      return t("Scene Issues");
     case "dialogue":
-      return "Dialogue Issues";
+      return t("Dialogue Issues");
     case "inventory":
-      return "Inventory Issues";
+      return t("Inventory Issues");
     case "localization":
-      return "Localization Issues";
+      return t("Localization Issues");
     case "player":
-      return "Player Issues";
+      return t("Player Issues");
     case "playtest":
-      return "Playtest Issues";
+      return t("Playtest Issues");
   }
 }
 
-function resolveIssuesPanelSummary(tab: EditorTab, visibleIssueCount: number, projectIssueCount: number): string {
+function resolveIssuesPanelSummary(tab: EditorTab, visibleIssueCount: number, projectIssueCount: number, t: EditorTranslator): string {
   if (tab === "world") {
-    return `Showing ${formatIssueCount(projectIssueCount)} across the project.`;
+    return t("Showing {issueCount} across the project.", { issueCount: formatIssueCount(projectIssueCount, t) });
   }
 
   if (visibleIssueCount === projectIssueCount) {
-    return `Showing ${formatIssueCount(visibleIssueCount)} for this screen.`;
+    return t("Showing {issueCount} for this screen.", { issueCount: formatIssueCount(visibleIssueCount, t) });
   }
 
-  return `Showing ${formatIssueCount(visibleIssueCount)} for this screen. World has ${formatIssueCount(projectIssueCount)} total.`;
+  return t("Showing {visibleIssueCount} for this screen. World has {projectIssueCount} total.", {
+    visibleIssueCount: formatIssueCount(visibleIssueCount, t),
+    projectIssueCount: formatIssueCount(projectIssueCount, t)
+  });
 }
 
-function formatIssueCount(count: number): string {
-  return `${count} ${count === 1 ? "issue" : "issues"}`;
+function formatIssueCount(count: number, t: EditorTranslator): string {
+  return count === 1 ? t("{count} issue", { count }) : t("{count} issues", { count });
 }
 
 function formatAspectRatio(width: number, height: number): string {
@@ -1970,29 +2278,29 @@ function formatAspectRatio(width: number, height: number): string {
   return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
 }
 
-function formatRecentProjectOpenedAt(input: string): string {
+function formatRecentProjectOpenedAt(input: string, locale: string, t: EditorTranslator): string {
   const openedAt = new Date(input);
   if (Number.isNaN(openedAt.getTime())) {
-    return "Unknown";
+    return t("Unknown");
   }
 
   const now = new Date();
-  const timeLabel = new Intl.DateTimeFormat("en-US", {
+  const timeLabel = new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit"
   }).format(openedAt);
 
   if (isSameCalendarDate(openedAt, now)) {
-    return `Today, ${timeLabel}`;
+    return t("Today, {time}", { time: timeLabel });
   }
 
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (isSameCalendarDate(openedAt, yesterday)) {
-    return `Yesterday, ${timeLabel}`;
+    return t("Yesterday, {time}", { time: timeLabel });
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: openedAt.getFullYear() === now.getFullYear() ? undefined : "numeric",
@@ -2030,6 +2338,7 @@ interface IssueTextLinkProps {
 }
 
 function IssueTextLink({ label, target, onNavigate, className }: IssueTextLinkProps) {
+  const { t } = useEditorI18n();
   if (!target) {
     return className ? <span className={className}>{label}</span> : <>{label}</>;
   }
@@ -2041,9 +2350,9 @@ function IssueTextLink({ label, target, onNavigate, className }: IssueTextLinkPr
       type="button"
       className={classes}
       onClick={() => onNavigate(target)}
-      title={`Open ${target.label} in the editor.`}
+      title={t("Open {target} in the editor.", { target: t(target.label) })}
     >
-      {label}
+      {t(label)}
     </button>
   );
 }
@@ -2051,26 +2360,22 @@ function IssueTextLink({ label, target, onNavigate, className }: IssueTextLinkPr
 function renderIssueMessage(
   project: ProjectBundle,
   issue: ValidationIssue,
-  onNavigate: (target: EditorNavigationTarget | undefined) => void
+  onNavigate: (target: EditorNavigationTarget | undefined) => void,
+  t: EditorTranslator
 ) {
   if (issue.code === "SCENE_UNREACHABLE") {
     const unreachableSceneTarget = resolveSceneNavigationTarget(project, issue.entityId);
     const startSceneTarget = resolveSceneNavigationTarget(project, project.manifest.startSceneId);
-    const unreachableSceneLabel = unreachableSceneTarget?.label ?? issue.entityId ?? "Unknown scene";
+    const unreachableSceneLabel = unreachableSceneTarget?.label ?? issue.entityId ?? t("Unknown scene");
     const startSceneLabel = startSceneTarget?.label ?? project.manifest.startSceneId;
 
-    return (
-      <>
-        Scene '
-        <IssueTextLink label={unreachableSceneLabel} target={unreachableSceneTarget} onNavigate={onNavigate} />
-        ' is unreachable from '
-        <IssueTextLink label={startSceneLabel} target={startSceneTarget} onNavigate={onNavigate} />
-        '.
-      </>
-    );
+    return t("Scene '{scene}' is unreachable from '{startScene}'.", {
+      scene: unreachableSceneLabel,
+      startScene: startSceneLabel
+    });
   }
 
-  return issue.message;
+  return translateRuntimeMessage(issue.message, t);
 }
 
 function FolderIcon() {

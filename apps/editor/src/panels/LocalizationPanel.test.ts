@@ -4,11 +4,25 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
 import { DialogProvider } from "../dialogs";
+import { localizationMessages } from "../i18n/catalogs/localization";
 import { addProjectLocale } from "../localized-project";
 import type { LocalizationSection } from "../store";
 import { LocalizationPanel, normalizeLocaleInput } from "./LocalizationPanel";
 
 const localizationPanelSource = readFileSync(new URL("./LocalizationPanel.tsx", import.meta.url), "utf8");
+const mockedEditorI18n = vi.hoisted(() => ({ locale: "en" }));
+const localizationCatalog = localizationMessages as Record<string, Record<string, string>>;
+
+vi.mock("../i18n", () => ({
+  useEditorI18n: () => ({
+    t: (source: string, params?: Record<string, string | number>) => {
+      const translated = mockedEditorI18n.locale === "en"
+        ? source
+        : localizationCatalog[source]?.[mockedEditorI18n.locale] ?? source;
+      return translated.replace(/\{([A-Za-z0-9_]+)\}/g, (match: string, key: string) => String(params?.[key] ?? match));
+    }
+  })
+}));
 
 const mockedStore = vi.hoisted(() => {
   const noop = () => {};
@@ -76,8 +90,10 @@ function extractSourceSection(source: string, startMarker: string, endMarker: st
 function renderLocalizationPanel(
   section: LocalizationSection,
   configureProject?: (project: ReturnType<typeof createDefaultProjectBundle>) => void,
-  locale?: string
+  locale?: string,
+  editorLocale = "en"
 ) {
+  mockedEditorI18n.locale = editorLocale;
   const project = createDefaultProjectBundle("Localization filter");
   configureProject?.(project);
 
@@ -111,6 +127,16 @@ function renderLocalizationPanel(
 }
 
 describe("LocalizationPanel internal subtabs", () => {
+  it("renders Arabic editor chrome without translating project-authored content or locale codes", () => {
+    const markup = renderLocalizationPanel("overview", undefined, "en", "ar");
+
+    expect(markup).toContain("قائمة انتظار العمل");
+    expect(markup).toContain("الصحة المحلية");
+    expect(markup).toContain("en");
+    expect(markup).toContain("Created with MAGE2");
+    expect(markup).not.toContain("Work Queue");
+  });
+
   it("renders the work queue workspace when overview is active", () => {
     const markup = renderLocalizationPanel("overview");
 
@@ -192,7 +218,7 @@ describe("LocalizationPanel internal subtabs", () => {
     });
 
     expect(markup).toContain(">Scene Audio</option>");
-    expect(markup).toContain("Scene Audio / audio");
+    expect(markup).toContain("Scene Audio / Audio");
   });
 
   it("keeps localization media comparison previews contained instead of cropped", () => {

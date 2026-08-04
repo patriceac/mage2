@@ -34,6 +34,8 @@ export const PLAYER_UI_TEXT_IDS = {
 
 export type PlayerUiTextId = (typeof PLAYER_UI_TEXT_IDS)[keyof typeof PLAYER_UI_TEXT_IDS];
 
+export type PlayerUiOverrides = Partial<Record<string, Partial<Record<PlayerUiTextId, string>>>>;
+
 export const DEFAULT_PLAYER_UI_STRINGS: Readonly<Record<PlayerUiTextId, string>> = {
   [PLAYER_UI_TEXT_IDS.cancel]: "Cancel",
   [PLAYER_UI_TEXT_IDS.close]: "Close",
@@ -86,4 +88,43 @@ export function collectPlayerExperienceTextIds(options?: {
     options?.taglineTextId,
     options?.creditsTextId
   ].filter((textId): textId is string => Boolean(textId));
+}
+
+export function collectPlayerUiOverrides(project: {
+  manifest: { defaultLanguage: string };
+  strings: {
+    byLocale: Record<string, Record<string, string>>;
+    translationStateByLocale: Record<string, Record<string, "inherited" | "draft" | "translated" | "reviewed">>;
+  };
+}): PlayerUiOverrides {
+  const overrides: PlayerUiOverrides = {};
+  const playerUiTextIds = new Set<string>(Object.values(PLAYER_UI_TEXT_IDS));
+
+  for (const [locale, strings] of Object.entries(project.strings.byLocale)) {
+    const localeOverrides: Partial<Record<PlayerUiTextId, string>> = {};
+    const states = project.strings.translationStateByLocale[locale] ?? {};
+
+    for (const [textId, rawValue] of Object.entries(strings)) {
+      if (!playerUiTextIds.has(textId)) {
+        continue;
+      }
+
+      const value = rawValue.trim();
+      const state = states[textId];
+      const isApprovedTranslation = state === "translated" || state === "reviewed";
+      const isCustomizedSource =
+        locale === project.manifest.defaultLanguage &&
+        value !== DEFAULT_PLAYER_UI_STRINGS[textId as PlayerUiTextId];
+
+      if (value && (isApprovedTranslation || isCustomizedSource)) {
+        localeOverrides[textId as PlayerUiTextId] = value;
+      }
+    }
+
+    if (Object.keys(localeOverrides).length > 0) {
+      overrides[locale] = localeOverrides;
+    }
+  }
+
+  return overrides;
 }

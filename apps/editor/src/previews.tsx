@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Asset, Scene } from "@mage2/schema";
 import { resolveFileUrl } from "./file-url-cache";
+import { useEditorI18n } from "./i18n";
 import { getLocalizedAssetVariant } from "./localized-project";
 
 interface AssetPreviewProps {
@@ -31,9 +32,12 @@ export function AssetPreview({
   allowSourceFallback = false,
   preferPosterForImages = false,
   fit = "cover",
-  emptyTitle = "No background asset",
-  emptyBody = "Assign an image or video to preview this scene."
+  emptyTitle,
+  emptyBody
 }: AssetPreviewProps) {
+  const { t } = useEditorI18n();
+  const resolvedEmptyTitle = emptyTitle ?? t("No background asset");
+  const resolvedEmptyBody = emptyBody ?? t("Assign an image or video to preview this scene.");
   const [assetUrl, setAssetUrl] = useState<string>();
   const [posterUrl, setPosterUrl] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -92,17 +96,20 @@ export function AssetPreview({
 
   if (!asset) {
     return (
-      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable because ${emptyTitle.toLowerCase()} is assigned.`}>
-        <strong>{emptyTitle}</strong>
-        <span>{emptyBody}</span>
+      <div
+        className={`${previewClassName} asset-preview--placeholder`}
+        title={t("Preview unavailable because {reason} is assigned.", { reason: resolvedEmptyTitle })}
+      >
+        <strong>{resolvedEmptyTitle}</strong>
+        <span>{resolvedEmptyBody}</span>
       </div>
     );
   }
 
   if (loadState === "error") {
     return (
-      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable for ${asset.name}.`}>
-        <strong>Preview unavailable</strong>
+      <div className={`${previewClassName} asset-preview--placeholder`} title={t("Preview unavailable for {name}.", { name: asset.name })}>
+        <strong>{t("Preview unavailable")}</strong>
         <span>{asset.name}</span>
       </div>
     );
@@ -110,9 +117,9 @@ export function AssetPreview({
 
   if (!hasManagedPreview && !allowSourceFallback) {
     return (
-      <div className={`${previewClassName} asset-preview--placeholder`} title={`Preview unavailable for ${asset.name}.`}>
-        <strong>Preview unavailable</strong>
-        <span>No preview file is available for this asset.</span>
+      <div className={`${previewClassName} asset-preview--placeholder`} title={t("Preview unavailable for {name}.", { name: asset.name })}>
+        <strong>{t("Preview unavailable")}</strong>
+        <span>{t("No preview file is available for this asset.")}</span>
       </div>
     );
   }
@@ -125,7 +132,7 @@ export function AssetPreview({
         className={mediaClassName}
         decoding="async"
         loading={preferPosterForImages ? "lazy" : "eager"}
-        title={`Preview ${asset.name}.`}
+        title={t("Preview {name}.", { name: asset.name })}
       />
     );
   }
@@ -139,22 +146,23 @@ export function AssetPreview({
         muted
         preload="metadata"
         className={mediaClassName}
-        title={`Preview ${asset.name}.`}
+        title={t("Preview {name}.", { name: asset.name })}
+        dir="ltr"
       />
     );
   }
 
   if (asset.kind === "audio" && assetUrl) {
     return (
-      <div className={`${previewClassName} asset-preview--audio`} title={`Preview ${asset.name}.`}>
-        <audio src={assetUrl} controls preload="metadata" className="asset-preview__audio" />
+      <div className={`${previewClassName} asset-preview--audio`} title={t("Preview {name}.", { name: asset.name })}>
+        <audio src={assetUrl} controls preload="metadata" className="asset-preview__audio" dir="ltr" />
       </div>
     );
   }
 
   return (
-    <div className={`${previewClassName} asset-preview--placeholder`} title={`Loading preview for ${asset.name}.`}>
-      <strong>Loading preview...</strong>
+    <div className={`${previewClassName} asset-preview--placeholder`} title={t("Loading preview for {name}.", { name: asset.name })}>
+      <strong>{t("Loading preview...")}</strong>
       <span>{asset.name}</span>
     </div>
   );
@@ -166,17 +174,20 @@ export function ScenePreviewCard({
   locationName,
   asset,
   locale,
-  emptyTitle = "No scene selected",
-  emptyBody = "Pick another scene to preview it here."
+  emptyTitle,
+  emptyBody
 }: ScenePreviewCardProps) {
+  const { locale: editorLocale, t } = useEditorI18n();
+  const resolvedEmptyTitle = emptyTitle ?? t("No scene selected");
+  const resolvedEmptyBody = emptyBody ?? t("Pick another scene to preview it here.");
   if (!scene) {
     return (
       <article className="scene-preview-card scene-preview-card--empty">
         <div className="scene-preview-card__header">
           <p className="dialog-eyebrow">{label}</p>
-          <h3>{emptyTitle}</h3>
+          <h3>{resolvedEmptyTitle}</h3>
         </div>
-        <p className="muted">{emptyBody}</p>
+        <p className="muted">{resolvedEmptyBody}</p>
       </article>
     );
   }
@@ -195,9 +206,9 @@ export function ScenePreviewCard({
         preferPosterForImages
       />
       <div className="scene-preview-card__meta">
-        <p>{locationName ?? "Unknown location"}</p>
+        <p>{locationName ?? t("Unknown location")}</p>
         <p>
-          {scene.hotspots.length} hotspot{scene.hotspots.length === 1 ? "" : "s"}
+          {t("Hotspots: {count}", { count: new Intl.NumberFormat(editorLocale).format(scene.hotspots.length) })}
         </p>
       </div>
     </article>

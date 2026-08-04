@@ -1,6 +1,7 @@
 import type { Asset } from "@mage2/schema";
 import { isSceneAudioImportPath } from "../../asset-file-types";
 import type { RemoveSceneFromProjectResult } from "../../project-helpers";
+import type { EditorTranslator } from "../../i18n/translate";
 
 export const SCENE_AUDIO_DROP_REJECTION_MESSAGE =
   "Scene audio accepts MP3, WAV, OGG, M4A, or AAC files only.";
@@ -8,6 +9,10 @@ export const VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE =
   "Clear scene audio before assigning a video background.";
 
 const CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY = "mage2:scene-editor:corner-first-hotspot-handles";
+const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
 
 export interface SceneAudioDropCandidate {
   filePath?: string;
@@ -99,13 +104,14 @@ export function applySceneBackgroundAsset(
 
 export function resolveDeleteSceneBlockedMessage(
   sceneName: string,
-  blockedReason: RemoveSceneFromProjectResult["blockedReason"]
+  blockedReason: RemoveSceneFromProjectResult["blockedReason"],
+  t: EditorTranslator = identityEditorTranslator
 ): string {
   if (blockedReason === "replacement-scene-not-found") {
-    return `Could not delete ${sceneName} because the selected replacement scene is no longer available.`;
+    return t("Could not delete {sceneName} because the selected replacement scene is no longer available.", { sceneName });
   }
 
-  return `Could not delete ${sceneName} because it is no longer present in the project.`;
+  return t("Could not delete {sceneName} because it is no longer present in the project.", { sceneName });
 }
 
 export function resolveDeleteSceneStatusMessage(
@@ -113,22 +119,27 @@ export function resolveDeleteSceneStatusMessage(
   deletion: RemoveSceneFromProjectResult,
   replacementSceneName: string | undefined,
   valid: boolean,
-  issueCount: number
+  issueCount: number,
+  t: EditorTranslator = identityEditorTranslator
 ): string {
-  const segments = [`Deleted ${sceneName}.`];
+  const segments = [t("Deleted {sceneName}.", { sceneName })];
 
   if (deletion.strategy.mode === "rewire" && replacementSceneName) {
-    segments.push(`Rewired scene references to ${replacementSceneName}.`);
+    segments.push(t("Rewired scene references to {replacementSceneName}.", { replacementSceneName }));
   } else {
-    segments.push("Cleaned references to the deleted scene.");
+    segments.push(t("Cleaned references to the deleted scene."));
   }
 
   if (deletion.strategy.mode === "cleanup" && deletion.referenceSummary.isStartScene) {
-    segments.push("Choose a new start scene to clear the validation error.");
+    segments.push(t("Choose a new start scene to clear the validation error."));
   }
 
   if (!valid) {
-    segments.push(`Project now has ${issueCount} validation issue(s).`);
+    segments.push(
+      issueCount === 1
+        ? t("Project now has {issueCount} validation issue.", { issueCount })
+        : t("Project now has {issueCount} validation issues.", { issueCount })
+    );
   }
 
   return segments.join(" ");

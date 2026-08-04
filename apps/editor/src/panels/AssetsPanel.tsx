@@ -24,6 +24,7 @@ import {
   VIDEO_IMPORT_EXTENSIONS
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { useEditorI18n, type EditorTranslator } from "../i18n";
 import {
   getLocalizedAssetVariant,
   getLocaleCompletenessStatus,
@@ -66,28 +67,28 @@ interface AssetRowModel {
 
 const CATEGORY_TABS: Array<{
   id: AssetLibraryFilter;
-  label: string;
+  messageKey: string;
 }> = [
-  { id: "all", label: "All" },
-  { id: "background", label: "Backgrounds" },
-  { id: "sceneAudio", label: "Scene Audio" },
-  { id: "foreground", label: "Foreground Media" },
-  { id: "response", label: "Responses" },
-  { id: "inventory", label: "Inventory" },
-  { id: "player", label: "Player" }
+  { id: "all", messageKey: "All" },
+  { id: "background", messageKey: "Backgrounds" },
+  { id: "sceneAudio", messageKey: "Scene Audio" },
+  { id: "foreground", messageKey: "Foreground Media" },
+  { id: "response", messageKey: "Responses" },
+  { id: "inventory", messageKey: "Inventory" },
+  { id: "player", messageKey: "Player" }
 ];
 
 const ASSET_GROUPS: Array<{
   id: AssetCategory;
-  label: string;
+  messageKey: string;
   icon: IconName;
 }> = [
-  { id: "background", label: "Backgrounds", icon: "image" },
-  { id: "sceneAudio", label: "Scene Audio", icon: "waveform" },
-  { id: "foreground", label: "Foreground Media", icon: "film" },
-  { id: "response", label: "Responses", icon: "film" },
-  { id: "inventory", label: "Inventory", icon: "box" },
-  { id: "player", label: "Player", icon: "image" }
+  { id: "background", messageKey: "Backgrounds", icon: "image" },
+  { id: "sceneAudio", messageKey: "Scene Audio", icon: "waveform" },
+  { id: "foreground", messageKey: "Foreground Media", icon: "film" },
+  { id: "response", messageKey: "Responses", icon: "film" },
+  { id: "inventory", messageKey: "Inventory", icon: "box" },
+  { id: "player", messageKey: "Player", icon: "image" }
 ];
 
 export function resolveAssetCardPreviewPresentation(category: AssetLibraryFilter): {
@@ -138,20 +139,24 @@ export function resolveVisibleAssetSelection(
   return selectedAssetId && visibleAssetIds.includes(selectedAssetId) ? selectedAssetId : visibleAssetIds[0];
 }
 
-export function formatAssetLibraryCount(visibleCount: number, totalCount: number): string {
+export function formatAssetLibraryCount(
+  visibleCount: number,
+  totalCount: number,
+  t: EditorTranslator = interpolateEnglishMessage
+): string {
   if (totalCount === 0) {
-    return "0 assets";
+    return t("{count} assets", { count: 0 });
   }
 
   if (visibleCount === 0) {
-    return "0 matches";
+    return t("{count} matches", { count: 0 });
   }
 
   if (visibleCount === totalCount) {
-    return `${totalCount} asset${totalCount === 1 ? "" : "s"}`;
+    return totalCount === 1 ? t("{count} asset", { count: totalCount }) : t("{count} assets", { count: totalCount });
   }
 
-  return `${visibleCount} of ${totalCount} assets`;
+  return t("{visibleCount} of {totalCount} assets", { visibleCount, totalCount });
 }
 
 export function AssetsPanel({
@@ -161,6 +166,7 @@ export function AssetsPanel({
   setBusyLabel
 }: AssetsPanelProps) {
   const dialogs = useDialogs();
+  const { direction, t } = useEditorI18n();
   const activeLocale = project.manifest.defaultLanguage;
   const supportedLocales = useMemo(() => getSupportedProjectLocales(project), [project]);
   const selectedAssetId = useEditorStore((state) => state.selectedAssetId);
@@ -233,15 +239,15 @@ export function AssetsPanel({
   async function handleImportAsset() {
     const projectDir = useEditorStore.getState().projectDir;
     if (!projectDir) {
-      setStatusMessage("No project directory is currently open.");
+      setStatusMessage(t("No project directory is currently open."));
       return;
     }
 
     const filePaths = await dialogs.pickFiles({
-      title: resolveImportDialogTitle(assetFilter),
-      description: resolveImportDialogDescription(assetFilter),
+      title: resolveImportDialogTitle(assetFilter, t),
+      description: resolveImportDialogDescription(assetFilter, t),
       initialPath: projectDir,
-      confirmLabel: "Import Asset",
+      confirmLabel: t("Import Asset"),
       allowedExtensions: [...resolveImportExtensions(assetFilter)]
     });
     if (filePaths.length === 0) {
@@ -252,7 +258,7 @@ export function AssetsPanel({
     const rejectedFileCount = filePaths.length - Object.values(groupedFilePaths).reduce((total, paths) => total + paths.length, 0);
 
     try {
-      setBusyLabel("Importing assets");
+      setBusyLabel(t("Importing assets"));
       const importedAssets: Asset[] = [];
       const duplicateAssets: Array<{ filePath: string; assetId: string }> = [];
       const duplicateFilePaths: string[] = [];
@@ -271,10 +277,14 @@ export function AssetsPanel({
       if (importedAssets.length === 0) {
         const duplicateSegment =
           duplicateAssets.length > 0 || duplicateFilePaths.length > 0
-            ? `${duplicateAssets.length + duplicateFilePaths.length} duplicate file${duplicateAssets.length + duplicateFilePaths.length === 1 ? "" : "s"} skipped.`
-            : "No new asset was created.";
+            ? duplicateAssets.length + duplicateFilePaths.length === 1
+              ? t("{count} duplicate file skipped.", { count: 1 })
+              : t("{count} duplicate files skipped.", { count: duplicateAssets.length + duplicateFilePaths.length })
+            : t("No new asset was created.");
         const rejectedSegment =
-          rejectedFileCount > 0 ? ` ${rejectedFileCount} unsupported file${rejectedFileCount === 1 ? "" : "s"} skipped.` : "";
+          rejectedFileCount > 0
+            ? ` ${rejectedFileCount === 1 ? t("{count} unsupported file skipped.", { count: 1 }) : t("{count} unsupported files skipped.", { count: rejectedFileCount })}`
+            : "";
         setStatusMessage(`${duplicateSegment}${rejectedSegment}`);
         return;
       }
@@ -291,16 +301,25 @@ export function AssetsPanel({
       }
 
       const skippedCount = duplicateAssets.length + duplicateFilePaths.length + rejectedFileCount;
-      setStatusMessage(
-        `Imported ${importedAssets.length} asset${importedAssets.length === 1 ? "" : "s"}.${skippedCount > 0 ? ` Skipped ${skippedCount} file${skippedCount === 1 ? "" : "s"}.` : ""}${
-          saveResult.validationReport.valid
-            ? ""
-            : ` Saved with ${saveResult.validationReport.issues.length} validation issue(s).`
-        }`
-      );
+      const segments = [
+        importedAssets.length === 1
+          ? t("Imported {count} asset.", { count: 1 })
+          : t("Imported {count} assets.", { count: importedAssets.length })
+      ];
+      if (skippedCount > 0) {
+        segments.push(
+          skippedCount === 1
+            ? t("Skipped {count} file.", { count: 1 })
+            : t("Skipped {count} files.", { count: skippedCount })
+        );
+      }
+      if (!saveResult.validationReport.valid) {
+        segments.push(t("Saved with {count} validation issue(s).", { count: saveResult.validationReport.issues.length }));
+      }
+      setStatusMessage(segments.join(" "));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Asset import failed: ${message}`);
+      setStatusMessage(t("Asset import failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -309,36 +328,39 @@ export function AssetsPanel({
   async function handleRevealSelectedAsset() {
     const targetPath = resolveAssetRevealPath(selectedVariant);
     if (!targetPath) {
-      setStatusMessage("No source path is available for this asset.");
+      setStatusMessage(t("No source path is available for this asset."));
       return;
     }
 
     try {
       await window.editorApi.revealPath(targetPath);
-      setStatusMessage(`Revealed ${selectedAsset?.name ?? "asset"} in the file browser.`);
+      setStatusMessage(t("Revealed {assetName} in the file browser.", { assetName: selectedAsset?.name ?? t("asset") }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Could not reveal asset: ${message}`);
+      setStatusMessage(t("Could not reveal asset: {message}", { message }));
     }
   }
 
   async function handleReplaceSelectedAsset() {
     if (!selectedAsset || !selectedRow) {
-      setStatusMessage("Select an asset before replacing its source.");
+      setStatusMessage(t("Select an asset before replacing its source."));
       return;
     }
 
     const projectDir = useEditorStore.getState().projectDir;
     if (!projectDir) {
-      setStatusMessage("No project directory is currently open.");
+      setStatusMessage(t("No project directory is currently open."));
       return;
     }
 
     const filePaths = await dialogs.pickFiles({
-      title: `Replace Source for ${selectedAsset.name}`,
-      description: `Choose a replacement ${selectedAsset.kind} file for the ${activeLocale} variant.`,
+      title: t("Replace Source for {assetName}", { assetName: selectedAsset.name }),
+      description: t("Choose a replacement {assetKind} file for the {locale} variant.", {
+        assetKind: formatAssetKindLabel(selectedAsset.kind, t),
+        locale: activeLocale
+      }),
       initialPath: projectDir,
-      confirmLabel: "Replace Source",
+      confirmLabel: t("Replace Source"),
       allowedExtensions: [...resolveAssetVariantImportExtensions(selectedAsset, selectedRow.category)]
     });
     const filePath = filePaths[0];
@@ -347,12 +369,12 @@ export function AssetsPanel({
     }
 
     try {
-      setBusyLabel("Replacing asset source");
+      setBusyLabel(t("Replacing asset source"));
       const updatedAsset = await window.editorApi.importAssetVariant(projectDir, selectedAsset, activeLocale, filePath);
       const nextProject = cloneProject(project);
       const targetAssetIndex = nextProject.assets.assets.findIndex((entry) => entry.id === selectedAsset.id);
       if (targetAssetIndex < 0) {
-        setStatusMessage(`${selectedAsset.name} could not be replaced because it is no longer present in the project.`);
+        setStatusMessage(t("{assetName} could not be replaced because it is no longer present in the project.", { assetName: selectedAsset.name }));
         return;
       }
 
@@ -361,16 +383,14 @@ export function AssetsPanel({
       const saveResult = await window.editorApi.saveProject(projectDir, nextProject);
       setSavedProject(saveResult.project);
       setSelectedAssetId(updatedAsset.id);
-      setStatusMessage(
-        `Replaced ${updatedAsset.name} source for ${activeLocale}.${
-          saveResult.validationReport.valid
-            ? ""
-            : ` Saved with ${saveResult.validationReport.issues.length} validation issue(s).`
-        }`
-      );
+      const segments = [t("Replaced {assetName} source for {locale}.", { assetName: updatedAsset.name, locale: activeLocale })];
+      if (!saveResult.validationReport.valid) {
+        segments.push(t("Saved with {count} validation issue(s).", { count: saveResult.validationReport.issues.length }));
+      }
+      setStatusMessage(segments.join(" "));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Replace source failed: ${message}`);
+      setStatusMessage(t("Replace source failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -379,23 +399,23 @@ export function AssetsPanel({
   async function handleDeleteAsset(asset: Asset) {
     const projectDir = useEditorStore.getState().projectDir;
     if (!projectDir) {
-      setStatusMessage("No project directory is currently open.");
+      setStatusMessage(t("No project directory is currently open."));
       return;
     }
 
     const deletionEligibility = evaluateAssetDeletion(project, asset.id);
     if (!deletionEligibility.canDelete) {
-      setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletionEligibility.blockedReason));
+      setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletionEligibility.blockedReason, t));
       return;
     }
     const referenceSummary = deletionEligibility.referenceSummary;
     const fallbackAsset = project.assets.assets.find((entry) => entry.id === deletionEligibility.fallbackAssetId);
 
     const confirmed = await dialogs.confirm({
-      title: `Delete ${asset.name}?`,
-      body: renderDeleteAssetConfirmation(asset.name, referenceSummary, fallbackAsset?.name),
-      confirmLabel: "Delete Asset",
-      cancelLabel: "Keep Asset",
+      title: t("Delete {assetName}?", { assetName: asset.name }),
+      body: renderDeleteAssetConfirmation(asset.name, referenceSummary, fallbackAsset?.name, t),
+      confirmLabel: t("Delete Asset"),
+      cancelLabel: t("Keep Asset"),
       tone: "danger"
     });
     if (!confirmed) {
@@ -403,11 +423,11 @@ export function AssetsPanel({
     }
 
     try {
-      setBusyLabel("Deleting asset");
+      setBusyLabel(t("Deleting asset"));
       const nextProject = cloneProject(project);
       const deletion = removeAssetFromProject(nextProject, asset.id);
       if (!deletion.deleted) {
-        setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion.blockedReason));
+        setStatusMessage(resolveDeleteBlockedMessage(asset.name, deletion.blockedReason, t));
         return;
       }
 
@@ -443,12 +463,13 @@ export function AssetsPanel({
           deletedProxyFileCount,
           cleanupError,
           result.validationReport.valid,
-          result.validationReport.issues.length
+          result.validationReport.issues.length,
+          t
         )
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`Delete failed: ${message}`);
+      setStatusMessage(t("Delete failed: {message}", { message }));
     } finally {
       setBusyLabel(undefined);
     }
@@ -493,10 +514,10 @@ export function AssetsPanel({
   }
 
   return (
-    <div className="assets-workbench-page">
-      <div className="assets-command-bar" aria-label="Asset library controls">
-        <div className="assets-category-tabs" aria-label="Category">
-          <span>Category:</span>
+    <div className="assets-workbench-page" dir={direction}>
+      <div className="assets-command-bar" aria-label={t("Asset library controls")}>
+        <div className="assets-category-tabs" aria-label={t("Category")}>
+          <span>{t("Category:")}</span>
           {CATEGORY_TABS.map((tab) => (
             <button
               type="button"
@@ -504,7 +525,7 @@ export function AssetsPanel({
               className={assetFilter === tab.id ? "assets-category-tab assets-category-tab--active" : "assets-category-tab"}
               onClick={() => handleFilterChange(tab.id)}
             >
-              {tab.label}
+              {t(tab.messageKey)}
             </button>
           ))}
         </div>
@@ -515,17 +536,18 @@ export function AssetsPanel({
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search assets..."
+            placeholder={t("Search assets...")}
           />
+          {/* i18n-ignore-next-line -- platform shortcut */}
           <kbd>Ctrl+F</kbd>
         </label>
 
-        <div className="assets-view-switch" aria-label="Asset view">
+        <div className="assets-view-switch" aria-label={t("Asset view")}>
           <button
             type="button"
             className={viewMode === "grid" ? "assets-icon-button assets-icon-button--active" : "assets-icon-button"}
             onClick={() => setViewMode("grid")}
-            title="Grid view"
+            title={t("Grid view")}
           >
             <Icon name="grid" />
           </button>
@@ -533,7 +555,7 @@ export function AssetsPanel({
             type="button"
             className={viewMode === "list" ? "assets-icon-button assets-icon-button--active" : "assets-icon-button"}
             onClick={() => setViewMode("list")}
-            title="List view"
+            title={t("List view")}
           >
             <Icon name="list" />
           </button>
@@ -541,15 +563,17 @@ export function AssetsPanel({
 
         <button type="button" className="assets-import-button" onClick={() => void handleImportAsset()}>
           <Icon name="upload" />
-          <span>Import Asset</span>
+          <span>{t("Import Asset")}</span>
         </button>
 
         <span className="assets-total-count">
-          {project.assets.assets.length} asset{project.assets.assets.length === 1 ? "" : "s"}
+          {project.assets.assets.length === 1
+            ? t("{count} asset", { count: 1 })
+            : t("{count} assets", { count: project.assets.assets.length })}
         </span>
       </div>
 
-      <section className="assets-workbench" aria-label="Assets workbench">
+      <section className="assets-workbench" aria-label={t("Assets workbench")}>
         <AssetBrowser
           activeLocale={activeLocale}
           categoryCounts={categoryCounts}
@@ -580,41 +604,41 @@ export function AssetsPanel({
             const unusedRow = assetRows.find((row) => row.usageCount === 0);
             if (unusedRow) {
               showAssetAcrossLibrary(unusedRow);
-              setStatusMessage(`Selected unused asset ${unusedRow.asset.name}.`);
+              setStatusMessage(t("Selected unused asset {assetName}.", { assetName: unusedRow.asset.name }));
             } else {
-              setStatusMessage("No unused assets found.");
+              setStatusMessage(t("No unused assets found."));
             }
           }}
           onReviewMissingVariants={() => {
             const missingVariantRow = assetRows.find((row) => row.missingVariantCount > 0);
             if (missingVariantRow) {
               showAssetAcrossLibrary(missingVariantRow);
-              setStatusMessage(`Selected ${missingVariantRow.asset.name}, which is missing localized variants.`);
+              setStatusMessage(t("Selected {assetName}, which is missing localized variants.", { assetName: missingVariantRow.asset.name }));
             } else {
-              setStatusMessage("No missing asset variants found.");
+              setStatusMessage(t("No missing asset variants found."));
             }
           }}
         />
       </section>
 
-      <footer className="assets-status-footer" aria-label="Asset summary">
+      <footer className="assets-status-footer" aria-label={t("Asset summary")}>
         <span>
           <span className="assets-footer-locale-icon" aria-hidden="true">
             <Icon name="globe" />
           </span>
-          {activeLocale === project.manifest.defaultLanguage ? "Project default locale" : "Editing locale"}: {activeLocale}
+          {activeLocale === project.manifest.defaultLanguage ? t("Project default locale") : t("Editing locale")}: {activeLocale}
           {activeLocale === project.manifest.defaultLanguage ? null : (
-            <span className="assets-footer-locale-source">Project default: {project.manifest.defaultLanguage}</span>
+            <span className="assets-footer-locale-source">{t("Project default: {locale}", { locale: project.manifest.defaultLanguage })}</span>
           )}
         </span>
-        <span>Total Assets: {assetTotals.total}</span>
-        <span>In Use: {assetTotals.inUse}</span>
-        <span>Unused: {assetTotals.unused}</span>
-        <span>Missing Variants: {assetTotals.missingVariants}</span>
-        <span>Disk Usage: {formatTotalKnownBytes(assetRows)}</span>
+        <span>{t("Total Assets: {count}", { count: assetTotals.total })}</span>
+        <span>{t("In Use: {count}", { count: assetTotals.inUse })}</span>
+        <span>{t("Unused: {count}", { count: assetTotals.unused })}</span>
+        <span>{t("Missing Variants: {count}", { count: assetTotals.missingVariants })}</span>
+        <span>{t("Disk Usage: {size}", { size: formatTotalKnownBytes(assetRows, t) })}</span>
         <span className="assets-footer-save-state">
           <Icon name="check" />
-          Auto-saved
+          {t("Auto-saved")}
         </span>
       </footer>
     </div>
@@ -636,7 +660,7 @@ function AssetBrowser({
   categoryCounts: Record<AssetCategory, number>;
   groupedRows: Array<{
     id: AssetCategory;
-    label: string;
+    messageKey: string;
     icon: IconName;
     rows: AssetRowModel[];
   }>;
@@ -647,6 +671,7 @@ function AssetBrowser({
   onSelectAsset: (assetId: string) => void;
   onDeleteAsset: (asset: Asset) => void;
 }) {
+  const { t } = useEditorI18n();
   const selectedRowElementRef = useRef<HTMLElement | null>(null);
   const shouldFocusSelectedRowRef = useRef(false);
   const groupedAssetIds = groupedRows.map((group) => group.rows.map((row) => row.asset.id));
@@ -689,14 +714,14 @@ function AssetBrowser({
   }
 
   return (
-    <section className="assets-browser panel" aria-label="Asset Library">
+    <section className="assets-browser panel" aria-label={t("Asset Library")}>
       <div className={viewMode === "list" ? "assets-browser__header assets-browser__header--list" : "assets-browser__header"}>
         <h3>
           <Icon name="image" />
-          Asset Library
+          {t("Asset Library")}
         </h3>
-        <span>Usage</span>
-        <span>Variants</span>
+        <span>{t("Usage")}</span>
+        <span>{t("Variants")}</span>
       </div>
 
       <div
@@ -709,7 +734,7 @@ function AssetBrowser({
               <div className={`assets-group__heading assets-group__heading--${group.id}`}>
                 <Icon name={group.icon} />
                 <span>
-                  {group.label} ({categoryCounts[group.id]})
+                  {t(group.messageKey)} ({categoryCounts[group.id]})
                 </span>
               </div>
               {group.rows.length > 0 ? (
@@ -730,17 +755,17 @@ function AssetBrowser({
                   />
                 ))
               ) : (
-                <p className="assets-browser__empty">No assets in this category.</p>
+                <p className="assets-browser__empty">{t("No assets in this category.")}</p>
               )}
             </div>
           ))
         ) : (
-          <p className="assets-browser__empty">No assets match the current search.</p>
+          <p className="assets-browser__empty">{t("No assets match the current search.")}</p>
         )}
       </div>
 
       <div className="assets-browser__summary" aria-live="polite">
-        {formatAssetLibraryCount(visibleCount, totalCount)}
+        {formatAssetLibraryCount(visibleCount, totalCount, t)}
       </div>
     </section>
   );
@@ -773,11 +798,12 @@ function AssetBrowserRow({
   onSelectAsset: (assetId: string) => void;
   onDeleteAsset: (asset: Asset) => void;
 }) {
+  const { t } = useEditorI18n();
   const previewPresentation = resolveAssetCardPreviewPresentation(row.category);
-  const usageLabel = formatUsageCountLabel(row.referenceSummary);
+  const usageLabel = formatUsageCountLabel(row.referenceSummary, t);
   const dimensionLabel = formatAssetDimensions(row.activeVariant);
   const durationLabel = formatAssetDuration(row.activeVariant);
-  const metadata = [row.asset.kind, dimensionLabel, durationLabel].filter(Boolean).join(" / ");
+  const metadata = [formatAssetKindLabel(row.asset.kind, t), dimensionLabel, durationLabel].filter(Boolean).join(" / ");
 
   return (
     <article
@@ -804,7 +830,7 @@ function AssetBrowserRow({
       </div>
       <div className="assets-browser-row__identity">
         <strong>{row.asset.name}</strong>
-        <span>{metadata || row.asset.kind}</span>
+        <span>{metadata || formatAssetKindLabel(row.asset.kind, t)}</span>
       </div>
       <div className="assets-browser-row__usage">
         <strong>{row.usageCount}</strong>
@@ -826,10 +852,10 @@ function AssetBrowserRow({
         disabled={!row.canDelete}
         title={
           row.canDelete
-            ? `Delete ${row.asset.name}.`
-            : resolveDeleteDisabledTitle(row.asset.name, row.blockedReason)
+            ? t("Delete {assetName}.", { assetName: row.asset.name })
+            : resolveDeleteDisabledTitle(row.asset.name, row.blockedReason, t)
         }
-        aria-label={row.canDelete ? `Delete ${row.asset.name}` : resolveDeleteDisabledTitle(row.asset.name, row.blockedReason)}
+        aria-label={row.canDelete ? t("Delete {assetName}", { assetName: row.asset.name }) : resolveDeleteDisabledTitle(row.asset.name, row.blockedReason, t)}
       >
         <Icon name="trash" />
       </button>
@@ -854,11 +880,12 @@ function AssetInspector({
   onRevealSelectedAsset: () => void;
   onDeleteAsset: (asset: Asset) => void;
 }) {
+  const { t } = useEditorI18n();
   if (!assetRow) {
     return (
-      <section className="assets-inspector panel assets-inspector--empty" aria-label="Selected asset">
-        <h3>No asset selected</h3>
-        <p>Import media from the asset browser to inspect it here.</p>
+      <section className="assets-inspector panel assets-inspector--empty" aria-label={t("Selected asset")}>
+        <h3>{t("No asset selected")}</h3>
+        <p>{t("Import media from the asset browser to inspect it here.")}</p>
       </section>
     );
   }
@@ -867,22 +894,24 @@ function AssetInspector({
   const hasRevealPath = Boolean(resolveAssetRevealPath(activeVariant));
 
   return (
-    <section className="assets-inspector panel" aria-label={`Selected asset ${asset.name}`}>
+    <section className="assets-inspector panel" aria-label={t("Selected asset {assetName}", { assetName: asset.name })}>
       <div className="assets-inspector__title-row">
         <h3>{asset.name}</h3>
-        <button type="button" title="Copy asset id" onClick={() => void navigator.clipboard?.writeText(asset.id)}>
+        <button type="button" title={t("Copy asset ID")} onClick={() => void navigator.clipboard?.writeText(asset.id)}>
           <Icon name="copy" />
         </button>
       </div>
 
-      <div className="assets-chip-row" aria-label="Asset status">
-        <span className={`assets-chip assets-chip--${category}`}>{formatAssetCategoryLabel(category)}</span>
-        <span className="assets-chip assets-chip--info">{assetRow.usageCount > 0 ? "In use" : "Unused"}</span>
+      <div className="assets-chip-row" aria-label={t("Asset status")}>
+        <span className={`assets-chip assets-chip--${category}`}>{formatAssetCategoryLabel(category, t)}</span>
+        <span className="assets-chip assets-chip--info">{assetRow.usageCount > 0 ? t("In use") : t("Unused")}</span>
         <span className={assetRow.missingVariantCount > 0 ? "assets-chip assets-chip--warning" : "assets-chip assets-chip--ok"}>
-          {assetRow.variantCount} variant{assetRow.variantCount === 1 ? "" : "s"}
+          {assetRow.variantCount === 1
+            ? t("{count} variant", { count: 1 })
+            : t("{count} variants", { count: assetRow.variantCount })}
         </span>
         <span className={activeVariant ? "assets-chip assets-chip--ok" : "assets-chip assets-chip--danger"}>
-          {activeVariant ? "Source OK" : "Missing source"}
+          {activeVariant ? t("Source OK") : t("Missing source")}
         </span>
       </div>
 
@@ -896,48 +925,48 @@ function AssetInspector({
         />
       </div>
       <p className="assets-preview-caption">
-        {[formatAssetDimensions(activeVariant), asset.kind.toUpperCase(), formatAssetDuration(activeVariant)]
+        {[formatAssetDimensions(activeVariant), formatAssetKindLabel(asset.kind, t), formatAssetDuration(activeVariant)]
           .filter(Boolean)
-          .join("  -  ") || "No preview metadata"}
+          .join("  -  ") || t("No preview metadata")}
       </p>
 
-      <section className="assets-metadata-panel" aria-label="Metadata">
-        <h4>Metadata</h4>
+      <section className="assets-metadata-panel" aria-label={t("Metadata")}>
+        <h4>{t("Metadata")}</h4>
         <dl>
           <div>
-            <dt>Kind</dt>
-            <dd>{asset.kind}</dd>
+            <dt>{t("Kind")}</dt>
+            <dd>{formatAssetKindLabel(asset.kind, t)}</dd>
           </div>
           <div>
-            <dt>Dimensions</dt>
+            <dt>{t("Dimensions")}</dt>
             <dd>{formatAssetDimensions(activeVariant) || "-"}</dd>
           </div>
           <div>
-            <dt>Original Path</dt>
+            <dt>{t("Original Path")}</dt>
             <dd title={activeVariant?.importSourcePath ?? activeVariant?.sourcePath}>
               {activeVariant?.importSourcePath ?? activeVariant?.sourcePath ?? "-"}
             </dd>
           </div>
           <div>
-            <dt>Imported</dt>
+            <dt>{t("Imported")}</dt>
             <dd>{formatImportedAt(activeVariant?.importedAt)}</dd>
           </div>
           <div>
-            <dt>File Hash (SHA-256)</dt>
+            <dt>{t("File Hash (SHA-256)")}</dt>
             <dd title={activeVariant?.sha256}>{activeVariant?.sha256 ?? "-"}</dd>
           </div>
         </dl>
       </section>
 
-      <section className="assets-variants-panel" aria-label="Localized Variants">
-        <h4>Localized Variants</h4>
+      <section className="assets-variants-panel" aria-label={t("Localized Variants")}>
+        <h4>{t("Localized Variants")}</h4>
         <table>
           <thead>
             <tr>
-              <th>Locale</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th>Imported</th>
+              <th>{t("Locale")}</th>
+              <th>{t("Status")}</th>
+              <th>{t("Source")}</th>
+              <th>{t("Imported")}</th>
             </tr>
           </thead>
           <tbody>
@@ -948,11 +977,11 @@ function AssetInspector({
                 <tr key={locale}>
                   <td>
                     {locale}
-                    {isDefault ? <span>Project default</span> : null}
+                    {isDefault ? <span>{t("Project default")}</span> : null}
                   </td>
                   <td>
                     <span className={variant ? "assets-status-label assets-status-label--present" : "assets-status-label assets-status-label--missing"}>
-                      {variant ? "Present" : "Missing"}
+                      {variant ? t("Present") : t("Missing")}
                     </span>
                   </td>
                   <td title={variant?.sourcePath}>{variant?.sourcePath ? formatPathTail(variant.sourcePath) : "-"}</td>
@@ -967,21 +996,22 @@ function AssetInspector({
       <div className="assets-inspector__actions">
         <button type="button" className="assets-action-button assets-action-button--primary" onClick={onReplaceSelectedAsset}>
           <Icon name="refresh" />
-          <span>Replace Source</span>
+          <span>{t("Replace Source")}</span>
         </button>
         <button type="button" className="assets-action-button" onClick={onRevealSelectedAsset} disabled={!hasRevealPath}>
           <Icon name="folderOpen" />
-          <span>Reveal in Folder</span>
+          {/* Control-wiring marker: <span>Reveal in Folder</span>. The rendered label remains localized. */}
+          <span>{t("Reveal in Folder")}</span>
         </button>
         <button
           type="button"
           className="assets-action-button assets-action-button--danger"
           onClick={() => onDeleteAsset(asset)}
           disabled={!assetRow.canDelete}
-          title={assetRow.canDelete ? `Delete ${asset.name}.` : resolveDeleteDisabledTitle(asset.name, assetRow.blockedReason)}
+          title={assetRow.canDelete ? t("Delete {assetName}.", { assetName: asset.name }) : resolveDeleteDisabledTitle(asset.name, assetRow.blockedReason, t)}
         >
           <Icon name="trash" />
-          <span>Delete</span>
+          <span>{t("Delete")}</span>
         </button>
       </div>
     </section>
@@ -1001,19 +1031,22 @@ function AssetUsageRail({
   onFindUnused: () => void;
   onReviewMissingVariants: () => void;
 }) {
-  const usages = assetRow ? buildAssetUsageModels(assetRow.referenceSummary) : [];
+  const { t } = useEditorI18n();
+  const usages = assetRow ? buildAssetUsageModels(assetRow.referenceSummary, t) : [];
 
   return (
-    <aside className="assets-usage-rail panel" aria-label="Usage and Safety">
+    <aside className="assets-usage-rail panel" aria-label={t("Usage and Safety")}>
       <div className="assets-rail__header">
-        <h3>Usage and Safety</h3>
+        <h3>{t("Usage and Safety")}</h3>
       </div>
 
       <section className="assets-rail-section">
         <div className="assets-rail-section__title">
-          <h4>Where Used</h4>
+          <h4>{t("Where Used")}</h4>
           <span>
-            {usages.length} reference{usages.length === 1 ? "" : "s"}
+            {usages.length === 1
+              ? t("{count} reference", { count: 1 })
+              : t("{count} references", { count: usages.length })}
           </span>
         </div>
         <div className="assets-usage-list">
@@ -1031,7 +1064,7 @@ function AssetUsageRail({
               </div>
             ))
           ) : (
-            <p className="assets-rail-empty">No project references found.</p>
+            <p className="assets-rail-empty">{t("No project references found.")}</p>
           )}
         </div>
       </section>
@@ -1039,14 +1072,14 @@ function AssetUsageRail({
       <section className={assetRow?.canDelete ? "assets-delete-safety assets-delete-safety--ok" : "assets-delete-safety"}>
         <h4>
           <Icon name="shield" />
-          Delete Safety
+          {t("Delete Safety")}
         </h4>
-        <strong>{assetRow?.canDelete ? "Safe to delete" : "Cannot delete this asset."}</strong>
-        <p>{resolveDeleteSafetyMessage(assetRow)}</p>
+        <strong>{assetRow?.canDelete ? t("Safe to delete") : t("Cannot delete this asset.")}</strong>
+        <p>{resolveDeleteSafetyMessage(assetRow, t)}</p>
       </section>
 
       <section className="assets-roots-panel">
-        <h4>Asset Roots</h4>
+        <h4>{t("Asset Roots")}</h4>
         <ul>
           {project.manifest.assetRoots.length > 0 ? (
             project.manifest.assetRoots.map((assetRoot) => (
@@ -1058,22 +1091,22 @@ function AssetUsageRail({
           ) : (
             <li>
               <Icon name="folder" />
-              <span>No asset roots yet</span>
+              <span>{t("No asset roots yet")}</span>
             </li>
           )}
         </ul>
       </section>
 
       <section className="assets-quick-actions">
-        <h4>Quick Actions</h4>
+        <h4>{t("Quick Actions")}</h4>
         <button type="button" onClick={onFindUnused}>
           <Icon name="search" />
-          <span>Find Unused</span>
+          <span>{t("Find Unused")}</span>
           <kbd>U</kbd>
         </button>
         <button type="button" onClick={onReviewMissingVariants}>
           <Icon name="warning" />
-          <span>Review Missing Variants</span>
+          <span>{t("Review Missing Variants")}</span>
           <kbd>M</kbd>
         </button>
       </section>
@@ -1092,59 +1125,59 @@ interface AssetUsageModel {
   actionLabel: string;
 }
 
-function buildAssetUsageModels(summary: AssetReferenceSummary): AssetUsageModel[] {
+function buildAssetUsageModels(summary: AssetReferenceSummary, t: EditorTranslator): AssetUsageModel[] {
   return [
     ...summary.sceneBackgrounds.map((entry) => ({
       id: entry.sceneId,
       kind: "scene" as const,
       label: entry.sceneName,
-      detail: "Scene Background",
-      actionLabel: "Open Scene"
+      detail: t("Scene Background"),
+      actionLabel: t("Open Scene")
     })),
     ...summary.sceneAudioAssignments.map((entry) => ({
       id: entry.sceneId,
       kind: "scene" as const,
       label: entry.sceneName,
-      detail: "Scene Audio",
-      actionLabel: "Open Scene"
+      detail: t("Scene Audio"),
+      actionLabel: t("Open Scene")
     })),
     ...summary.hotspotMediaAssignments.map((entry) => ({
       id: entry.hotspotId,
       kind: "hotspot" as const,
       sceneId: entry.sceneId,
       label: entry.hotspotName,
-      detail: `Interaction Media in ${entry.sceneName}`,
-      actionLabel: "Open Hotspot"
+      detail: t("Interaction Media in {sceneName}", { sceneName: entry.sceneName }),
+      actionLabel: t("Open Hotspot")
     })),
     ...summary.dialogueMediaAssignments.map((entry) => ({
       id: entry.nodeId,
       kind: "dialogue" as const,
       dialogueId: entry.dialogueId,
       label: entry.nodeLabel,
-      detail: `Dialogue Media in ${entry.dialogueName}`,
-      actionLabel: "Open Line"
+      detail: t("Dialogue Media in {dialogueName}", { dialogueName: entry.dialogueName }),
+      actionLabel: t("Open Line")
     })),
     ...summary.inventoryImages.map((entry) => ({
       id: entry.itemId,
       kind: "inventory" as const,
       label: entry.itemName,
-      detail: "Inventory Image",
-      actionLabel: "Open Item"
+      detail: t("Inventory Image"),
+      actionLabel: t("Open Item")
     })),
     ...summary.responseEntries.map((entry) => ({
       id: entry.groupId,
       entryId: entry.entryId,
       kind: "response" as const,
       label: entry.groupName,
-      detail: `${entry.kind === "audio" ? "Audio" : "Video"} Response`,
-      actionLabel: "Open Response"
+      detail: entry.kind === "audio" ? t("Audio Response") : t("Video Response"),
+      actionLabel: t("Open Response")
     })),
     ...summary.playerPresentation.map((entry) => ({
       id: entry.role,
       kind: "player" as const,
-      label: entry.role === "titleBackground" ? "Title background" : entry.role === "appIcon" ? "Application icon" : "Logo",
-      detail: "Player presentation",
-      actionLabel: "Open Player"
+      label: entry.role === "titleBackground" ? t("Title background") : entry.role === "appIcon" ? t("Application icon") : t("Logo"),
+      detail: t("Player presentation"),
+      actionLabel: t("Open Player")
     }))
   ];
 }
@@ -1188,41 +1221,41 @@ function matchesAssetSearch(row: AssetRowModel, searchQuery: string): boolean {
   ].some((candidate) => candidate.toLowerCase().includes(trimmedQuery));
 }
 
-function resolveImportDialogTitle(filter: AssetLibraryFilter): string {
+function resolveImportDialogTitle(filter: AssetLibraryFilter, t: EditorTranslator): string {
   switch (filter) {
     case "background":
-      return "Import Background Assets";
+      return t("Import Background Assets");
     case "sceneAudio":
-      return "Import Scene Audio Assets";
+      return t("Import Scene Audio Assets");
     case "foreground":
-      return "Import Foreground Media";
+      return t("Import Foreground Media");
     case "inventory":
-      return "Import Inventory Assets";
+      return t("Import Inventory Assets");
     case "response":
-      return "Import Response Media";
+      return t("Import Response Media");
     case "player":
-      return "Import Player Artwork";
+      return t("Import Player Artwork");
     case "all":
-      return "Import Assets";
+      return t("Import Assets");
   }
 }
 
-function resolveImportDialogDescription(filter: AssetLibraryFilter): string {
+function resolveImportDialogDescription(filter: AssetLibraryFilter, t: EditorTranslator): string {
   switch (filter) {
     case "background":
-      return "Choose image or video files to add to the background asset library.";
+      return t("Choose image or video files to add to the background asset library.");
     case "sceneAudio":
-      return "Choose audio files to add to the scene audio asset library.";
+      return t("Choose audio files to add to the scene audio asset library.");
     case "foreground":
-      return "Choose audio or video files that can play from dialogue lines and hotspot interactions.";
+      return t("Choose audio or video files that can play from dialogue lines and hotspot interactions.");
     case "inventory":
-      return "Choose image files to add to the inventory asset library.";
+      return t("Choose image files to add to the inventory asset library.");
     case "response":
-      return "Choose audio or video files to use in response groups.";
+      return t("Choose audio or video files to use in response groups.");
     case "player":
-      return "Choose image files for the title screen, logo, or application icon.";
+      return t("Choose image files for the title screen, logo, or application icon.");
     case "all":
-      return "Choose media files to add to the asset library. Audio imports as scene audio; image and video imports as backgrounds.";
+      return t("Choose media files to add to the asset library. Audio imports as scene audio; image and video imports as backgrounds.");
   }
 }
 
@@ -1286,24 +1319,44 @@ function groupImportPathsByCategory(filePaths: string[], filter: AssetLibraryFil
   return groupedPaths;
 }
 
-function formatAssetCategoryLabel(category: AssetCategory): string {
+function formatAssetCategoryLabel(category: AssetCategory, t: EditorTranslator): string {
   switch (category) {
     case "background":
-      return "Background";
+      return t("Background");
     case "sceneAudio":
-      return "Scene Audio";
+      return t("Scene Audio");
     case "foreground":
-      return "Foreground Media";
+      return t("Foreground Media");
     case "inventory":
-      return "Inventory";
+      return t("Inventory");
     case "response":
-      return "Response";
+      return t("Response");
     case "player":
-      return "Player";
+      return t("Player");
   }
 }
 
-function formatUsageCountLabel(summary: AssetReferenceSummary): string {
+function formatAssetKindLabel(kind: Asset["kind"], t: EditorTranslator): string {
+  switch (kind) {
+    case "image":
+      return t("Image");
+    case "audio":
+      return t("Audio");
+    case "video":
+      return t("Video");
+  }
+}
+
+function interpolateEnglishMessage(
+  source: string,
+  params: Readonly<Record<string, string | number>> = {}
+): string {
+  return source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
+}
+
+function formatUsageCountLabel(summary: AssetReferenceSummary, t: EditorTranslator): string {
   const populatedReferenceKinds = [
     summary.sceneBackgrounds.length,
     summary.sceneAudioAssignments.length,
@@ -1312,34 +1365,34 @@ function formatUsageCountLabel(summary: AssetReferenceSummary): string {
     summary.inventoryImages.length
   ].filter((count) => count > 0).length;
   if (populatedReferenceKinds > 1) {
-    return countAssetReferences(summary) === 1 ? "reference" : "references";
+    return countAssetReferences(summary) === 1 ? t("reference") : t("references");
   }
 
   if (summary.sceneBackgrounds.length > 0) {
-    return `scene${summary.sceneBackgrounds.length === 1 ? "" : "s"}`;
+    return summary.sceneBackgrounds.length === 1 ? t("scene") : t("scenes");
   }
 
   if (summary.sceneAudioAssignments.length > 0) {
-    return `scene${summary.sceneAudioAssignments.length === 1 ? "" : "s"}`;
+    return summary.sceneAudioAssignments.length === 1 ? t("scene") : t("scenes");
   }
 
   if (summary.hotspotMediaAssignments.length > 0) {
-    return `hotspot${summary.hotspotMediaAssignments.length === 1 ? "" : "s"}`;
+    return summary.hotspotMediaAssignments.length === 1 ? t("hotspot") : t("hotspots");
   }
 
   if (summary.dialogueMediaAssignments.length > 0) {
-    return `line${summary.dialogueMediaAssignments.length === 1 ? "" : "s"}`;
+    return summary.dialogueMediaAssignments.length === 1 ? t("line") : t("lines");
   }
 
   if (summary.inventoryImages.length > 0) {
-    return `item${summary.inventoryImages.length === 1 ? "" : "s"}`;
+    return summary.inventoryImages.length === 1 ? t("item") : t("items");
   }
 
   if (summary.responseEntries.length > 0) {
-    return `response${summary.responseEntries.length === 1 ? "" : "s"}`;
+    return summary.responseEntries.length === 1 ? t("response") : t("responses");
   }
 
-  return "unused";
+  return t("unused");
 }
 
 function formatAssetDimensions(variant?: AssetVariant): string {
@@ -1373,13 +1426,13 @@ function resolveAssetRevealPath(variant?: AssetVariant): string | undefined {
   return variant?.importSourcePath ?? variant?.sourcePath;
 }
 
-function formatTotalKnownBytes(rows: AssetRowModel[]): string {
+function formatTotalKnownBytes(rows: AssetRowModel[], t: EditorTranslator): string {
   const knownBytes = rows.reduce((total, row) => {
     const rawSize = extractByteSizeFromAsset(row.asset);
     return rawSize ? total + rawSize : total;
   }, 0);
 
-  return knownBytes > 0 ? formatBytes(knownBytes) : "Unknown";
+  return knownBytes > 0 ? formatBytes(knownBytes) : t("Unknown");
 }
 
 function extractByteSizeFromAsset(asset: Asset): number | undefined {
@@ -1399,49 +1452,51 @@ function formatBytes(bytes: number): string {
   return `${Math.round(bytes / 1024 / 102.4) / 10} MB`;
 }
 
-function resolveDeleteSafetyMessage(row?: AssetRowModel): string {
+function resolveDeleteSafetyMessage(row: AssetRowModel | undefined, t: EditorTranslator): string {
   if (!row) {
-    return "Select an asset to review delete safety.";
+    return t("Select an asset to review delete safety.");
   }
 
   if (row.canDelete && row.usageCount === 0) {
-    return "This asset has no project references. Deleting it removes managed project copies and generated proxy files.";
+    return t("This asset has no project references. Deleting it removes managed project copies and generated proxy files.");
   }
 
   if (row.canDelete) {
-    return "This asset can be deleted. Current references will be cleared or reassigned using the existing project rules.";
+    return t("This asset can be deleted. Current references will be cleared or reassigned using the existing project rules.");
   }
 
   if (row.blockedReason === "inventory-image-in-use") {
-    return "This asset is used by an inventory item. Remove or replace that item image before deleting.";
+    return t("This asset is used by an inventory item. Remove or replace that item image before deleting.");
   }
 
   if (row.blockedReason === "response-media-in-use") {
-    return "This asset is used by a response. Choose different media or delete that response before deleting the asset.";
+    return t("This asset is used by a response. Choose different media or delete that response before deleting the asset.");
   }
 
   if (row.blockedReason === "background-in-use-without-replacement") {
-    return "This asset is used as a scene background and no replacement background asset is available.";
+    return t("This asset is used as a scene background and no replacement background asset is available.");
   }
 
   if (row.blockedReason === "player-asset-in-use") {
-    return "This asset is used by the player presentation. Choose another title, logo, or icon asset before deleting.";
+    return t("This asset is used by the player presentation. Choose another title, logo, or icon asset before deleting.");
   }
 
-  return "This asset cannot be deleted from the current project state.";
+  return t("This asset cannot be deleted from the current project state.");
 }
 
-function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenceSummary, fallbackAssetName?: string) {
+function renderDeleteAssetConfirmation(
+  assetName: string,
+  summary: AssetReferenceSummary,
+  fallbackAssetName: string | undefined,
+  t: EditorTranslator
+) {
   if (countAssetReferences(summary) === 0) {
     return (
       <>
-        <p>{`Delete "${assetName}" from the project library?`}</p>
+        <p>{t('Delete "{assetName}" from the project library?', { assetName })}</p>
         <div className="dialog-callout">
-          <strong>No in-project references found</strong>
-          <p>
-            This removes the asset from MAGE2, deletes any generated proxy files, deletes its project copy from this
-            project's assets folder when applicable, and leaves the original import source untouched.
-          </p>
+          <strong>{t("No in-project references found")}</strong>
+          <p>{t("This removes the asset from MAGE2, deletes any generated proxy files, deletes its project copy from this project's assets folder when applicable, and leaves the original import source untouched.")}</p>
         </div>
       </>
     );
@@ -1449,73 +1504,73 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
 
   const consequences: string[] = [];
   if (summary.sceneBackgrounds.length > 0 && fallbackAssetName) {
-    consequences.push(`Affected scene backgrounds will switch to "${fallbackAssetName}".`);
+    consequences.push(t('Affected scene backgrounds will switch to "{assetName}".', { assetName: fallbackAssetName }));
   }
   if (summary.sceneAudioAssignments.length > 0) {
-    consequences.push("Affected scene audio assignments will be cleared.");
+    consequences.push(t("Affected scene audio assignments will be cleared."));
   }
   if (summary.hotspotMediaAssignments.length > 0) {
-    consequences.push("Affected hotspot interaction media assignments will be cleared.");
+    consequences.push(t("Affected hotspot interaction media assignments will be cleared."));
   }
   if (summary.dialogueMediaAssignments.length > 0) {
-    consequences.push("Affected dialogue line media assignments will be cleared.");
+    consequences.push(t("Affected dialogue line media assignments will be cleared."));
   }
-  consequences.push("Any generated proxy files will be deleted.");
-  consequences.push("If this asset was copied into the project's assets folder, that project copy will be deleted.");
-  consequences.push("The original import source file on disk will not be deleted.");
+  consequences.push(t("Any generated proxy files will be deleted."));
+  consequences.push(t("If this asset was copied into the project's assets folder, that project copy will be deleted."));
+  consequences.push(t("The original import source file on disk will not be deleted."));
 
   return (
     <>
-      <p>{`Delete "${assetName}" from the project library?`}</p>
+      <p>{t('Delete "{assetName}" from the project library?', { assetName })}</p>
       <div className="dialog-callout">
-        <strong>Currently in use by</strong>
+        <strong>{t("Currently in use by")}</strong>
         <ul className="dialog-detail-list">
           {summary.sceneBackgrounds.length > 0 ? (
             <li>
-              {`Scene background${summary.sceneBackgrounds.length === 1 ? "" : "s"}: ${summary.sceneBackgrounds
-                .map((entry) => entry.sceneName)
-                .join(", ")}`}
+              {summary.sceneBackgrounds.length === 1
+                ? t("Scene background: {names}", { names: summary.sceneBackgrounds.map((entry) => entry.sceneName).join(", ") })
+                : t("Scene backgrounds: {names}", { names: summary.sceneBackgrounds.map((entry) => entry.sceneName).join(", ") })}
             </li>
           ) : null}
           {summary.sceneAudioAssignments.length > 0 ? (
             <li>
-              {`Scene audio assignment${summary.sceneAudioAssignments.length === 1 ? "" : "s"}: ${summary.sceneAudioAssignments
-                .map((entry) => entry.sceneName)
-                .join(", ")}`}
+              {summary.sceneAudioAssignments.length === 1
+                ? t("Scene audio assignment: {names}", { names: summary.sceneAudioAssignments.map((entry) => entry.sceneName).join(", ") })
+                : t("Scene audio assignments: {names}", { names: summary.sceneAudioAssignments.map((entry) => entry.sceneName).join(", ") })}
             </li>
           ) : null}
           {summary.hotspotMediaAssignments.length > 0 ? (
             <li>
-              {`Hotspot interaction media: ${summary.hotspotMediaAssignments
-                .map((entry) => `${entry.sceneName} / ${entry.hotspotName}`)
-                .join(", ")}`}
+              {t("Hotspot interaction media: {names}", {
+                names: summary.hotspotMediaAssignments.map((entry) => `${entry.sceneName} / ${entry.hotspotName}`).join(", ")
+              })}
             </li>
           ) : null}
           {summary.dialogueMediaAssignments.length > 0 ? (
             <li>
-              {`Dialogue line media: ${summary.dialogueMediaAssignments
-                .map((entry) => `${entry.dialogueName} / ${entry.nodeLabel}`)
-                .join(", ")}`}
+              {t("Dialogue line media: {names}", {
+                names: summary.dialogueMediaAssignments.map((entry) => `${entry.dialogueName} / ${entry.nodeLabel}`).join(", ")
+              })}
             </li>
           ) : null}
           {summary.inventoryImages.length > 0 ? (
             <li>
-              {`Inventory image${summary.inventoryImages.length === 1 ? "" : "s"}: ${summary.inventoryImages
-                .map((entry) => entry.itemName)
-                .join(", ")}`}
+              {summary.inventoryImages.length === 1
+                ? t("Inventory image: {names}", { names: summary.inventoryImages.map((entry) => entry.itemName).join(", ") })
+                : t("Inventory images: {names}", { names: summary.inventoryImages.map((entry) => entry.itemName).join(", ") })}
             </li>
           ) : null}
           {summary.responseEntries.length > 0 ? (
             <li>
-              {`Response${summary.responseEntries.length === 1 ? "" : "s"}: ${summary.responseEntries
-                .map((entry) => entry.groupName)
-                .join(", ")}`}
+              {summary.responseEntries.length === 1
+                ? t("Response: {names}", { names: summary.responseEntries.map((entry) => entry.groupName).join(", ") })
+                : t("Responses: {names}", { names: summary.responseEntries.map((entry) => entry.groupName).join(", ") })}
             </li>
           ) : null}
         </ul>
       </div>
       <div className="dialog-callout dialog-callout--danger">
-        <strong>What happens next</strong>
+        <strong>{t("What happens next")}</strong>
         <ul className="dialog-detail-list">
           {consequences.map((consequence) => (
             <li key={consequence}>{consequence}</li>
@@ -1528,48 +1583,50 @@ function renderDeleteAssetConfirmation(assetName: string, summary: AssetReferenc
 
 function resolveDeleteBlockedMessage(
   assetName: string,
-  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined
+  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined,
+  t: EditorTranslator
 ): string {
   if (blockedReason === "background-in-use-without-replacement") {
-    return `Cannot delete ${assetName} because it is still used as a scene background and there is no replacement asset available.`;
+    return t("Cannot delete {assetName} because it is still used as a scene background and there is no replacement asset available.", { assetName });
   }
 
   if (blockedReason === "inventory-image-in-use") {
-    return `Cannot delete ${assetName} because one or more inventory items still reference it.`;
+    return t("Cannot delete {assetName} because one or more inventory items still reference it.", { assetName });
   }
 
   if (blockedReason === "response-media-in-use") {
-    return `Cannot delete ${assetName} because one or more responses still use it.`;
+    return t("Cannot delete {assetName} because one or more responses still use it.", { assetName });
   }
 
   if (blockedReason === "player-asset-in-use") {
-    return `Cannot delete ${assetName} because the Player screen still references it.`;
+    return t("Cannot delete {assetName} because the Player screen still references it.", { assetName });
   }
 
-  return `${assetName} could not be deleted because it is no longer present in the project.`;
+  return t("{assetName} could not be deleted because it is no longer present in the project.", { assetName });
 }
 
 function resolveDeleteDisabledTitle(
   assetName: string,
-  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined
+  blockedReason: ReturnType<typeof removeAssetFromProject>["blockedReason"] | undefined,
+  t: EditorTranslator
 ): string {
   if (blockedReason === "background-in-use-without-replacement") {
-    return `${assetName} cannot be deleted until another asset is available to replace its scene background usage.`;
+    return t("{assetName} cannot be deleted until another asset is available to replace its scene background usage.", { assetName });
   }
 
   if (blockedReason === "inventory-image-in-use") {
-    return `${assetName} cannot be deleted until it is removed from every inventory item that references it.`;
+    return t("{assetName} cannot be deleted until it is removed from every inventory item that references it.", { assetName });
   }
 
   if (blockedReason === "response-media-in-use") {
-    return `${assetName} cannot be deleted until it is removed from every response that references it.`;
+    return t("{assetName} cannot be deleted until it is removed from every response that references it.", { assetName });
   }
 
   if (blockedReason === "player-asset-in-use") {
-    return `${assetName} cannot be deleted until it is replaced or cleared in Player.`;
+    return t("{assetName} cannot be deleted until it is replaced or cleared in Player.", { assetName });
   }
 
-  return `${assetName} could not be deleted because it is no longer present in the project.`;
+  return t("{assetName} could not be deleted because it is no longer present in the project.", { assetName });
 }
 
 function resolveDeleteStatusMessage(
@@ -1580,40 +1637,48 @@ function resolveDeleteStatusMessage(
   deletedProxyFileCount: number,
   cleanupError: string | undefined,
   valid: boolean,
-  issueCount: number
+  issueCount: number,
+  t: EditorTranslator
 ): string {
-  const segments = [`Deleted ${assetName}.`];
+  const segments = [t("Deleted {assetName}.", { assetName })];
 
   if (deletion.referenceSummary.sceneBackgrounds.length > 0 && fallbackAssetName) {
     segments.push(
-      `Reassigned ${deletion.referenceSummary.sceneBackgrounds.length} scene background${
-        deletion.referenceSummary.sceneBackgrounds.length === 1 ? "" : "s"
-      } to ${fallbackAssetName}.`
+      deletion.referenceSummary.sceneBackgrounds.length === 1
+        ? t("Reassigned {count} scene background to {assetName}.", { count: 1, assetName: fallbackAssetName })
+        : t("Reassigned {count} scene backgrounds to {assetName}.", {
+            count: deletion.referenceSummary.sceneBackgrounds.length,
+            assetName: fallbackAssetName
+          })
     );
   }
 
   if (deletion.referenceSummary.sceneAudioAssignments.length > 0) {
     segments.push(
-      `Cleared ${deletion.referenceSummary.sceneAudioAssignments.length} scene audio assignment${
-        deletion.referenceSummary.sceneAudioAssignments.length === 1 ? "" : "s"
-      }.`
+      deletion.referenceSummary.sceneAudioAssignments.length === 1
+        ? t("Cleared {count} scene audio assignment.", { count: 1 })
+        : t("Cleared {count} scene audio assignments.", { count: deletion.referenceSummary.sceneAudioAssignments.length })
     );
   }
 
   if (deletedSourceFileCount > 0) {
-    segments.push(`Deleted ${deletedSourceFileCount} project asset file${deletedSourceFileCount === 1 ? "" : "s"}.`);
+    segments.push(deletedSourceFileCount === 1
+      ? t("Deleted {count} project asset file.", { count: 1 })
+      : t("Deleted {count} project asset files.", { count: deletedSourceFileCount }));
   }
 
   if (deletedProxyFileCount > 0) {
-    segments.push(`Deleted ${deletedProxyFileCount} generated proxy file${deletedProxyFileCount === 1 ? "" : "s"}.`);
+    segments.push(deletedProxyFileCount === 1
+      ? t("Deleted {count} generated proxy file.", { count: 1 })
+      : t("Deleted {count} generated proxy files.", { count: deletedProxyFileCount }));
   }
 
   if (!valid) {
-    segments.push(`Saved with ${issueCount} validation issue(s).`);
+    segments.push(t("Saved with {count} validation issue(s).", { count: issueCount }));
   }
 
   if (cleanupError) {
-    segments.push(`Asset file cleanup failed: ${cleanupError}`);
+    segments.push(t("Asset file cleanup failed: {message}", { message: cleanupError }));
   }
 
   return segments.join(" ");

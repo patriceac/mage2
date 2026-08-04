@@ -210,7 +210,7 @@ label > .checkbox-list {
   gap: 0.85rem;
   width: env(titlebar-area-width, calc(100% - var(--titlebar-controls-reserved-width)));
   max-width: calc(100% - var(--titlebar-controls-reserved-width));
-  margin-left: env(titlebar-area-x, 0px);
+  margin-inline-start: env(titlebar-area-x, 0px);
 }
 
 .titlebar-shell__identity {
@@ -343,6 +343,8 @@ label > .checkbox-list {
 }
 
 .titlebar-shell--landing {
+  min-height: max(2.5rem, env(titlebar-area-height, 0px));
+  padding-block: 0.14rem;
   background: rgba(7, 12, 17, 0.96);
 }
 
@@ -352,7 +354,7 @@ label > .checkbox-list {
 }
 
 .titlebar-shell__inner--landing {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .app-shell--editor-workbench .titlebar-shell__title {
@@ -505,7 +507,7 @@ label > .checkbox-list {
   -webkit-app-region: no-drag;
   position: absolute;
   top: calc(100% + 0.45rem);
-  right: 0;
+  inset-inline-end: 0;
   z-index: 100;
   min-width: 13rem;
   display: grid;
@@ -526,11 +528,72 @@ label > .checkbox-list {
   border-radius: 14px;
   background: transparent;
   color: #e8eef4;
-  text-align: left;
+  text-align: start;
 }
 
 .titlebar-menu__item:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.titlebar-menu__separator {
+  height: 1px;
+  margin: 0.15rem 0.45rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.titlebar-menu__language-group {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.titlebar-menu__section-label {
+  padding: 0.35rem 0.9rem 0.2rem;
+  color: #9aa9b7;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-align: start;
+}
+
+.titlebar-menu__language-item {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 15rem;
+}
+
+.titlebar-menu__submenu {
+  position: relative;
+}
+
+.titlebar-menu__submenu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.titlebar-menu__submenu-trigger svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  transform: rotate(90deg);
+}
+
+.app-shell--editor-workbench .titlebar-menu__submenu-panel {
+  top: -0.4rem;
+  inset-inline-start: auto;
+  inset-inline-end: calc(100% + 0.35rem);
+}
+
+html[dir="rtl"] .app-shell {
+  text-align: start;
+}
+
+html[dir="rtl"] .titlebar-shell__history-actions,
+html[dir="rtl"] .media-surface,
+html[dir="rtl"] .scenes-panel__stage-layout,
+html[dir="rtl"] .scenes-panel__canvas-toolbar {
+  direction: ltr;
 }
 
 .tab-strip {
@@ -7302,6 +7365,18 @@ button.recent-project__icon-button:hover {
   font-weight: 600;
 }
 
+.app-shell--landing
+  button.titlebar-menu__trigger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  min-height: 1.7rem;
+  border-color: transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #9fb0be;
+  padding: 0.25rem 0.52rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .app-shell--editor-workbench
   button.titlebar-shell__history-button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
   width: 1.7rem;
@@ -7315,6 +7390,15 @@ button.recent-project__icon-button:hover {
 .app-shell--editor-workbench
   button.titlebar-menu__trigger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover,
 .app-shell--editor-workbench
+  button.titlebar-menu__trigger.titlebar-menu__trigger--open:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  border-color: rgba(159, 176, 190, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+}
+
+.app-shell--landing
+  button.titlebar-menu__trigger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover,
+.app-shell--landing
   button.titlebar-menu__trigger.titlebar-menu__trigger--open:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
   border-color: rgba(159, 176, 190, 0.22);
   background: rgba(255, 255, 255, 0.08);

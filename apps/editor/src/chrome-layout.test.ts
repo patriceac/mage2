@@ -38,6 +38,9 @@ describe("editor chrome styles", () => {
     expect(styles).toContain(".app-shell--landing {");
     expect(styles).toContain("grid-template-rows: auto minmax(0, 1fr);");
     expect(styles).toContain(".titlebar-shell__mark {");
+    expect(styles).toMatch(/\.titlebar-shell--landing\s*\{[\s\S]*?padding-block: 0\.14rem;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.titlebar-shell__inner--landing\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto;[\s\S]*?\}/);
+    expect(styles).toMatch(/\.app-shell--landing[\s\S]*?button\.titlebar-menu__trigger[\s\S]*?border-radius: 6px;[\s\S]*?background: transparent;/);
     expect(styles).toContain(".app-shell--landing .landing {");
     expect(styles).toContain("overflow: auto;");
     expect(styles).toContain(".app-shell--landing .landing__workspace,");
@@ -131,9 +134,9 @@ describe("editor chrome styles", () => {
     expect(appSource).toContain("app-shell--editor-workbench");
     expect(appSource).toContain('className="titlebar-shell__actions app-region-no-drag"');
     expect(appSource).toContain('className="titlebar-shell__history-button"');
-    expect(appSource).toContain('aria-label="Undo"');
-    expect(appSource).toContain('aria-label="Redo"');
-    expect(appSource).toContain('<nav className="scene-screen-tabs" aria-label="Editor screens">');
+    expect(appSource).toContain('aria-label={t("Undo")}');
+    expect(appSource).toContain('aria-label={t("Redo")}');
+    expect(appSource).toContain('<nav className="scene-screen-tabs" aria-label={t("Editor screens")}>');
     expect(appSource).toContain("scene-screen-tabs__tab scene-screen-tabs__tab--active app-region-no-drag");
     expect(appSource).toContain("scene-screen-tabs__tab app-region-no-drag");
     expect(appSource).not.toContain("Open editor sections");
@@ -153,7 +156,22 @@ describe("editor chrome styles", () => {
   });
 
   it("describes the project save state without implying autosave exists", () => {
-    expect(appSource).toContain('hasUnsavedChanges ? "Unsaved changes" : "Saved"');
+    expect(appSource).toContain('hasUnsavedChanges ? t("Unsaved changes") : t("Saved")');
     expect(appSource).not.toContain("Autosave:");
+  });
+
+  it("keeps interface language available and protects directional editor geometry", () => {
+    expect(appSource).toContain('t("Interface language")');
+    expect(appSource).toContain('<span>{t("Language")}</span>');
+    expect(appSource).toContain('className="titlebar-menu__item titlebar-menu__submenu-trigger"');
+    expect(appSource).toContain('renderInterfaceLanguageItems("file-submenu")');
+    expect(styles).toContain(".titlebar-menu__submenu-panel");
+    expect(appSource).toContain('t("Automatic ({autonym})"');
+    expect(appSource).toContain("BUILT_IN_LOCALE_AUTONYMS[automaticLocale]");
+    expect(appSource).not.toContain("BUILT_IN_LOCALE_AUTONYMS[locale]");
+    expect(appSource).toContain('role="menuitemradio"');
+    expect(styles).toContain('html[dir="rtl"] .titlebar-shell__history-actions');
+    expect(styles).toContain('html[dir="rtl"] .media-surface');
+    expect(styles).toContain("direction: ltr;");
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { AssetPreview } from "../../previews";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
 import {
   clampFloatingWindowPosition,
   resolveNextFloatingWindowPosition,
@@ -55,6 +56,7 @@ export function InventoryPlacementPickerWindow({
   onSearchChange,
   onDismiss
 }: InventoryPlacementPickerWindowProps) {
+  const { t } = useEditorI18n();
   const pickerRef = useRef<HTMLElement>(null);
   const itemListRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -270,48 +272,49 @@ export function InventoryPlacementPickerWindow({
       >
         <header className="scenes-floating-inspector__header">
           <div className="scenes-floating-inspector__title-group">
-            <p className="eyebrow">Scene Placement</p>
-            <h3 id={pickerTitleId}>Add inventory item</h3>
+            <p className="eyebrow">{t("Scene Placement")}</p>
+            <h3 id={pickerTitleId}>{t("Add inventory item")}</h3>
           </div>
           <button
             type="button"
             className="button-secondary scenes-floating-inspector__close"
-            title="Hide the inventory placement picker."
+            aria-label={t("Close inventory placement picker")}
+            title={t("Hide the inventory placement picker.")}
             onClick={onDismiss}
           >
-            Close
+            {t("Close")}
           </button>
         </header>
 
         <div className="scenes-floating-inspector__body scenes-floating-inspector__body--inventory-picker">
           {showEmptyInventoryState ? (
             <div className="list-card scenes-inventory-picker__empty-state">
-              <strong>No items are ready to place</strong>
-              <p className="muted">Add artwork to an item to make it available here.</p>
+              <strong>{t("No items are ready to place")}</strong>
+              <p className="muted">{t("Add artwork to an item to make it available here.")}</p>
             </div>
           ) : (
             <>
               <label className="localization-filter localization-filter--search scenes-inventory-picker__search">
-                <span className="field-label--inset">Search</span>
+                <span className="field-label--inset">{t("Search")}</span>
                 <input
                   ref={searchInputRef}
                   value={search}
-                  placeholder="Search inventory items"
+                  placeholder={t("Search inventory items")}
                   onChange={(event) => onSearchChange(event.target.value)}
                 />
               </label>
 
               <div className="list-card list-card--compact scenes-inventory-picker__preview">
-                <strong>{activeItem?.label ?? "No matching items"}</strong>
+                <strong>{activeItem?.label ?? t("No matching items")}</strong>
                 <p className="muted scenes-inventory-picker__description">
-                  {activeItem?.description?.trim() || (options.length === 0 ? "No matching items" : "No description available.")}
+                  {activeItem?.description?.trim() || (options.length === 0 ? t("No matching items") : t("No description available."))}
                 </p>
-                <p className="muted scenes-inventory-picker__drag-hint">Drag an item onto the scene to place it</p>
+                <p className="muted scenes-inventory-picker__drag-hint">{t("Drag an item onto the scene to place it")}</p>
               </div>
 
               {options.length === 0 ? (
                 <div className="list-card list-card--compact scenes-inventory-picker__empty-state">
-                  <strong>No matching items</strong>
+                  <strong>{t("No matching items")}</strong>
                 </div>
               ) : (
                 <div ref={itemListRef} className="list-stack scenes-inventory-picker__list">
@@ -332,7 +335,7 @@ export function InventoryPlacementPickerWindow({
                         draggable
                         data-floating-window-drag-ignore="true"
                         className="scenes-inventory-picker__item-drag-handle"
-                        title={`Drag ${option.label} onto the scene to place it.`}
+                        title={t("Drag {itemLabel} onto the scene to place it.", { itemLabel: option.label })}
                         onMouseDown={(event) => event.stopPropagation()}
                         onDragStart={(event) => handleItemDragStart(event, option.itemId)}
                         onDragEnd={handleItemDragEnd}
@@ -345,8 +348,8 @@ export function InventoryPlacementPickerWindow({
                             allowSourceFallback
                             preferPosterForImages
                             fit="contain"
-                            emptyTitle="No item image"
-                            emptyBody="Assign item artwork in Inventory."
+                            emptyTitle={t("No item image")}
+                            emptyBody={t("Assign item artwork in Inventory.")}
                           />
                         </div>
                       </div>
@@ -360,7 +363,7 @@ export function InventoryPlacementPickerWindow({
                         onFocus={() => onActiveItemIdChange(option.itemId)}
                         onClick={(event) => handlePlaceButtonClick(event, option.itemId)}
                       >
-                        Place
+                        {t("Place")}
                       </button>
                     </article>
                   ))}

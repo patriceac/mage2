@@ -18,6 +18,7 @@ import { normalizeSupportedLocales } from "./localization";
 import {
   CINEMATIC_STARTER_KIT_ID,
   CINEMATIC_STARTER_KIT_VERSION,
+  collectPlayerUiOverrides,
   DEFAULT_PLAYER_CREDITS_TEXT_ID,
   DEFAULT_PLAYER_TAGLINE_TEXT_ID,
   seedPlayerExperienceStrings
@@ -183,6 +184,7 @@ export function createInitialSaveState(project: ProjectBundle): SaveState {
 }
 
 export function toExportProjectData(project: ProjectBundle): ExportProjectData {
+  const playerUiOverrides = collectPlayerUiOverrides(project);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     manifest: project.manifest,
@@ -193,7 +195,8 @@ export function toExportProjectData(project: ProjectBundle): ExportProjectData {
     responseGroups: project.dialogues.responseGroups,
     starterResponsesVersion: project.dialogues.starterResponsesVersion,
     inventoryItems: project.inventory.items,
-    strings: project.strings.byLocale
+    strings: project.strings.byLocale,
+    ...(Object.keys(playerUiOverrides).length > 0 ? { playerUiOverrides } : {})
   };
 }
 

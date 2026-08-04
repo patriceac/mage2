@@ -8,6 +8,8 @@ const initialLaunchOptions = ipcRenderer.sendSync("mage2:get-launch-options-sync
 
 const editorApi = {
   getLaunchOptionsSync: (): EditorLaunchOptions => initialLaunchOptions,
+  getPreferredSystemLanguagesSync: (): string[] =>
+    ipcRenderer.sendSync("mage2:get-preferred-system-languages-sync"),
   onCloseRequested: (handler: () => boolean | Promise<boolean>): (() => void) => {
     const listener = () => {
       void Promise.resolve()
@@ -110,6 +112,7 @@ const editorAutomation = {
     };
 
     ipcRenderer.on("mage2:automation-command", listener);
+    ipcRenderer.send("mage2:automation-renderer-ready");
     return () => {
       ipcRenderer.removeListener("mage2:automation-command", listener);
     };

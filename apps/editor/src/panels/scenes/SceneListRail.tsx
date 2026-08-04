@@ -7,6 +7,8 @@ import {
 } from "react";
 import type { ProjectBundle } from "@mage2/schema";
 import { AssetPreview } from "../../previews";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
+import type { EditorTranslator } from "../../i18n/translate";
 import { ChevronDownIcon, SceneToolIcon } from "./SceneEditorIcons";
 
 type ProjectScene = ProjectBundle["scenes"]["items"][number];
@@ -38,6 +40,10 @@ interface SceneSwitcherOption {
 }
 
 type SceneActionMenuItem = "rename" | "delete";
+const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
 
 export function SceneListRail({
   activeLocale,
@@ -50,6 +56,7 @@ export function SceneListRail({
   onDeleteScene,
   onSelectScene
 }: SceneListRailProps) {
+  const { t } = useEditorI18n();
   const locationMenuRef = useRef<HTMLDivElement>(null);
   const locationMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const locationMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -69,20 +76,21 @@ export function SceneListRail({
   const locationSwitcherOptions = resolveLocationSwitcherOptions(
     project.locations.items,
     project.scenes.items,
-    currentScene.locationId
+    currentScene.locationId,
+    t
   );
   const currentLocationSwitcherIndex = Math.max(
     locationSwitcherOptions.findIndex((option) => option.locationId === currentScene.locationId),
     0
   );
-  const sceneSwitcherOptions = resolveSceneSwitcherOptions(project.scenes.items, project.locations.items, currentSceneId);
+  const sceneSwitcherOptions = resolveSceneSwitcherOptions(project.scenes.items, project.locations.items, currentSceneId, t);
   const currentSceneSwitcherIndex = Math.max(
     sceneSwitcherOptions.findIndex((option) => option.sceneId === currentSceneId),
     0
   );
   const sceneListItems = project.scenes.items.map((scene) => ({
     scene,
-    locationName: project.locations.items.find((location) => location.id === scene.locationId)?.name ?? "Unknown location",
+    locationName: project.locations.items.find((location) => location.id === scene.locationId)?.name ?? t("Unknown location"),
     asset: project.assets.assets.find((asset) => asset.id === scene.backgroundAssetId)
   }));
 
@@ -383,16 +391,16 @@ export function SceneListRail({
   }
 
   return (
-    <aside className="scenes-panel__side-controls" aria-label="Scene controls">
+    <aside className="scenes-panel__side-controls" aria-label={t("Scene controls")}>
       <p className="scenes-panel__rail-heading">
-        <span>Scenes</span>
+        <span>{t("Scenes")}</span>
         <span className="scenes-panel__rail-heading-action" aria-hidden="true">
           <ChevronDownIcon />
         </span>
       </p>
       <div className="scenes-panel__selectors">
-        <label title="Choose which world location owns the currently selected scene.">
-          <span className="field-label--inset">Location</span>
+        <label title={t("Choose which world location owns the currently selected scene.")}>
+          <span className="field-label--inset">{t("Location")}</span>
           <div className="scenes-panel__selector-row">
             <div className="scene-switcher" ref={locationMenuRef}>
               <button
@@ -406,7 +414,7 @@ export function SceneListRail({
                 aria-haspopup="menu"
                 aria-expanded={isLocationMenuOpen}
                 aria-controls={locationMenuId}
-                aria-label="Switch location"
+                aria-label={t("Switch location")}
                 onClick={() => {
                   onClearHotspotSelection();
                   setIsSceneMenuOpen(false);
@@ -417,10 +425,10 @@ export function SceneListRail({
                   onClearHotspotSelection();
                   setIsSceneMenuOpen(false);
                 }}
-                title="Move this scene to a different location."
+                title={t("Move this scene to a different location.")}
               >
                 <span className="scene-switcher__value">
-                  {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? "Unknown location"}
+                  {locationSwitcherOptions[currentLocationSwitcherIndex]?.locationName ?? t("Unknown location")}
                 </span>
                 <span
                   className={isLocationMenuOpen ? "scene-switcher__trigger scene-switcher__trigger--open" : "scene-switcher__trigger"}
@@ -431,7 +439,7 @@ export function SceneListRail({
               </button>
 
               {isLocationMenuOpen ? (
-                <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label="Locations">
+                <div id={locationMenuId} className="scene-switcher__menu" role="menu" aria-label={t("Locations")}>
                   {locationSwitcherOptions.map((option, index) => (
                     <button
                       key={option.locationId}
@@ -444,7 +452,7 @@ export function SceneListRail({
                       aria-checked={option.isCurrent}
                       onClick={() => handleLocationMenuSelect(option.locationId)}
                       onKeyDown={(event) => handleLocationMenuItemKeyDown(index, event)}
-                      title={`Move this scene to ${option.locationName}.`}
+                      title={t("Move this scene to {locationName}.", { locationName: option.locationName })}
                     >
                       <strong>{option.locationName}</strong>
                       <span>{option.sceneCountLabel}</span>
@@ -456,16 +464,16 @@ export function SceneListRail({
             <button
               type="button"
               className="scenes-panel__selector-action"
-              aria-label="Open location picker"
-              title="Open the location picker."
+              aria-label={t("Open location picker")}
+              title={t("Open the location picker.")}
               onClick={() => setIsLocationMenuOpen((value) => !value)}
             >
               <SceneToolIcon kind="edit" />
             </button>
           </div>
         </label>
-        <label title="Switch between scenes to edit their media, hotspots, and wiring.">
-          <span className="field-label--inset">Scene</span>
+        <label title={t("Switch between scenes to edit their media, hotspots, and wiring.")}>
+          <span className="field-label--inset">{t("Scene")}</span>
           <div className="scenes-panel__selector-row">
             <div className="scene-switcher" ref={sceneMenuRef}>
               <div className="scene-switcher__control">
@@ -473,7 +481,7 @@ export function SceneListRail({
                   ref={sceneNameInputRef}
                   className="scene-switcher__input"
                   value={currentScene.name}
-                  aria-label="Scene name"
+                  aria-label={t("Scene name")}
                   onFocus={() => setIsSceneMenuOpen(false)}
                   onChange={(event) =>
                     mutateProject((draft) => {
@@ -491,17 +499,17 @@ export function SceneListRail({
                   aria-haspopup="menu"
                   aria-expanded={isSceneMenuOpen}
                   aria-controls={sceneMenuId}
-                  aria-label="Switch scenes"
+                  aria-label={t("Switch scenes")}
                   onClick={() => setIsSceneMenuOpen((value) => !value)}
                   onKeyDown={handleSceneMenuTriggerKeyDown}
-                  title="Open the scene switcher."
+                  title={t("Open the scene switcher.")}
                 >
                   <ChevronDownIcon />
                 </button>
               </div>
 
               {isSceneMenuOpen ? (
-                <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label="Scenes">
+                <div id={sceneMenuId} className="scene-switcher__menu" role="menu" aria-label={t("Scenes")}>
                   {sceneSwitcherOptions.map((option, index) => (
                     <button
                       key={option.sceneId}
@@ -514,7 +522,10 @@ export function SceneListRail({
                       aria-checked={option.isCurrent}
                       onClick={() => selectScene(option.sceneId)}
                       onKeyDown={(event) => handleSceneMenuItemKeyDown(index, event)}
-                      title={`Switch to ${option.sceneName} in ${option.locationName}.`}
+                      title={t("Switch to {sceneName} in {locationName}.", {
+                        sceneName: option.sceneName,
+                        locationName: option.locationName
+                      })}
                     >
                       <strong>{option.sceneName}</strong>
                       <span>{option.locationName}</span>
@@ -526,8 +537,8 @@ export function SceneListRail({
             <button
               type="button"
               className="scenes-panel__selector-action"
-              aria-label="Create scene"
-              title="Create a new scene in this location."
+              aria-label={t("Create scene")}
+              title={t("Create a new scene in this location.")}
               onClick={() => {
                 setOpenSceneActionMenuId(undefined);
                 onCreateScene();
@@ -538,7 +549,7 @@ export function SceneListRail({
           </div>
         </label>
       </div>
-      <div className="scenes-panel__scene-list" aria-label="Scenes in this project">
+      <div className="scenes-panel__scene-list" aria-label={t("Scenes in this project")}>
         {sceneListItems.map(({ scene, locationName, asset }) => {
           const isCurrentScene = scene.id === currentScene.id;
           const isActionMenuOpen = openSceneActionMenuId === scene.id;
@@ -558,7 +569,7 @@ export function SceneListRail({
                 type="button"
                 className="scenes-panel__scene-list-main"
                 onClick={() => selectScene(scene.id, { focusName: false })}
-                title={`Open ${scene.name} in ${locationName}.`}
+                title={t("Open {sceneName} in {locationName}.", { sceneName: scene.name, locationName })}
               >
                 <span className="scenes-panel__scene-thumb" aria-hidden="true">
                   <AssetPreview asset={asset} locale={activeLocale} interactive={false} allowSourceFallback preferPosterForImages />
@@ -579,7 +590,7 @@ export function SceneListRail({
                       ? "scenes-panel__scene-list-action scenes-panel__scene-list-action--open"
                       : "scenes-panel__scene-list-action"
                   }
-                  aria-label={`Open actions for ${scene.name}`}
+                  aria-label={t("Open actions for {sceneName}", { sceneName: scene.name })}
                   aria-haspopup="menu"
                   aria-expanded={isActionMenuOpen}
                   aria-controls={isActionMenuOpen ? actionMenuId : undefined}
@@ -589,7 +600,7 @@ export function SceneListRail({
                     setOpenSceneActionMenuId(isActionMenuOpen ? undefined : scene.id);
                   }}
                   onKeyDown={(event) => handleSceneActionMenuTriggerKeyDown(scene.id, event)}
-                  title={`Open actions for ${scene.name}.`}
+                  title={t("Open actions for {sceneName}.", { sceneName: scene.name })}
                 >
                   <span className="scenes-panel__scene-list-kebab" aria-hidden="true">
                     <span />
@@ -603,7 +614,7 @@ export function SceneListRail({
                     id={actionMenuId}
                     className="scenes-panel__scene-actions-menu"
                     role="menu"
-                    aria-label={`Actions for ${scene.name}`}
+                    aria-label={t("Actions for {sceneName}", { sceneName: scene.name })}
                   >
                     {resolveSceneActionMenuItems().map((item) => (
                       <button
@@ -627,7 +638,7 @@ export function SceneListRail({
                         }}
                         onKeyDown={handleSceneActionMenuItemKeyDown}
                       >
-                        {resolveSceneActionMenuItemLabel(item)}
+                        {resolveSceneActionMenuItemLabel(item, t)}
                       </button>
                     ))}
                   </div>
@@ -644,7 +655,8 @@ export function SceneListRail({
 export function resolveLocationSwitcherOptions(
   locations: ProjectBundle["locations"]["items"],
   scenes: ProjectBundle["scenes"]["items"],
-  currentLocationId?: string
+  currentLocationId?: string,
+  t: EditorTranslator = identityEditorTranslator
 ): LocationSwitcherOption[] {
   const sceneCounts = new Map<string, number>();
   for (const scene of scenes) {
@@ -656,7 +668,7 @@ export function resolveLocationSwitcherOptions(
     return {
       locationId: location.id,
       locationName: location.name,
-      sceneCountLabel: sceneCount === 1 ? "1 scene" : `${sceneCount} scenes`,
+      sceneCountLabel: sceneCount === 1 ? t("{count} scene", { count: sceneCount }) : t("{count} scenes", { count: sceneCount }),
       isCurrent: location.id === currentLocationId
     };
   });
@@ -666,21 +678,22 @@ export function resolveSceneActionMenuItems(): SceneActionMenuItem[] {
   return ["rename", "delete"];
 }
 
-function resolveSceneActionMenuItemLabel(item: SceneActionMenuItem) {
-  return item === "rename" ? "Rename" : "Delete";
+function resolveSceneActionMenuItemLabel(item: SceneActionMenuItem, t: EditorTranslator = identityEditorTranslator) {
+  return item === "rename" ? t("Rename") : t("Delete");
 }
 
 export function resolveSceneSwitcherOptions(
   scenes: ProjectBundle["scenes"]["items"],
   locations: ProjectBundle["locations"]["items"],
-  currentSceneId?: string
+  currentSceneId?: string,
+  t: EditorTranslator = identityEditorTranslator
 ): SceneSwitcherOption[] {
   const locationNames = new Map(locations.map((location) => [location.id, location.name]));
 
   return scenes.map((scene) => ({
     sceneId: scene.id,
     sceneName: scene.name,
-    locationName: locationNames.get(scene.locationId) ?? "Unknown location",
+    locationName: locationNames.get(scene.locationId) ?? t("Unknown location"),
     isCurrent: scene.id === currentSceneId
   }));
 }

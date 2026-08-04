@@ -255,6 +255,10 @@ function registerIpcHandlers(): void {
     pendingLaunchOptions = {};
   });
 
+  onTrustedIpc("mage2:get-preferred-system-languages-sync", (event) => {
+    event.returnValue = app.getPreferredSystemLanguages();
+  });
+
   onTrustedIpc("mage2:get-recent-projects-sync", (event) => {
     event.returnValue = loadRecentProjects(app.getPath("userData"));
   });

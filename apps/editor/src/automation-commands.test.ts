@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { parseEditorAutomationCommand } from "./automation-commands";
 
 describe("parseEditorAutomationCommand", () => {
@@ -19,6 +20,7 @@ describe("parseEditorAutomationCommand", () => {
     });
     expect(parseEditorAutomationCommand({ command: "saveProject" })).toEqual({ command: "saveProject" });
     expect(parseEditorAutomationCommand({ command: "exportProject" })).toEqual({ command: "exportProject" });
+    expect(parseEditorAutomationCommand({ command: "closeApplication" })).toEqual({ command: "closeApplication" });
   });
 
   it("rejects an empty release project path", () => {
@@ -29,6 +31,28 @@ describe("parseEditorAutomationCommand", () => {
         projectName: "Release Evidence"
       })
     ).toThrow(/projectDir/u);
+  });
+
+  it("accepts interface locale control commands", () => {
+    expect(parseEditorAutomationCommand({ command: "setInterfaceLocale", locale: "ar" })).toEqual({
+      command: "setInterfaceLocale",
+      locale: "ar"
+    });
+    expect(parseEditorAutomationCommand({ command: "resetInterfaceLocale" })).toEqual({ command: "resetInterfaceLocale" });
+  });
+
+  it("rejects unsupported interface locales", () => {
+    expect(() => parseEditorAutomationCommand({ command: "setInterfaceLocale", locale: "de" })).toThrow(/locale/u);
+  });
+
+  it("exposes interface locale state without mutating the project", () => {
+    const appSource = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+    expect(appSource).toContain("uiLocale,");
+    expect(appSource).toContain("uiLocalePreference,");
+    expect(appSource).toContain("uiDirection,");
+    expect(appSource).toContain('case "setInterfaceLocale"');
+    expect(appSource).toContain('case "resetInterfaceLocale"');
+    expect(appSource).not.toMatch(/case "setInterfaceLocale"[\s\S]*?updateProject\(/u);
   });
 
   it("accepts an editor command to open the hotspot inspector for a specific hotspot", () => {

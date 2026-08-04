@@ -23,6 +23,8 @@ import {
   type FloatingWindowPosition
 } from "../../floating-window";
 import { setEditorLocalizedText } from "../../localized-project";
+import { useEditorI18n } from "../../i18n/EditorI18nProvider";
+import type { EditorTranslator } from "../../i18n/translate";
 import { JsonField, parseJsonWithFallback } from "./JsonField";
 import {
   applyHotspotFeedbackValue,
@@ -62,6 +64,10 @@ const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
   width: 420,
   height: 640
 };
+const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
+  source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
+    Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
+  );
 
 const useFloatingWindowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -86,6 +92,7 @@ export function HotspotInspectorWindow({
   onImportInteractionMedia,
   onDismiss
 }: HotspotInspectorWindowProps) {
+  const { t } = useEditorI18n();
   const inspectorRef = useRef<HTMLElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
   const [isHovered, setIsHovered] = useState(false);
@@ -149,9 +156,9 @@ export function HotspotInspectorWindow({
   const placementItemLabel = inventoryAction.itemId
     ? inventoryItemOptions
         .find((option) => option.itemId === inventoryAction.itemId)
-        ?.label.replace(/ \(missing valid art\)$/u, "") ?? inventoryAction.itemId
-    : "configured item";
-  const primaryHotspotEventLabel = isPlacementHotspot ? `Use ${placementItemLabel}` : "On click";
+        ?.baseLabel ?? inventoryAction.itemId
+    : t("configured item");
+  const primaryHotspotEventLabel = isPlacementHotspot ? t("Use {itemLabel}", { itemLabel: placementItemLabel }) : t("On click");
 
   useEffect(() => {
     return () => {
@@ -246,14 +253,14 @@ export function HotspotInspectorWindow({
       >
         <header className="scenes-floating-inspector__header">
           <div className="scenes-floating-inspector__title-group">
-            <p className="eyebrow">Hotspot Inspector</p>
-            <h3 id={inspectorTitleId}>Hotspot Inspector</h3>
+            <p className="eyebrow">{t("Hotspot Inspector")}</p>
+            <h3 id={inspectorTitleId}>{t("Hotspot Inspector")}</h3>
           </div>
           <button
             type="button"
             className="button-secondary scenes-floating-inspector__close"
-            aria-label="Close hotspot inspector"
-            title="Hide the floating hotspot inspector."
+            aria-label={t("Close hotspot inspector")}
+            title={t("Hide the floating hotspot inspector.")}
             onClick={onDismiss}
           >
             <span aria-hidden="true">x</span>
@@ -263,12 +270,12 @@ export function HotspotInspectorWindow({
         <div className="scenes-floating-inspector__body">
           <div className="scenes-floating-inspector__sections">
             <details open className="scenes-floating-inspector__section">
-              <summary className="scenes-floating-inspector__section-title">Identity</summary>
-            <label title="Visible hotspot title shown in the editor and runtime.">
-              <span className="field-label--inset">Name</span>
+              <summary className="scenes-floating-inspector__section-title">{t("Identity")}</summary>
+            <label title={t("Visible hotspot title shown in the editor and runtime.")}>
+              <span className="field-label--inset">{t("Name")}</span>
               <input
                 value={selectedHotspot.name}
-                title="Visible hotspot title shown in the editor and runtime."
+                title={t("Visible hotspot title shown in the editor and runtime.")}
                 onChange={(event) =>
                   mutateSelectedHotspot((hotspot) => {
                     hotspot.name = event.target.value;
@@ -276,8 +283,8 @@ export function HotspotInspectorWindow({
                 }
               />
             </label>
-            <label title="Optional secondary text shown inside this hotspot under the main label.">
-              <span className="field-label--inset">Comment</span>
+            <label title={t("Optional secondary text shown inside this hotspot under the main label.")}>
+              <span className="field-label--inset">{t("Comment")}</span>
               <input
                 value={selectedHotspot.commentTextId ? localeStrings[selectedHotspot.commentTextId] ?? "" : ""}
                 onChange={(event) =>
@@ -290,7 +297,7 @@ export function HotspotInspectorWindow({
             </label>
             </details>
             <details open className="scenes-floating-inspector__section">
-              <summary className="scenes-floating-inspector__section-title">Action</summary>
+              <summary className="scenes-floating-inspector__section-title">{t("Action")}</summary>
             <HotspotInventoryActionControls
               inventoryAction={resolveHotspotInventoryAction(selectedHotspot)}
               inventoryItemOptions={inventoryItemOptions}
@@ -299,14 +306,14 @@ export function HotspotInspectorWindow({
             />
             </details>
             <details open className="scenes-floating-inspector__section">
-              <summary className="scenes-floating-inspector__section-title">Geometry</summary>
+              <summary className="scenes-floating-inspector__section-title">{t("Geometry")}</summary>
             <div className="four-grid">
               {(
                 [
-                  ["x", "X", "Horizontal position of the hotspot bounds as a normalized value from 0 to 1."],
-                  ["y", "Y", "Vertical position of the hotspot bounds as a normalized value from 0 to 1."],
-                  ["width", "W", "Hotspot bounds width as a normalized percentage of the scene surface."],
-                  ["height", "H", "Hotspot bounds height as a normalized percentage of the scene surface."]
+                  ["x", "X", t("Horizontal position of the hotspot bounds as a normalized value from 0 to 1.")],
+                  ["y", "Y", t("Vertical position of the hotspot bounds as a normalized value from 0 to 1.")],
+                  ["width", "W", t("Hotspot bounds width as a normalized percentage of the scene surface.")],
+                  ["height", "H", t("Hotspot bounds height as a normalized percentage of the scene surface.")]
                 ] as const
               ).map(([field, label, tooltip]) => (
                 <label key={field} title={tooltip}>
@@ -347,13 +354,13 @@ export function HotspotInspectorWindow({
               ))}
             </div>
             <div className="stack-inline">
-              <label title="Rendered rotation angle in degrees for this hotspot.">
-                  <span className="field-label--inset">Angle (&deg;)</span>
+              <label title={t("Rendered rotation angle in degrees for this hotspot.")}>
+                  <span className="field-label--inset">{t("Angle (degrees)")}</span>
                   <input
                     type="number"
                     step="0.1"
                     value={formatHotspotRotationDegrees(selectedHotspotRotationDegrees)}
-                    title="Rendered rotation angle in degrees for this hotspot."
+                    title={t("Rendered rotation angle in degrees for this hotspot.")}
                     disabled={!rotationSurfaceSize}
                     onChange={(event) => {
                       const nextRotationDegrees = Number(event.target.value);
@@ -368,11 +375,11 @@ export function HotspotInspectorWindow({
             </div>
             </details>
             <details open className="scenes-floating-inspector__section scenes-floating-inspector__section--timing">
-              <summary className="scenes-floating-inspector__section-title">Timing</summary>
+              <summary className="scenes-floating-inspector__section-title">{t("Timing")}</summary>
             <div className="stack-inline">
               <label
                 className="scene-video-loop-toggle scenes-hotspot-duration-toggle"
-                title="Keep this hotspot active for the full scene timeline."
+                title={t("Keep this hotspot active for the full scene timeline.")}
               >
                 <input
                   type="checkbox"
@@ -392,16 +399,16 @@ export function HotspotInspectorWindow({
                     })
                   }
                 />
-                <span>Use scene duration</span>
+                <span>{t("Use scene duration")}</span>
               </label>
             </div>
             <div className="stack-inline scenes-floating-inspector__timing-fields">
-              <label title="Time in milliseconds when this hotspot becomes clickable.">
-                <span className="field-label--inset">Start (ms)</span>
+              <label title={t("Time in milliseconds when this hotspot becomes clickable.")}>
+                <span className="field-label--inset">{t("Start (ms)")}</span>
                 <input
                   type="number"
                   value={selectedHotspotTimingWindow.startMs}
-                  title="Time in milliseconds when this hotspot becomes clickable."
+                  title={t("Time in milliseconds when this hotspot becomes clickable.")}
                   disabled={isUsingSceneDurationTiming}
                   onChange={(event) =>
                     mutateSelectedHotspot((hotspot) => {
@@ -411,12 +418,12 @@ export function HotspotInspectorWindow({
                   }
                 />
               </label>
-              <label title="Time in milliseconds when this hotspot stops being clickable.">
-                <span className="field-label--inset">End (ms)</span>
+              <label title={t("Time in milliseconds when this hotspot stops being clickable.")}>
+                <span className="field-label--inset">{t("End (ms)")}</span>
                 <input
                   type="number"
                   value={selectedHotspotTimingWindow.endMs}
-                  title="Time in milliseconds when this hotspot stops being clickable."
+                  title={t("Time in milliseconds when this hotspot stops being clickable.")}
                   disabled={isUsingSceneDurationTiming}
                   onChange={(event) =>
                     mutateSelectedHotspot((hotspot) => {
@@ -431,8 +438,8 @@ export function HotspotInspectorWindow({
             {isPlacementHotspot ? (
               <HotspotEventSection
                 open
-                title="On click"
-                description="Runs only when the player clicks this hotspot without an inventory item selected. Leave every field empty for no response."
+                title={t("On click")}
+                description={t("Runs only when the player clicks this hotspot without an inventory item selected. Leave every field empty for no response.")}
                 event={selectedHotspot.clickEvent ?? { effects: [] }}
                 scenes={scenes}
                 dialogueOptions={dialogueOptions}
@@ -451,8 +458,8 @@ export function HotspotInspectorWindow({
               title={primaryHotspotEventLabel}
               description={
                 isPlacementHotspot
-                  ? `Runs only when ${placementItemLabel} is selected and used on this hotspot.`
-                  : "Runs when the player clicks this hotspot without an inventory item selected."
+                  ? t("Runs only when {itemLabel} is selected and used on this hotspot.", { itemLabel: placementItemLabel })
+                  : t("Runs when the player clicks this hotspot without an inventory item selected.")
               }
               event={selectedHotspot}
               scenes={scenes}
@@ -468,11 +475,11 @@ export function HotspotInspectorWindow({
             />
             {isPlacementHotspot || selectedHotspot.otherItemEvent ? (
               <HotspotEventSection
-                title={isPlacementHotspot ? "Any other item" : "Use any item"}
+                title={isPlacementHotspot ? t("Any other item") : t("Use any item")}
                 description={
                   isPlacementHotspot
-                    ? `Runs only when the player uses a selected item other than ${placementItemLabel}. Leave every field empty for no response.`
-                    : "Runs when the player uses any selected inventory item on this hotspot. Leave every field empty for no response."
+                    ? t("Runs only when the player uses a selected item other than {itemLabel}. Leave every field empty for no response.", { itemLabel: placementItemLabel })
+                    : t("Runs when the player uses any selected inventory item on this hotspot. Leave every field empty for no response.")
                 }
                 event={selectedHotspot.otherItemEvent ?? { effects: [] }}
                 scenes={scenes}
@@ -488,9 +495,9 @@ export function HotspotInspectorWindow({
               />
             ) : null}
             <details open className="scenes-floating-inspector__section">
-              <summary className="scenes-floating-inspector__section-title">Interaction Media</summary>
-              <label title="Audio or video that plays once when this hotspot is activated, independently of scene background media.">
-                <span className="field-label--inset">Foreground Media</span>
+              <summary className="scenes-floating-inspector__section-title">{t("Interaction Media")}</summary>
+              <label title={t("Audio or video that plays once when this hotspot is activated, independently of scene background media.")}>
+                <span className="field-label--inset">{t("Foreground Media")}</span>
                 <DropdownSelect
                   value={selectedHotspot.mediaAssetId ?? ""}
                   onChange={(event) =>
@@ -499,10 +506,10 @@ export function HotspotInspectorWindow({
                     })
                   }
                 >
-                  <option value="">No interaction media</option>
+                  <option value="">{t("No interaction media")}</option>
                   {selectedHotspot.mediaAssetId &&
                   !foregroundMediaAssets.some((asset) => asset.id === selectedHotspot.mediaAssetId) ? (
-                    <option value={selectedHotspot.mediaAssetId}>Missing foreground media</option>
+                    <option value={selectedHotspot.mediaAssetId}>{t("Missing foreground media")}</option>
                   ) : null}
                   {foregroundMediaAssets.map((asset) => (
                     <option key={asset.id} value={asset.id}>
@@ -513,17 +520,17 @@ export function HotspotInspectorWindow({
               </label>
               <div className="scenes-floating-inspector__interaction-media-actions">
                 <button type="button" className="button-secondary" onClick={() => onImportInteractionMedia(selectedHotspot)}>
-                  Import Audio / Video
+                  {t("Import Audio / Video")}
                 </button>
                 <p className="muted scenes-floating-inspector__interaction-media-note">
-                  Plays once on activation; it does not replace or loop with the scene background.
+                  {t("Plays once on activation; it does not replace or loop with the scene background.")}
                 </p>
               </div>
             </details>
             <details className="scenes-floating-inspector__section scenes-floating-inspector__section--advanced">
-              <summary className="scenes-floating-inspector__section-title">Advanced</summary>
-            <label title="Comma-separated inventory item IDs required before this hotspot can be used.">
-              <span className="field-label--inset">Required Item IDs</span>
+              <summary className="scenes-floating-inspector__section-title">{t("Advanced")}</summary>
+            <label title={t("Comma-separated inventory item IDs required before this hotspot can be used.")}>
+              <span className="field-label--inset">{t("Required Item IDs")}</span>
               <input
                 value={selectedHotspot.requiredItemIds.join(", ")}
                 onChange={(event) =>
@@ -537,9 +544,9 @@ export function HotspotInspectorWindow({
               />
             </label>
             <JsonField
-              label="Conditions JSON"
+              label={t("Conditions JSON")}
               value={JSON.stringify(selectedHotspot.conditions, null, 2)}
-              tooltip="Advanced JSON condition list that must pass before this hotspot is enabled."
+              tooltip={t("Advanced JSON condition list that must pass before this hotspot is enabled.")}
               labelClassName="field-label--inset"
               onCommit={(nextValue) =>
                 mutateSelectedHotspot((hotspot) => {
@@ -580,14 +587,15 @@ function HotspotEventSection({
   open,
   onChange
 }: HotspotEventSectionProps) {
+  const { t } = useEditorI18n();
   const feedbackValue = resolveHotspotFeedbackValue(event);
-  const feedbackOptions = buildHotspotFeedbackOptions(responseGroups, dialogueOptions, assets, localeStrings);
+  const feedbackOptions = buildHotspotFeedbackOptions(responseGroups, dialogueOptions, assets, localeStrings, t);
   return (
     <details open={open} className="scenes-floating-inspector__section">
       <summary className="scenes-floating-inspector__section-title">{title}</summary>
       <p className="muted">{description}</p>
-      <label title={`Scene that should open for ${title}.`}>
-        <span className="field-label--inset">Target Scene</span>
+      <label title={t("Scene that should open for {eventTitle}.", { eventTitle: title })}>
+        <span className="field-label--inset">{t("Target Scene")}</span>
         <DropdownSelect
           value={event.targetSceneId ?? ""}
           onChange={(changeEvent) =>
@@ -596,7 +604,7 @@ function HotspotEventSection({
             })
           }
         >
-          <option value="">None</option>
+          <option value="">{t("None")}</option>
           {scenes.map((scene) => (
             <option key={scene.id} value={scene.id}>
               {scene.name}
@@ -604,8 +612,8 @@ function HotspotEventSection({
           ))}
         </DropdownSelect>
       </label>
-      <label title={`Optional player-facing feedback for ${title}. None means the interaction stays silent.`}>
-        <span className="field-label--inset">Player feedback</span>
+      <label title={t("Optional player-facing feedback for {eventTitle}. None means the interaction stays silent.", { eventTitle: title })}>
+        <span className="field-label--inset">{t("Player feedback")}</span>
         <DropdownSelect
           value={feedbackValue}
           onChange={(changeEvent) =>
@@ -614,34 +622,34 @@ function HotspotEventSection({
             })
           }
         >
-          <option value="">None (silent)</option>
+          <option value="">{t("None (silent)")}</option>
           {feedbackValue && !feedbackOptions.some((option) => option.value === feedbackValue) ? (
-            <option value={feedbackValue}>Missing player feedback</option>
+            <option value={feedbackValue}>{t("Missing player feedback")}</option>
           ) : null}
-          <optgroup label="Random from a response group">
+          <optgroup label={t("Random from a response group")}>
             {feedbackOptions.filter((option) => option.kind === "group").map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </optgroup>
-          <optgroup label="One specific response">
+          <optgroup label={t("One specific response")}>
             {feedbackOptions.filter((option) => option.kind === "entry").map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </optgroup>
-          <optgroup label="Dialogue">
+          <optgroup label={t("Dialogue")}>
             {feedbackOptions.filter((option) => option.kind === "dialogue").map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </optgroup>
         </DropdownSelect>
         <span className="scenes-event-feedback-note">
-          Choose a group for variety, one response for an exact line, or a dialogue for a conversation. None does nothing.
+          {t("Choose a group for variety, one response for an exact line, or a dialogue for a conversation. None does nothing.")}
         </span>
       </label>
       <JsonField
-        label="Effects JSON"
+        label={t("Effects JSON")}
         value={JSON.stringify(event.effects, null, 2)}
-        tooltip={`Custom effects that run only for ${title}.`}
+        tooltip={t("Custom effects that run only for {eventTitle}.", { eventTitle: title })}
         labelClassName="field-label--inset"
         onCommit={(nextValue) =>
           onChange((hotspotEvent) => {
@@ -662,20 +670,25 @@ function buildHotspotFeedbackOptions(
   responseGroups: ResponseGroup[],
   dialogues: ProjectBundle["dialogues"]["items"],
   assets: ProjectBundle["assets"]["assets"],
-  strings: Record<string, string>
+  strings: Record<string, string>,
+  t: EditorTranslator = identityEditorTranslator
 ): HotspotFeedbackOption[] {
   const options: HotspotFeedbackOption[] = [];
   for (const group of responseGroups) {
-    options.push({ kind: "group", value: `group:${group.id}`, label: `${group.name} (${group.entries.length})` });
+    options.push({
+      kind: "group",
+      value: `group:${group.id}`,
+      label: t("{groupName} ({count})", { groupName: group.name, count: group.entries.length })
+    });
     for (const [index, entry] of group.entries.entries()) {
       const entryLabel =
         entry.kind === "text"
-          ? strings[entry.textId]?.trim() || `Untitled text ${index + 1}`
-          : assets.find((asset) => asset.id === entry.assetId)?.name ?? `Choose ${entry.kind}`;
+          ? strings[entry.textId]?.trim() || t("Untitled text {number}", { number: index + 1 })
+          : assets.find((asset) => asset.id === entry.assetId)?.name ?? t("Choose {mediaKind}", { mediaKind: entry.kind });
       options.push({
         kind: "entry",
         value: `entry:${entry.id}`,
-        label: `${group.name} \u2014 ${entryLabel}`
+        label: t("{groupName} — {entryLabel}", { groupName: group.name, entryLabel })
       });
     }
   }
@@ -731,6 +744,7 @@ function HotspotInventoryActionControls({
   selectedHotspot: Hotspot;
   mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
 }) {
+  const { t } = useEditorI18n();
   const actionItemId = inventoryAction.itemId ?? selectedHotspot.placedInventoryItemId ?? selectedHotspot.inventoryItemId ?? "";
   const hasInventoryItems = inventoryItemOptions.length > 0;
   const firstEligibleItemId = inventoryItemOptions.find((option) => option.eligible)?.itemId ?? "";
@@ -738,15 +752,15 @@ function HotspotInventoryActionControls({
   const selectedActionLabel = inventoryItemOptions.find((option) => option.itemId === actionItemId)?.label ?? actionItemId;
 
   return (
-    <section className="scenes-hotspot-action-card" aria-label="Hotspot action">
+    <section className="scenes-hotspot-action-card" aria-label={t("Hotspot action")}>
       <div className="scenes-hotspot-action-card__header">
-        <span className="field-label--inset">Action</span>
+        <span className="field-label--inset">{t("Action")}</span>
         <p className="muted scenes-hotspot-action-card__summary">
-          {resolveHotspotInventoryActionSummary(inventoryAction.type, selectedActionLabel)}
+          {resolveHotspotInventoryActionSummary(inventoryAction.type, selectedActionLabel, t)}
         </p>
       </div>
-      <label title="Choose whether this hotspot picks up an item, accepts a placed item, or stays as a normal hotspot.">
-        <span className="field-label--inset">Behavior</span>
+      <label title={t("Choose whether this hotspot picks up an item, accepts a placed item, or stays as a normal hotspot.")}>
+        <span className="field-label--inset">{t("Behavior")}</span>
         <DropdownSelect
           value={actionType}
           onChange={(event) => {
@@ -757,17 +771,17 @@ function HotspotInventoryActionControls({
             });
           }}
         >
-          <option value="none">No inventory action</option>
+          <option value="none">{t("No inventory action")}</option>
           <option value="pickupItem" disabled={!hasInventoryItems}>
-            Pick up item
+            {t("Pick up item")}
           </option>
           <option value="placeItem" disabled={!hasInventoryItems}>
-            Place item here
+            {t("Place item here")}
           </option>
         </DropdownSelect>
       </label>
-      <label title="Inventory item used by the selected hotspot behavior. Choosing an item on a normal hotspot makes it pick-upable.">
-        <span className="field-label--inset">Item</span>
+      <label title={t("Inventory item used by the selected hotspot behavior. Choosing an item on a normal hotspot makes it pick-upable.")}>
+        <span className="field-label--inset">{t("Item")}</span>
         <DropdownSelect
           value={actionItemId}
           onChange={(event) =>
@@ -778,7 +792,7 @@ function HotspotInventoryActionControls({
             })
           }
         >
-          <option value="">{hasInventoryItems ? "No item" : "No inventory items"}</option>
+          <option value="">{hasInventoryItems ? t("No item") : t("No inventory items")}</option>
           {inventoryItemOptions.map((option) => (
             <option key={option.itemId} value={option.itemId}>
               {option.label}
@@ -788,11 +802,11 @@ function HotspotInventoryActionControls({
       </label>
       <div
         className="scenes-hotspot-action-card__derived"
-        title="This behavior is derived from the selected inventory action."
+        title={t("This behavior is derived from the selected inventory action.")}
       >
-        <span className="field-label--inset">When activated</span>
+        <span className="field-label--inset">{t("When activated")}</span>
         <p className="muted scenes-hotspot-action-card__summary">
-          {resolveHotspotInventoryActivationSummary(actionType, Boolean(actionItemId))}
+          {resolveHotspotInventoryActivationSummary(actionType, Boolean(actionItemId), t)}
         </p>
       </div>
     </section>

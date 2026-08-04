@@ -21,11 +21,13 @@ interface AutomationResponse {
 
 const AUTOMATION_RESULT_CHANNEL = "mage2:automation-command-result";
 const AUTOMATION_COMMAND_CHANNEL = "mage2:automation-command";
+const AUTOMATION_RENDERER_READY_CHANNEL = "mage2:automation-renderer-ready";
 const DEFAULT_AUTOMATION_PORT = 47632;
 const AUTOMATION_TIMEOUT_MS = 10000;
 const MAX_REQUEST_BYTES = 1024 * 1024;
 
 let hasRegisteredAutomationResultHandler = false;
+let automationRendererReady = false;
 const pendingAutomationRequests = new Map<
   string,
   {
@@ -44,6 +46,15 @@ export function startEditorAutomationServer({
   }
 
   registerAutomationResultHandler(validateSender);
+  automationRendererReady = false;
+  ipcMain.on(AUTOMATION_RENDERER_READY_CHANNEL, (event) => {
+    try {
+      validateSender(event);
+      automationRendererReady = true;
+    } catch {
+      // Ignore readiness signals from untrusted renderers.
+    }
+  });
 
   const port = resolveAutomationPort();
   const token = resolveAutomationToken();
@@ -124,7 +135,7 @@ async function handleAutomationHttpRequest(
     }
 
     if (request.method === "GET" && request.url === "/health") {
-      writeJson(response, 200, { ok: true });
+      writeJson(response, 200, { ok: true, ready: automationRendererReady });
       return;
     }
 

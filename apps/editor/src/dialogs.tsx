@@ -13,6 +13,7 @@ import {
 import type { ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "./DropdownSelect";
 import { resolveFileUrl } from "./file-url-cache";
+import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "./i18n";
 import {
   countInventoryItemReferences,
   countSceneReferences,
@@ -374,6 +375,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 export function useDialogs(): DialogContextValue {
   const context = useContext(DialogContext);
   if (!context) {
+    // i18n-ignore-next-line -- developer invariant, never presented as editor chrome
     throw new Error("useDialogs must be used inside a DialogProvider.");
   }
 
@@ -603,44 +605,43 @@ function isFileBrowserImageEntry(entry: FileBrowserEntry): boolean {
   return entry.kind === "file" && Boolean(entry.extension && FILE_BROWSER_IMAGE_EXTENSIONS.has(entry.extension.toLowerCase()));
 }
 
-function resolveFileBrowserType(entry: FileBrowserEntry): string {
+function resolveFileBrowserType(entry: FileBrowserEntry, t: EditorTranslator): string {
   if (entry.kind === "directory") {
-    return "File folder";
+    return t("File folder");
   }
 
   if (!entry.extension) {
-    return "File";
+    return t("File");
   }
 
-  return `${entry.extension.replace(/^\./, "").toUpperCase()} file`;
+  return t("{extension} file", { extension: entry.extension.replace(/^\./, "").toUpperCase() });
 }
 
-function formatFileBrowserModified(modifiedAtMs: number | undefined): string {
+export function formatFileBrowserModified(modifiedAtMs: number | undefined, locale = "en"): string {
   if (!modifiedAtMs) {
     return "—";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat(locale, {
     month: "numeric",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit"
   })
-    .format(new Date(modifiedAtMs))
-    .replace(",", "");
+    .format(new Date(modifiedAtMs));
 }
 
-function formatFileBrowserSize(entry: FileBrowserEntry): string {
+export function formatFileBrowserSize(entry: FileBrowserEntry, locale = "en"): string {
   if (entry.kind === "directory" || entry.sizeBytes === undefined) {
     return "—";
   }
 
   if (entry.sizeBytes < 1024) {
-    return `${entry.sizeBytes} B`;
+    return new Intl.NumberFormat(locale, { style: "unit", unit: "byte", unitDisplay: "short" }).format(entry.sizeBytes);
   }
 
-  const units = ["KB", "MB", "GB"];
+  const units = ["kilobyte", "megabyte", "gigabyte"] as const;
   let size = entry.sizeBytes / 1024;
   let unitIndex = 0;
 
@@ -649,7 +650,12 @@ function formatFileBrowserSize(entry: FileBrowserEntry): string {
     unitIndex += 1;
   }
 
-  return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: units[unitIndex],
+    unitDisplay: "short",
+    maximumFractionDigits: size >= 10 ? 0 : 1
+  }).format(size);
 }
 
 function formatBreadcrumbLabel(label: string): string {
@@ -716,23 +722,24 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useEditorI18n();
   return (
     <DialogFrame
-      title={options.title}
+      title={t(options.title)}
       wide={false}
       tone={options.tone}
       onCancel={onCancel}
       footer={
         <div className="dialog-actions">
           <button type="button" className="button-secondary" onClick={onCancel} autoFocus>
-            {options.cancelLabel ?? "Cancel"}
+            {options.cancelLabel ? t(options.cancelLabel) : t("Cancel")}
           </button>
           <button
             type="button"
             className={options.tone === "danger" ? "button-danger" : "button-accent"}
             onClick={onConfirm}
           >
-            {options.confirmLabel ?? "Confirm"}
+            {options.confirmLabel ? t(options.confirmLabel) : t("Confirm")}
           </button>
         </div>
       }
@@ -749,16 +756,17 @@ function AlertDialog({
   options: AlertDialogOptions;
   onResolve: () => void;
 }) {
+  const { t } = useEditorI18n();
   return (
     <DialogFrame
-      title={options.title}
+      title={t(options.title)}
       wide={false}
       tone={options.tone}
       onCancel={onResolve}
       footer={
         <div className="dialog-actions">
           <button type="button" className="button-accent" onClick={onResolve} autoFocus>
-            {options.confirmLabel ?? "Close"}
+            {options.confirmLabel ? t(options.confirmLabel) : t("Close")}
           </button>
         </div>
       }
@@ -775,6 +783,7 @@ function PromptTextDialog({
   options: PromptTextDialogOptions;
   onResolve: (value: string | undefined) => void;
 }) {
+  const { t } = useEditorI18n();
   const [value, setValue] = useState(options.initialValue ?? "");
   const trimmedValue = value.trim();
 
@@ -789,27 +798,27 @@ function PromptTextDialog({
 
   return (
     <DialogFrame
-      title={options.title}
-      description={options.description}
+      title={t(options.title)}
+      description={options.description ? t(options.description) : undefined}
       wide={false}
       onCancel={() => onResolve(undefined)}
       footer={
         <div className="dialog-actions">
           <button type="button" className="button-secondary" onClick={() => onResolve(undefined)}>
-            {options.cancelLabel ?? "Cancel"}
+            {options.cancelLabel ? t(options.cancelLabel) : t("Cancel")}
           </button>
           <button type="submit" form="prompt-text-dialog-form" className="button-accent" disabled={!trimmedValue}>
-            {options.confirmLabel ?? "Continue"}
+            {options.confirmLabel ? t(options.confirmLabel) : t("Continue")}
           </button>
         </div>
       }
     >
       <form id="prompt-text-dialog-form" className="dialog-stack" onSubmit={handleSubmit}>
         <label>
-          <span className="field-label--inset">{options.label}</span>
+          <span className="field-label--inset">{t(options.label)}</span>
           <input
             value={value}
-            placeholder={options.placeholder}
+            placeholder={options.placeholder ? t(options.placeholder) : undefined}
             autoFocus
             onChange={(event) => setValue(event.target.value)}
           />
@@ -826,31 +835,32 @@ function CloseProjectDialog({
   projectName: string;
   onResolve: (value: "save" | "discard" | "cancel") => void;
 }) {
+  const { t } = useEditorI18n();
   return (
     <DialogFrame
-      title="Save Changes?"
+      title={t("Save Changes?")}
       onCancel={() => onResolve("cancel")}
       footer={
         <div className="dialog-actions dialog-actions--spread">
           <button type="button" className="button-secondary" onClick={() => onResolve("cancel")}>
-            Cancel
+            {t("Cancel")}
           </button>
           <div className="dialog-button-row">
             <button type="button" className="button-danger" onClick={() => onResolve("discard")}>
-              Discard Changes
+              {t("Discard Changes")}
             </button>
             <button type="button" className="button-accent" onClick={() => onResolve("save")} autoFocus>
-              Save and Close
+              {t("Save and Close")}
             </button>
           </div>
         </div>
       }
     >
       <div className="dialog-stack">
-        <p>{`Save changes to “${projectName}” before closing MAGE2?`}</p>
+        <p>{t("Save changes to “{projectName}” before closing MAGE2?", { projectName })}</p>
         <div className="dialog-callout">
-          <strong>Unsaved work detected</strong>
-          <p>Discarding these changes cannot be undone.</p>
+          <strong>{t("Unsaved work detected")}</strong>
+          <p>{t("Discarding these changes cannot be undone.")}</p>
         </div>
       </div>
     </DialogFrame>
@@ -864,6 +874,7 @@ function DeleteSceneDialog({
   options: DeleteSceneDialogOptions;
   onResolve: (value: DeleteSceneDialogResult) => void;
 }) {
+  const { locale, t } = useEditorI18n();
   const deletedScene = options.project.scenes.items.find((scene) => scene.id === options.sceneId);
   const replacementCandidates = options.project.scenes.items.filter((scene) => scene.id !== options.sceneId);
   const [mode, setMode] = useState<"cleanup" | "rewire">("cleanup");
@@ -883,27 +894,28 @@ function DeleteSceneDialog({
     : undefined;
   const canRewire = replacementCandidates.length > 0;
   const confirmDisabled = !deletedScene || (mode === "rewire" && !replacementScene);
-  const referenceRows = resolveSceneReferenceRows(options.referenceSummary);
+  const referenceRows = resolveSceneReferenceRows(options.referenceSummary, locale, t);
   const outcomeRows = resolveDeleteSceneOutcomeRows(
     options.referenceSummary,
     mode,
     replacementScene?.name,
-    replacementLocationName
+    replacementLocationName,
+    t
   );
-  const confirmLabel = mode === "rewire" ? "Delete and Rewire" : "Delete and Clean";
+  const confirmLabel = mode === "rewire" ? t("Delete and Rewire") : t("Delete and Clean");
   const summaryMessage =
     mode === "rewire"
       ? replacementScene
-        ? `References will be rewired to ${replacementScene.name}.`
-        : "Choose a replacement scene to finish rewiring."
+        ? t("References will be rewired to {name}.", { name: replacementScene.name })
+        : t("Choose a replacement scene to finish rewiring.")
       : options.referenceSummary.isStartScene
-      ? "Cleanup will leave the project with an invalid start scene until you choose a new one."
-      : "Cleanup will remove references to the deleted scene and keep the rest of the project intact.";
+      ? t("Cleanup will leave the project with an invalid start scene until you choose a new one.")
+      : t("Cleanup will remove references to the deleted scene and keep the rest of the project intact.");
 
   return (
     <DialogFrame
-      title={deletedScene ? `Delete ${deletedScene.name}?` : "Delete Scene"}
-      description="Choose whether to clean references to this scene or redirect them to another scene before deleting it."
+      title={deletedScene ? t("Delete {name}?", { name: deletedScene.name }) : t("Delete Scene")}
+      description={t("Choose whether to clean references to this scene or redirect them to another scene before deleting it.")}
       wide
       tone="danger"
       onCancel={() => onResolve({ action: "cancel" })}
@@ -917,7 +929,7 @@ function DeleteSceneDialog({
               onClick={() => onResolve({ action: "cancel" })}
               autoFocus
             >
-              Keep Scene
+              {t("Keep Scene")}
             </button>
             <button
               type="button"
@@ -940,36 +952,38 @@ function DeleteSceneDialog({
       <div className="dialog-stack scene-delete-dialog">
         <p>
           {deletedScene
-            ? `Delete "${deletedScene.name}" from this project? This removes the scene and its hotspots from the world.`
-            : "This scene is no longer available to delete."}
+            ? t('Delete "{name}" from this project? This removes the scene and its hotspots from the world.', {
+                name: deletedScene.name
+              })
+            : t("This scene is no longer available to delete.")}
         </p>
 
         <div className="dialog-callout dialog-callout--danger">
-          <strong>Permanent scene deletion</strong>
+          <strong>{t("Permanent scene deletion")}</strong>
           <p>
-            Dialogue trees remain in the project, but any references to this scene inside them will be cleaned or rewired.
+            {t("Dialogue trees remain in the project, but any references to this scene inside them will be cleaned or rewired.")}
           </p>
         </div>
 
         <div className="scene-delete-dialog__preview-grid">
           <ScenePreviewCard
-            label="Deleting"
+            label={t("Deleting")}
             scene={deletedScene}
             locationName={deletedLocationName}
             asset={deletedAsset}
-            emptyTitle="Scene not found"
-            emptyBody="The selected scene could not be loaded."
+            emptyTitle={t("Scene not found")}
+            emptyBody={t("The selected scene could not be loaded.")}
           />
           <ScenePreviewCard
-            label="Replacement"
+            label={t("Replacement")}
             scene={mode === "rewire" ? replacementScene : undefined}
             locationName={replacementLocationName}
             asset={replacementAsset}
-            emptyTitle="No replacement scene"
+            emptyTitle={t("No replacement scene")}
             emptyBody={
               mode === "rewire"
-                ? "Pick a replacement scene to preview the rewire target here."
-                : "Switch to Rewire references if you want to preview a replacement scene."
+                ? t("Pick a replacement scene to preview the rewire target here.")
+                : t("Switch to Rewire references if you want to preview a replacement scene.")
             }
           />
         </div>
@@ -981,8 +995,8 @@ function DeleteSceneDialog({
               className={mode === "cleanup" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
               onClick={() => setMode("cleanup")}
             >
-              <strong>Clean References</strong>
-              <span>Remove references to the deleted scene, even if that leaves the project invalid.</span>
+              <strong>{t("Clean References")}</strong>
+              <span>{t("Remove references to the deleted scene, even if that leaves the project invalid.")}</span>
             </button>
             <button
               type="button"
@@ -990,11 +1004,11 @@ function DeleteSceneDialog({
               disabled={!canRewire}
               onClick={() => setMode("rewire")}
             >
-              <strong>Rewire References</strong>
+              <strong>{t("Rewire References")}</strong>
               <span>
                 {canRewire
-                  ? "Redirect scene references to another scene that you choose."
-                  : "Create another scene first if you want to rewire references instead of cleaning them."}
+                  ? t("Redirect scene references to another scene that you choose.")
+                  : t("Create another scene first if you want to rewire references instead of cleaning them.")}
               </span>
             </button>
           </div>
@@ -1002,16 +1016,16 @@ function DeleteSceneDialog({
 
         {mode === "rewire" ? (
           <label>
-            <span className="field-label--inset">Replacement Scene</span>
+            <span className="field-label--inset">{t("Replacement Scene")}</span>
             <DropdownSelect value={replacementSceneId} onChange={(event) => setReplacementSceneId(event.target.value)}>
-              <option value="">Select a replacement scene</option>
+              <option value="">{t("Select a replacement scene")}</option>
               {replacementCandidates.map((scene) => {
                 const locationName =
                   options.project.locations.items.find((location) => location.id === scene.locationId)?.name ??
-                  "Unknown location";
+                  t("Unknown location");
                 return (
                   <option key={scene.id} value={scene.id}>
-                    {`${scene.name} (${locationName})`}
+                    {t("{sceneName} ({locationName})", { sceneName: scene.name, locationName })}
                   </option>
                 );
               })}
@@ -1020,7 +1034,7 @@ function DeleteSceneDialog({
         ) : null}
 
         <div className="dialog-callout">
-          <strong>References found</strong>
+          <strong>{t("References found")}</strong>
           {referenceRows.length > 0 ? (
             <ul className="dialog-detail-list">
               {referenceRows.map((row) => (
@@ -1028,12 +1042,12 @@ function DeleteSceneDialog({
               ))}
             </ul>
           ) : (
-            <p>No cross-scene references will need cleanup or rewiring.</p>
+            <p>{t("No cross-scene references will need cleanup or rewiring.")}</p>
           )}
         </div>
 
         <div className="dialog-callout">
-          <strong>What happens next</strong>
+          <strong>{t("What happens next")}</strong>
           <ul className="dialog-detail-list">
             {outcomeRows.map((row) => (
               <li key={row}>{row}</li>
@@ -1052,6 +1066,7 @@ function DeleteInventoryItemDialog({
   options: DeleteInventoryItemDialogOptions;
   onResolve: (value: DeleteInventoryItemDialogResult) => void;
 }) {
+  const { locale, t } = useEditorI18n();
   const deletedItem = options.project.inventory.items.find((item) => item.id === options.itemId);
   const replacementCandidates = options.project.inventory.items.filter((item) => item.id !== options.itemId);
   const referenceCount = countInventoryItemReferences(options.referenceSummary);
@@ -1061,24 +1076,28 @@ function DeleteInventoryItemDialog({
   const replacementItem = replacementCandidates.find((item) => item.id === replacementItemId);
   const canRewire = hasReferences && replacementCandidates.length > 0;
   const confirmDisabled = !deletedItem || (mode === "rewire" && !replacementItem);
-  const referenceRows = resolveInventoryItemReferenceRows(options.referenceSummary);
+  const referenceRows = resolveInventoryItemReferenceRows(options.referenceSummary, locale, t);
+  const formattedReferenceCount = new Intl.NumberFormat(locale).format(referenceCount);
   const summaryMessage =
     mode === "rewire"
       ? replacementItem
-        ? `All ${referenceCount} references will point to ${replacementItem.name}.`
-        : "Choose a replacement item to finish rewiring."
+        ? t("All {count} references will point to {name}.", {
+            count: formattedReferenceCount,
+            name: replacementItem.name
+          })
+        : t("Choose a replacement item to finish rewiring.")
       : hasReferences
-        ? `All ${referenceCount} references will be removed with the item.`
-        : "No project references need cleanup.";
-  const confirmLabel = mode === "rewire" ? "Replace and Delete" : hasReferences ? "Delete and Clean" : "Delete Item";
+        ? t("All {count} references will be removed with the item.", { count: formattedReferenceCount })
+        : t("No project references need cleanup.");
+  const confirmLabel = mode === "rewire" ? t("Replace and Delete") : hasReferences ? t("Delete and Clean") : t("Delete Item");
 
   return (
     <DialogFrame
-      title={deletedItem ? `Delete ${deletedItem.name}?` : "Delete Inventory Item"}
+      title={deletedItem ? t("Delete {name}?", { name: deletedItem.name }) : t("Delete Inventory Item")}
       description={
         hasReferences
-          ? "Choose whether to remove this item's references or redirect them to another item before deletion."
-          : "This item is not referenced by any scene or dialogue content."
+          ? t("Choose whether to remove this item's references or redirect them to another item before deletion.")
+          : t("This item is not referenced by any scene or dialogue content.")
       }
       wide
       tone="danger"
@@ -1088,7 +1107,7 @@ function DeleteInventoryItemDialog({
           <div className="dialog-selection-summary">{summaryMessage}</div>
           <div className="dialog-button-row">
             <button type="button" className="button-secondary" onClick={() => onResolve({ action: "cancel" })} autoFocus>
-              Keep Item
+              {t("Keep Item")}
             </button>
             <button
               type="button"
@@ -1110,8 +1129,8 @@ function DeleteInventoryItemDialog({
     >
       <div className="dialog-stack inventory-delete-dialog">
         <div className="dialog-callout dialog-callout--danger">
-          <strong>Permanent item deletion</strong>
-          <p>The item's image asset stays in Assets, but generated name and description text may be removed.</p>
+          <strong>{t("Permanent item deletion")}</strong>
+          <p>{t("The item's image asset stays in Assets, but generated name and description text may be removed.")}</p>
         </div>
 
         {hasReferences ? (
@@ -1122,8 +1141,8 @@ function DeleteInventoryItemDialog({
                 className={mode === "cleanup" ? "scene-delete-choice scene-delete-choice--active" : "scene-delete-choice"}
                 onClick={() => setMode("cleanup")}
               >
-                <strong>Clean References</strong>
-                <span>Remove item requirements, conditions, effects, pickup links, and placement links.</span>
+                <strong>{t("Clean References")}</strong>
+                <span>{t("Remove item requirements, conditions, effects, pickup links, and placement links.")}</span>
               </button>
               <button
                 type="button"
@@ -1131,11 +1150,11 @@ function DeleteInventoryItemDialog({
                 disabled={!canRewire}
                 onClick={() => setMode("rewire")}
               >
-                <strong>Rewire References</strong>
+                <strong>{t("Rewire References")}</strong>
                 <span>
                   {canRewire
-                    ? "Redirect every item reference to another inventory item."
-                    : "Create another item first if references should be rewired instead of removed."}
+                    ? t("Redirect every item reference to another inventory item.")
+                    : t("Create another item first if references should be rewired instead of removed.")}
                 </span>
               </button>
             </div>
@@ -1144,9 +1163,9 @@ function DeleteInventoryItemDialog({
 
         {mode === "rewire" && hasReferences ? (
           <label>
-            <span className="field-label--inset">Replacement Item</span>
+            <span className="field-label--inset">{t("Replacement Item")}</span>
             <DropdownSelect value={replacementItemId} onChange={(event) => setReplacementItemId(event.target.value)}>
-              <option value="">Select a replacement item</option>
+              <option value="">{t("Select a replacement item")}</option>
               {replacementCandidates.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -1157,7 +1176,7 @@ function DeleteInventoryItemDialog({
         ) : null}
 
         <div className="dialog-callout">
-          <strong>{hasReferences ? "References found" : "No references found"}</strong>
+          <strong>{hasReferences ? t("References found") : t("No references found")}</strong>
           {referenceRows.length > 0 ? (
             <ul className="dialog-detail-list">
               {referenceRows.map((row) => (
@@ -1165,22 +1184,22 @@ function DeleteInventoryItemDialog({
               ))}
             </ul>
           ) : (
-            <p>This item can be deleted without changing scene or dialogue wiring.</p>
+            <p>{t("This item can be deleted without changing scene or dialogue wiring.")}</p>
           )}
         </div>
 
         <div className="dialog-callout">
-          <strong>What happens next</strong>
+          <strong>{t("What happens next")}</strong>
           <ul className="dialog-detail-list">
-            <li>The inventory item is removed from the project.</li>
+            <li>{t("The inventory item is removed from the project.")}</li>
             <li>
               {mode === "rewire" && replacementItem
-                ? `Every reference is redirected to ${replacementItem.name}.`
+                ? t("Every reference is redirected to {name}.", { name: replacementItem.name })
                 : hasReferences
-                  ? "Every authored reference to this item is removed."
-                  : "No authored references need to change."}
+                  ? t("Every authored reference to this item is removed.")
+                  : t("No authored references need to change.")}
             </li>
-            <li>The image asset remains available in Assets for reuse or separate deletion.</li>
+            <li>{t("The image asset remains available in Assets for reuse or separate deletion.")}</li>
           </ul>
         </div>
       </div>
@@ -1197,6 +1216,7 @@ function FileBrowserDialog({
   options: DirectoryDialogOptions | FileDialogOptions;
   onResolve: (value: string | string[] | undefined) => void;
 }) {
+  const { locale, t } = useEditorI18n();
   const [locations, setLocations] = useState<FileBrowserLocation[]>([]);
   const [requestedPath, setRequestedPath] = useState(options.initialPath ?? "");
   const [pathInput, setPathInput] = useState(options.initialPath ?? "");
@@ -1240,8 +1260,8 @@ function FileBrowserDialog({
           return;
         }
 
-        const message = error instanceof Error ? error.message : String(error);
-        setErrorMessage(`Could not load browse locations: ${message}`);
+        const message = translateRuntimeMessage(error, t);
+        setErrorMessage(t("Could not load browse locations: {message}", { message }));
       }
     }
 
@@ -1250,7 +1270,7 @@ function FileBrowserDialog({
     return () => {
       cancelled = true;
     };
-  }, [options.initialPath]);
+  }, [options.initialPath, t]);
 
   useEffect(() => {
     if (!requestedPath) {
@@ -1276,8 +1296,8 @@ function FileBrowserDialog({
           return;
         }
 
-        const message = error instanceof Error ? error.message : String(error);
-        setErrorMessage(message);
+        const message = translateRuntimeMessage(error, t);
+        setErrorMessage(t("Could not open this folder: {message}", { message }));
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -1290,7 +1310,7 @@ function FileBrowserDialog({
     return () => {
       cancelled = true;
     };
-  }, [requestedPath]);
+  }, [requestedPath, t]);
 
   useEffect(() => {
     if (!requiresProjectDirectory || !listing?.path) {
@@ -1316,10 +1336,10 @@ function FileBrowserDialog({
           return;
         }
 
-        const message = error instanceof Error ? error.message : String(error);
+        const message = translateRuntimeMessage(error, t);
         setDirectoryInspection({
           isProjectDirectory: false,
-          reason: `Could not inspect this folder: ${message}`
+          reason: t("Could not inspect this folder: {message}", { message })
         });
       } finally {
         if (!cancelled) {
@@ -1333,7 +1353,7 @@ function FileBrowserDialog({
     return () => {
       cancelled = true;
     };
-  }, [listing?.path, requiresProjectDirectory]);
+  }, [listing?.path, requiresProjectDirectory, t]);
 
   const visibleEntries = listing?.entries.filter((entry) => {
     if (entry.kind === "directory") {
@@ -1365,13 +1385,14 @@ function FileBrowserDialog({
       : selectedPaths.length > 0 && !isLoading;
 
   const confirmLabel =
-    options.confirmLabel ?? (mode === "directory" ? "Use This Folder" : "Import Selected Files");
+    options.confirmLabel ? t(options.confirmLabel) : mode === "directory" ? t("Use This Folder") : t("Import Selected Files");
 
   const directoryValidationMessage = resolveDirectoryValidationMessage(
     requiresProjectDirectory,
     isLoading,
     isInspectingDirectory,
-    directoryInspection
+    directoryInspection,
+    t
   );
   const directoryValidationTone =
     requiresProjectDirectory && directoryInspection && !directoryInspection.isProjectDirectory
@@ -1381,13 +1402,13 @@ function FileBrowserDialog({
     mode === "directory"
       ? directoryValidationMessage
       : selectedPaths.length > 0
-        ? `${selectedPaths.length} file${selectedPaths.length === 1 ? "" : "s"} selected.`
-        : "Select one or more files to continue.";
+        ? t("Selected files: {count}", { count: new Intl.NumberFormat(locale).format(selectedPaths.length) })
+        : t("Select one or more files to continue.");
   const instructionText = requiresProjectDirectory
-    ? "Choose a folder that contains a valid MAGE2 project."
+    ? t("Choose a folder that contains a valid MAGE2 project.")
     : mode === "directory"
-      ? "Choose the current folder when you reach the project location you want."
-      : "Click a folder to open it, or double-click a file to choose it.";
+      ? t("Choose the current folder when you reach the project location you want.")
+      : t("Click a folder to open it, or double-click a file to choose it.");
 
   function navigateToPath(nextPath: string) {
     const trimmedPath = nextPath.trim();
@@ -1415,8 +1436,8 @@ function FileBrowserDialog({
       setIsCreatingDirectory(false);
       navigateToPath(nextDirectoryPath);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setErrorMessage(message);
+      const message = translateRuntimeMessage(error, t);
+      setErrorMessage(t("Could not create the folder: {message}", { message }));
     }
   }
 
@@ -1434,7 +1455,7 @@ function FileBrowserDialog({
           : [
               ...currentLocations,
               {
-                label: "Granted folder",
+                label: t("Granted folder"),
                 path: authorizedPath,
                 kind: "favorite"
               }
@@ -1442,7 +1463,8 @@ function FileBrowserDialog({
       );
       navigateToPath(authorizedPath);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      const message = translateRuntimeMessage(error, t);
+      setErrorMessage(t("Could not grant access to the folder: {message}", { message }));
     } finally {
       setIsAuthorizingDirectory(false);
     }
@@ -1462,8 +1484,8 @@ function FileBrowserDialog({
 
   return (
     <DialogFrame
-      title={options.title}
-      description={options.description}
+      title={t(options.title)}
+      description={options.description ? t(options.description) : undefined}
       wide
       shellClassName="dialog-shell--file-browser"
       bodyClassName="dialog-shell__body--file-browser"
@@ -1481,7 +1503,7 @@ function FileBrowserDialog({
               onClick={() => onResolve(mode === "directory" ? undefined : [])}
               autoFocus
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               type="button"
@@ -1498,7 +1520,7 @@ function FileBrowserDialog({
       <div className="file-browser">
         <aside className="file-browser__sidebar">
           <div className="file-browser__sidebar-section">
-            <p className="dialog-eyebrow">Locations</p>
+            <p className="dialog-eyebrow">{t("Locations")}</p>
             <div className="file-browser__locations">
               {locations.map((location) => {
                 const isActive = isActiveFileBrowserLocation(listing?.path ?? requestedPath, location);
@@ -1513,7 +1535,7 @@ function FileBrowserDialog({
                     <span className="file-browser__location-icon" aria-hidden="true">
                       <FileBrowserIcon name={resolveLocationIconName(location)} />
                     </span>
-                    <strong>{location.label}</strong>
+                    <strong>{t(location.label)}</strong>
                   </button>
                 );
               })}
@@ -1522,12 +1544,12 @@ function FileBrowserDialog({
                 className="file-browser__location"
                 onClick={() => void handleAuthorizeDirectory()}
                 disabled={isAuthorizingDirectory}
-                title="Grant access to a folder outside the listed locations"
+                title={t("Grant access to a folder outside the listed locations")}
               >
                 <span className="file-browser__location-icon" aria-hidden="true">
                   <FileBrowserIcon name="folder" />
                 </span>
-                <strong>{isAuthorizingDirectory ? "Opening..." : "Choose another folder..."}</strong>
+                <strong>{isAuthorizingDirectory ? t("Opening...") : t("Choose another folder...")}</strong>
               </button>
             </div>
           </div>
@@ -1536,7 +1558,7 @@ function FileBrowserDialog({
         <section className="file-browser__main">
           <div className="file-browser__toolbar">
             {breadcrumbItems.length > 0 ? (
-              <div className="file-browser__breadcrumbs" aria-label="Current path">
+              <div className="file-browser__breadcrumbs" aria-label={t("Current path")} dir="ltr">
                 {breadcrumbItems.map((breadcrumb, index) => (
                   <button
                     key={breadcrumb.path}
@@ -1557,12 +1579,13 @@ function FileBrowserDialog({
 
             <form className="file-browser__path-form" onSubmit={handlePathSubmit}>
               <label className="file-browser__path-field">
-                <span className="sr-only">Current path</span>
+                <span className="sr-only">{t("Current path")}</span>
                 <input
                   value={pathInput}
                   onChange={(event) => setPathInput(event.target.value)}
-                  placeholder="Enter a path"
-                  title="Type a path directly and press Go."
+                  placeholder={t("Enter a path")}
+                  title={t("Type a path directly and press Go.")}
+                  dir="ltr"
                 />
               </label>
               <div className="dialog-button-row">
@@ -1571,16 +1594,16 @@ function FileBrowserDialog({
                   className="button-secondary file-browser__toolbar-button"
                   disabled={!listing?.parentPath}
                   onClick={() => listing?.parentPath && navigateToPath(listing.parentPath)}
-                  aria-label="Go to parent folder"
-                  title="Go to parent folder"
+                  aria-label={t("Go to parent folder")}
+                  title={t("Go to parent folder")}
                 >
                   <FileBrowserIcon name="up" />
                 </button>
                 <button
                   type="submit"
                   className="button-secondary file-browser__toolbar-button"
-                  aria-label="Go to path"
-                  title="Go to path"
+                  aria-label={t("Go to path")}
+                  title={t("Go to path")}
                 >
                   <FileBrowserIcon name="go" />
                 </button>
@@ -1589,8 +1612,8 @@ function FileBrowserDialog({
                   className="button-secondary file-browser__toolbar-button"
                   disabled={!listing?.path}
                   onClick={() => listing?.path && navigateToPath(listing.path)}
-                  aria-label="Refresh current folder"
-                  title="Refresh current folder"
+                  aria-label={t("Refresh current folder")}
+                  title={t("Refresh current folder")}
                 >
                   <FileBrowserIcon name="refresh" />
                 </button>
@@ -1600,13 +1623,13 @@ function FileBrowserDialog({
                     className="button-secondary file-browser__toolbar-button"
                     disabled={!listing?.path}
                     onClick={() => setIsCreatingDirectory((currentValue) => !currentValue)}
-                    aria-label={isCreatingDirectory ? "Hide new folder form" : "New folder"}
-                    title={isCreatingDirectory ? "Hide new folder form" : "New folder"}
+                    aria-label={isCreatingDirectory ? t("Hide new folder form") : t("New folder")}
+                    title={isCreatingDirectory ? t("Hide new folder form") : t("New folder")}
                   >
                     <FileBrowserIcon name="folder-plus" />
                   </button>
                 ) : null}
-                <span className="file-browser__view-toggle" aria-label="File view mode">
+                <span className="file-browser__view-toggle" aria-label={t("File view mode")}>
                   <button
                     type="button"
                     className={
@@ -1615,8 +1638,8 @@ function FileBrowserDialog({
                         : "button-secondary file-browser__toolbar-button"
                     }
                     onClick={() => setEntryViewMode("list")}
-                    aria-label="List view"
-                    title="List view"
+                    aria-label={t("List view")}
+                    title={t("List view")}
                   >
                     <FileBrowserIcon name="list" />
                   </button>
@@ -1628,8 +1651,8 @@ function FileBrowserDialog({
                         : "button-secondary file-browser__toolbar-button"
                     }
                     onClick={() => setEntryViewMode("grid")}
-                    aria-label="Grid view"
-                    title="Grid view"
+                    aria-label={t("Grid view")}
+                    title={t("Grid view")}
                   >
                     <FileBrowserIcon name="grid" />
                   </button>
@@ -1642,12 +1665,12 @@ function FileBrowserDialog({
                 <input
                   value={newDirectoryName}
                   onChange={(event) => setNewDirectoryName(event.target.value)}
-                  placeholder="New folder name"
-                  title="Create a new folder inside the current directory."
+                  placeholder={t("New folder name")}
+                  title={t("Create a new folder inside the current directory.")}
                 />
                 <div className="dialog-button-row">
                   <button type="button" className="button-secondary" onClick={() => setIsCreatingDirectory(false)}>
-                    Cancel
+                    {t("Cancel")}
                   </button>
                   <button
                     type="button"
@@ -1656,7 +1679,7 @@ function FileBrowserDialog({
                     onClick={() => void handleCreateDirectory()}
                   >
                     <FileBrowserIcon name="folder-plus" />
-                    <span>Create Folder</span>
+                    <span>{t("Create Folder")}</span>
                   </button>
                 </div>
               </div>
@@ -1667,7 +1690,9 @@ function FileBrowserDialog({
             <span>{instructionText}</span>
             {hiddenFileCount > 0 ? (
               <span className="file-browser__hidden-count">
-                {hiddenFileCount} unsupported file{hiddenFileCount === 1 ? "" : "s"} hidden
+                {t("Unsupported files hidden: {count}", {
+                  count: new Intl.NumberFormat(locale).format(hiddenFileCount)
+                })}
               </span>
             ) : null}
           </div>
@@ -1692,21 +1717,21 @@ function FileBrowserDialog({
             {entryViewMode === "list" ? (
               <div className="file-browser__entry-header" aria-hidden="true">
                 <span className="file-browser__entry-name-heading">
-                  Name
+                  {t("Name")}
                   <FileBrowserIcon name="sort" />
                 </span>
-                <span>Type</span>
-                <span>Modified</span>
-                <span>Size</span>
+                <span>{t("Type")}</span>
+                <span>{t("Modified")}</span>
+                <span>{t("Size")}</span>
               </div>
             ) : null}
-            {isLoading ? <p className="muted">Loading folder contents...</p> : null}
+            {isLoading ? <p className="muted">{t("Loading folder contents...")}</p> : null}
             {!isLoading && errorMessage ? <p className="dialog-error">{errorMessage}</p> : null}
             {!isLoading && !errorMessage && visibleEntries?.length === 0 ? (
               <p className="muted">
                 {mode === "directory"
-                  ? "No folders are available here."
-                  : "No supported files were found in this folder."}
+                  ? t("No folders are available here.")
+                  : t("No supported files were found in this folder.")}
               </p>
             ) : null}
             {!isLoading && !errorMessage
@@ -1740,9 +1765,9 @@ function FileBrowserDialog({
                         <FileBrowserEntryMedia entry={entry} />
                         <strong>{entry.name}</strong>
                       </span>
-                      <span>{resolveFileBrowserType(entry)}</span>
-                      <span>{formatFileBrowserModified(entry.modifiedAtMs)}</span>
-                      <span>{formatFileBrowserSize(entry)}</span>
+                      <span>{resolveFileBrowserType(entry, t)}</span>
+                      <span>{formatFileBrowserModified(entry.modifiedAtMs, locale)}</span>
+                      <span>{formatFileBrowserSize(entry, locale)}</span>
                     </button>
                   );
                 })
@@ -1826,6 +1851,7 @@ function DialogFrame({
   bodyClassName?: string;
   shellClassName?: string;
 }) {
+  const { t } = useEditorI18n();
   const titleId = useId();
   const descriptionId = useId();
   const isFileBrowserShell = shellClassName?.includes("dialog-shell--file-browser") ?? false;
@@ -1908,7 +1934,7 @@ function DialogFrame({
       >
         <div className="dialog-shell__header">
           <div className="dialog-title-group">
-            <p className="dialog-eyebrow">MAGE2</p>
+            <p className="dialog-eyebrow">{t("MAGE2")}</p>
             <h2 id={titleId}>{title}</h2>
             {description ? (
               <p id={descriptionId} className="muted">
@@ -1920,10 +1946,10 @@ function DialogFrame({
             type="button"
             className={isFileBrowserShell ? "dialog-close dialog-close--icon-only" : "dialog-close"}
             onClick={onCancel}
-            aria-label="Close dialog"
+            aria-label={t("Close dialog")}
           >
             {isFileBrowserShell ? <FileBrowserIcon name="close" /> : null}
-            <span className={isFileBrowserShell ? "sr-only" : undefined}>Close</span>
+            <span className={isFileBrowserShell ? "sr-only" : undefined}>{t("Close")}</span>
           </button>
         </div>
 
@@ -1934,63 +1960,69 @@ function DialogFrame({
   );
 }
 
-function resolveSceneReferenceRows(summary: SceneReferenceSummary): string[] {
+function resolveSceneReferenceRows(summary: SceneReferenceSummary, locale: string, t: EditorTranslator): string[] {
   const rows: string[] = [];
+  const formatCount = (count: number) => new Intl.NumberFormat(locale).format(count);
 
   if (summary.isStartScene) {
-    rows.push("1 start scene reference");
+    rows.push(t("Start scene references: {count}", { count: formatCount(1) }));
   }
   if (summary.locationReferenceCount > 0) {
-    rows.push(`${summary.locationReferenceCount} location scene list reference${summary.locationReferenceCount === 1 ? "" : "s"}`);
+    rows.push(
+      t("Location scene list references: {count}", { count: formatCount(summary.locationReferenceCount) })
+    );
   }
   if (summary.hotspotTargetReferenceCount > 0) {
     rows.push(
-      `${summary.hotspotTargetReferenceCount} hotspot target reference${
-        summary.hotspotTargetReferenceCount === 1 ? "" : "s"
-      }`
+      t("Hotspot target references: {count}", { count: formatCount(summary.hotspotTargetReferenceCount) })
     );
   }
   if (summary.sceneVisitedConditionCount > 0) {
     rows.push(
-      `${summary.sceneVisitedConditionCount} scene-visited condition${
-        summary.sceneVisitedConditionCount === 1 ? "" : "s"
-      }`
+      t("Scene-visited conditions: {count}", { count: formatCount(summary.sceneVisitedConditionCount) })
     );
   }
   if (summary.goToSceneEffectCount > 0) {
-    rows.push(`${summary.goToSceneEffectCount} go-to-scene effect${summary.goToSceneEffectCount === 1 ? "" : "s"}`);
+    rows.push(
+      t("Go-to-scene effects: {count}", { count: formatCount(summary.goToSceneEffectCount) })
+    );
   }
 
   return rows;
 }
 
-function resolveInventoryItemReferenceRows(summary: InventoryItemReferenceSummary): string[] {
+function resolveInventoryItemReferenceRows(
+  summary: InventoryItemReferenceSummary,
+  locale: string,
+  t: EditorTranslator
+): string[] {
   const rows: string[] = [];
+  const formatCount = (count: number) => new Intl.NumberFormat(locale).format(count);
 
   if (summary.hotspotItemReferenceCount > 0) {
     rows.push(
-      `${summary.hotspotItemReferenceCount} hotspot item link${summary.hotspotItemReferenceCount === 1 ? "" : "s"}`
+      t("Hotspot item links: {count}", { count: formatCount(summary.hotspotItemReferenceCount) })
     );
   }
   if (summary.placementReferenceCount > 0) {
     rows.push(
-      `${summary.placementReferenceCount} placement link${summary.placementReferenceCount === 1 ? "" : "s"}`
+      t("Placement links: {count}", { count: formatCount(summary.placementReferenceCount) })
     );
   }
   if (summary.requiredItemReferenceCount > 0) {
     rows.push(
-      `${summary.requiredItemReferenceCount} required-item reference${
-        summary.requiredItemReferenceCount === 1 ? "" : "s"
-      }`
+      t("Required-item references: {count}", { count: formatCount(summary.requiredItemReferenceCount) })
     );
   }
   if (summary.inventoryConditionCount > 0) {
     rows.push(
-      `${summary.inventoryConditionCount} inventory condition${summary.inventoryConditionCount === 1 ? "" : "s"}`
+      t("Inventory conditions: {count}", { count: formatCount(summary.inventoryConditionCount) })
     );
   }
   if (summary.inventoryEffectCount > 0) {
-    rows.push(`${summary.inventoryEffectCount} inventory effect${summary.inventoryEffectCount === 1 ? "" : "s"}`);
+    rows.push(
+      t("Inventory effects: {count}", { count: formatCount(summary.inventoryEffectCount) })
+    );
   }
 
   return rows;
@@ -1999,34 +2031,35 @@ function resolveInventoryItemReferenceRows(summary: InventoryItemReferenceSummar
 function resolveDeleteSceneOutcomeRows(
   summary: SceneReferenceSummary,
   mode: "cleanup" | "rewire",
-  replacementSceneName?: string,
-  replacementLocationName?: string
+  replacementSceneName: string | undefined,
+  replacementLocationName: string | undefined,
+  t: EditorTranslator
 ): string[] {
-  const rows = ["The selected scene and its hotspots will be deleted."];
+  const rows = [t("The selected scene and its hotspots will be deleted.")];
 
   if (countSceneReferences(summary) === 0) {
-    rows.push("No other scene references need to be updated.");
+    rows.push(t("No other scene references need to be updated."));
     return rows;
   }
 
   if (mode === "cleanup") {
-    rows.push("References to the deleted scene will be removed from the rest of the project.");
+    rows.push(t("References to the deleted scene will be removed from the rest of the project."));
 
     if (summary.isStartScene) {
-      rows.push("The project start scene will remain invalid until you choose a new one.");
+      rows.push(t("The project start scene will remain invalid until you choose a new one."));
     }
 
     return rows;
   }
 
   if (replacementSceneName) {
-    rows.push(`References to the deleted scene will point to ${replacementSceneName}.`);
+    rows.push(t("References to the deleted scene will point to {name}.", { name: replacementSceneName }));
   } else {
-    rows.push("References will be rewired after you choose a replacement scene.");
+    rows.push(t("References will be rewired after you choose a replacement scene."));
   }
 
   if (summary.isStartScene && replacementLocationName) {
-    rows.push(`The start location will move to ${replacementLocationName}.`);
+    rows.push(t("The start location will move to {name}.", { name: replacementLocationName }));
   }
 
   return rows;
@@ -2036,27 +2069,30 @@ function resolveDirectoryValidationMessage(
   requiresProjectDirectory: boolean,
   isLoading: boolean,
   isInspectingDirectory: boolean,
-  directoryInspection: ProjectDirectoryInspection | undefined
+  directoryInspection: ProjectDirectoryInspection | undefined,
+  t: EditorTranslator
 ): string {
   if (!requiresProjectDirectory) {
-    return "Browse to a folder to continue.";
+    return t("Browse to a folder to continue.");
   }
 
   if (isLoading) {
-    return "Loading folder contents...";
+    return t("Loading folder contents...");
   }
 
   if (isInspectingDirectory) {
-    return "Checking this folder for a valid MAGE2 project...";
+    return t("Checking this folder for a valid MAGE2 project...");
   }
 
   if (directoryInspection?.isProjectDirectory) {
     return directoryInspection.projectName
-      ? `Detected project: ${directoryInspection.projectName}`
-      : "Valid MAGE2 project detected.";
+      ? t("Detected project: {projectName}", { projectName: directoryInspection.projectName })
+      : t("Valid MAGE2 project detected.");
   }
 
-  return directoryInspection?.reason ?? "This folder does not contain a valid MAGE2 project.";
+  return directoryInspection?.reason
+    ? translateRuntimeMessage(directoryInspection.reason, t)
+    : t("This folder does not contain a valid MAGE2 project.");
 }
 
 function buildBreadcrumbs(inputPath: string): Array<{ label: string; path: string }> {

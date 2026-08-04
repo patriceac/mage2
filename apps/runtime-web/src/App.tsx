@@ -5,6 +5,7 @@ import {
   type ActivePlayerResponse
 } from "@mage2/player";
 import {
+  BUILT_IN_LOCALES,
   createSaveEnvelope,
   loadSaveForProject,
   normalizeSupportedLocales,
@@ -15,7 +16,9 @@ import {
   type ExportProjectData,
   type ProjectBundle,
   type SaveState,
-  parseBuildManifest
+  parseBuildManifest,
+  resolveBuiltInLocale,
+  type BuiltInLocale
 } from "@mage2/schema";
 import {
   DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
@@ -68,59 +71,173 @@ export function resolveRuntimeSaveStorageKey(projectId: string): string {
   return `mage2-runtime-save:${projectId}`;
 }
 
+export type RuntimeInterfaceLocalePreference = "automatic" | BuiltInLocale;
+
+export function resolveRuntimeInterfaceLocaleStorageKey(projectId: string): string {
+  return `mage2-runtime-interface-locale:${projectId}`;
+}
+
+export function resolveRuntimeInterfaceLocalePreference(storedPreference: string | null): RuntimeInterfaceLocalePreference {
+  return BUILT_IN_LOCALES.includes(storedPreference as BuiltInLocale)
+    ? storedPreference as BuiltInLocale
+    : "automatic";
+}
+
+export function resolveRuntimeInterfaceLocale(
+  preference: RuntimeInterfaceLocalePreference,
+  preferredLocales: readonly string[] | null | undefined
+): BuiltInLocale {
+  return preference === "automatic" ? resolveBuiltInLocale(preferredLocales) : preference;
+}
+
+function isSupportedBuiltInLocaleVariant(locale: string, builtInLocale: BuiltInLocale): boolean {
+  if (resolveBuiltInLocale([locale]) !== builtInLocale) {
+    return false;
+  }
+  if (builtInLocale !== "en") {
+    return true;
+  }
+  try {
+    return new Intl.Locale(locale).language === "en";
+  } catch {
+    return false;
+  }
+}
+
+export function resolveRuntimeInitialContentLocale(options: {
+  supportedLocales: readonly string[];
+  defaultLanguage: string;
+  storedContentLocale: string | null;
+  interfaceLocale: BuiltInLocale;
+}): string {
+  const { supportedLocales, defaultLanguage, storedContentLocale, interfaceLocale } = options;
+  if (storedContentLocale && supportedLocales.includes(storedContentLocale)) {
+    return storedContentLocale;
+  }
+  return supportedLocales.find((locale) => isSupportedBuiltInLocaleVariant(locale, interfaceLocale)) ?? defaultLanguage;
+}
+
+export function persistRuntimeInterfaceLocalePreference(
+  storage: Pick<Storage, "setItem" | "removeItem">,
+  storageKey: string,
+  preference: RuntimeInterfaceLocalePreference
+): void {
+  if (preference === "automatic") {
+    storage.removeItem(storageKey);
+  } else {
+    storage.setItem(storageKey, preference);
+  }
+}
+
 interface RuntimeSystemCopy {
+  closeForegroundMedia: string;
   debugMode: string;
+  dialogueMedia: string;
   gameLoaded: string;
   gameRestarted: string;
   gameSaved: string;
   loading: string;
+  interactionMedia: string;
+  mediaUnavailable: string;
   noValidSave: string;
   placedObject: string;
   playhead: string;
   rawSave: string;
   saveRecovered: string;
+  saveFailed: string;
   showHotspots: string;
   startupErrorBody: string;
   startupErrorTitle: string;
 }
 
-const RUNTIME_SYSTEM_COPY: Record<string, RuntimeSystemCopy> = {
+const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = {
   en: {
+    closeForegroundMedia: "Close foreground media",
     debugMode: "Debug mode",
+    dialogueMedia: "Dialogue media",
     gameLoaded: "Saved game loaded.",
     gameRestarted: "New game started.",
     gameSaved: "Game saved.",
     loading: "Loading game...",
+    interactionMedia: "Interaction media",
+    mediaUnavailable: "This media is unavailable in the selected game language.",
     noValidSave: "No valid saved game is available.",
     placedObject: "This object is placed here.",
     playhead: "Playhead",
     rawSave: "Raw save state",
     saveRecovered: "The saved game could not be read. A new game was started.",
+    saveFailed: "Progress could not be saved in local storage.",
     showHotspots: "Show hotspots",
     startupErrorBody: "Check that the complete exported game was published, then try again.",
     startupErrorTitle: "Unable to start this game"
   },
   fr: {
+    closeForegroundMedia: "Fermer le média au premier plan",
     debugMode: "Mode debug",
+    dialogueMedia: "Média de dialogue",
     gameLoaded: "Sauvegarde chargée.",
     gameRestarted: "Nouvelle partie commencée.",
     gameSaved: "Partie sauvegardée.",
     loading: "Chargement du jeu...",
+    interactionMedia: "Média d’interaction",
+    mediaUnavailable: "Ce média n’est pas disponible dans la langue de jeu sélectionnée.",
     noValidSave: "Aucune sauvegarde valide n'est disponible.",
     placedObject: "Cet objet est placé ici.",
     playhead: "Tête de lecture",
     rawSave: "État brut de la sauvegarde",
     saveRecovered: "La sauvegarde était illisible. Une nouvelle partie a été lancée.",
+    saveFailed: "La progression n’a pas pu être enregistrée dans le stockage local.",
     showHotspots: "Afficher les zones",
     startupErrorBody: "Vérifiez que le jeu exporté a été publié en entier, puis réessayez.",
     startupErrorTitle: "Impossible de lancer ce jeu"
+  },
+  es: {
+    closeForegroundMedia: "Cerrar el contenido en primer plano", debugMode: "Modo de depuración", dialogueMedia: "Contenido del diálogo", gameLoaded: "Partida guardada cargada.",
+    gameRestarted: "Nueva partida iniciada.", gameSaved: "Partida guardada.", interactionMedia: "Contenido de la interacción",
+    loading: "Cargando el juego...", mediaUnavailable: "Este contenido no está disponible en el idioma del juego seleccionado.", noValidSave: "No hay ninguna partida guardada válida.",
+    placedObject: "Este objeto está colocado aquí.", playhead: "Cabezal de reproducción", rawSave: "Estado de guardado sin procesar",
+    saveFailed: "No se pudo guardar el progreso en el almacenamiento local.",
+    saveRecovered: "No se pudo leer la partida guardada. Se ha iniciado una nueva partida.", showHotspots: "Mostrar zonas interactivas",
+    startupErrorBody: "Comprueba que se haya publicado el juego exportado completo y vuelve a intentarlo.",
+    startupErrorTitle: "No se puede iniciar este juego"
+  },
+  "zh-Hans": {
+    closeForegroundMedia: "关闭前景媒体", debugMode: "调试模式", dialogueMedia: "对话媒体", gameLoaded: "已读取存档。", gameRestarted: "已开始新游戏。",
+    gameSaved: "游戏已保存。", interactionMedia: "互动媒体", loading: "正在加载游戏……",
+    mediaUnavailable: "所选游戏语言没有此媒体。", noValidSave: "没有可用的有效存档。", placedObject: "此物品已放置在这里。", playhead: "播放位置",
+    rawSave: "原始存档状态", saveFailed: "无法将进度保存到本地存储。",
+    saveRecovered: "无法读取存档。已开始新游戏。", showHotspots: "显示互动区域",
+    startupErrorBody: "请检查是否已发布完整的导出游戏，然后重试。", startupErrorTitle: "无法启动此游戏"
+  },
+  ja: {
+    closeForegroundMedia: "前景メディアを閉じる", debugMode: "デバッグモード", dialogueMedia: "会話メディア", gameLoaded: "セーブデータをロードしました。",
+    gameRestarted: "ニューゲームを開始しました。", gameSaved: "ゲームをセーブしました。", interactionMedia: "インタラクションメディア",
+    loading: "ゲームを読み込んでいます…", mediaUnavailable: "選択したゲーム言語ではこのメディアを利用できません。", noValidSave: "有効なセーブデータがありません。", placedObject: "このアイテムはここに置かれています。",
+    playhead: "再生位置", rawSave: "セーブデータの生の状態", saveFailed: "進行状況をローカルストレージに保存できませんでした。",
+    saveRecovered: "セーブデータを読み込めませんでした。ニューゲームを開始しました。", showHotspots: "ホットスポットを表示",
+    startupErrorBody: "エクスポートしたゲーム全体が公開されていることを確認して、もう一度お試しください。",
+    startupErrorTitle: "このゲームを開始できません"
+  },
+  ko: {
+    closeForegroundMedia: "전경 미디어 닫기", debugMode: "디버그 모드", dialogueMedia: "대화 미디어", gameLoaded: "저장한 게임을 불러왔습니다.",
+    gameRestarted: "새 게임을 시작했습니다.", gameSaved: "게임을 저장했습니다.", interactionMedia: "상호작용 미디어",
+    loading: "게임 불러오는 중…", mediaUnavailable: "선택한 게임 언어에서는 이 미디어를 사용할 수 없습니다.", noValidSave: "사용할 수 있는 유효한 저장 데이터가 없습니다.", placedObject: "이 물건은 여기에 놓여 있습니다.",
+    playhead: "재생 위치", rawSave: "원시 저장 상태", saveFailed: "진행 상황을 로컬 저장소에 저장하지 못했습니다.",
+    saveRecovered: "저장한 게임을 읽을 수 없어 새 게임을 시작했습니다.", showHotspots: "핫스팟 표시",
+    startupErrorBody: "내보낸 게임 전체가 게시되었는지 확인한 후 다시 시도하세요.", startupErrorTitle: "이 게임을 시작할 수 없습니다"
+  },
+  ar: {
+    closeForegroundMedia: "إغلاق وسائط المقدمة", debugMode: "وضع التصحيح", dialogueMedia: "وسائط الحوار", gameLoaded: "تم تحميل اللعبة المحفوظة.",
+    gameRestarted: "بدأت لعبة جديدة.", gameSaved: "تم حفظ اللعبة.", interactionMedia: "وسائط التفاعل",
+    loading: "جارٍ تحميل اللعبة...", mediaUnavailable: "هذه الوسائط غير متاحة بلغة اللعبة المحددة.", noValidSave: "لا توجد لعبة محفوظة صالحة.", placedObject: "هذا العنصر موضوع هنا.",
+    playhead: "موضع التشغيل", rawSave: "حالة الحفظ الأولية", saveFailed: "تعذر حفظ التقدم في التخزين المحلي.",
+    saveRecovered: "تعذرت قراءة اللعبة المحفوظة. بدأت لعبة جديدة.", showHotspots: "إظهار مناطق التفاعل",
+    startupErrorBody: "تحقق من نشر اللعبة المصدّرة كاملة، ثم حاول مرة أخرى.", startupErrorTitle: "تعذر بدء هذه اللعبة"
   }
 };
 
 export function resolveRuntimeSystemCopy(locale: string): RuntimeSystemCopy {
-  const normalizedLocale = locale.trim().toLowerCase().replaceAll("_", "-");
-  const baseLanguage = normalizedLocale.split("-")[0] ?? "";
-  return RUNTIME_SYSTEM_COPY[normalizedLocale] ?? RUNTIME_SYSTEM_COPY[baseLanguage] ?? RUNTIME_SYSTEM_COPY.en!;
+  return RUNTIME_SYSTEM_COPY[resolveBuiltInLocale([locale])];
 }
 
 export function resolveRuntimeSaveLoadNotice(
@@ -147,14 +264,18 @@ export function resolveRuntimeLocaleStrings(
 
 function RuntimeForegroundMediaPlayer({
   asset,
+  closeLabel,
   locale,
   label,
+  unavailableMessage,
   onDismiss,
   volume = 1
 }: {
   asset: Asset;
+  closeLabel: string;
   locale: string;
   label: string;
+  unavailableMessage: string;
   onDismiss?: () => void;
   volume?: number;
 }) {
@@ -179,7 +300,7 @@ function RuntimeForegroundMediaPlayer({
         <span>{label}</span>
         <strong>{asset.name}</strong>
         {onDismiss ? (
-          <button type="button" onClick={onDismiss} aria-label={`Close ${asset.name}`} title="Close foreground media">
+          <button type="button" onClick={onDismiss} aria-label={`${closeLabel}: ${asset.name}`} title={closeLabel}>
             &times;
           </button>
         ) : null}
@@ -189,7 +310,7 @@ function RuntimeForegroundMediaPlayer({
       ) : sourcePath && asset.kind === "audio" ? (
         <audio ref={audioRef} src={sourcePath} autoPlay controls preload="auto" />
       ) : (
-        <div>No playable {locale} variant.</div>
+        <div>{unavailableMessage}</div>
       )}
     </section>
   );
@@ -252,6 +373,13 @@ export function resolveRuntimePlayerPreferences(raw: string | null | undefined):
   }
 }
 
+function getNavigatorPreferredLocales(): readonly string[] {
+  if (typeof navigator === "undefined") {
+    return ["en"];
+  }
+  return navigator.languages.length > 0 ? navigator.languages : [navigator.language];
+}
+
 export function App() {
   const [debugMode] = useState(() =>
     isRuntimeDebugMode(typeof window === "undefined" ? "" : window.location.search)
@@ -260,6 +388,10 @@ export function App() {
   const [content, setContent] = useState<ExportProjectData>();
   const [controller, setController] = useState<ReturnType<typeof createPlayerController>>();
   const [activeLocale, setActiveLocale] = useState<string>();
+  const [interfaceLocalePreference, setInterfaceLocalePreference] = useState<RuntimeInterfaceLocalePreference>("automatic");
+  const [interfaceLocale, setInterfaceLocale] = useState<BuiltInLocale>(() =>
+    resolveRuntimeInterfaceLocale("automatic", getNavigatorPreferredLocales())
+  );
   const [playheadMs, setPlayheadMs] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
   const [hasValidStoredSave, setHasValidStoredSave] = useState(false);
@@ -278,9 +410,7 @@ export function App() {
   const completeResponse = useCallback((sequence: number) => {
     setActiveResponse((current) => (current?.sequence === sequence ? undefined : current));
   }, []);
-  const startupCopy = resolveRuntimeSystemCopy(
-    typeof navigator === "undefined" ? "en" : navigator.language
-  );
+  const startupCopy = resolveRuntimeSystemCopy(interfaceLocale);
 
   useEffect(() => {
     async function loadBuild() {
@@ -291,6 +421,11 @@ export function App() {
         }
 
         const manifest = parseBuildManifest(await manifestResponse.json());
+        const interfaceLocaleStorageKey = resolveRuntimeInterfaceLocaleStorageKey(manifest.projectId);
+        const nextInterfacePreference = resolveRuntimeInterfaceLocalePreference(localStorage.getItem(interfaceLocaleStorageKey));
+        const nextInterfaceLocale = resolveRuntimeInterfaceLocale(nextInterfacePreference, getNavigatorPreferredLocales());
+        setInterfaceLocalePreference(nextInterfacePreference);
+        setInterfaceLocale(nextInterfaceLocale);
         const contentResponse = await fetch(`./${manifest.contentPath}`);
         if (!contentResponse.ok) {
           throw new Error(`Could not load exported content '${manifest.contentPath}'.`);
@@ -309,10 +444,12 @@ export function App() {
         const localeStorageKey = `mage2-runtime-locale:${manifest.projectId}`;
         const storedSave = localStorage.getItem(storageKey);
         const storedLocale = localStorage.getItem(localeStorageKey);
-        const nextLocale =
-          storedLocale && supportedLocales.includes(storedLocale)
-            ? storedLocale
-            : loadedProject.manifest.defaultLanguage;
+        const nextLocale = resolveRuntimeInitialContentLocale({
+          supportedLocales,
+          defaultLanguage: loadedProject.manifest.defaultLanguage,
+          storedContentLocale: storedLocale,
+          interfaceLocale: nextInterfaceLocale
+        });
         const restoredSession = restoreRuntimeSession(parsedContent, storedSave);
         if (storedSave && restoredSession.loadResult.shouldQuarantine) {
           quarantineRejectedRuntimeSave(storageKey, storedSave, restoredSession.loadResult.status);
@@ -332,7 +469,7 @@ export function App() {
         setHasValidStoredSave(
           restoredSession.loadResult.status === "compatible" || restoredSession.loadResult.status === "migrated"
         );
-        setRuntimeNotice(resolveRuntimeSaveLoadNotice(restoredSession.loadResult, nextLocale));
+        setRuntimeNotice(resolveRuntimeSaveLoadNotice(restoredSession.loadResult, nextInterfaceLocale));
         setPlayerScreen(loadedProject.manifest.playerPresentation.titleScreenEnabled ? "title" : "game");
         setPlayerPreferences(
           resolveRuntimePlayerPreferences(localStorage.getItem(`mage2-runtime-preferences:${manifest.projectId}`))
@@ -347,6 +484,7 @@ export function App() {
 
   const storageKey = buildManifest ? resolveRuntimeSaveStorageKey(buildManifest.projectId) : "";
   const localeStorageKey = buildManifest ? `mage2-runtime-locale:${buildManifest.projectId}` : "";
+  const interfaceLocaleStorageKey = buildManifest ? resolveRuntimeInterfaceLocaleStorageKey(buildManifest.projectId) : "";
   const preferencesStorageKey = buildManifest ? `mage2-runtime-preferences:${buildManifest.projectId}` : "";
   const supportedLocales =
     content
@@ -356,9 +494,9 @@ export function App() {
   const localeStrings = content
     ? resolveRuntimeLocaleStrings(content.strings, locale, content.manifest.defaultLanguage)
     : {};
-  const systemCopy = resolveRuntimeSystemCopy(locale);
+  const systemCopy = resolveRuntimeSystemCopy(interfaceLocale);
   const canQuitRuntime = typeof window !== "undefined" && typeof window.mage2Runtime?.quit === "function";
-  const playerCopy = resolveRuntimePlayerCopy(locale);
+  const playerCopy = resolveRuntimePlayerCopy(interfaceLocale);
   const runtimeProject = useMemo(() => (content ? createRuntimeProject(content) : undefined), [content]);
   const currentAsset =
     content && snapshot
@@ -411,13 +549,24 @@ export function App() {
       return;
     }
 
-    document.documentElement.lang = locale;
-    document.documentElement.dir = resolvePlayerTextDirection(locale);
+    document.documentElement.lang = interfaceLocale;
+    document.documentElement.dir = resolvePlayerTextDirection(interfaceLocale);
     document.title = content.manifest.projectName;
     if (localeStorageKey) {
       localStorage.setItem(localeStorageKey, locale);
     }
-  }, [content, locale, localeStorageKey]);
+  }, [content, interfaceLocale, locale, localeStorageKey]);
+
+  useEffect(() => {
+    if (!interfaceLocaleStorageKey) {
+      return;
+    }
+    try {
+      persistRuntimeInterfaceLocalePreference(localStorage, interfaceLocaleStorageKey, interfaceLocalePreference);
+    } catch {
+      // The active interface choice still applies for this session.
+    }
+  }, [interfaceLocalePreference, interfaceLocaleStorageKey]);
 
   useEffect(() => {
     if (!preferencesStorageKey) {
@@ -533,7 +682,7 @@ export function App() {
       setHasValidStoredSave(true);
       setRuntimeNotice(systemCopy.gameSaved);
     } catch {
-      setRuntimeNotice("Progress could not be saved in local storage.");
+      setRuntimeNotice(systemCopy.saveFailed);
     }
   };
 
@@ -556,7 +705,7 @@ export function App() {
         persistRuntimeSave(storageKey, restoredSession.loadResult.envelope);
       }
       setHasValidStoredSave(true);
-      setRuntimeNotice(restoredSession.loadResult.message ?? systemCopy.gameLoaded);
+      setRuntimeNotice(systemCopy.gameLoaded);
     }
   };
 
@@ -580,6 +729,13 @@ export function App() {
           supportedLocales={supportedLocales}
           localeStrings={localeStrings}
           onLocaleChange={setActiveLocale}
+          interfaceLocale={interfaceLocale}
+          interfaceLocalePreference={interfaceLocalePreference}
+          onInterfaceLocalePreferenceChange={(preference) => {
+            setInterfaceLocalePreference(preference);
+            setInterfaceLocale(resolveRuntimeInterfaceLocale(preference, getNavigatorPreferredLocales()));
+          }}
+          playerUiOverrides={content.playerUiOverrides}
           preferences={playerPreferences}
           onPreferencesChange={setPlayerPreferences}
           hasSavedGame={hasValidStoredSave}
@@ -677,8 +833,10 @@ export function App() {
               <RuntimeForegroundMediaPlayer
                 key={foregroundMediaPlaybackKey}
                 asset={foregroundMediaAsset}
+                closeLabel={systemCopy.closeForegroundMedia}
                 locale={locale}
-                label={dialogueMediaAssetId ? "Dialogue media" : "Interaction media"}
+                label={dialogueMediaAssetId ? systemCopy.dialogueMedia : systemCopy.interactionMedia}
+                unavailableMessage={systemCopy.mediaUnavailable}
                 volume={playerPreferences.volume}
                 onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
               />
