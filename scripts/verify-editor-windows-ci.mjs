@@ -23,6 +23,8 @@ const AUTOMATION_PORT = 47632;
 const AUTOMATION_TOKEN = randomBytes(32).toString("hex");
 const evidenceDirectory = path.join(repoRoot, "output", "playwright", "windows-ci");
 const screenshotPath = path.join(evidenceDirectory, "packaged-editor-export.png");
+const readinessScreenshotPath = path.join(evidenceDirectory, "packaged-editor-readiness.png");
+const exportMenuScreenshotPath = path.join(evidenceDirectory, "packaged-editor-export-menu.png");
 const welcomeScreenshotPath = path.join(evidenceDirectory, "packaged-editor-welcome-titlebar.png");
 const playerScreenshotPath = path.join(evidenceDirectory, "packaged-editor-player.png");
 const playtestScreenshotPath = path.join(evidenceDirectory, "packaged-editor-playtest.png");
@@ -180,9 +182,41 @@ async function main() {
     }
 
     await sendAutomationCommand({ command: "selectTab", tab: "scenes" });
-    const exportState = await sendAutomationCommand({ command: "exportProject" });
-    if (!exportState?.export?.validationReport?.valid) {
-      throw new Error("The packaged editor export did not return a valid project report.");
+    const readinessState = await sendAutomationCommand({ command: "getState" });
+    if (
+      readinessState?.health?.healthy !== true ||
+      readinessState?.readiness?.ready !== false ||
+      readinessState?.readiness?.status !== "not-ready"
+    ) {
+      throw new Error(`The packaged editor did not separate project health from release readiness: ${JSON.stringify(readinessState)}.`);
+    }
+    const releaseBlockFailure = await sendAutomationCommandExpectFailure({ command: "exportProject" });
+    if (releaseBlockFailure?.status !== 500 || /timed out/i.test(releaseBlockFailure?.error ?? "")) {
+      throw new Error(`The packaged release gate did not return a direct refusal: ${JSON.stringify(releaseBlockFailure)}.`);
+    }
+    await delay(350);
+    const readinessScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(readinessScreenshot, "health and release readiness");
+    await writeFile(readinessScreenshotPath, readinessScreenshot);
+    await sendAutomationCommand({ command: "editor.openFileMenu" });
+    await delay(200);
+    const exportMenuScreenshot = await fetchAutomationScreenshot();
+    assertPngScreenshot(exportMenuScreenshot, "Preview and Release export menu");
+    await writeFile(exportMenuScreenshotPath, exportMenuScreenshot);
+    await sendAutomationCommand({ command: "editor.closeFileMenu" });
+    const canonicalPreviewDestinationPath = path.join(temporaryRoot, "Canonical Preview Runtime");
+    const exportState = await sendAutomationCommand({
+      command: "exportProject",
+      format: "web",
+      mode: "preview",
+      destinationPath: canonicalPreviewDestinationPath
+    });
+    if (
+      !exportState?.export?.validationReport?.valid ||
+      exportState.export.validationReport.mode !== "preview" ||
+      exportState.export.validationReport.readiness?.ready !== false
+    ) {
+      throw new Error("The packaged editor preview did not preserve its health and readiness report.");
     }
 
     const securityState = await sendAutomationCommand({ command: "security.getState" });
@@ -209,9 +243,10 @@ async function main() {
     const standaloneExportPromise = sendAutomationCommand({
       command: "exportProject",
       format: "windows",
+      mode: "preview",
       destinationPath: standaloneDestinationPath
     });
-    const runtimeExportProgressPromise = capturePackagedRuntimeExportProgress();
+    const runtimeExportProgressPromise = capturePackagedRuntimeExportProgress("windows");
     const [standaloneExportState, runtimeExportProgress] = await Promise.all([
       standaloneExportPromise,
       runtimeExportProgressPromise
@@ -245,6 +280,7 @@ async function main() {
     const selectedWebExportState = await sendAutomationCommand({
       command: "exportProject",
       format: "web",
+      mode: "preview",
       destinationPath: selectedWebDestinationPath
     });
     if (
@@ -267,6 +303,7 @@ async function main() {
     const unsafeDestinationFailure = await sendAutomationCommandExpectFailure({
       command: "exportProject",
       format: "web",
+      mode: "preview",
       destinationPath: unsafeWebDestinationPath
     });
     if ((await readFile(unsafeSentinelPath, "utf8")) !== "preserve this unrelated file\n") {
@@ -279,6 +316,13 @@ async function main() {
     await cp(projectDir, projectEvidencePath, { recursive: true, force: true });
     await relocateProjectEvidencePaths(projectEvidencePath, projectDir);
 
+    await delay(1_100);
+    const settledExportState = await sendAutomationCommand({ command: "getState" });
+    if (settledExportState?.runtimeExportProgress) {
+      throw new Error(
+        `The packaged editor left its runtime export overlay visible after completion: ${JSON.stringify(settledExportState.runtimeExportProgress)}.`
+      );
+    }
     const screenshot = await fetchAutomationScreenshot();
     assertPngScreenshot(screenshot, "export");
     await writeFile(screenshotPath, screenshot);
@@ -316,7 +360,12 @@ async function main() {
         projectDir,
         evidenceCopy: projectEvidencePath,
         name: createdState.projectName,
-        validation: exportState.validation
+        health: readinessState.health,
+        readiness: readinessState.readiness
+      },
+      releaseGate: {
+        refusedStarterProject: true,
+        error: releaseBlockFailure
       },
       export: {
         outputDirectory: exportDirectory,
@@ -366,6 +415,8 @@ async function main() {
       electronFuses,
       releaseChecksums: checksumPath,
       welcomeScreenshotPath,
+      readinessScreenshotPath,
+      exportMenuScreenshotPath,
       screenshotPath,
       playerScreenshotPath,
       playtestScreenshotPath,
@@ -381,7 +432,7 @@ async function main() {
   }
 }
 
-async function capturePackagedRuntimeExportProgress() {
+async function capturePackagedRuntimeExportProgress(expectedFormat) {
   const deadline = Date.now() + 10 * 60_000;
   const samples = [];
   let screenshotCaptured = false;
@@ -392,7 +443,7 @@ async function capturePackagedRuntimeExportProgress() {
     try {
       const state = await sendAutomationCommand({ command: "getState" });
       const progress = state?.runtimeExportProgress;
-      if (progress) {
+      if (progress?.format === expectedFormat) {
         const sample = {
           format: progress.format,
           phase: progress.phase,
@@ -439,7 +490,9 @@ async function capturePackagedRuntimeExportProgress() {
     );
   }
   if (!screenshotCaptured) {
-    throw new Error("The packaged editor never showed a visible compression ETA during the standalone export.");
+    throw new Error(
+      `The packaged editor never showed a visible compression ETA during the standalone export: ${JSON.stringify(samples)}`
+    );
   }
 
   const progressValues = samples.map((sample) => sample.progress);

@@ -8,6 +8,7 @@ import { inventoryMessages } from "./catalogs/inventory";
 import { localizationMessages } from "./catalogs/localization";
 import { playerMessages } from "./catalogs/player";
 import { playtestMessages } from "./catalogs/playtest";
+import { readinessMessages } from "./catalogs/readiness";
 import { scenesMessages } from "./catalogs/scenes";
 import { sharedMessages } from "./catalogs/shared";
 import { worldMessages } from "./catalogs/world";
@@ -54,6 +55,7 @@ export const EDITOR_FEATURE_CATALOGS: readonly EditorFeatureCatalog[] = [
   { feature: "localization", messages: localizationMessages },
   { feature: "assets", messages: assetsMessages },
   { feature: "player", messages: playerMessages },
+  { feature: "readiness", messages: readinessMessages },
   { feature: "playtest", messages: playtestMessages }
 ];
 

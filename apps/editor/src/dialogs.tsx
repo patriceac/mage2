@@ -153,13 +153,14 @@ export type DeleteInventoryItemDialogResult =
     };
 
 export type RuntimeExportFormat = "windows" | "web";
+export type RuntimeExportMode = "preview" | "release";
 
 interface DialogContextValue {
   alert: (options: AlertDialogOptions) => Promise<void>;
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   promptText: (options: PromptTextDialogOptions) => Promise<string | undefined>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
-  chooseRuntimeExport: (projectName: string) => Promise<RuntimeExportFormat | undefined>;
+  chooseRuntimeExport: (projectName: string, mode: RuntimeExportMode) => Promise<RuntimeExportFormat | undefined>;
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
   deleteScene: (options: DeleteSceneDialogOptions) => Promise<DeleteSceneDialogResult>;
@@ -190,6 +191,7 @@ type DialogRequest =
   | {
       kind: "runtime-export";
       projectName: string;
+      mode: RuntimeExportMode;
       resolve: (value: RuntimeExportFormat | undefined) => void;
     }
   | {
@@ -248,9 +250,9 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         new Promise<"save" | "discard" | "cancel">((resolve) => {
           enqueueDialog({ kind: "close-project", projectName, resolve });
         }),
-      chooseRuntimeExport: (projectName) =>
+      chooseRuntimeExport: (projectName, mode) =>
         new Promise<RuntimeExportFormat | undefined>((resolve) => {
-          enqueueDialog({ kind: "runtime-export", projectName, resolve });
+          enqueueDialog({ kind: "runtime-export", projectName, mode, resolve });
         }),
       chooseDirectory: (options) =>
         new Promise<string | undefined>((resolve) => {
@@ -345,6 +347,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       {activeDialog?.kind === "runtime-export" ? (
         <RuntimeExportDialog
           projectName={activeDialog.projectName}
+          mode={activeDialog.mode}
           onResolve={(value) => {
             activeDialog.resolve(value);
             dismissActiveDialog();
@@ -2118,15 +2121,17 @@ function resolveDirectoryValidationMessage(
 
 function RuntimeExportDialog({
   projectName,
+  mode,
   onResolve
 }: {
   projectName: string;
+  mode: RuntimeExportMode;
   onResolve: (value: RuntimeExportFormat | undefined) => void;
 }) {
   const { t } = useEditorI18n();
   return (
     <DialogFrame
-      title={t("Export Runtime")}
+      title={mode === "preview" ? t("Export Preview") : t("Build Release")}
       description={t("Choose what MAGE2 should create for “{projectName}”.", { projectName })}
       wide={false}
       onCancel={() => onResolve(undefined)}

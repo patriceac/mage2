@@ -6,7 +6,7 @@ import { FirstProjectChecklist } from "./FirstProjectChecklist";
 import { resolveFirstProjectChecklist } from "./first-project-checklist";
 
 describe("first project checklist", () => {
-  it("explains the starter template's missing media, interaction, and validation work", () => {
+  it("keeps technical health separate from the three authored setup steps", () => {
     const project = createDefaultProjectBundle("Starter guide");
     const report = validateProject(project);
 
@@ -16,14 +16,14 @@ describe("first project checklist", () => {
       isStarterProject: true,
       shouldShow: true,
       completedCount: 0,
+      health: { healthy: false, blockerCount: report.issues.filter((issue) => issue.level === "error").length },
       sceneId: "scene_intro",
       hotspotId: "hotspot_inspect"
     });
     expect(checklist.steps.map((step) => [step.id, step.complete])).toEqual([
       ["media", false],
       ["interaction", false],
-      ["player", false],
-      ["validation", false]
+      ["player", false]
     ]);
   });
 
@@ -60,8 +60,19 @@ describe("first project checklist", () => {
 
     const checklist = resolveFirstProjectChecklist(project, true, 0);
 
-    expect(checklist.completedCount).toBe(4);
+    expect(checklist.completedCount).toBe(3);
     expect(checklist.shouldShow).toBe(false);
+  });
+
+  it("does not count conditions or required items without an actual player-facing outcome", () => {
+    const project = createDefaultProjectBundle("Conditions only");
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.requiredItemIds = ["item_key"];
+    hotspot.conditions = [{ type: "flagEquals", flag: "door.open", value: false }];
+
+    const checklist = resolveFirstProjectChecklist(project, true, 0);
+
+    expect(checklist.steps.find((step) => step.id === "interaction")?.complete).toBe(false);
   });
 
   it("does not treat established projects without starter artifacts as onboarding projects", () => {
@@ -84,7 +95,7 @@ describe("first project checklist", () => {
       onOpenSceneMedia: () => undefined,
       onOpenInteraction: () => undefined,
       onOpenPlayer: () => undefined,
-      onReviewValidation: () => undefined,
+        onReviewHealth: () => undefined,
         onOpenPlaytest: () => undefined,
         onDismiss: () => undefined
       })
@@ -96,7 +107,8 @@ describe("first project checklist", () => {
     expect(markup).toContain('data-first-project-step="media"');
     expect(markup).toContain('data-first-project-step="interaction"');
     expect(markup).toContain('data-first-project-step="player"');
-    expect(markup).toContain('data-first-project-step="validation"');
+    expect(markup).toContain('data-project-health="blocked"');
+    expect(markup).toContain("Technical checks need attention");
     expect(markup).toContain("Review issues");
   });
 });

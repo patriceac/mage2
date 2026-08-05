@@ -19,16 +19,20 @@ describe("parseEditorAutomationCommand", () => {
       projectName: "Release Evidence"
     });
     expect(parseEditorAutomationCommand({ command: "saveProject" })).toEqual({ command: "saveProject" });
+    expect(parseEditorAutomationCommand({ command: "editor.openFileMenu" })).toEqual({ command: "editor.openFileMenu" });
+    expect(parseEditorAutomationCommand({ command: "editor.closeFileMenu" })).toEqual({ command: "editor.closeFileMenu" });
     expect(parseEditorAutomationCommand({ command: "exportProject" })).toEqual({ command: "exportProject" });
     expect(
       parseEditorAutomationCommand({
         command: "exportProject",
         format: "windows",
+        mode: "preview",
         destinationPath: "C:\\evidence\\Safe Game Player.exe"
       })
     ).toEqual({
       command: "exportProject",
       format: "windows",
+      mode: "preview",
       destinationPath: "C:\\evidence\\Safe Game Player.exe"
     });
     expect(parseEditorAutomationCommand({ command: "closeApplication" })).toEqual({ command: "closeApplication" });
@@ -54,6 +58,12 @@ describe("parseEditorAutomationCommand", () => {
     ).toThrow(/windows.*web/u);
     expect(() => parseEditorAutomationCommand({ command: "exportProject", format: "web" })).toThrow(
       /destinationPath/u
+    );
+    expect(() =>
+      parseEditorAutomationCommand({ command: "exportProject", format: "web", mode: "draft", destinationPath: "C:\\evidence\\web" })
+    ).toThrow(/preview.*release/u);
+    expect(() => parseEditorAutomationCommand({ command: "exportProject", mode: "preview" })).toThrow(
+      /format.*destinationPath/u
     );
   });
 

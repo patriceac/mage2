@@ -22,7 +22,12 @@ export type EditorAutomationCommand =
   | { command: "resetInterfaceLocale" }
   | { command: "createProject"; projectDir: string; projectName: string }
   | { command: "saveProject" }
-  | { command: "exportProject"; format?: "windows" | "web"; destinationPath?: string }
+  | {
+      command: "exportProject";
+      format?: "windows" | "web";
+      mode?: "preview" | "release";
+      destinationPath?: string;
+    }
   | { command: "listHotspots"; sceneId?: string }
   | { command: "listInventoryItems" }
   | { command: "openProject"; projectDir: string; tab?: EditorTab }
@@ -32,6 +37,8 @@ export type EditorAutomationCommand =
   | { command: "setHotspotInventoryAction"; hotspotId: string; action: EditorAutomationHotspotAction; itemId?: string }
   | { command: "editor.undo" }
   | { command: "editor.redo" }
+  | { command: "editor.openFileMenu" }
+  | { command: "editor.closeFileMenu" }
   | { command: "editor.openHotspotInspector"; hotspotId?: string }
   | { command: "editor.selectHotspotActionItem"; hotspotId: string; itemId: string }
   | {
@@ -115,10 +122,21 @@ export function parseEditorAutomationCommand(input: unknown, t: EditorTranslator
     case "playtest.reset":
     case "editor.undo":
     case "editor.redo":
+    case "editor.openFileMenu":
+    case "editor.closeFileMenu":
       return { command };
     case "exportProject": {
+      if (candidate.mode !== undefined && candidate.mode !== "preview" && candidate.mode !== "release") {
+        throw new Error(t("Automation runtime export mode must be 'preview' or 'release'."));
+      }
       if (candidate.format === undefined && candidate.destinationPath === undefined) {
-        return { command };
+        if (candidate.mode === "preview") {
+          throw new Error(t("Automation preview export requires a format and destinationPath."));
+        }
+        return {
+          command,
+          ...(candidate.mode ? { mode: candidate.mode } : {})
+        };
       }
       if (candidate.format !== "windows" && candidate.format !== "web") {
         throw new Error(t("Automation runtime export format must be 'windows' or 'web'."));
@@ -126,6 +144,7 @@ export function parseEditorAutomationCommand(input: unknown, t: EditorTranslator
       return {
         command,
         format: candidate.format,
+        ...(candidate.mode ? { mode: candidate.mode } : {}),
         destinationPath: requireString(candidate.destinationPath, "destinationPath")
       };
     }

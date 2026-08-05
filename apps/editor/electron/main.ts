@@ -25,6 +25,7 @@ import {
   exportRuntimeArtifact,
   suggestedRuntimeArtifactName,
   type RuntimeExportFormat,
+  type RuntimeExportMode,
   type RuntimeExportRequest,
   type WindowsRuntimePackagingResources
 } from "./runtime-artifact-exporter";
@@ -430,7 +431,11 @@ function registerIpcHandlers(): void {
     const parsedRequest = parseRuntimeExportRequest(request);
     const destinationPath = parsedRequest.destinationPath
       ? resolveAutomationExportDestination(parsedRequest.destinationPath)
-      : await chooseRuntimeExportDestination(parsedRequest.format, normalized.manifest.projectName);
+      : await chooseRuntimeExportDestination(
+          parsedRequest.format,
+          normalized.manifest.projectName,
+          parsedRequest.mode ?? "release"
+        );
     if (!destinationPath) {
       return { canceled: true as const };
     }
@@ -461,15 +466,20 @@ function parseRuntimeExportRequest(input: RuntimeExportRequest): RuntimeExportRe
   if (input.destinationPath !== undefined && typeof input.destinationPath !== "string") {
     throw new Error("Runtime export destination must be a path string.");
   }
+  if (input.mode !== undefined && input.mode !== "preview" && input.mode !== "release") {
+    throw new Error("Runtime export mode must be 'preview' or 'release'.");
+  }
   return {
     format: input.format,
+    mode: input.mode ?? "release",
     destinationPath: input.destinationPath?.trim() || undefined
   };
 }
 
 async function chooseRuntimeExportDestination(
   format: RuntimeExportFormat,
-  projectName: string
+  projectName: string,
+  mode: RuntimeExportMode
 ): Promise<string | undefined> {
   if (!mainWindow) {
     throw new Error("The editor window is unavailable.");
@@ -477,9 +487,11 @@ async function chooseRuntimeExportDestination(
 
   if (format === "windows") {
     const selection = await dialog.showSaveDialog(mainWindow, {
-      title: `Create a standalone Windows player for ${projectName}`,
+      title: mode === "preview"
+        ? `Create a standalone Windows preview for ${projectName}`
+        : `Create a standalone Windows player for ${projectName}`,
       buttonLabel: "Create Executable",
-      defaultPath: path.join(app.getPath("downloads"), suggestedRuntimeArtifactName(projectName, format)),
+      defaultPath: path.join(app.getPath("downloads"), suggestedRuntimeArtifactName(projectName, format, mode)),
       filters: [{ name: "Windows executable", extensions: ["exe"] }],
       properties: ["showOverwriteConfirmation", "createDirectory"]
     });
@@ -492,14 +504,14 @@ async function chooseRuntimeExportDestination(
   }
 
   const selection = await dialog.showOpenDialog(mainWindow, {
-    title: `Choose where to create ${suggestedRuntimeArtifactName(projectName, format)}`,
+    title: `Choose where to create ${suggestedRuntimeArtifactName(projectName, format, mode)}`,
     buttonLabel: "Choose Export Location",
     defaultPath: app.getPath("downloads"),
     properties: ["openDirectory", "createDirectory", "promptToCreate"]
   });
   const selectedParent = selection.canceled ? undefined : selection.filePaths[0];
   return selectedParent
-    ? path.join(selectedParent, suggestedRuntimeArtifactName(projectName, format))
+    ? path.join(selectedParent, suggestedRuntimeArtifactName(projectName, format, mode))
     : undefined;
 }
 

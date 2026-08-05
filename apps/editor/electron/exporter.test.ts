@@ -73,8 +73,33 @@ describe("safe project export", () => {
     project.assets.assets = [];
     project.manifest.buildSettings.outputDir = externalOutput;
 
-    await expect(exportProjectBundle(projectDir, project)).rejects.toThrow(/Export blocked by .*validation error/i);
+    await expect(exportProjectBundle(projectDir, project)).rejects.toThrow(/Release build blocked by .*blocker/i);
     await expect(readFile(sentinelPath, "utf8")).resolves.toBe("must remain");
+  });
+
+  it("allows a healthy work in progress as a preview while blocking the same project as a release", async () => {
+    const { projectDir, project } = await createValidProject();
+    project.scenes.items[0]!.hotspots[0]!.effects = [];
+    const previewDirectory = path.join(projectDir, "preview-build");
+
+    await expect(exportProjectBundle(projectDir, project)).rejects.toThrow(/STARTER_HOTSPOT_UNWIRED/u);
+
+    const result = await exportProjectBundle(projectDir, project, {
+      mode: "preview",
+      outputDirectory: previewDirectory
+    });
+
+    expect(result.validationReport).toMatchObject({
+      valid: true,
+      mode: "preview",
+      readiness: {
+        ready: false,
+        status: "not-ready"
+      }
+    });
+    await expect(readFile(path.join(previewDirectory, "validation-report.json"), "utf8")).resolves.toContain(
+      '"mode": "preview"'
+    );
   });
 
   it.each([
@@ -326,6 +351,7 @@ async function createValidProject(
     }
   ];
   project.scenes.items[0].backgroundAssetId = "asset_background";
+  project.scenes.items[0].hotspots[0]!.effects = [{ type: "setFlag", flag: "opening.checked", value: true }];
 
   return { projectDir, project, sourcePath };
 }

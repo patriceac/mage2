@@ -1,8 +1,8 @@
-import { resolveAssetCategory, type Hotspot, type ProjectBundle } from "@mage2/schema";
+import { hasPlayerFacingHotspotBehavior, resolveAssetCategory, type ProjectBundle } from "@mage2/schema";
 import { STARTER_PLACEHOLDER_ASSET_ID } from "./project-helpers";
 import type { EditorTranslator } from "./i18n/translate";
 
-export type FirstProjectChecklistStepId = "media" | "interaction" | "player" | "validation";
+export type FirstProjectChecklistStepId = "media" | "interaction" | "player";
 
 export interface FirstProjectChecklistStep {
   id: FirstProjectChecklistStepId;
@@ -15,6 +15,10 @@ export interface FirstProjectChecklistState {
   isStarterProject: boolean;
   shouldShow: boolean;
   completedCount: number;
+  health: {
+    healthy: boolean;
+    blockerCount: number;
+  };
   sceneId?: string;
   hotspotId?: string;
   steps: FirstProjectChecklistStep[];
@@ -25,8 +29,8 @@ const STARTER_HOTSPOT_ID = "hotspot_inspect";
 
 export function resolveFirstProjectChecklist(
   project: ProjectBundle,
-  validationValid: boolean,
-  validationIssueCount: number,
+  healthHealthy: boolean,
+  healthBlockerCount: number,
   t: EditorTranslator = (source, params) => source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name) =>
     Object.prototype.hasOwnProperty.call(params ?? {}, name) ? String(params?.[name]) : placeholder
   )
@@ -95,16 +99,6 @@ export function resolveFirstProjectChecklist(
       description: playerPresentationComplete
         ? t("The title screen and release identity have a usable starting point.")
         : t("Choose title artwork and set the version players will see.")
-    },
-    {
-      id: "validation",
-      complete: validationValid,
-      title: t("Clear project issues"),
-      description: validationValid
-        ? t("The project is valid and ready to playtest.")
-        : validationIssueCount === 1
-          ? t("Resolve {count} validation issue before playtesting.", { count: validationIssueCount })
-          : t("Resolve {count} validation issues before playtesting.", { count: validationIssueCount })
     }
   ];
   const completedCount = steps.filter((step) => step.complete).length;
@@ -113,22 +107,16 @@ export function resolveFirstProjectChecklist(
     isStarterProject,
     shouldShow: isStarterProject && completedCount < steps.length,
     completedCount,
+    health: {
+      healthy: healthHealthy,
+      blockerCount: healthBlockerCount
+    },
     sceneId: starterScene?.id,
     hotspotId: starterHotspot?.id,
     steps
   };
 }
 
-function isMeaningfulStarterInteraction(hotspot: Hotspot): boolean {
-  const hasBehavior = Boolean(
-    hotspot.targetSceneId ||
-      hotspot.dialogueTreeId ||
-      hotspot.inventoryItemId ||
-      hotspot.placedInventoryItemId ||
-      hotspot.requiredItemIds.length > 0 ||
-      hotspot.conditions.some((condition) => condition.type !== "always") ||
-      hotspot.effects.length > 0
-  );
-
-  return hotspot.id === STARTER_HOTSPOT_ID ? hasBehavior : hasBehavior || Boolean(hotspot.commentTextId);
+function isMeaningfulStarterInteraction(hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number]): boolean {
+  return hasPlayerFacingHotspotBehavior(hotspot);
 }

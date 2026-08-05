@@ -18,12 +18,14 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
 import {
+  assessProjectReadiness,
   normalizeSupportedLocales,
   parseBuildManifest,
   toExportProjectData,
   type BuildManifest,
+  type ProjectReadinessReport,
   type ProjectBundle,
-  validateProjectForRelease
+  type ValidationReport
 } from "@mage2/schema";
 
 const EXPORT_MARKER_FILE = ".mage2-export.json";
@@ -68,7 +70,14 @@ type DestinationSnapshot =
 export interface ExportResult {
   outputDirectory: string;
   buildManifest: BuildManifest;
-  validationReport: ReturnType<typeof validateProjectForRelease>;
+  validationReport: ExportValidationReport;
+}
+
+export type ProjectExportMode = "preview" | "release";
+
+export interface ExportValidationReport extends ValidationReport {
+  mode: ProjectExportMode;
+  readiness: ProjectReadinessReport;
 }
 
 export type ExportProjectBundleProgressStage = "preparing" | "building" | "publishing" | "complete";
@@ -85,6 +94,8 @@ export interface ExportProjectBundleOptions {
    * remains the destination.
   */
   outputDirectory?: string;
+  /** Preview builds require project health only; release builds also enforce readiness blockers. */
+  mode?: ProjectExportMode;
   /** Receives best-effort phase updates. Listener errors never interrupt a safe export. */
   onProgress?: (progress: ExportProjectBundleProgress) => void;
 }
@@ -94,8 +105,17 @@ export async function exportProjectBundle(
   project: ProjectBundle,
   options: ExportProjectBundleOptions = {}
 ): Promise<ExportResult> {
-  const validationReport = validateProjectForRelease(project);
-  assertProjectCanBeExported(validationReport);
+  const mode = options.mode ?? "release";
+  const readiness = assessProjectReadiness(project);
+  const gateReport = mode === "preview"
+    ? readiness.health
+    : { valid: readiness.ready, issues: readiness.issues };
+  const validationReport: ExportValidationReport = {
+    ...gateReport,
+    mode,
+    readiness
+  };
+  assertProjectCanBeExported(validationReport, mode);
   emitExportProjectBundleProgress(options.onProgress, { stage: "preparing", progress: 0 });
 
   const { projectIdentity, outputParentIdentity, outputDirectory } = await resolveSafeOutputDirectory(
@@ -187,7 +207,10 @@ function emitExportProjectBundleProgress(
   }
 }
 
-function assertProjectCanBeExported(validationReport: ReturnType<typeof validateProjectForRelease>): void {
+function assertProjectCanBeExported(
+  validationReport: ExportValidationReport,
+  mode: ProjectExportMode
+): void {
   const errors = validationReport.issues.filter((issue) => issue.level === "error");
   if (errors.length === 0) {
     return;
@@ -198,8 +221,10 @@ function assertProjectCanBeExported(validationReport: ReturnType<typeof validate
     .map((issue) => `[${issue.code}] ${issue.message}`)
     .join(" ");
   const remaining = errors.length > 3 ? ` ${errors.length - 3} more error(s) were found.` : "";
+  const exportLabel = mode === "preview" ? "Preview export" : "Release build";
+  const issueLabel = mode === "preview" ? "project health error" : "project health or readiness blocker";
   throw new Error(
-    `Export blocked by ${errors.length} project validation error(s). Fix the errors before exporting. ${preview}${remaining}`
+    `${exportLabel} blocked by ${errors.length} ${issueLabel}(s). Fix the blockers before exporting. ${preview}${remaining}`
   );
 }
 
@@ -685,7 +710,7 @@ async function buildExportInDirectory(
   projectIdentity: DirectoryIdentity,
   runtimeDist: string,
   project: ProjectBundle,
-  validationReport: ReturnType<typeof validateProjectForRelease>,
+  validationReport: ExportValidationReport,
   onProgress?: (progress: number) => void
 ): Promise<BuildManifest> {
   await copyRuntimeDistribution(runtimeDist, outputIdentity, projectIdentity);

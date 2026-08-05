@@ -17,9 +17,14 @@ import {
 import os from "node:os";
 import path from "node:path";
 import type { ProjectBundle } from "@mage2/schema";
-import { exportProjectBundle, type ExportResult } from "./exporter";
+import {
+  exportProjectBundle,
+  type ExportResult,
+  type ProjectExportMode
+} from "./exporter";
 
 export type RuntimeExportFormat = "windows" | "web";
+export type RuntimeExportMode = ProjectExportMode;
 
 export type RuntimeExportProgressPhase =
   | "preparing"
@@ -48,6 +53,7 @@ export type PortableWindowsRuntimeProgressHandler = (progress: PortableWindowsRu
 
 export interface RuntimeExportRequest {
   format: RuntimeExportFormat;
+  mode?: RuntimeExportMode;
   /** Trusted automation-only override. Normal exports obtain this path from Electron's native dialog. */
   destinationPath?: string;
 }
@@ -114,6 +120,7 @@ export async function exportRuntimeArtifact(options: {
   windowsResources?: WindowsRuntimePackagingResources;
   onProgress?: RuntimeExportProgressHandler;
 }): Promise<RuntimeArtifactExportResult> {
+  const mode = options.request.mode ?? "release";
   const reportProgress = createRuntimeExportProgressReporter(options.request.format, options.onProgress);
   reportProgress({ phase: "preparing", progress: 0.02 });
 
@@ -126,6 +133,7 @@ export async function exportRuntimeArtifact(options: {
     const bundleStartedAt = Date.now();
     const result = await exportProjectBundle(options.projectDir, options.project, {
       outputDirectory: destinationPath,
+      mode,
       onProgress: (bundleProgress) => {
         const progress = 0.03 + bundleProgress.progress * 0.94;
         const bundleElapsedSeconds = Math.max(0.25, (Date.now() - bundleStartedAt) / 1000);
@@ -163,6 +171,7 @@ export async function exportRuntimeArtifact(options: {
   // the portable executable. The selected destination is not touched until
   // that build and the portable payload have both completed successfully.
   const result = await exportProjectBundle(options.projectDir, options.project, {
+    mode,
     onProgress: (bundleProgress) => {
       reportProgress({
         phase: "building-web",
@@ -466,8 +475,15 @@ export function sanitizeRuntimeArtifactName(value: string): string {
   return sanitized || "MAGE2 Game";
 }
 
-export function suggestedRuntimeArtifactName(projectName: string, format: RuntimeExportFormat): string {
+export function suggestedRuntimeArtifactName(
+  projectName: string,
+  format: RuntimeExportFormat,
+  mode: RuntimeExportMode = "release"
+): string {
   const baseName = sanitizeRuntimeArtifactName(projectName);
+  if (mode === "preview") {
+    return format === "windows" ? `${baseName} Preview.exe` : `${baseName} Preview Web`;
+  }
   return format === "windows" ? `${baseName} Player.exe` : `${baseName} Web`;
 }
 

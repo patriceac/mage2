@@ -39,6 +39,7 @@ interface EditorLaunchOptions {
 }
 
 type RuntimeExportFormat = "windows" | "web";
+type RuntimeExportMode = "preview" | "release";
 
 type RuntimeExportProgressPhase =
   | "preparing"
@@ -59,6 +60,7 @@ interface RuntimeExportProgress {
 
 interface RuntimeExportRequest {
   format: RuntimeExportFormat;
+  mode?: RuntimeExportMode;
   destinationPath?: string;
 }
 
@@ -72,7 +74,14 @@ type RuntimeExportResult =
       buildManifest: unknown;
       validationReport: {
         valid: boolean;
+        mode?: RuntimeExportMode;
         issues: Array<{ level: string; code: string; message: string; entityId?: string }>;
+        readiness?: {
+          ready: boolean;
+          status: "not-ready" | "ready-with-warnings" | "ready";
+          blockers: Array<{ level: string; code: string; message: string; entityId?: string }>;
+          warnings: Array<{ level: string; code: string; message: string; entityId?: string }>;
+        };
       };
     };
 

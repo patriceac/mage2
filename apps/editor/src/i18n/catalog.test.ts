@@ -25,6 +25,7 @@ describe("editor feature catalogs", () => {
       "localization",
       "assets",
       "player",
+      "readiness",
       "playtest"
     ]);
   });

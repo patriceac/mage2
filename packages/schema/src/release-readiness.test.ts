@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   PLAYER_UI_TEXT_IDS,
+  assessProjectReadiness,
   createDefaultProjectBundle,
+  hasPlayerFacingHotspotBehavior,
   validateProjectForRelease,
   validateProjectReleaseReadiness,
   type Asset,
@@ -9,13 +11,51 @@ import {
 } from "./index";
 
 describe("release readiness", () => {
-  it("accepts the complete cinematic starter kit while surfacing its unwired hotspot", () => {
+  it("keeps a structurally healthy starter project out of release builds", () => {
+    const project = createCompleteStarterProject();
+    const report = assessProjectReadiness(project);
+
+    expect(report.health.valid).toBe(true);
+    expect(report.ready).toBe(false);
+    expect(report.status).toBe("not-ready");
+    expect(report.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "STARTER_SCENE_MEDIA_IN_USE", level: "error" }),
+        expect.objectContaining({ code: "STARTER_HOTSPOT_UNWIRED", level: "error" })
+      ])
+    );
+    expect(report.warnings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "STARTER_PLAYER_ARTWORK_IN_USE" })])
+    );
+  });
+
+  it("accepts creator-owned content with a meaningful opening interaction", () => {
     const project = createReleaseReadyProject();
     const report = validateProjectForRelease(project);
 
     expect(report.valid).toBe(true);
-    expect(report.issues.map((issue) => issue.code)).toContain("STARTER_HOTSPOT_UNWIRED");
+    expect(report.issues.map((issue) => issue.code)).not.toContain("STARTER_HOTSPOT_UNWIRED");
     expect(report.issues.some((issue) => issue.code.startsWith("PLAYER_") && issue.level === "error")).toBe(false);
+  });
+
+  it("does not mistake requirements, conditions, or empty event shells for player-facing behavior", () => {
+    const project = createReleaseReadyProject();
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    hotspot.effects = [];
+    hotspot.requiredItemIds = ["item_key"];
+    hotspot.conditions = [{ type: "flagEquals", flag: "door.open", value: false }];
+    hotspot.clickEvent = { effects: [] };
+
+    expect(hasPlayerFacingHotspotBehavior(hotspot)).toBe(false);
+    expect(validateProjectReleaseReadiness(project).issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "STARTER_HOTSPOT_UNWIRED", level: "error" })])
+    );
+
+    hotspot.clickEvent.effects = [{ type: "setFlag", flag: "door.checked", value: true }];
+    expect(hasPlayerFacingHotspotBehavior(hotspot)).toBe(true);
+    expect(validateProjectReleaseReadiness(project).issues.map((issue) => issue.code)).not.toContain(
+      "STARTER_HOTSPOT_UNWIRED"
+    );
   });
 
   it("blocks broken title references and malformed creator links", () => {
@@ -93,20 +133,39 @@ describe("release readiness", () => {
 function createReleaseReadyProject(): ProjectBundle {
   const project = createDefaultProjectBundle("Release ready");
   project.assets.assets = [
-    createImageAsset("asset_starter_scene", "background", "scene.png"),
+    createImageAsset("asset_creator_scene", "background", "scene.png"),
     createImageAsset("asset_starter_title", "player", "title.png"),
     createImageAsset("asset_starter_icon", "player", "icon.png")
+  ];
+  project.scenes.items[0]!.backgroundAssetId = "asset_creator_scene";
+  project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setFlag", flag: "opening.checked", value: true }];
+  return project;
+}
+
+function createCompleteStarterProject(): ProjectBundle {
+  const project = createDefaultProjectBundle("Complete starter");
+  project.assets.assets = [
+    createImageAsset("asset_starter_scene", "background", "scene.png", "starter-kit"),
+    createImageAsset("asset_starter_title", "player", "title.png", "starter-kit"),
+    createImageAsset("asset_starter_icon", "player", "icon.png", "starter-kit")
   ];
   return project;
 }
 
-function createImageAsset(id: string, category: "background" | "player", sourcePath: string): Asset {
+function createImageAsset(
+  id: string,
+  category: "background" | "player",
+  sourcePath: string,
+  provenance: "creator" | "starter-kit" = "creator"
+): Asset {
   return {
     id,
     kind: "image",
     category,
     name: sourcePath,
-    provenance: { source: "starter-kit", packId: "cinematic", packVersion: 1 },
+    provenance: provenance === "starter-kit"
+      ? { source: "starter-kit", packId: "cinematic", packVersion: 1 }
+      : { source: "creator" },
     variants: {
       en: {
         sourcePath,

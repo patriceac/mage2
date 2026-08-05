@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, validateProject } from "@mage2/schema";
+import { createDefaultProjectBundle, validateProject, validateProjectReleaseReadiness } from "@mage2/schema";
 import { addDialogueTree } from "./project-helpers";
 import { resolveIssueNavigation, resolveVisibleIssuesForTab } from "./issue-navigation";
 
@@ -239,6 +239,34 @@ describe("resolveIssueNavigation", () => {
     expect(target).toMatchObject({
       tab: "scenes",
       sceneId: project.scenes.items[0].id
+    });
+  });
+
+  it("routes release-readiness blockers to the authored starter content", () => {
+    const project = createDefaultProjectBundle("Release issue navigation");
+    project.assets.assets.push({
+      id: "asset_starter_title",
+      kind: "image",
+      category: "player",
+      name: "Starter title",
+      provenance: { source: "starter-kit", packId: "cinematic", packVersion: 1 },
+      variants: {
+        en: { sourcePath: "starter-title.png", importedAt: "2026-08-05T00:00:00.000Z" }
+      }
+    });
+    const issues = validateProjectReleaseReadiness(project).issues;
+
+    expect(resolveIssueNavigation(project, issues.find((issue) => issue.code === "STARTER_SCENE_MEDIA_IN_USE")!)).toMatchObject({
+      tab: "scenes",
+      sceneId: "scene_intro"
+    });
+    expect(resolveIssueNavigation(project, issues.find((issue) => issue.code === "STARTER_HOTSPOT_UNWIRED")!)).toMatchObject({
+      tab: "scenes",
+      sceneId: "scene_intro",
+      hotspotId: "hotspot_inspect"
+    });
+    expect(resolveIssueNavigation(project, issues.find((issue) => issue.code === "STARTER_PLAYER_ARTWORK_IN_USE")!)).toMatchObject({
+      tab: "player"
     });
   });
 });

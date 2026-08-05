@@ -174,8 +174,10 @@ export function resolveIssueNavigation(
     case "PLAYER_APP_ICON_RECOMMENDED":
     case "PLAYER_WEBSITE_INVALID":
     case "PLAYER_GAME_VERSION_MISSING":
+    case "PLAYER_GAME_VERSION_INVALID":
     case "PLAYER_TEXT_SOURCE_INCOMPLETE":
     case "PLAYER_TEXT_LOCALE_INCOMPLETE":
+    case "STARTER_PLAYER_ARTWORK_IN_USE":
       return {
         // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "player presentation",
@@ -319,9 +321,14 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "PLAYER_WEBSITE_INVALID":
       return "Enter a complete http or https creator URL in Player, or leave the field empty.";
     case "PLAYER_GAME_VERSION_MISSING":
+    case "PLAYER_GAME_VERSION_INVALID":
       return "Set the player-facing release version in Player.";
+    case "STARTER_SCENE_MEDIA_IN_USE":
+      return "Replace the starter background with creator-owned scene media before building a release.";
     case "STARTER_HOTSPOT_UNWIRED":
       return "Open the starter hotspot in Scenes and give it a transition, dialogue, item action, media, or response.";
+    case "STARTER_PLAYER_ARTWORK_IN_USE":
+      return "Review the starter title and icon artwork in Player, then replace anything that should not ship.";
     case "HOTSPOT_COMMENT_TEXT_MISSING":
       return "Add the missing text in Localization > Strings, or restore the default-locale value from Scenes.";
     case "DIALOGUE_TEXT_MISSING":

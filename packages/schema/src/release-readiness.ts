@@ -1,7 +1,43 @@
 import { collectPlayerExperienceTextIds } from "./player-experience";
 import { getStringTranslationState, normalizeSupportedLocales, resolveAssetCategory } from "./localization";
-import type { Asset, Hotspot, ProjectBundle, ValidationIssue, ValidationReport } from "./types";
+import type { Asset, Hotspot, HotspotEvent, ProjectBundle, ValidationIssue, ValidationReport } from "./types";
 import { validateProject } from "./validation";
+
+export type ProjectReadinessStatus = "not-ready" | "ready-with-warnings" | "ready";
+
+export interface ProjectReadinessReport {
+  ready: boolean;
+  status: ProjectReadinessStatus;
+  health: ValidationReport;
+  releaseIssues: ValidationIssue[];
+  blockers: ValidationIssue[];
+  warnings: ValidationIssue[];
+  issues: ValidationIssue[];
+}
+
+/**
+ * Assesses whether a structurally healthy project is ready to become a
+ * creator-facing release. Health and release-specific issues remain available
+ * separately so callers never need to present "valid" as a publishing claim.
+ */
+export function assessProjectReadiness(project: ProjectBundle): ProjectReadinessReport {
+  const health = validateProject(project);
+  const release = validateProjectReleaseReadiness(project);
+  const issues = [...health.issues, ...release.issues];
+  const blockers = issues.filter((issue) => issue.level === "error");
+  const warnings = issues.filter((issue) => issue.level === "warning");
+  const ready = blockers.length === 0;
+
+  return {
+    ready,
+    status: !ready ? "not-ready" : warnings.length > 0 ? "ready-with-warnings" : "ready",
+    health,
+    releaseIssues: release.issues,
+    blockers,
+    warnings,
+    issues
+  };
+}
 
 export function validateProjectReleaseReadiness(project: ProjectBundle): ValidationReport {
   const issues: ValidationIssue[] = [];
@@ -120,16 +156,44 @@ export function validateProjectReleaseReadiness(project: ProjectBundle): Validat
   }
 
   for (const scene of project.scenes.items) {
+    const backgroundAsset = scene.backgroundAssetId
+      ? assetsById.get(scene.backgroundAssetId)
+      : undefined;
+    if (
+      scene.backgroundAssetId === "asset_placeholder" ||
+      scene.backgroundAssetId === "asset_starter_scene" ||
+      backgroundAsset?.provenance?.source === "starter-kit"
+    ) {
+      issues.push({
+        level: "error",
+        code: "STARTER_SCENE_MEDIA_IN_USE",
+        message: "Starter scene media is still in use. Replace it with creator-owned media before building a release.",
+        entityId: scene.id
+      });
+    }
+
     for (const hotspot of scene.hotspots) {
-      if (hotspot.id === "hotspot_inspect" && !hasPlayerFacingBehavior(hotspot)) {
+      if (hotspot.id === "hotspot_inspect" && !hasPlayerFacingHotspotBehavior(hotspot)) {
         issues.push({
-          level: "warning",
+          level: "error",
           code: "STARTER_HOTSPOT_UNWIRED",
           message: `Starter hotspot '${hotspot.name}' still has no player-facing behavior.`,
           entityId: hotspot.id
         });
       }
     }
+  }
+
+  if (
+    [presentation.titleBackgroundAssetId, presentation.logoAssetId, presentation.appIconAssetId].some(
+      (assetId) => assetId && assetsById.get(assetId)?.provenance?.source === "starter-kit"
+    )
+  ) {
+    issues.push({
+      level: "warning",
+      code: "STARTER_PLAYER_ARTWORK_IN_USE",
+      message: "Starter title or icon artwork is still in use. Review it before release."
+    });
   }
 
   return {
@@ -153,12 +217,10 @@ export function isValidGameVersion(value: string): boolean {
 }
 
 export function validateProjectForRelease(project: ProjectBundle): ValidationReport {
-  const structure = validateProject(project);
-  const readiness = validateProjectReleaseReadiness(project);
-  const issues = [...structure.issues, ...readiness.issues];
+  const readiness = assessProjectReadiness(project);
   return {
-    valid: issues.every((issue) => issue.level !== "error"),
-    issues
+    valid: readiness.ready,
+    issues: readiness.issues
   };
 }
 
@@ -278,7 +340,7 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function hasPlayerFacingBehavior(hotspot: Hotspot): boolean {
+export function hasPlayerFacingHotspotBehavior(hotspot: Hotspot): boolean {
   return Boolean(
     hotspot.targetSceneId ||
       hotspot.dialogueTreeId ||
@@ -287,7 +349,16 @@ function hasPlayerFacingBehavior(hotspot: Hotspot): boolean {
       hotspot.mediaAssetId ||
       hotspot.response ||
       hotspot.effects.length > 0 ||
-      hotspot.clickEvent ||
-      hotspot.otherItemEvent
+      hasPlayerFacingHotspotEvent(hotspot.clickEvent) ||
+      hasPlayerFacingHotspotEvent(hotspot.otherItemEvent)
+  );
+}
+
+function hasPlayerFacingHotspotEvent(event: HotspotEvent | undefined): boolean {
+  return Boolean(
+    event?.targetSceneId ||
+      event?.dialogueTreeId ||
+      event?.response ||
+      (event?.effects.length ?? 0) > 0
   );
 }

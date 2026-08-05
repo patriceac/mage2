@@ -182,6 +182,8 @@ describe("portable NSIS script", () => {
     expect(sanitizeRuntimeArtifactName('  My <Game>: Finale.  ')).toBe("My -Game-- Finale");
     expect(suggestedRuntimeArtifactName("My Game", "windows")).toBe("My Game Player.exe");
     expect(suggestedRuntimeArtifactName("My Game", "web")).toBe("My Game Web");
+    expect(suggestedRuntimeArtifactName("My Game", "windows", "preview")).toBe("My Game Preview.exe");
+    expect(suggestedRuntimeArtifactName("My Game", "web", "preview")).toBe("My Game Preview Web");
   });
 });
 

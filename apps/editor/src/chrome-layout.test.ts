@@ -160,6 +160,14 @@ describe("editor chrome styles", () => {
     expect(appSource).not.toContain("Autosave:");
   });
 
+  it("presents project health and release readiness as separate export decisions", () => {
+    expect(appSource).toContain('handleExportProject({ mode: "preview" })');
+    expect(appSource).toContain('handleExportProject({ mode: "release" })');
+    expect(appSource).toContain('t("Health: Healthy")');
+    expect(appSource).toContain('t("Release: Not ready")');
+    expect(appSource).not.toContain('t("Valid")');
+  });
+
   it("keeps interface language available and protects directional editor geometry", () => {
     expect(appSource).toContain('t("Interface language")');
     expect(appSource).toContain('<span>{t("Language")}</span>');

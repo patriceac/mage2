@@ -682,6 +682,13 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
   white-space: nowrap;
 }
 
+.status-bar__signals {
+  display: inline-flex;
+  justify-self: end;
+  align-items: center;
+  gap: 0.38rem;
+}
+
 .tab-strip--chrome {
   position: relative;
   z-index: 10;
@@ -747,6 +754,12 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
   border-color: rgba(246, 193, 119, 0.42);
   background: rgba(246, 193, 119, 0.12);
   color: #f6c177;
+}
+
+.status-pill--danger {
+  border-color: rgba(248, 113, 113, 0.46);
+  background: rgba(248, 113, 113, 0.13);
+  color: #fca5a5;
 }
 
 .validation-panel {
@@ -7747,6 +7760,56 @@ button.recent-project__icon-button:hover {
   background: rgba(246, 193, 119, 0.15);
 }
 
+.app-shell--editor-workbench .first-project-checklist__health {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding-top: 0.62rem;
+  border-top: 1px solid rgba(122, 142, 158, 0.2);
+}
+
+.app-shell--editor-workbench .first-project-checklist__health strong,
+.app-shell--editor-workbench .first-project-checklist__health p {
+  margin: 0;
+}
+
+.app-shell--editor-workbench .first-project-checklist__health strong {
+  display: block;
+  color: #dfe8ee;
+  font-size: 0.68rem;
+}
+
+.app-shell--editor-workbench .first-project-checklist__health p {
+  margin-top: 0.16rem;
+  color: #83939f;
+  font-size: 0.61rem;
+  line-height: 1.35;
+}
+
+.app-shell--editor-workbench .first-project-checklist__health--healthy strong {
+  color: #8be2c0;
+}
+
+.app-shell--editor-workbench .first-project-checklist__health--blocked strong {
+  color: #fca5a5;
+}
+
+.app-shell--editor-workbench .first-project-checklist__health-actions {
+  display: inline-flex;
+  gap: 0.38rem;
+}
+
+.app-shell--editor-workbench
+  .first-project-checklist__health-actions button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  min-height: 1.65rem;
+  padding: 0.24rem 0.48rem;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .app-shell--editor-workbench .validation-panel__header {
   gap: 0.45rem;
   align-items: flex-start;
@@ -7847,6 +7910,13 @@ button.recent-project__icon-button:hover {
   border-color: rgba(246, 193, 119, 0.44);
   background: rgba(246, 193, 119, 0.12);
   color: #f6c177;
+}
+
+.app-shell--editor-workbench
+  button.status-pill--danger:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(248, 113, 113, 0.13);
+  color: #fca5a5;
 }
 
 .app-shell--editor-workbench :where(.panel-grid--assets, .panel-grid--world, .panel-grid--inventory) {

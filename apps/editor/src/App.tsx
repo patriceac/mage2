@@ -9,6 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent
 } from "react";
 import {
+  assessProjectReadiness,
   buildHotspotPickupFlag,
   buildHotspotPlacementFlag,
   resolveAssetVariant,
@@ -21,8 +22,7 @@ import {
   type Effect,
   type Hotspot,
   type ProjectBundle,
-  type ValidationIssue,
-  validateProjectForRelease
+  type ValidationIssue
 } from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
@@ -37,7 +37,7 @@ import {
   RuntimeExportProgressOverlay,
   type RuntimeExportProgressViewState
 } from "./RuntimeExportProgressOverlay";
-import { useDialogs, type RuntimeExportFormat } from "./dialogs";
+import { useDialogs, type RuntimeExportFormat, type RuntimeExportMode } from "./dialogs";
 import { resolveFirstProjectChecklist } from "./first-project-checklist";
 import {
   getIssueHint,
@@ -321,6 +321,9 @@ export function App() {
         runtimeExportDismissTimerRef.current = undefined;
       }
       setRuntimeExportProgress(progress);
+      if (progress.phase === "complete") {
+        dismissRuntimeExportProgress(900);
+      }
     });
     return () => {
       unsubscribe();
@@ -699,6 +702,7 @@ export function App() {
 
   async function handleExportProject(options?: {
     format?: RuntimeExportFormat;
+    mode?: RuntimeExportMode;
     destinationPath?: string;
     legacyAutomation?: boolean;
     suppressErrorDialog?: boolean;
@@ -707,27 +711,67 @@ export function App() {
       return;
     }
 
-    const preflightReport = validateProjectForRelease(project);
+    const mode = options?.mode ?? "release";
+    const readiness = assessProjectReadiness(project);
+    const preflightReport = mode === "preview"
+      ? readiness.health
+      : { valid: readiness.ready, issues: readiness.issues };
     if (!preflightReport.valid) {
       const blockingIssueCount = preflightReport.issues.filter((issue) => issue.level === "error").length;
       setShowValidationDetails(true);
-      setStatusMessage(t("Export blocked. Review the project issues and try again."));
-      await dialogs.alert({
-        title: t("Project Is Not Ready to Export"),
-        body: (
-          <p>{blockingIssueCount === 1
-            ? t("Fix {count} blocking issue before creating a runtime build. No export files were changed.", { count: blockingIssueCount })
-            : t("Fix {count} blocking issues before creating a runtime build. No export files were changed.", { count: blockingIssueCount })}</p>
-        ),
-        confirmLabel: t("Review Issues"),
-        tone: "danger"
-      });
+      setStatusMessage(
+        mode === "preview"
+          ? t("Preview export blocked. Review project health issues and try again.")
+          : t("Release build blocked. Review readiness blockers and try again.")
+      );
+      if (!options?.suppressErrorDialog) {
+        await dialogs.alert({
+          title: mode === "preview" ? t("Preview Export Is Blocked") : t("Release Is Not Ready"),
+          body: (
+            <p>
+              {mode === "preview"
+                ? blockingIssueCount === 1
+                  ? t("Fix {count} project health blocker before creating a preview. No export files were changed.", { count: blockingIssueCount })
+                  : t("Fix {count} project health blockers before creating a preview. No export files were changed.", { count: blockingIssueCount })
+                : blockingIssueCount === 1
+                  ? t("Fix {count} release blocker before creating a release build. No export files were changed.", { count: blockingIssueCount })
+                  : t("Fix {count} release blockers before creating a release build. No export files were changed.", { count: blockingIssueCount })}
+            </p>
+          ),
+          confirmLabel: t("Review Issues"),
+          tone: "danger"
+        });
+      }
       return;
+    }
+
+    if (mode === "release" && readiness.warnings.length > 0 && !options?.suppressErrorDialog) {
+      const warningCount = readiness.warnings.length;
+      const confirmed = await dialogs.confirm({
+        title: t("Release Has Warnings"),
+        body: (
+          <>
+            <p>
+              {warningCount === 1
+                ? t("This release has {count} warning. Review it before publishing.", { count: warningCount })
+                : t("This release has {count} warnings. Review them before publishing.", { count: warningCount })}
+            </p>
+            <p>{t("Warnings do not prevent a release build, but continuing records an explicit decision to proceed.")}</p>
+          </>
+        ),
+        confirmLabel: t("Build Anyway"),
+        cancelLabel: t("Review issues")
+      });
+      if (!confirmed) {
+        setShowValidationDetails(true);
+        setStatusMessage(t("Release build canceled. Review the warnings before trying again."));
+        return;
+      }
     }
 
     const format = options?.legacyAutomation
       ? undefined
-      : options?.format ?? (await dialogs.chooseRuntimeExport(project.manifest.projectName));
+      : options?.format ?? (await dialogs.chooseRuntimeExport(project.manifest.projectName, mode));
     if (!options?.legacyAutomation && !format) {
       setStatusMessage(t("Runtime export canceled."));
       return;
@@ -745,7 +789,7 @@ export function App() {
         window.editorApi.exportProject(
           projectDir,
           savedProject,
-          format ? { format, destinationPath: options?.destinationPath } : undefined
+          format ? { format, mode, destinationPath: options?.destinationPath } : undefined
       ),
       async (message, rawMessage) => {
         dismissRuntimeExportProgress();
@@ -785,9 +829,13 @@ export function App() {
 
     const outputPath = result.outputPath ?? result.outputDirectory;
     setStatusMessage(
-      result.format === "windows"
-        ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
-        : t("Web runtime exported to {outputPath}.", { outputPath })
+      mode === "preview"
+        ? result.format === "windows"
+          ? t("Standalone Windows preview created at {outputPath}.", { outputPath })
+          : t("Web preview exported to {outputPath}.", { outputPath })
+        : result.format === "windows"
+          ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
+          : t("Web runtime exported to {outputPath}.", { outputPath })
     );
     dismissRuntimeExportProgress(900);
     return result;
@@ -1029,6 +1077,16 @@ export function App() {
       }
       case "security.getState":
         return resolveRendererSecurityState();
+      case "editor.openFileMenu":
+        setIsFileLanguageSubmenuOpen(false);
+        setIsFileMenuOpen(true);
+        await waitForAutomationUpdate();
+        return currentAutomationState();
+      case "editor.closeFileMenu":
+        setIsFileLanguageSubmenuOpen(false);
+        setIsFileMenuOpen(false);
+        await waitForAutomationUpdate();
+        return currentAutomationState();
       case "setInterfaceLocale":
         setLocalePreference(command.locale);
         await waitForAutomationUpdate();
@@ -1077,6 +1135,7 @@ export function App() {
         requireCurrentProject(command);
         const exportResult = await handleExportProject({
           format: command.format,
+          mode: command.mode,
           destinationPath: command.destinationPath,
           legacyAutomation: command.format === undefined,
           suppressErrorDialog: true
@@ -1552,13 +1611,19 @@ export function App() {
     await openProjectDirectory(droppedPath);
   }
 
-  const validationReport = validateProjectForRelease(project);
+  const readinessReport = assessProjectReadiness(project);
+  const healthReport = readinessReport.health;
+  const healthBlockerCount = healthReport.issues.filter((issue) => issue.level === "error").length;
+  const validationReport = {
+    valid: readinessReport.ready,
+    issues: readinessReport.issues
+  };
   const visibleValidationIssues = resolveVisibleIssuesForTab(project, validationReport.issues, activeTab);
   const hasProjectIssues = validationReport.issues.length > 0;
   const firstProjectChecklist = resolveFirstProjectChecklist(
     project,
-    validationReport.valid,
-    validationReport.issues.length,
+    healthReport.valid,
+    healthBlockerCount,
     t
   );
   const shouldShowFirstProjectChecklist =
@@ -1620,10 +1685,10 @@ export function App() {
     }
   }
 
-  function reviewFirstProjectValidation() {
+  function reviewFirstProjectHealth() {
     setActiveTab("world");
     setShowValidationDetails(true);
-    setStatusMessage(t("Review the project issues and follow each issue link to finish setup."));
+    setStatusMessage(t("Review project health issues and follow each issue link to finish setup."));
   }
 
   return (
@@ -1731,11 +1796,21 @@ export function App() {
                     type="button"
                     className="titlebar-menu__item"
                     role="menuitem"
-                    onClick={() => void handleFileMenuAction(handleExportProject)}
+                    onClick={() => void handleFileMenuAction(() => handleExportProject({ mode: "preview" }))}
                     onKeyDown={(event) => handleFileMenuItemKeyDown(1, event)}
-                    title={t("Choose a standalone Windows executable or static web build and where to create it.")}
+                    title={t("Create a work-in-progress runtime build. Only project health blockers prevent preview export.")}
                   >
-                    {t("Export Runtime")}
+                    {t("Export Preview")}
+                  </button>
+                  <button
+                    type="button"
+                    className="titlebar-menu__item"
+                    role="menuitem"
+                    onClick={() => void handleFileMenuAction(() => handleExportProject({ mode: "release" }))}
+                    onKeyDown={(event) => handleFileMenuItemKeyDown(2, event)}
+                    title={t("Create a publishable runtime build after release-readiness checks pass.")}
+                  >
+                    {t("Build Release")}
                   </button>
                   <div className="titlebar-menu__submenu" ref={fileLanguageSubmenuRef}>
                     <button
@@ -1749,7 +1824,7 @@ export function App() {
                       onClick={() => setIsFileLanguageSubmenuOpen((value) => !value)}
                       onPointerEnter={() => setIsFileLanguageSubmenuOpen(true)}
                       onKeyDown={(event) => {
-                        handleFileMenuItemKeyDown(2, event);
+                        handleFileMenuItemKeyDown(3, event);
                         handleFileLanguageSubmenuTriggerKeyDown(event);
                       }}
                     >
@@ -1887,7 +1962,7 @@ export function App() {
                       ? issuesPanelSummary
                       : hasProjectIssues
                         ? t("No issues for this screen. Open World to review the full project list.")
-                        : t("No validation issues detected.")}
+                        : t("No project health or release-readiness issues detected.")}
                   </p>
                 </div>
               </div>
@@ -1901,7 +1976,7 @@ export function App() {
                     setActiveTab("player");
                     setStatusMessage(t("Opened Player. Review the title screen, credits, and release version."));
                   }}
-                  onReviewValidation={reviewFirstProjectValidation}
+                  onReviewHealth={reviewFirstProjectHealth}
                   onOpenPlaytest={() => {
                     setActiveTab("playtest");
                     setStatusMessage(t("Opened Playtest. Exercise the first scene and its interaction before exporting."));
@@ -1972,18 +2047,50 @@ export function App() {
             </>
           )}
         </div>
-        <button
-          type="button"
-          className={hasProjectIssues ? "status-pill status-pill--warn" : "status-pill status-pill--ok"}
-          onClick={() => setShowValidationDetails((value) => !value)}
-          title={
-            hasProjectIssues
-              ? t("Open or close the validation issues sidebar. World shows the full issue list.")
-              : t("Validation passed. Click to pin the issues sidebar open anyway.")
-          }
-        >
-          {hasProjectIssues ? formatIssueCount(validationReport.issues.length, t) : t("Valid")}
-        </button>
+        <div className="status-bar__signals" aria-label={t("Project health and release readiness")}>
+          <button
+            type="button"
+            className={healthReport.valid ? "status-pill status-pill--ok" : "status-pill status-pill--danger"}
+            onClick={() => setShowValidationDetails((value) => !value)}
+            title={
+              healthReport.valid
+                ? t("Project health is sound. No broken references or invalid project data were detected.")
+                : t("Project health has blockers. Click to review the issues sidebar.")
+            }
+          >
+            {healthReport.valid
+              ? t("Health: Healthy")
+              : healthBlockerCount === 1
+                ? t("Health: {count} blocker", { count: healthBlockerCount })
+                : t("Health: {count} blockers", { count: healthBlockerCount })}
+          </button>
+          <button
+            type="button"
+            className={
+              readinessReport.status === "ready"
+                ? "status-pill status-pill--ok"
+                : readinessReport.status === "ready-with-warnings"
+                  ? "status-pill status-pill--warn"
+                  : "status-pill status-pill--danger"
+            }
+            onClick={() => setShowValidationDetails((value) => !value)}
+            title={
+              readinessReport.status === "ready"
+                ? t("Release readiness passed.")
+                : readinessReport.status === "ready-with-warnings"
+                  ? t("The project can be released, but warnings should be reviewed first.")
+                  : t("Release blockers must be resolved before building a release.")
+            }
+          >
+            {readinessReport.status === "ready"
+              ? t("Release: Ready")
+              : readinessReport.status === "ready-with-warnings"
+                ? readinessReport.warnings.length === 1
+                  ? t("Release: Ready with {count} warning", { count: readinessReport.warnings.length })
+                  : t("Release: Ready with {count} warnings", { count: readinessReport.warnings.length })
+                : t("Release: Not ready")}
+          </button>
+        </div>
       </footer>
       {runtimeExportProgress ? <RuntimeExportProgressOverlay progress={runtimeExportProgress} /> : null}
     </div>
@@ -1999,7 +2106,8 @@ function resolveEditorAutomationState(
   runtimeExportProgress?: RuntimeExportProgressViewState
 ) {
   const state = useEditorStore.getState();
-  const validationReport = state.project ? validateProjectForRelease(state.project) : undefined;
+  const readinessReport = state.project ? assessProjectReadiness(state.project) : undefined;
+  const healthReport = readinessReport?.health;
   return {
     activeTab: state.activeTab,
     projectDir: state.projectDir,
@@ -2015,10 +2123,25 @@ function resolveEditorAutomationState(
     uiDirection,
     uiAutomaticLocale,
     runtimeExportProgress,
-    validation: validationReport
+    validation: healthReport
       ? {
-          valid: validationReport.valid,
-          issueCount: validationReport.issues.length
+          valid: healthReport.valid,
+          issueCount: healthReport.issues.length
+        }
+      : undefined,
+    health: healthReport
+      ? {
+          healthy: healthReport.valid,
+          blockerCount: healthReport.issues.filter((issue) => issue.level === "error").length,
+          warningCount: healthReport.issues.filter((issue) => issue.level === "warning").length
+        }
+      : undefined,
+    readiness: readinessReport
+      ? {
+          ready: readinessReport.ready,
+          status: readinessReport.status,
+          blockerCount: readinessReport.blockers.length,
+          warningCount: readinessReport.warnings.length
         }
       : undefined,
     playtest: window.__mage2PlaytestAutomation?.getState()

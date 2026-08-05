@@ -6,7 +6,7 @@ interface FirstProjectChecklistProps {
   onOpenSceneMedia: () => void;
   onOpenInteraction: () => void;
   onOpenPlayer: () => void;
-  onReviewValidation: () => void;
+  onReviewHealth: () => void;
   onOpenPlaytest: () => void;
   onDismiss: () => void;
 }
@@ -16,7 +16,7 @@ export function FirstProjectChecklist({
   onOpenSceneMedia,
   onOpenInteraction,
   onOpenPlayer,
-  onReviewValidation,
+  onReviewHealth,
   onOpenPlaytest,
   onDismiss
 }: FirstProjectChecklistProps) {
@@ -70,9 +70,7 @@ export function FirstProjectChecklist({
               onClick={resolveStepAction(step.id, step.complete, {
                 onOpenSceneMedia,
                 onOpenInteraction,
-                onOpenPlayer,
-                onReviewValidation,
-                onOpenPlaytest
+                onOpenPlayer
               })}
             >
               {resolveStepActionLabel(step.id, step.complete, t)}
@@ -80,6 +78,35 @@ export function FirstProjectChecklist({
           </li>
         ))}
       </ol>
+      <footer
+        className={
+          state.health.healthy
+            ? "first-project-checklist__health first-project-checklist__health--healthy"
+            : "first-project-checklist__health first-project-checklist__health--blocked"
+        }
+        data-project-health={state.health.healthy ? "healthy" : "blocked"}
+      >
+        <div>
+          <strong>{state.health.healthy ? t("Technical checks passed") : t("Technical checks need attention")}</strong>
+          <p>
+            {state.health.healthy
+              ? t("No broken project data detected. This does not mean the game is release-ready.")
+              : state.health.blockerCount === 1
+                ? t("Resolve {count} project health blocker.", { count: state.health.blockerCount })
+                : t("Resolve {count} project health blockers.", { count: state.health.blockerCount })}
+          </p>
+        </div>
+        <div className="first-project-checklist__health-actions">
+          {!state.health.healthy ? (
+            <button type="button" onClick={onReviewHealth}>
+              {t("Review issues")}
+            </button>
+          ) : null}
+          <button type="button" onClick={onOpenPlaytest}>
+            {t("Playtest")}
+          </button>
+        </div>
+      </footer>
     </section>
   );
 }
@@ -89,7 +116,7 @@ function resolveStepAction(
   complete: boolean,
   actions: Pick<
     FirstProjectChecklistProps,
-    "onOpenSceneMedia" | "onOpenInteraction" | "onOpenPlayer" | "onReviewValidation" | "onOpenPlaytest"
+    "onOpenSceneMedia" | "onOpenInteraction" | "onOpenPlayer"
   >
 ): () => void {
   if (stepId === "media") {
@@ -101,7 +128,7 @@ function resolveStepAction(
   if (stepId === "player") {
     return actions.onOpenPlayer;
   }
-  return complete ? actions.onOpenPlaytest : actions.onReviewValidation;
+  return actions.onOpenPlayer;
 }
 
 function resolveStepActionLabel(stepId: FirstProjectChecklistStepId, complete: boolean, t: EditorTranslator): string {
@@ -114,5 +141,5 @@ function resolveStepActionLabel(stepId: FirstProjectChecklistStepId, complete: b
   if (stepId === "player") {
     return t("Open player");
   }
-  return complete ? t("Playtest") : t("Review issues");
+  return t("Open player");
 }
