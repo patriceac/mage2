@@ -12,6 +12,7 @@ export interface EditorNavigationTarget {
   responseGroupId?: string;
   responseEntryId?: string;
   inventoryItemId?: string;
+  variableId?: string;
   assetId?: string;
   textId?: string;
   locale?: string;

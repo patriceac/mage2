@@ -4,6 +4,9 @@ import {
   type DialogueNode,
   type DialogueTree,
   type Effect,
+  type GameVariableDefinition,
+  type GameVariableValue,
+  hydrateSaveStateVariables,
   resolveAssetVariant,
   type Hotspot,
   type HotspotEvent,
@@ -32,6 +35,7 @@ export interface PlayerSnapshot {
   location: Location;
   inventoryItems: InventoryItem[];
   flags: Record<string, boolean>;
+  variables: Record<string, GameVariableValue>;
   activeDialogue?: ActiveDialogueState;
 }
 
@@ -60,6 +64,43 @@ export interface PlayerRuntimeIssue {
   effectBudget: number;
 }
 
+export interface ConditionEvaluation {
+  condition: Condition;
+  passed: boolean;
+  actualValue?: GameVariableValue;
+}
+
+export interface HotspotAvailabilityExplanation {
+  hotspotId: string;
+  hotspotName: string;
+  available: boolean;
+  timing: { startMs: number; endMs: number; currentMs: number; passed: boolean };
+  requiredItems: Array<{ itemId: string; present: boolean }>;
+  conditionMode: "all" | "any";
+  conditions: ConditionEvaluation[];
+}
+
+export type LogicTraceSourceKind =
+  | "sceneEnter"
+  | "sceneExit"
+  | "sceneMediaEnd"
+  | "hotspot"
+  | "hotspotClick"
+  | "hotspotOtherItem"
+  | "dialogueNode"
+  | "dialogueChoice";
+
+export interface LogicTraceEntry {
+  sequence: number;
+  source: { kind: LogicTraceSourceKind; entityId: string };
+  effect: Effect;
+  previousValue?: GameVariableValue;
+  nextValue?: GameVariableValue;
+  applied: boolean;
+  branch?: "then" | "otherwise";
+  conditionEvaluations?: ConditionEvaluation[];
+}
+
 export interface PlayerControllerOptions {
   random?: () => number;
   effectBudget?: number;
@@ -67,8 +108,12 @@ export interface PlayerControllerOptions {
 export interface PlayerController {
   getSnapshot(): PlayerSnapshot;
   getRuntimeIssues(): PlayerRuntimeIssue[];
+  getLogicTrace(): LogicTraceEntry[];
+  clearLogicTrace(): void;
+  explainHotspotAvailability(timeMs: number, sceneTimelineDurationMs?: number): HotspotAvailabilityExplanation[];
   getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
   enterScene(sceneId: string): void;
+  completeSceneMedia(): HotspotResolution;
   selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution;
   selectHotspotEvent(
     hotspotId: string,
@@ -99,10 +144,13 @@ export function createPlayerController(
   initialSaveState?: SaveState,
   options: PlayerControllerOptions = {}
 ): PlayerController {
-  const requestedState = parseSaveState({
-    ...createInitialSaveState(project),
-    ...(initialSaveState ?? {})
-  });
+  const requestedState = hydrateSaveStateVariables(
+    project,
+    parseSaveState({
+      ...createInitialSaveState(project),
+      ...(initialSaveState ?? {})
+    })
+  );
   // Player controllers are also used outside the browser save UI. Keep that
   // boundary fail-safe if a caller supplies a stale state directly.
   const state = validateSaveStateForProject(requestedState, project)
@@ -111,8 +159,12 @@ export function createPlayerController(
   const lastResponseEntryIdByGroup = new Map<string, string>();
   const random = options.random ?? Math.random;
   let responseSequence = 0;
+  let sceneEntrySequence = 0;
+  let completedMediaEntrySequence: number | undefined;
   const effectBudget = resolveEffectBudget(options.effectBudget);
   const runtimeIssues: PlayerRuntimeIssue[] = [];
+  const logicTrace: LogicTraceEntry[] = [];
+  let logicTraceSequence = 0;
   let activeExecutionContext: EffectExecutionContext | undefined;
 
   function getScene(sceneId = state.currentSceneId): Scene {
@@ -155,21 +207,78 @@ export function createPlayerController(
     return state.inventory.includes(itemId);
   }
 
+  function getVariableDefinition(variableId: string): GameVariableDefinition | undefined {
+    return project.manifest.variables.find((variable) => variable.id === variableId);
+  }
+
+  function getVariableValue(variableId: string): GameVariableValue | undefined {
+    const definition = getVariableDefinition(variableId);
+    if (!definition) {
+      return undefined;
+    }
+    return state.variables[variableId] ?? definition.initialValue;
+  }
+
+  function setVariableValue(variableId: string, value: GameVariableValue): void {
+    const definition = getVariableDefinition(variableId);
+    if (!definition) {
+      return;
+    }
+    state.variables[variableId] = value;
+    if (definition.type === "boolean" && typeof value === "boolean") {
+      state.flags[variableId] = value;
+    }
+  }
+
   function evaluateCondition(condition: Condition): boolean {
     switch (condition.type) {
       case "always":
         return true;
-      case "flagEquals":
-        return Boolean(state.flags[condition.flag]) === condition.value;
+      case "variableCompare": {
+        const currentValue = getVariableValue(condition.variableId);
+        switch (condition.operator) {
+          case "equals":
+            return currentValue === condition.value;
+          case "notEquals":
+            return currentValue !== condition.value;
+          case "greaterThan":
+            return typeof currentValue === "number" && typeof condition.value === "number" && currentValue > condition.value;
+          case "greaterThanOrEqual":
+            return typeof currentValue === "number" && typeof condition.value === "number" && currentValue >= condition.value;
+          case "lessThan":
+            return typeof currentValue === "number" && typeof condition.value === "number" && currentValue < condition.value;
+          case "lessThanOrEqual":
+            return typeof currentValue === "number" && typeof condition.value === "number" && currentValue <= condition.value;
+        }
+      }
       case "inventoryHas":
-        return hasInventoryItem(condition.itemId);
+        return hasInventoryItem(condition.itemId) === (condition.present !== false);
       case "sceneVisited":
-        return state.visitedSceneIds.includes(condition.sceneId);
+        return state.visitedSceneIds.includes(condition.sceneId) === (condition.visited !== false);
     }
   }
 
-  function areConditionsMet(conditions: Condition[]): boolean {
-    return conditions.every(evaluateCondition);
+  function explainCondition(condition: Condition): ConditionEvaluation {
+    if (condition.type === "variableCompare") {
+      const actualValue = getVariableValue(condition.variableId);
+      return { condition: structuredClone(condition), passed: evaluateCondition(condition), actualValue };
+    }
+    if (condition.type === "inventoryHas") {
+      const actualValue = hasInventoryItem(condition.itemId);
+      return { condition: structuredClone(condition), passed: evaluateCondition(condition), actualValue };
+    }
+    if (condition.type === "sceneVisited") {
+      const actualValue = state.visitedSceneIds.includes(condition.sceneId);
+      return { condition: structuredClone(condition), passed: evaluateCondition(condition), actualValue };
+    }
+    return { condition: structuredClone(condition), passed: true };
+  }
+
+  function areConditionsMet(conditions: Condition[], mode: "all" | "any" = "all"): boolean {
+    if (conditions.length === 0) {
+      return true;
+    }
+    return mode === "any" ? conditions.some(evaluateCondition) : conditions.every(evaluateCondition);
   }
 
   function resolveActiveDialogue(): ActiveDialogueState | undefined {
@@ -179,7 +288,7 @@ export function createPlayerController(
 
     const tree = getDialogue(state.activeDialogueTreeId);
     const node = getDialogueNode(tree, state.activeDialogueNodeId);
-    const choices = node.choices.filter((choice) => areConditionsMet(choice.conditions));
+    const choices = node.choices.filter((choice) => areConditionsMet(choice.conditions, choice.conditionMode));
     return { tree, node, choices };
   }
 
@@ -257,7 +366,11 @@ export function createPlayerController(
     return true;
   }
 
-  function applyEffects(effects: Effect[], context: EffectExecutionContext): HotspotResolution {
+  function applyEffects(
+    effects: Effect[],
+    context: EffectExecutionContext,
+    source: LogicTraceEntry["source"]
+  ): HotspotResolution {
     const resolution: HotspotResolution = {};
 
     for (const effect of effects) {
@@ -265,24 +378,65 @@ export function createPlayerController(
         break;
       }
 
+      const previousValue = resolveEffectObservedValue(effect);
+      let applied = true;
+      let tracedBeforeNestedEffects = false;
       switch (effect.type) {
-        case "setFlag":
-          state.flags[effect.flag] = effect.value;
+        case "setVariable":
+          applied = Boolean(getVariableDefinition(effect.variableId));
+          setVariableValue(effect.variableId, effect.value);
           break;
+        case "changeVariable": {
+          const currentValue = getVariableValue(effect.variableId);
+          if (typeof currentValue === "number") {
+            setVariableValue(effect.variableId, currentValue + effect.delta);
+          } else {
+            applied = false;
+          }
+          break;
+        }
         case "addItem":
           state.inventory.unshift(effect.itemId);
           break;
         case "removeItem":
+          applied = state.inventory.includes(effect.itemId);
           state.inventory = removeSingleInventoryItem(state.inventory, effect.itemId);
           break;
         case "goToScene":
+          applied = effect.sceneId !== state.currentSceneId;
+          appendLogicTrace(source, effect, previousValue, effect.sceneId, applied);
+          tracedBeforeNestedEffects = true;
           requestSceneTransition(effect.sceneId, context);
           resolution.transitionedToSceneId = effect.sceneId;
           break;
         case "playDialogue":
+          appendLogicTrace(source, effect, previousValue, effect.dialogueTreeId, true);
+          tracedBeforeNestedEffects = true;
           startDialogueWithinAction(effect.dialogueTreeId, context);
           resolution.startedDialogueTreeId = effect.dialogueTreeId;
           break;
+        case "conditional": {
+          const conditionEvaluations = effect.conditions.map(explainCondition);
+          const passed = effect.conditions.length > 0 && (
+            effect.conditionMode === "any"
+              ? conditionEvaluations.some((evaluation) => evaluation.passed)
+              : conditionEvaluations.every((evaluation) => evaluation.passed)
+          );
+          const branch = passed ? "then" : "otherwise";
+          appendLogicTrace(source, effect, passed, passed, true, { branch, conditionEvaluations });
+          tracedBeforeNestedEffects = true;
+          const branchResolution = applyEffects(
+            passed ? effect.thenEffects : effect.elseEffects,
+            context,
+            source
+          );
+          Object.assign(resolution, branchResolution);
+          break;
+        }
+      }
+
+      if (!tracedBeforeNestedEffects) {
+        appendLogicTrace(source, effect, previousValue, resolveEffectObservedValue(effect), applied);
       }
 
       if (context.halted) {
@@ -343,7 +497,7 @@ export function createPlayerController(
           break;
         }
 
-        applyEffects(currentScene.onExitEffects, context);
+        applyEffects(currentScene.onExitEffects, context, { kind: "sceneExit", entityId: currentScene.id });
         if (context.halted || !ensureEffectCapacity(context, nextScene.onEnterEffects.length)) {
           break;
         }
@@ -351,6 +505,8 @@ export function createPlayerController(
         state.currentSceneId = nextScene.id;
         state.currentLocationId = nextScene.locationId;
         state.playheadMs = 0;
+        sceneEntrySequence += 1;
+        completedMediaEntrySequence = undefined;
 
         if (!state.visitedSceneIds.includes(nextScene.id)) {
           state.visitedSceneIds.push(nextScene.id);
@@ -358,7 +514,7 @@ export function createPlayerController(
 
         setActiveDialogue(undefined, undefined);
         transitionPath.push(nextScene.id);
-        applyEffects(nextScene.onEnterEffects, context);
+        applyEffects(nextScene.onEnterEffects, context, { kind: "sceneEnter", entityId: nextScene.id });
       }
     } finally {
       context.isDrainingTransitions = false;
@@ -378,7 +534,7 @@ export function createPlayerController(
   function applyNodeEntry(tree: DialogueTree, nodeId: string, context: EffectExecutionContext): void {
     const node = getDialogueNode(tree, nodeId);
     setActiveDialogue(tree.id, node.id);
-    applyEffects(node.effects, context);
+    applyEffects(node.effects, context, { kind: "dialogueNode", entityId: node.id });
   }
 
   function startDialogueWithinAction(dialogueTreeId: string, context: EffectExecutionContext): void {
@@ -420,7 +576,7 @@ export function createPlayerController(
         return;
       }
 
-      applyEffects(choice.effects, context);
+      applyEffects(choice.effects, context, { kind: "dialogueChoice", entityId: choice.id });
       if (context.halted) {
         return;
       }
@@ -434,15 +590,41 @@ export function createPlayerController(
     });
   }
 
-  function getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[] {
+  function explainHotspotAvailability(
+    timeMs: number,
+    sceneTimelineDurationMs?: number
+  ): HotspotAvailabilityExplanation[] {
     const scene = getScene();
     const resolvedSceneTimelineDurationMs = sceneTimelineDurationMs ?? resolveProjectSceneTimelineDurationMs(project, scene);
-    return scene.hotspots.filter((hotspot) => {
+    return scene.hotspots.map((hotspot) => {
       const timingWindow = resolveHotspotTimingWindow(hotspot, resolvedSceneTimelineDurationMs);
       const withinWindow = timeMs >= timingWindow.startMs && timeMs <= timingWindow.endMs;
-      const hasItems = hotspot.requiredItemIds.every(hasInventoryItem);
-      return withinWindow && hasItems && areConditionsMet(hotspot.conditions);
+      const requiredItems = hotspot.requiredItemIds.map((itemId) => ({ itemId, present: hasInventoryItem(itemId) }));
+      const conditions = hotspot.conditions.map(explainCondition);
+      const conditionMode = hotspot.conditionMode ?? "all";
+      const conditionsPassed = conditions.length === 0
+        || (conditionMode === "any"
+          ? conditions.some((condition) => condition.passed)
+          : conditions.every((condition) => condition.passed));
+      return {
+        hotspotId: hotspot.id,
+        hotspotName: hotspot.name,
+        available: withinWindow && requiredItems.every((item) => item.present) && conditionsPassed,
+        timing: { ...timingWindow, currentMs: timeMs, passed: withinWindow },
+        requiredItems,
+        conditionMode,
+        conditions
+      };
     });
+  }
+
+  function getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[] {
+    const visibleIds = new Set(
+      explainHotspotAvailability(timeMs, sceneTimelineDurationMs)
+        .filter((entry) => entry.available)
+        .map((entry) => entry.hotspotId)
+    );
+    return getScene().hotspots.filter((hotspot) => visibleIds.has(hotspot.id));
   }
 
   function selectHotspot(hotspotId: string, timeMs: number, sceneTimelineDurationMs?: number): HotspotResolution {
@@ -452,9 +634,21 @@ export function createPlayerController(
         return {};
       }
 
-      const resolution = applyHotspotEvent(hotspot, context);
+      const resolution = applyHotspotEvent(hotspot, context, { kind: "hotspot", entityId: hotspot.id });
       resolution.mediaAssetId = hotspot.mediaAssetId;
       return resolution;
+    });
+  }
+
+  function completeSceneMedia(): HotspotResolution {
+    return runPlayerAction((context) => {
+      if (completedMediaEntrySequence === sceneEntrySequence) {
+        return {};
+      }
+
+      completedMediaEntrySequence = sceneEntrySequence;
+      const scene = getScene();
+      return applyEffects(scene.onMediaEndEffects, context, { kind: "sceneMediaEnd", entityId: scene.id });
     });
   }
 
@@ -467,12 +661,21 @@ export function createPlayerController(
     return runPlayerAction((context) => {
       const hotspot = getVisibleHotspots(timeMs, sceneTimelineDurationMs).find((entry) => entry.id === hotspotId);
       const event = eventType === "click" ? hotspot?.clickEvent : hotspot?.otherItemEvent;
-      return event ? applyHotspotEvent(event, context) : {};
+      return event
+        ? applyHotspotEvent(event, context, {
+            kind: eventType === "click" ? "hotspotClick" : "hotspotOtherItem",
+            entityId: hotspotId
+          })
+        : {};
     });
   }
 
-  function applyHotspotEvent(event: HotspotEvent, context: EffectExecutionContext): HotspotResolution {
-    const resolution = applyEffects(event.effects, context);
+  function applyHotspotEvent(
+    event: HotspotEvent,
+    context: EffectExecutionContext,
+    source: LogicTraceEntry["source"]
+  ): HotspotResolution {
+    const resolution = applyEffects(event.effects, context, source);
     if (context.halted) {
       return resolution;
     }
@@ -500,6 +703,45 @@ export function createPlayerController(
     }
 
     return resolution;
+  }
+
+  function resolveEffectObservedValue(effect: Effect): GameVariableValue | undefined {
+    if (effect.type === "setVariable" || effect.type === "changeVariable") {
+      return getVariableValue(effect.variableId);
+    }
+    if (effect.type === "addItem" || effect.type === "removeItem") {
+      return state.inventory.includes(effect.itemId);
+    }
+    if (effect.type === "goToScene") {
+      return state.currentSceneId;
+    }
+    if (effect.type === "conditional") {
+      return undefined;
+    }
+    return state.activeDialogueTreeId ?? "";
+  }
+
+  function appendLogicTrace(
+    source: LogicTraceEntry["source"],
+    effect: Effect,
+    previousValue: GameVariableValue | undefined,
+    nextValue: GameVariableValue | undefined,
+    applied: boolean,
+    details: Pick<LogicTraceEntry, "branch" | "conditionEvaluations"> = {}
+  ): void {
+    logicTraceSequence += 1;
+    logicTrace.push({
+      sequence: logicTraceSequence,
+      source: { ...source },
+      effect: structuredClone(effect),
+      previousValue,
+      nextValue,
+      applied,
+      ...structuredClone(details)
+    });
+    if (logicTrace.length > 80) {
+      logicTrace.splice(0, logicTrace.length - 80);
+    }
   }
 
   function resolvePlayerResponse(selection: ResponseSelection): ActivePlayerResponse | undefined {
@@ -547,6 +789,7 @@ export function createPlayerController(
         .map((itemId) => project.inventory.items.find((item) => item.id === itemId))
         .filter((item): item is InventoryItem => Boolean(item)),
       flags: structuredClone(state.flags),
+      variables: structuredClone(state.variables),
       activeDialogue: resolveActiveDialogue()
     };
   }
@@ -554,8 +797,14 @@ export function createPlayerController(
   return {
     getSnapshot,
     getRuntimeIssues: () => structuredClone(runtimeIssues),
+    getLogicTrace: () => structuredClone(logicTrace),
+    clearLogicTrace: () => {
+      logicTrace.length = 0;
+    },
+    explainHotspotAvailability,
     getVisibleHotspots,
     enterScene,
+    completeSceneMedia,
     selectHotspot,
     selectHotspotEvent,
     startDialogue,

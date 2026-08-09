@@ -11,6 +11,8 @@ import {
 } from "react";
 import {
   collectSceneLinks,
+  visitEffectConditions,
+  visitEffects,
   type Condition,
   type Effect,
   type Location,
@@ -497,7 +499,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                     { icon: "scene" as const, label: t("Scenes"), value: currentLocationSummary.scenes },
                     { icon: "dialogue" as const, label: t("Dialogues"), value: currentLocationSummary.dialogues },
                     { icon: "speaker" as const, label: t("Speakers"), value: currentLocationSummary.speakers },
-                    { icon: "flag" as const, label: t("Flags"), value: currentLocationSummary.flags },
+                    { icon: "flag" as const, label: t("Variables"), value: currentLocationSummary.variables },
                     { icon: "item" as const, label: t("Items"), value: currentLocationSummary.items },
                     {
                       icon: "transition" as const,
@@ -800,7 +802,7 @@ function resolveLocationSummary(
     scenes: scenes.length,
     dialogues: refs.dialogueIds.size,
     speakers: speakerNames.size,
-    flags: refs.flagIds.size,
+    variables: refs.variableIds.size,
     items: refs.itemIds.size,
     transitions: transitionCounts.total,
     incomingTransitions: transitionCounts.incoming,
@@ -830,7 +832,7 @@ function resolveLocationScenes(project: ProjectBundle, location: Location) {
 function createStoryRefs() {
   return {
     dialogueIds: new Set<string>(),
-    flagIds: new Set<string>(),
+    variableIds: new Set<string>(),
     itemIds: new Set<string>()
   };
 }
@@ -842,6 +844,7 @@ function collectSceneReferences(scene: Scene, refs: ReturnType<typeof createStor
 
   collectEffectReferences(scene.onEnterEffects, refs);
   collectEffectReferences(scene.onExitEffects, refs);
+  collectEffectReferences(scene.onMediaEndEffects, refs);
 
   for (const hotspot of scene.hotspots) {
     if (hotspot.dialogueTreeId) {
@@ -893,8 +896,8 @@ function collectDialogueReferences(project: ProjectBundle, refs: ReturnType<type
 
 function collectConditionReferences(conditions: Condition[], refs: ReturnType<typeof createStoryRefs>) {
   for (const condition of conditions) {
-    if (condition.type === "flagEquals") {
-      refs.flagIds.add(condition.flag);
+    if (condition.type === "variableCompare") {
+      refs.variableIds.add(condition.variableId);
     }
 
     if (condition.type === "inventoryHas") {
@@ -904,9 +907,9 @@ function collectConditionReferences(conditions: Condition[], refs: ReturnType<ty
 }
 
 function collectEffectReferences(effects: Effect[], refs: ReturnType<typeof createStoryRefs>) {
-  for (const effect of effects) {
-    if (effect.type === "setFlag") {
-      refs.flagIds.add(effect.flag);
+  visitEffects(effects, (effect) => {
+    if (effect.type === "setVariable" || effect.type === "changeVariable") {
+      refs.variableIds.add(effect.variableId);
     }
 
     if (effect.type === "addItem" || effect.type === "removeItem") {
@@ -916,7 +919,8 @@ function collectEffectReferences(effects: Effect[], refs: ReturnType<typeof crea
     if (effect.type === "playDialogue") {
       refs.dialogueIds.add(effect.dialogueTreeId);
     }
-  }
+  });
+  visitEffectConditions(effects, (conditions) => collectConditionReferences([...conditions], refs));
 }
 
 function WorldLocationMap({

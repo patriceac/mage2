@@ -44,6 +44,7 @@ interface MediaSurfaceProps {
   showHotspotTooltips?: boolean;
   showSurfaceTooltips?: boolean;
   loopVideo?: boolean;
+  videoMuted?: boolean;
   playheadMs?: number;
   playbackResetKey?: string | number;
   onPlayheadMsChange?: (playheadMs: number) => void;
@@ -105,6 +106,7 @@ export function MediaSurface({
   showHotspotTooltips = true,
   showSurfaceTooltips = true,
   loopVideo = false,
+  videoMuted = true,
   playheadMs,
   playbackResetKey,
   onPlayheadMsChange,
@@ -1014,7 +1016,7 @@ export function MediaSurface({
               src={assetUrl}
               autoPlay
               loop={loopVideo}
-              muted
+              muted={videoMuted}
               playsInline
               className="media-surface__media"
               title={showSurfaceTooltips ? t("Preview the selected video asset directly inside the editor.") : undefined}

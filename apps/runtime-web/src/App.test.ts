@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, createInitialSaveState, toExportProjectData } from "@mage2/schema";
+import {
+  createDefaultProjectBundle,
+  createInitialSaveState,
+  createSaveEnvelope,
+  toExportProjectData
+} from "@mage2/schema";
 import {
   isRuntimeDebugMode,
   persistRuntimeInterfaceLocalePreference,
@@ -42,8 +47,17 @@ describe("restoreRuntimeSession", () => {
 
   it("automatically resumes a valid saved session", () => {
     const project = createDefaultProjectBundle("Runtime Save");
+    project.manifest.variables.push({
+      id: "lanternLit",
+      name: "Lantern lit",
+      description: "",
+      type: "boolean",
+      initialValue: false,
+      system: false
+    });
     const saveState = createInitialSaveState(project);
     saveState.flags.lanternLit = true;
+    saveState.variables.lanternLit = true;
     saveState.playheadMs = 1425;
 
     const restored = restoreRuntimeSession(toExportProjectData(project), JSON.stringify(saveState));
@@ -135,6 +149,19 @@ describe("restoreRuntimeSession", () => {
     expect(resolveRuntimeSaveLoadNotice(restored.loadResult, "fr")).toBe(
       "La sauvegarde était illisible. Une nouvelle partie a été lancée."
     );
+  });
+
+  it("explains incompatible releases without claiming the save is unreadable", () => {
+    const project = createDefaultProjectBundle("Runtime incompatible notice");
+    const envelope = createSaveEnvelope(project, createInitialSaveState(project));
+    project.manifest.saveCompatibilityVersion += 1;
+    const restored = restoreRuntimeSession(toExportProjectData(project), JSON.stringify(envelope));
+
+    expect(restored.loadResult.status).toBe("incompatible");
+    expect(resolveRuntimeSaveLoadNotice(restored.loadResult, "en")).toBe(
+      "This saved game is from an incompatible release. A new game was started, and the previous save was preserved."
+    );
+    expect(resolveRuntimeSaveLoadNotice(restored.loadResult, "fr")).toContain("version incompatible");
   });
 });
 

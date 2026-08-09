@@ -39,6 +39,7 @@ export interface PlayerExperienceShellProps {
   presentation: PlayerPresentation;
   screen: PlayerExperienceScreen;
   onScreenChange: (screen: PlayerExperienceScreen) => void;
+  onGameplayStartRequest?: () => void;
   locale: string;
   supportedLocales: readonly string[];
   localeStrings: Record<string, string>;
@@ -75,6 +76,7 @@ export function PlayerExperienceShell({
   presentation,
   screen,
   onScreenChange,
+  onGameplayStartRequest,
   locale,
   supportedLocales,
   localeStrings,
@@ -158,6 +160,7 @@ export function PlayerExperienceShell({
   };
 
   const enterGame = (action: () => void) => {
+    onGameplayStartRequest?.();
     action();
     closeOverlays();
     onScreenChange("game");

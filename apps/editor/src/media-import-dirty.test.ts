@@ -57,7 +57,9 @@ describe("media import dirty state", () => {
       "async function importInventoryImageFromFilePath"
     );
 
-    expect(backgroundImportBlock).toContain("applySceneBackgroundAsset(scene, duplicateAsset.id, duplicateAsset.kind)");
+    expect(backgroundImportBlock).toContain("applySceneBackgroundAsset(");
+    expect(backgroundImportBlock).toContain("duplicateAsset.id");
+    expect(backgroundImportBlock).toContain("duplicateAsset.kind");
     expect(backgroundImportBlock).toContain("Assigned existing");
     expect(sceneAudioImportBlock).toContain("sceneAudioAssetId = duplicateAsset.id");
     expect(sceneAudioImportBlock).toContain("Assigned existing");

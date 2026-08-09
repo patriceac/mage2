@@ -53,7 +53,33 @@ describe("project defaults", () => {
     expect(project.scenes.items[0]).not.toHaveProperty("clipSegments");
     expect(project.scenes.items[0]?.sceneAudioLoop).toBe(true);
     expect(project.scenes.items[0]?.sceneAudioDelayMs).toBe(0);
+    expect(project.scenes.items[0]?.videoAudioMode).toBe("silent");
+    expect(project.scenes.items[0]?.onMediaEndEffects).toEqual([]);
     expect(createInitialSaveState(project)).not.toHaveProperty("currentSegmentId");
+  });
+
+  it("preserves imported audio-stream metadata through project normalization", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_video_with_audio",
+      kind: "video",
+      name: "intro.mp4",
+      variants: {
+        en: {
+          sourcePath: "intro.mp4",
+          hasAudio: true,
+          audioCodec: "aac",
+          importedAt: "2026-08-08T00:00:00.000Z"
+        }
+      }
+    });
+
+    const parsed = parseProjectBundle(project);
+
+    expect(parsed.assets.assets.at(-1)?.variants.en).toMatchObject({
+      hasAudio: true,
+      audioCodec: "aac"
+    });
   });
 
   it("does not seed legacy location description or scene overlay strings in starter projects", () => {
@@ -400,14 +426,18 @@ describe("project defaults", () => {
 
   it("round-trips explicit optional hotspot interaction events", () => {
     const project = createDefaultProjectBundle("Interaction events");
+    project.manifest.variables.push(
+      { id: "cabinet.examined", name: "Cabinet examined", description: "", type: "boolean", initialValue: false, system: false },
+      { id: "cabinet.wrongItem", name: "Wrong item", description: "", type: "boolean", initialValue: false, system: false }
+    );
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
     hotspot.clickEvent = {
       dialogueTreeId: "dialogue_locked",
       targetSceneId: "scene_locked",
-      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+      effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
     };
     hotspot.otherItemEvent = {
-      effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+      effects: [{ type: "setVariable", variableId: "cabinet.wrongItem", value: true }]
     };
 
     const parsed = parseProjectBundle(project);
@@ -421,25 +451,27 @@ describe("project defaults", () => {
 
   it("migrates a legacy Otherwise event according to the hotspot interaction type", () => {
     const normalProject = createDefaultProjectBundle("Normal migration");
+    normalProject.manifest.variables.push({ id: "cabinet.examined", name: "Cabinet examined", description: "", type: "boolean", initialValue: false, system: false });
     const normalHotspot = normalProject.scenes.items[0]!.hotspots[0]!;
     Object.assign(normalHotspot as unknown as Record<string, unknown>, {
       otherwise: {
         dialogueTreeId: "dialogue_locked",
-        effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+        effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
       }
     });
 
     const parsedNormal = parseProjectBundle(normalProject);
     const migratedNormal = parsedNormal.scenes.items[0]!.hotspots[0]!;
     expect(migratedNormal.dialogueTreeId).toBe("dialogue_locked");
-    expect(migratedNormal.effects).toEqual([{ type: "setFlag", flag: "cabinet.examined", value: true }]);
+    expect(migratedNormal.effects).toEqual([{ type: "setVariable", variableId: "cabinet.examined", value: true }]);
     expect(migratedNormal.otherItemEvent).toEqual({
       dialogueTreeId: "dialogue_locked",
-      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+      effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
     });
     expect(migratedNormal).not.toHaveProperty("otherwise");
 
     const placementProject = createDefaultProjectBundle("Placement migration");
+    placementProject.manifest.variables.push({ id: "cabinet.examined", name: "Cabinet examined", description: "", type: "boolean", initialValue: false, system: false });
     const placementHotspot = placementProject.scenes.items[0]!.hotspots[0]!;
     placementHotspot.placedInventoryItemId = "item_key";
     placementHotspot.requiredItemIds = ["item_key"];
@@ -447,7 +479,7 @@ describe("project defaults", () => {
     Object.assign(placementHotspot as unknown as Record<string, unknown>, {
       otherwise: {
         dialogueTreeId: "dialogue_locked",
-        effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+        effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
       }
     });
 
@@ -519,10 +551,12 @@ describe("project validation", () => {
       sceneAudioLoop: true,
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
+      videoAudioMode: "silent",
       hotspots: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
-      onExitEffects: []
+      onExitEffects: [],
+      onMediaEndEffects: []
     });
     project.locations.items[0]!.sceneIds.push("scene_empty");
 
@@ -573,7 +607,7 @@ describe("project validation", () => {
     });
   });
 
-  it("rejects scene audio when the background asset is a video", () => {
+  it("accepts scene audio when a video explicitly uses an external track", () => {
     const project = createDefaultProjectBundle();
     project.assets.assets.push(
       {
@@ -583,7 +617,9 @@ describe("project validation", () => {
         variants: {
           en: {
             sourcePath: "intro.mp4",
-            importedAt: new Date().toISOString()
+            importedAt: new Date().toISOString(),
+            durationMs: 5000,
+            hasAudio: true
           }
         }
       },
@@ -595,17 +631,19 @@ describe("project validation", () => {
         variants: {
           en: {
             sourcePath: "ambience.mp3",
-            importedAt: new Date().toISOString()
+            importedAt: new Date().toISOString(),
+            durationMs: 5000
           }
         }
       }
     );
     project.scenes.items[0].backgroundAssetId = "asset_video";
     project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+    project.scenes.items[0].videoAudioMode = "external";
 
-    expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
-      true
-    );
+    const codes = validateProject(project).issues.map((issue) => issue.code);
+    expect(codes).not.toContain("SCENE_AUDIO_MODE_INVALID");
+    expect(codes).not.toContain("VIDEO_EXTERNAL_AUDIO_MISSING");
   });
 
   it("rejects scene audio when no background asset is assigned", () => {
@@ -625,9 +663,69 @@ describe("project validation", () => {
     delete project.scenes.items[0].backgroundAssetId;
     project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
 
-    expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND")).toBe(
+    expect(validateProject(project).issues.some((issue) => issue.code === "SCENE_AUDIO_MODE_INVALID")).toBe(
       true
     );
+  });
+
+  it("warns when embedded video audio is missing or was not inspected", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_video",
+      kind: "video",
+      name: "intro.mp4",
+      category: "background",
+      variants: {
+        en: {
+          sourcePath: "intro.mp4",
+          importedAt: new Date().toISOString(),
+          hasAudio: false
+        }
+      }
+    });
+    project.scenes.items[0]!.backgroundAssetId = "asset_video";
+    project.scenes.items[0]!.videoAudioMode = "embedded";
+
+    expect(validateProject(project).issues).toContainEqual(
+      expect.objectContaining({
+        code: "VIDEO_EMBEDDED_AUDIO_MISSING",
+        entityId: project.scenes.items[0]!.id,
+        level: "warning",
+        locale: "en"
+      })
+    );
+
+    delete project.assets.assets[0]!.variants.en!.hasAudio;
+    expect(validateProject(project).issues).toContainEqual(
+      expect.objectContaining({
+        code: "VIDEO_EMBEDDED_AUDIO_UNVERIFIED",
+        entityId: project.scenes.items[0]!.id,
+        level: "warning",
+        locale: "en"
+      })
+    );
+  });
+
+  it("rejects media-end effects on looping or non-video scenes", () => {
+    const project = createDefaultProjectBundle();
+    project.assets.assets.push({
+      id: "asset_video",
+      kind: "video",
+      name: "intro.mp4",
+      category: "background",
+      variants: { en: { sourcePath: "intro.mp4", importedAt: new Date().toISOString(), hasAudio: true } }
+    });
+    const scene = project.scenes.items[0]!;
+    scene.backgroundAssetId = "asset_video";
+    scene.backgroundVideoLoop = true;
+    project.manifest.variables.push({ id: "finished", name: "Finished", description: "", type: "boolean", initialValue: false, system: false });
+    scene.onMediaEndEffects = [{ type: "setVariable", variableId: "finished", value: true }];
+
+    expect(validateProject(project).issues.some((issue) => issue.code === "VIDEO_LOOP_MEDIA_END_EFFECTS_INVALID")).toBe(true);
+
+    scene.backgroundAssetId = undefined;
+    scene.backgroundVideoLoop = false;
+    expect(validateProject(project).issues.some((issue) => issue.code === "MEDIA_END_EFFECTS_REQUIRE_VIDEO")).toBe(true);
   });
 
   it("reports missing inventory text warnings while ignoring legacy location and scene text fields", () => {

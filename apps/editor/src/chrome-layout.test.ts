@@ -145,6 +145,12 @@ describe("editor chrome styles", () => {
     expect(appSource).not.toContain('<nav className="tab-strip tab-strip--chrome app-region-no-drag"');
   });
 
+  it("starts each editor screen at the top instead of inheriting another screen's scroll position", () => {
+    expect(appSource).toContain('const editorScrollRegionRef = useRef<HTMLDivElement | null>(null);');
+    expect(appSource).toContain('editorScrollRegionRef.current?.scrollTo({ top: 0, left: 0 });');
+    expect(appSource).toContain('<div ref={editorScrollRegionRef} className="editor-scroll-region">');
+  });
+
   it("places Assets between Localization and Playtest in the screen tabs", () => {
     const localizationTabIndex = appSource.indexOf('{ id: "localization", label: "Localization" }');
     const assetsTabIndex = appSource.indexOf('{ id: "assets", label: "Assets" }');
@@ -166,6 +172,13 @@ describe("editor chrome styles", () => {
     expect(appSource).toContain('t("Health: Healthy")');
     expect(appSource).toContain('t("Release: Not ready")');
     expect(appSource).not.toContain('t("Valid")');
+  });
+
+  it("guards save-generation changes inside the release workflow", () => {
+    expect(appSource).toContain("inspectSaveCompatibility");
+    expect(appSource).toContain("confirmReleaseSaveGenerationAdvance");
+    expect(appSource).toContain('t("Start New Save Generation")');
+    expect(appSource).toContain("assessment.blocksRelease");
   });
 
   it("keeps interface language available and protects directional editor geometry", () => {

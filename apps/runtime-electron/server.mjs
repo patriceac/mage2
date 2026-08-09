@@ -61,6 +61,45 @@ export function resolveContentType(filePath) {
   return MIME_TYPES[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
+export function resolveByteRange(rangeHeader, fileSize) {
+  if (typeof rangeHeader !== "string" || !Number.isSafeInteger(fileSize) || fileSize <= 0) {
+    return undefined;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(rangeHeader.trim());
+  if (!match || (!match[1] && !match[2])) {
+    return undefined;
+  }
+
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+      return undefined;
+    }
+    return {
+      start: Math.max(0, fileSize - suffixLength),
+      end: fileSize - 1
+    };
+  }
+
+  const start = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : fileSize - 1;
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    start >= fileSize ||
+    requestedEnd < start
+  ) {
+    return undefined;
+  }
+
+  return {
+    start,
+    end: Math.min(requestedEnd, fileSize - 1)
+  };
+}
+
 export async function startPlayerServer(rootDirectory, port) {
   const root = path.resolve(rootDirectory);
   const rootStat = await fs.stat(root);
@@ -83,17 +122,31 @@ export async function startPlayerServer(rootDirectory, port) {
         return;
       }
 
-      response.writeHead(200, {
+      const rangeHeader = request.headers.range;
+      const range = rangeHeader ? resolveByteRange(rangeHeader, file.size) : undefined;
+      if (rangeHeader && !range) {
+        response.writeHead(416, {
+          "Accept-Ranges": "bytes",
+          "Content-Range": `bytes */${file.size}`
+        });
+        response.end();
+        return;
+      }
+
+      const contentLength = range ? range.end - range.start + 1 : file.size;
+      response.writeHead(range ? 206 : 200, {
+        "Accept-Ranges": "bytes",
         "Cache-Control": "no-store",
-        "Content-Length": file.size,
-        "Content-Type": resolveContentType(file.path)
+        "Content-Length": contentLength,
+        "Content-Type": resolveContentType(file.path),
+        ...(range ? { "Content-Range": `bytes ${range.start}-${range.end}/${file.size}` } : {})
       });
       if (request.method === "HEAD") {
         response.end();
         return;
       }
 
-      createReadStream(file.path).pipe(response);
+      createReadStream(file.path, range ? { start: range.start, end: range.end } : undefined).pipe(response);
     } catch (error) {
       if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
         response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
@@ -111,9 +164,15 @@ export async function startPlayerServer(rootDirectory, port) {
     server.listen(port, "127.0.0.1", resolve);
   });
 
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    server.close();
+    throw new Error("Runtime server did not bind to a TCP port.");
+  }
+
   return {
     server,
-    url: `http://127.0.0.1:${port}/`,
+    url: `http://127.0.0.1:${address.port}/`,
     close: () => server.close()
   };
 }

@@ -11,6 +11,8 @@ export interface FloatingWindowSize {
 export interface FloatingWindowViewport {
   width: number;
   height: number;
+  /** First usable y-coordinate, for example below the app titlebar. */
+  topInset?: number;
 }
 
 export interface FloatingWindowAnchor {
@@ -35,9 +37,9 @@ export function clampFloatingWindowPosition(
   margin = FLOATING_WINDOW_MARGIN_PX
 ): FloatingWindowPosition {
   const minimumX = margin;
-  const minimumY = margin;
+  const minimumY = Math.max(margin, viewport.topInset ?? margin);
   const maximumX = Math.max(margin, viewport.width - size.width - margin);
-  const maximumY = Math.max(margin, viewport.height - size.height - margin);
+  const maximumY = Math.max(minimumY, viewport.height - size.height - margin);
 
   return {
     x: clamp(position.x, minimumX, maximumX),

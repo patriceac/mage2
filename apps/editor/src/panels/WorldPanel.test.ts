@@ -58,7 +58,7 @@ describe("WorldPanel", () => {
     expect(markup).toContain("Location summary");
     expect(markup).toContain("Dialogues");
     expect(markup).toContain("Speakers");
-    expect(markup).toContain("Flags");
+    expect(markup).toContain("Variables");
     expect(markup).toContain("World transitions");
     expect(markup).toContain("Opening Scene");
     expect(markup).toContain("Start scene");
@@ -66,7 +66,7 @@ describe("WorldPanel", () => {
     expect(markup).toContain('title="Open Opening Scene in Scenes."');
     expect(markup).not.toContain("Quests");
     expect(markup).not.toContain("NPCs");
-    expect(markup).not.toContain("Variables");
+    expect(markup).not.toContain("Flags");
     expect(markup).not.toContain("world-panel__map-node-port");
     expect(markup).not.toContain("world-panel__map-edge-terminal");
     expect(markup).not.toContain("pill-list");

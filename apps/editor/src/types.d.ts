@@ -1,4 +1,9 @@
-import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
+import type {
+  Asset,
+  AssetCategory,
+  ProjectBundle,
+  SaveCompatibilityAssessment
+} from "@mage2/schema";
 
 interface RecentProjectSummary {
   projectDir: string;
@@ -83,6 +88,8 @@ type RuntimeExportResult =
           warnings: Array<{ level: string; code: string; message: string; entityId?: string }>;
         };
       };
+      saveCompatibilityBaselineRecorded?: boolean;
+      saveCompatibilityBaselineWarning?: string;
     };
 
 declare global {
@@ -107,6 +114,10 @@ declare global {
         project: ProjectBundle;
         validationReport: { valid: boolean; issues: Array<{ level: string; code: string; message: string; entityId?: string }> };
       }>;
+      inspectSaveCompatibility(
+        projectDir: string,
+        project: ProjectBundle
+      ): Promise<SaveCompatibilityAssessment>;
       importAssets(
         projectDir: string,
         locale: string,

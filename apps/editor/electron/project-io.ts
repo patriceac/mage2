@@ -21,13 +21,16 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { computeFileSha256, generateProxy } from "@mage2/media";
 import {
+  createSaveCompatibilityBaseline,
   createDefaultProjectBundle,
+  parseSaveCompatibilityBaseline,
   STARTER_RESPONSE_LIBRARY_VERSION,
   resolveAssetVariant,
   parseProjectBundle,
   type Asset,
   type AssetVariant,
-  type ProjectBundle
+  type ProjectBundle,
+  type SaveCompatibilityBaseline
 } from "@mage2/schema";
 
 const FILES = {
@@ -66,6 +69,7 @@ const CINEMATIC_STARTER_ASSETS = [
 const CINEMATIC_STARTER_MANIFEST_FILE = "cinematic-starter-kit.json";
 const PROJECT_SAVE_TRANSACTION_DIRECTORY = ".project-save-transaction";
 const PROJECT_SAVE_JOURNAL_FILE = "journal.json";
+const SAVE_COMPATIBILITY_BASELINE_FILE = "save-compatibility-baseline.json";
 
 type ProjectFileKey = keyof typeof FILES;
 type ProjectFileName = (typeof FILES)[ProjectFileKey];
@@ -209,6 +213,48 @@ export async function saveProjectToDirectory(
     const boundary = await requireProjectPhysicalBoundary(projectDir, identity.key);
     await recoverPendingProjectSave(boundary);
     return saveProjectTransaction(boundary, project);
+  });
+}
+
+export async function loadProjectSaveCompatibilityBaseline(
+  projectDir: string,
+  projectId: string
+): Promise<SaveCompatibilityBaseline | undefined> {
+  return withProjectDirectoryOperation(projectDir, async (identity) => {
+    const boundary = await requireProjectPhysicalBoundary(projectDir, identity.key);
+    await recoverPendingProjectSave(boundary);
+    const baselinePath = resolveSaveCompatibilityBaselinePath(projectDir);
+    const contents = await readContainedFileIfPresent(boundary, baselinePath);
+    if (!contents) {
+      return undefined;
+    }
+
+    const baseline = parseSaveCompatibilityBaseline(JSON.parse(contents.toString("utf8")));
+    return baseline.projectId === projectId ? baseline : undefined;
+  });
+}
+
+export async function recordProjectSaveCompatibilityBaseline(
+  projectDir: string,
+  project: ProjectBundle,
+  recordedAt = new Date().toISOString()
+): Promise<SaveCompatibilityBaseline> {
+  const baseline = createSaveCompatibilityBaseline(project, recordedAt);
+  return withProjectDirectoryOperation(projectDir, async (identity) => {
+    const boundary = await requireProjectPhysicalBoundary(projectDir, identity.key);
+    await recoverPendingProjectSave(boundary);
+    const metadataDirectory = path.join(projectDir, ".mage2");
+    await ensureContainedDirectory(boundary, metadataDirectory);
+
+    const baselinePath = resolveSaveCompatibilityBaselinePath(projectDir);
+    const temporaryPath = `${baselinePath}.${randomUUID()}.temporary`;
+    await writeContainedJson(boundary, temporaryPath, baseline);
+    try {
+      await renameContainedPath(boundary, temporaryPath, baselinePath);
+    } finally {
+      await removeContainedFileIfPresent(boundary, temporaryPath).catch(() => undefined);
+    }
+    return baseline;
   });
 }
 
@@ -1371,4 +1417,8 @@ function resolveStarterTemplatePath(fileName: string): string {
   }
 
   return path.resolve(__dirname, "..", "electron", fileName);
+}
+
+function resolveSaveCompatibilityBaselinePath(projectDir: string): string {
+  return path.join(projectDir, ".mage2", SAVE_COMPATIBILITY_BASELINE_FILE);
 }

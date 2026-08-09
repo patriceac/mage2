@@ -39,6 +39,10 @@ export function useSceneMediaPlayback({
   const sceneAudioInternalPauseRef = useRef(false);
   const sceneAudioPhaseRef = useRef<"idle" | "waiting" | "playing" | "ended">("idle");
   const [sceneAudioUrl, setSceneAudioUrl] = useState<string>();
+  const sceneAudioEnabled =
+    backgroundAssetKind === "image" ||
+    (backgroundAssetKind === "video" && scene.videoAudioMode === "external");
+  const sceneAudioDrivesPlayhead = backgroundAssetKind !== "video";
 
   useEffect(() => {
     latestPlayheadMsRef.current = playheadMs;
@@ -46,7 +50,7 @@ export function useSceneMediaPlayback({
 
   useEffect(() => {
     setPlayheadMs(0);
-  }, [scene.backgroundAssetId, scene.id, scene.sceneAudioAssetId, scene.sceneAudioDelayMs, setPlayheadMs]);
+  }, [scene.backgroundAssetId, scene.id, scene.sceneAudioAssetId, scene.sceneAudioDelayMs, scene.videoAudioMode, setPlayheadMs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +129,10 @@ export function useSceneMediaPlayback({
     };
 
     const updatePlayheadFromSceneAudio = (nextPlayheadMs: number) => {
+      if (!sceneAudioDrivesPlayhead) {
+        return;
+      }
+
       sceneAudioDrivenPlayheadMsRef.current = nextPlayheadMs;
       if (!shouldSyncPlayheadMs(latestPlayheadMsRef.current, nextPlayheadMs)) {
         return;
@@ -183,7 +191,7 @@ export function useSceneMediaPlayback({
     };
 
     const syncSceneAudioToPlayhead = (nextPlayheadMs: number) => {
-      if (!sceneAudioUrl || backgroundAssetKind !== "image" || !scene.sceneAudioAssetId) {
+      if (!sceneAudioUrl || !sceneAudioEnabled || !scene.sceneAudioAssetId) {
         sceneAudioPhaseRef.current = "idle";
         clearPlayback();
         return;
@@ -339,6 +347,9 @@ export function useSceneMediaPlayback({
     scene.sceneAudioAssetId,
     scene.sceneAudioDelayMs,
     scene.sceneAudioLoop,
+    scene.videoAudioMode,
+    sceneAudioDrivesPlayhead,
+    sceneAudioEnabled,
     sceneAudioUrl,
     sceneAudioVariant?.durationMs,
     setPlayheadMs
@@ -346,11 +357,12 @@ export function useSceneMediaPlayback({
 
   useEffect(() => {
     const syncSceneAudioToPlayhead = syncSceneAudioToPlayheadRef.current;
-    if (!syncSceneAudioToPlayhead || !sceneAudioUrl || backgroundAssetKind !== "image" || !scene.sceneAudioAssetId) {
+    if (!syncSceneAudioToPlayhead || !sceneAudioUrl || !sceneAudioEnabled || !scene.sceneAudioAssetId) {
       return;
     }
 
     if (
+      sceneAudioDrivesPlayhead &&
       sceneAudioDrivenPlayheadMsRef.current !== undefined &&
       !shouldSyncPlayheadMs(sceneAudioDrivenPlayheadMsRef.current, playheadMs)
     ) {
@@ -359,7 +371,7 @@ export function useSceneMediaPlayback({
     }
 
     syncSceneAudioToPlayhead(playheadMs);
-  }, [backgroundAssetKind, playheadMs, scene.sceneAudioAssetId, sceneAudioUrl]);
+  }, [playheadMs, scene.sceneAudioAssetId, sceneAudioDrivesPlayhead, sceneAudioEnabled, sceneAudioUrl]);
 
   return {
     sceneAudioRef,

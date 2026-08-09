@@ -26,6 +26,7 @@ export interface PlayerSystemCopy {
   continueDialogueTitle: string;
   activateHotspot: string;
   missingVisual: string;
+  resumeSceneMedia: string;
   skipResponseVideo: string;
   stopResponseAudio: string;
   playResponseAudio: string;
@@ -47,6 +48,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "Continue the dialogue.",
     activateHotspot: "Activate",
     missingVisual: "No playable visual for this scene.",
+    resumeSceneMedia: "Play with sound",
     skipResponseVideo: "Skip",
     stopResponseAudio: "Stop",
     playResponseAudio: "Play",
@@ -64,6 +66,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "Continuer le dialogue.",
     activateHotspot: "Activer",
     missingVisual: "Aucun visuel jouable pour cette scène.",
+    resumeSceneMedia: "Lire la vidéo avec le son",
     skipResponseVideo: "Passer",
     stopResponseAudio: "Arrêter",
     playResponseAudio: "Lire",
@@ -81,6 +84,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "Continuar el diálogo.",
     activateHotspot: "Activar",
     missingVisual: "No hay una imagen reproducible para esta escena.",
+    resumeSceneMedia: "Reproducir vídeo con sonido",
     skipResponseVideo: "Omitir",
     stopResponseAudio: "Detener",
     playResponseAudio: "Reproducir",
@@ -97,6 +101,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "继续对话。",
     activateHotspot: "互动",
     missingVisual: "此场景没有可播放的画面。",
+    resumeSceneMedia: "播放有声视频",
     skipResponseVideo: "跳过",
     stopResponseAudio: "停止",
     playResponseAudio: "播放",
@@ -113,6 +118,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "会話を続ける。",
     activateHotspot: "調べる",
     missingVisual: "このシーンには再生できる映像がありません。",
+    resumeSceneMedia: "音声付きで動画を再生",
     skipResponseVideo: "スキップ",
     stopResponseAudio: "停止",
     playResponseAudio: "再生",
@@ -129,6 +135,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "대화를 계속합니다.",
     activateHotspot: "상호작용",
     missingVisual: "이 장면에 재생 가능한 화면이 없습니다.",
+    resumeSceneMedia: "소리와 함께 동영상 재생",
     skipResponseVideo: "건너뛰기",
     stopResponseAudio: "중지",
     playResponseAudio: "재생",
@@ -145,6 +152,7 @@ const PLAYER_SYSTEM_COPY: Record<"en" | "fr" | "es" | "zh-Hans" | "ja" | "ko" | 
     continueDialogueTitle: "تابع الحوار.",
     activateHotspot: "تفاعل",
     missingVisual: "لا توجد صورة قابلة للتشغيل لهذا المشهد.",
+    resumeSceneMedia: "تشغيل الفيديو مع الصوت",
     skipResponseVideo: "تخطي",
     stopResponseAudio: "إيقاف",
     playResponseAudio: "تشغيل",

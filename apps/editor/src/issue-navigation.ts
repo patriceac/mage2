@@ -79,6 +79,15 @@ export function resolveIssueNavigation(
       };
     }
 
+    const variable = project.manifest.variables.find((entry) => entry.id === entityId);
+    if (variable) {
+      return {
+        label: variable.name,
+        tab: "logic",
+        variableId: variable.id
+      };
+    }
+
     const responseGroup = project.dialogues.responseGroups.find((entry) => entry.id === entityId);
     if (responseGroup) {
       return {
@@ -259,6 +268,13 @@ export function resolveIssueNavigation(
     case "SCENE_AUDIO_CATEGORY_INVALID":
     case "SCENE_AUDIO_KIND_INVALID":
     case "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND":
+    case "SCENE_AUDIO_MODE_INVALID":
+    case "VIDEO_EXTERNAL_AUDIO_MISSING":
+    case "VIDEO_EMBEDDED_AUDIO_MISSING":
+    case "VIDEO_EMBEDDED_AUDIO_UNVERIFIED":
+    case "VIDEO_EXTERNAL_AUDIO_DURATION_MISMATCH":
+    case "VIDEO_LOOP_MEDIA_END_EFFECTS_INVALID":
+    case "MEDIA_END_EFFECTS_REQUIRE_VIDEO":
       return {
         // i18n-ignore-next-line -- canonical routing label translated by the renderer
         label: "scene media",
@@ -371,7 +387,20 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "SCENE_AUDIO_KIND_INVALID":
       return "Upload, assign, or clear the scene audio asset in the Scenes tab.";
     case "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND":
-      return "Scene audio only works with image backgrounds. Switch the background to an image or clear the scene audio.";
+    case "SCENE_AUDIO_MODE_INVALID":
+      return "Choose External track for a video with separate scene audio, or clear the scene audio.";
+    case "VIDEO_EXTERNAL_AUDIO_MISSING":
+      return "Assign a scene audio asset or choose Embedded audio or Silent for this video.";
+    case "VIDEO_EMBEDDED_AUDIO_MISSING":
+      return "This file has no embedded audio stream. Choose External track or Silent.";
+    case "VIDEO_EMBEDDED_AUDIO_UNVERIFIED":
+      return "Re-import this older video to detect its audio stream before using Embedded audio.";
+    case "VIDEO_EXTERNAL_AUDIO_DURATION_MISMATCH":
+      return "Use external audio whose duration, including its delay, matches the video within 500ms.";
+    case "VIDEO_LOOP_MEDIA_END_EFFECTS_INVALID":
+      return "Turn off video looping or clear the effects that run when the video ends.";
+    case "MEDIA_END_EFFECTS_REQUIRE_VIDEO":
+      return "Clear the media-end effects or assign a video background.";
     case "HOTSPOT_TARGET_SCENE_MISSING":
     case "EFFECT_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";
@@ -391,6 +420,23 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "DIALOGUE_MEDIA_CATEGORY_INVALID":
     case "DIALOGUE_MEDIA_KIND_INVALID":
       return "Assign a foreground audio or video asset to the dialogue line, or clear the line media field.";
+    case "DUPLICATE_VARIABLE_ID":
+    case "DUPLICATE_VARIABLE_CHOICE_ID":
+    case "VARIABLE_INITIAL_CHOICE_MISSING":
+    case "VARIABLE_NAME_MISSING":
+    case "VARIABLE_CHOICES_TOO_FEW":
+    case "VARIABLE_CHOICE_NAME_MISSING":
+      return "Open Logic and correct the variable definition before saving or exporting.";
+    case "CONDITION_VARIABLE_MISSING":
+    case "CONDITION_VARIABLE_VALUE_INVALID":
+    case "CONDITION_VARIABLE_OPERATOR_INVALID":
+      return "Open the related condition builder and choose a valid variable, comparison, and value.";
+    case "EFFECT_VARIABLE_MISSING":
+    case "EFFECT_VARIABLE_VALUE_INVALID":
+    case "EFFECT_VARIABLE_CHANGE_INVALID":
+      return "Open the related action builder and choose a valid variable and value.";
+    case "EFFECT_TERMINAL_NOT_LAST":
+      return "Move scene changes and dialogue starts to the end of the action list unless continuation is intentional.";
     case "SCENE_UNREACHABLE":
       return "Add a path from the start scene or another reachable scene if this content should be playable.";
     default:

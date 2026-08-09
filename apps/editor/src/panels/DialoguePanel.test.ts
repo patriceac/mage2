@@ -116,8 +116,10 @@ describe("DialoguePanel", () => {
     expect(markup).toContain("Start this dialogue from a hotspot in Scenes");
     expect(markup).toContain("Go to Scenes");
     expect(markup).toContain("Starts from 1 hotspot");
-    expect(markup).toContain("Advanced line effects");
-    expect(markup).toContain("Advanced reply rules");
+    expect(markup).toContain("When this line starts");
+    expect(markup).toContain("Reply availability and actions");
+    expect(markup).toContain("Add condition...");
+    expect(markup).toContain("Add action...");
     expect(markup).not.toContain("Dialogue map preview");
     expect(markup).not.toContain("Next Node");
   });

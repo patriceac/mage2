@@ -1,13 +1,9 @@
 import type { DragEvent, RefObject } from "react";
-import type { Asset, ProjectBundle } from "@mage2/schema";
+import { resolveAssetVariant, type Asset, type ProjectBundle } from "@mage2/schema";
 import { DropdownSelect } from "../../DropdownSelect";
 import { AssetPreview } from "../../previews";
 import { useEditorI18n } from "../../i18n/EditorI18nProvider";
-import {
-  VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE,
-  applySceneBackgroundAsset,
-  canAssignSceneBackgroundAsset
-} from "./scene-domain";
+import { applySceneBackgroundAsset } from "./scene-domain";
 
 type ProjectScene = ProjectBundle["scenes"]["items"][number];
 type SceneOperationFeedbackTone = "success" | "warning" | "error";
@@ -16,8 +12,8 @@ interface SceneMediaSectionProps {
   activeLocale: string;
   availableBackgroundAssets: Asset[];
   availableSceneAudioAssets: Asset[];
-  backgroundImportAcceptsVideo: boolean;
   currentAsset?: Asset;
+  currentAssetHasAudio?: boolean;
   currentSceneAudioAsset?: Asset;
   isSceneAudioDropActive: boolean;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
@@ -42,8 +38,8 @@ export function SceneMediaSection({
   activeLocale,
   availableBackgroundAssets,
   availableSceneAudioAssets,
-  backgroundImportAcceptsVideo,
   currentAsset,
+  currentAssetHasAudio,
   currentSceneAudioAsset,
   isSceneAudioDropActive,
   mutateProject,
@@ -113,6 +109,9 @@ export function SceneMediaSection({
               <span className="scene-video-loop-toggle__thumb" />
             </span>
             <span className="scene-video-loop-toggle__label">{t("Loop video")}</span>
+            {scene.backgroundVideoLoop && scene.onMediaEndEffects.length > 0 ? (
+              <span className="muted">{t("Turn off looping to run video-end effects.")}</span>
+            ) : null}
           </label>
         ) : null}
       </div>
@@ -126,13 +125,7 @@ export function SceneMediaSection({
         <span>{t("Background, audio, and playback")}</span>
       </summary>
       <div className="scenes-panel__details-body">
-        <label
-          title={
-            backgroundImportAcceptsVideo
-              ? t("Background media shown for this scene in the editor and runtime.")
-              : t("Background media shown for this scene in the editor and runtime. Clear scene audio before choosing a video background.")
-          }
-        >
+        <label title={t("Background media shown for this scene in the editor and runtime.")}>
           <span className="field-label--inset">{t("Background Asset")}</span>
           <div className="asset-assignment-row">
             <DropdownSelect
@@ -143,9 +136,12 @@ export function SceneMediaSection({
                   const backgroundAsset = backgroundAssetId
                     ? draft.assets.assets.find((entry) => entry.id === backgroundAssetId)
                     : undefined;
-                  if (!applySceneBackgroundAsset(draftScene, backgroundAssetId, backgroundAsset?.kind)) {
-                    onReportOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
-                  }
+                  applySceneBackgroundAsset(
+                    draftScene,
+                    backgroundAssetId,
+                    backgroundAsset?.kind,
+                    backgroundAsset ? resolveAssetVariant(backgroundAsset, activeLocale)?.hasAudio : undefined
+                  );
                 });
               }}
             >
@@ -157,7 +153,7 @@ export function SceneMediaSection({
                 </option>
               ) : null}
               {availableBackgroundAssets.map((asset) => (
-                <option key={asset.id} value={asset.id} disabled={!canAssignSceneBackgroundAsset(scene, asset.kind)}>
+                <option key={asset.id} value={asset.id}>
                   {asset.name}
                 </option>
               ))}
@@ -166,22 +162,49 @@ export function SceneMediaSection({
               type="button"
               className="button-secondary"
               onClick={() => void onImportBackground()}
-              title={
-                backgroundImportAcceptsVideo
-                  ? t("Create a new background asset from an image or video file and assign it to this scene.")
-                  : t("Create a new image background asset and assign it to this scene. Clear scene audio before using video.")
-              }
+              title={t("Create a new background asset from an image or video file and assign it to this scene.")}
             >
               {currentAsset ? t("Replace Background") : t("Upload Background")}
             </button>
           </div>
         </label>
 
+        {isVideoScene ? (
+          <label title={t("Choose whether this video uses its embedded soundtrack, a synchronized external track, or no sound.")}>
+            <span className="field-label--inset">{t("Video Sound")}</span>
+            <DropdownSelect
+              value={scene.videoAudioMode}
+              onChange={(event) => {
+                const videoAudioMode = event.target.value as ProjectScene["videoAudioMode"];
+                mutateScene((draftScene) => {
+                  draftScene.videoAudioMode = videoAudioMode;
+                  if (videoAudioMode !== "external") {
+                    draftScene.sceneAudioAssetId = undefined;
+                  }
+                });
+              }}
+            >
+              <option value="embedded">{t("Embedded audio")}</option>
+              <option value="external">{t("External track")}</option>
+              <option value="silent">{t("Silent")}</option>
+            </DropdownSelect>
+            {scene.videoAudioMode === "embedded" && currentAssetHasAudio === false ? (
+              <span className="muted">{t("This video has no embedded audio stream. Choose External track or Silent.")}</span>
+            ) : null}
+            {scene.videoAudioMode === "embedded" && currentAssetHasAudio === undefined ? (
+              <span className="muted">{t("Embedded audio was not inspected for this older import. Re-import the video to verify it.")}</span>
+            ) : null}
+            {scene.videoAudioMode === "silent" && currentAssetHasAudio ? (
+              <span className="muted">{t("This video contains audio, but the scene is intentionally silent.")}</span>
+            ) : null}
+          </label>
+        ) : null}
+
         <label
           title={
             sceneSupportsAudio
-              ? t("Optional ambient or music track that plays for this scene when it uses an image background.")
-              : t("Scene audio is disabled while this scene uses a video background.")
+              ? t("Optional scene audio, or the synchronized replacement track for a video using External track.")
+              : t("Choose External track to assign separate audio to this video.")
           }
         >
           <span className="field-label--inset">{t("Scene Audio")}</span>
@@ -193,7 +216,7 @@ export function SceneMediaSection({
                 const sceneAudioAssetId = event.target.value || undefined;
                 mutateScene((draftScene) => {
                   if (!sceneSupportsAudio && sceneAudioAssetId) {
-                    onReportOperation(t("Scene audio is only available when the scene uses an image background."), "error");
+                    onReportOperation(t("Choose External track before assigning separate audio to a video scene."), "error");
                     return;
                   }
 
@@ -220,7 +243,7 @@ export function SceneMediaSection({
               title={
                 sceneSupportsAudio
                   ? t("Create a new scene audio asset from an audio file and assign it to this scene.")
-                  : t("Scene audio imports are disabled while this scene uses a video background.")
+                  : t("Choose External track before importing separate audio for this video.")
               }
             >
               {currentSceneAudioAsset ? t("Replace Scene Audio") : t("Upload Scene Audio")}
@@ -244,7 +267,11 @@ export function SceneMediaSection({
             onDrop={(event) => void onSceneAudioDrop(event)}
           >
             <strong>{currentSceneAudioAsset ? t("Drop to replace scene audio") : t("Drop scene audio here")}</strong>
-            <span>{t("Use an audio file to attach optional ambience or music to this image scene.")}</span>
+            <span>
+              {isVideoScene
+                ? t("Use an audio file as a synchronized replacement track for this video.")
+                : t("Use an audio file to attach optional ambience or music to this image scene.")}
+            </span>
             {scene.sceneAudioAssetId ? (
               <div className="scenes-panel__scene-audio-frame">
                 <div className="scenes-panel__scene-audio-preview">
@@ -295,22 +322,26 @@ export function SceneMediaSection({
                         }}
                       />
                     </label>
-                    <label
-                      className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
-                      title={t("When enabled, scene audio waits for the configured delay, then restarts again after it ends.")}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={scene.sceneAudioLoop}
-                        onChange={(event) => {
-                          const checked = event.target.checked;
-                          mutateScene((draftScene) => {
-                            draftScene.sceneAudioLoop = checked;
-                          });
-                        }}
-                      />
-                      <span>{t("Loop")}</span>
-                    </label>
+                    {!isVideoScene ? (
+                      <label
+                        className="scene-video-loop-toggle scenes-panel__scene-audio-loop-toggle"
+                        title={t("When enabled, scene audio waits for the configured delay, then restarts again after it ends.")}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={scene.sceneAudioLoop}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            mutateScene((draftScene) => {
+                              draftScene.sceneAudioLoop = checked;
+                            });
+                          }}
+                        />
+                        <span>{t("Loop")}</span>
+                      </label>
+                    ) : (
+                      <span className="muted">{t("External audio follows the video playhead and restarts with the video.")}</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -319,8 +350,8 @@ export function SceneMediaSection({
         ) : (
           <div className="scenes-panel__scene-audio-disabled">
             <div className="scenes-panel__scene-audio-disabled-copy">
-              <strong>{t("Scene audio unavailable for video backgrounds")}</strong>
-              <span>{t("Use an image background to import or play a separate audio file.")}</span>
+              <strong>{t("Separate audio is not active")}</strong>
+              <span>{t("Choose External track above to add a synchronized replacement soundtrack.")}</span>
             </div>
             {currentSceneAudioAsset ? (
               <div className="scenes-panel__scene-audio-disabled-actions">

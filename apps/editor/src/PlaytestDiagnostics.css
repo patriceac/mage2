@@ -1,0 +1,112 @@
+.playtest-diagnostics {
+  gap: 0;
+  padding: 0;
+  overflow: auto;
+  border-color: rgba(111, 127, 145, 0.28);
+  background: #11171e;
+}
+
+.playtest-diagnostics__header,
+.playtest-diagnostics__section,
+.playtest-diagnostics__context {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(111, 127, 145, 0.2);
+}
+
+.playtest-diagnostics__header h3,
+.playtest-diagnostics__header p,
+.playtest-diagnostics__section h4,
+.playtest-diagnostics__section p {
+  margin: 0;
+}
+
+.playtest-diagnostics__header h3 { font-size: 0.94rem; }
+.playtest-diagnostics__header p { margin-top: 3px; color: #8e9aa8; font-size: 0.7rem; line-height: 1.4; }
+
+.playtest-diagnostics__context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.playtest-diagnostics__context > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.playtest-diagnostics__context > div:last-child { grid-column: 1 / -1; }
+.playtest-diagnostics__context span { color: #84909e; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.playtest-diagnostics__context strong { overflow: hidden; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.playtest-diagnostics__section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.playtest-diagnostics__section > header h4,
+.playtest-diagnostics__section > h4 {
+  color: #cbd3dc;
+  font-size: 0.7rem;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.playtest-diagnostics__section > header > span {
+  color: #8c98a6;
+  font-size: 0.68rem;
+}
+
+.playtest-diagnostics__section > header button {
+  min-height: 26px;
+  padding: 3px 7px;
+  border: 0;
+  background: transparent;
+  color: #aab5c1;
+  font-size: 0.68rem;
+}
+
+.playtest-diagnostics__section--warning { background: rgba(210, 140, 71, 0.08); }
+.playtest-diagnostics__section--warning p { margin-top: 6px; color: #e1b780; font-size: 0.72rem; }
+
+.playtest-variable-list { display: grid; gap: 1px; margin: 0; }
+.playtest-variable-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.playtest-variable-list dt { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.playtest-variable-list dt span { overflow: hidden; font-size: 0.74rem; text-overflow: ellipsis; white-space: nowrap; }
+.playtest-variable-list dt small { color: #a88753; font-size: 0.6rem; }
+.playtest-variable-list dd { margin: 0; color: #e2c88e; font: 0.72rem/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+.playtest-hotspot-diagnostics { display: grid; gap: 6px; }
+.playtest-hotspot-check { padding: 9px 10px; border: 1px solid rgba(194, 111, 91, 0.27); border-radius: 7px; background: rgba(194, 111, 91, 0.05); }
+.playtest-hotspot-check--available { border-color: rgba(80, 169, 126, 0.25); background: rgba(80, 169, 126, 0.055); }
+.playtest-hotspot-check > header { display: flex; justify-content: space-between; gap: 10px; }
+.playtest-hotspot-check > header strong { font-size: 0.75rem; }
+.playtest-hotspot-check > header span { color: #d49182; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+.playtest-hotspot-check--available > header span { color: #78c69f; }
+.playtest-hotspot-check ul { display: grid; gap: 3px; margin: 7px 0 0; padding-left: 17px; color: #aeb7c1; font-size: 0.68rem; line-height: 1.4; }
+.playtest-hotspot-check p { margin-top: 6px; color: #8f9ca9; font-size: 0.67rem; }
+
+.playtest-trace-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.playtest-trace-list li { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 8px; padding: 7px 5px; }
+.playtest-trace-list li + li { border-top: 1px solid rgba(111, 127, 145, 0.12); }
+.playtest-trace-list__status { width: 6px; height: 6px; margin-top: 4px; border-radius: 999px; background: #c17465; }
+.playtest-trace-list__status--applied { background: #68bb91; }
+.playtest-trace-list li div { display: grid; min-width: 0; gap: 2px; }
+.playtest-trace-list strong { overflow: hidden; font-size: 0.72rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.playtest-trace-list small { overflow: hidden; color: #7f8b98; font-size: 0.64rem; text-overflow: ellipsis; white-space: nowrap; }
+.playtest-diagnostics__empty { color: #7f8b98; font-size: 0.7rem; line-height: 1.4; }
+
+@media (max-width: 1100px) {
+  .playtest-diagnostics { max-height: none; }
+}

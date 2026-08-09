@@ -285,7 +285,10 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("mage2-player__hud");
     expect(markup).toContain("mage2-player__inventory-anchor");
     expect(markup).toContain("mage2-player__inventory");
-    expect(markup).toContain("Runtime State");
+    expect(markup).toContain("Playtest diagnostics");
+    expect(markup).toContain("Hotspot availability");
+    expect(markup).toContain("Recent actions");
+    expect(markup).not.toContain("Flags JSON");
     expect(markup).not.toContain("playtest-inventory-section");
     expect(markup).not.toContain("playtest-inventory-panel");
   });

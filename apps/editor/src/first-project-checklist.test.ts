@@ -56,7 +56,15 @@ describe("first project checklist", () => {
       }
     });
     project.scenes.items[0].backgroundAssetId = "asset_opening";
-    project.scenes.items[0].hotspots[0].effects = [{ type: "setFlag", flag: "started", value: true }];
+    project.manifest.variables.push({
+      id: "started",
+      name: "Started",
+      description: "",
+      type: "boolean",
+      initialValue: false,
+      system: false
+    });
+    project.scenes.items[0].hotspots[0].effects = [{ type: "setVariable", variableId: "started", value: true }];
 
     const checklist = resolveFirstProjectChecklist(project, true, 0);
 
@@ -68,7 +76,15 @@ describe("first project checklist", () => {
     const project = createDefaultProjectBundle("Conditions only");
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
     hotspot.requiredItemIds = ["item_key"];
-    hotspot.conditions = [{ type: "flagEquals", flag: "door.open", value: false }];
+    project.manifest.variables.push({
+      id: "door.open",
+      name: "Door open",
+      description: "",
+      type: "boolean",
+      initialValue: false,
+      system: false
+    });
+    hotspot.conditions = [{ type: "variableCompare", variableId: "door.open", operator: "equals", value: false }];
 
     const checklist = resolveFirstProjectChecklist(project, true, 0);
 

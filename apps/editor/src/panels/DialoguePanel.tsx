@@ -21,6 +21,7 @@ import {
 } from "../project-text";
 import { useEditorStore } from "../store";
 import { ResponseGroupsPanel } from "./ResponseGroupsPanel";
+import { ConditionListEditor, EffectListEditor } from "../logic/RuleBuilder";
 
 interface DialoguePanelProps {
   project: ProjectBundle;
@@ -212,6 +213,7 @@ function DialogueAuthoringPanel({
       target.choices.push({
         id: choiceId,
         textId,
+        conditionMode: "all",
         conditions: [],
         effects: []
       });
@@ -433,6 +435,7 @@ function DialogueAuthoringPanel({
                     localeStrings={localeStrings}
                     mediaAssets={foregroundMediaAssets}
                     mutateProject={mutateProject}
+                    project={project}
                     node={node}
                     nodeOptions={nodeOptions}
                     onAddReply={addReply}
@@ -541,6 +544,7 @@ function LineCard({
   localeStrings,
   mediaAssets,
   mutateProject,
+  project,
   node,
   nodeOptions,
   onAddReply,
@@ -557,6 +561,7 @@ function LineCard({
   localeStrings: Record<string, string>;
   mediaAssets: Asset[];
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
+  project: ProjectBundle;
   node: DialogueNode;
   nodeOptions: DialogueNodeOption[];
   onAddReply: (nodeId: string) => void;
@@ -703,6 +708,7 @@ function LineCard({
                     choice={choice}
                     choiceIndex={choiceIndex}
                     nodeOptions={branchOptions}
+                    project={project}
                     strings={localeStrings}
                     onDelete={() => onDeleteReply(node.id, choice.id)}
                     onTextChange={(value) =>
@@ -710,13 +716,14 @@ function LineCard({
                         setEditorLocalizedText(draft, activeLocale, choice.textId, value);
                       })
                     }
-                    onUpdate={(nextChoice) =>
+                    onUpdate={(nextChoice, variables) =>
                       mutateProject((draft) => {
                         const target = findNode(draft, currentDialogue.id, node.id);
                         if (!target) {
                           return;
                         }
                         target.choices = target.choices.map((entry) => (entry.id === nextChoice.id ? nextChoice : entry));
+                        if (variables) draft.manifest.variables = variables;
                       })
                     }
                   />
@@ -727,19 +734,19 @@ function LineCard({
             )}
           </section>
 
-          <details className="dialogue-advanced">
-            <summary>{t("Advanced line effects")}</summary>
-            <JsonField
-              label={t("When this line starts")}
-              value={JSON.stringify(node.effects, null, 2)}
-              tooltip={t("JSON effect list that runs when this line opens.")}
-              labelClassName="field-label--inset"
-              onCommit={(nextValue) =>
+          <details className="dialogue-advanced" open={node.effects.length > 0 || undefined}>
+            <summary>{t("When this line starts")}</summary>
+            <EffectListEditor
+              compact
+              project={project}
+              label={t("Line actions")}
+              description={t("Run these actions in order when this line opens.")}
+              effects={node.effects}
+              onChange={(effects, variables) =>
                 mutateProject((draft) => {
                   const target = findNode(draft, currentDialogue.id, node.id);
-                  if (target) {
-                    target.effects = parseJson(nextValue, target.effects);
-                  }
+                  if (target) target.effects = effects;
+                  if (variables) draft.manifest.variables = variables;
                 })
               }
             />
@@ -756,6 +763,7 @@ function ChoiceEditor({
   choice,
   choiceIndex,
   nodeOptions,
+  project,
   strings,
   onDelete,
   onTextChange,
@@ -764,10 +772,11 @@ function ChoiceEditor({
   choice: DialogueChoice;
   choiceIndex: number;
   nodeOptions: DialogueNodeOption[];
+  project: ProjectBundle;
   strings: Record<string, string>;
   onDelete: () => void;
   onTextChange: (value: string) => void;
-  onUpdate: (nextChoice: DialogueChoice) => void;
+  onUpdate: (nextChoice: DialogueChoice, variables?: ProjectBundle["manifest"]["variables"]) => void;
 }) {
   const { t } = useEditorI18n();
   return (
@@ -792,21 +801,26 @@ function ChoiceEditor({
             ))}
           </DropdownSelect>
         </label>
-        <details className="dialogue-advanced dialogue-advanced--choice">
-          <summary>{t("Advanced reply rules")}</summary>
-          <JsonField
+        <details className="dialogue-advanced dialogue-advanced--choice" open={choice.conditions.length > 0 || choice.effects.length > 0 || undefined}>
+          <summary>{t("Reply availability and actions")}</summary>
+          <ConditionListEditor
+            compact
+            project={project}
             label={t("Show reply when")}
-            value={JSON.stringify(choice.conditions, null, 2)}
-            tooltip={t("JSON condition list that must pass before this reply appears.")}
-            labelClassName="field-label--inset"
-            onCommit={(nextValue) => onUpdate({ ...choice, conditions: parseJson(nextValue, choice.conditions) })}
+            description={t("Choose when the player can see this reply.")}
+            conditions={choice.conditions}
+            mode={choice.conditionMode ?? "all"}
+            onChange={(conditions, conditionMode, variables) =>
+              onUpdate({ ...choice, conditions, conditionMode }, variables)
+            }
           />
-          <JsonField
-            label={t("After reply effects")}
-            value={JSON.stringify(choice.effects, null, 2)}
-            tooltip={t("JSON effect list that runs after the player selects this reply.")}
-            labelClassName="field-label--inset"
-            onCommit={(nextValue) => onUpdate({ ...choice, effects: parseJson(nextValue, choice.effects) })}
+          <EffectListEditor
+            compact
+            project={project}
+            label={t("After the reply")}
+            description={t("Run these actions in order after the player chooses this reply.")}
+            effects={choice.effects}
+            onChange={(effects, variables) => onUpdate({ ...choice, effects }, variables)}
           />
         </details>
       </div>
@@ -865,27 +879,6 @@ function DialoguePreview({
         <p className="muted">{nextLineLabel ? t("Continues to {line}", { line: nextLineLabel }) : t("Ends after this line")}</p>
       )}
     </div>
-  );
-}
-
-function JsonField({
-  label,
-  value,
-  tooltip,
-  labelClassName,
-  onCommit
-}: {
-  label: string;
-  value: string;
-  tooltip?: string;
-  labelClassName?: string;
-  onCommit: (nextValue: string) => void;
-}) {
-  return (
-    <label title={tooltip}>
-      {labelClassName ? <span className={labelClassName}>{label}</span> : label}
-      <textarea defaultValue={value} onBlur={(event) => onCommit(event.target.value)} title={tooltip} />
-    </label>
   );
 }
 
@@ -979,12 +972,4 @@ function formatCompactId(id: string): string {
 
 function truncateText(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}...`;
-}
-
-function parseJson<T>(input: string, fallback: T): T {
-  try {
-    return JSON.parse(input) as T;
-  } catch {
-    return fallback;
-  }
 }

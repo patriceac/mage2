@@ -5,9 +5,6 @@ import type { EditorTranslator } from "../../i18n/translate";
 
 export const SCENE_AUDIO_DROP_REJECTION_MESSAGE =
   "Scene audio accepts MP3, WAV, OGG, M4A, or AAC files only.";
-export const VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE =
-  "Clear scene audio before assigning a video background.";
-
 const CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY = "mage2:scene-editor:corner-first-hotspot-handles";
 const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
   source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
@@ -83,22 +80,31 @@ export function resolveSceneAudioDropAcceptance(candidates: readonly SceneAudioD
 }
 
 export function canAssignSceneBackgroundAsset(
-  scene: { backgroundAssetId?: string; sceneAudioAssetId?: string },
-  assetKind?: Asset["kind"]
+  _scene: { backgroundAssetId?: string; sceneAudioAssetId?: string },
+  _assetKind?: Asset["kind"]
 ): boolean {
-  return assetKind !== "video" || !scene.sceneAudioAssetId;
+  return true;
 }
 
 export function applySceneBackgroundAsset(
-  scene: { backgroundAssetId?: string; sceneAudioAssetId?: string },
+  scene: {
+    backgroundAssetId?: string;
+    sceneAudioAssetId?: string;
+    videoAudioMode: "embedded" | "external" | "silent";
+  },
   assetId: string | undefined,
-  assetKind?: Asset["kind"]
+  assetKind?: Asset["kind"],
+  hasEmbeddedAudio?: boolean
 ): boolean {
-  if (!canAssignSceneBackgroundAsset(scene, assetKind)) {
-    return false;
-  }
-
   scene.backgroundAssetId = assetId;
+  scene.videoAudioMode =
+    assetKind === "video"
+      ? scene.sceneAudioAssetId
+        ? "external"
+        : hasEmbeddedAudio
+          ? "embedded"
+          : "silent"
+      : "silent";
   return true;
 }
 

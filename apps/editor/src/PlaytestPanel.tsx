@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPlayerController, resolveSceneTimelineDurationMs, type ActivePlayerResponse } from "@mage2/player";
+import {
+  createPlayerController,
+  resolveSceneTimelineDurationMs,
+  type ActivePlayerResponse,
+  type ConditionEvaluation,
+  type HotspotAvailabilityExplanation,
+  type LogicTraceEntry,
+  type PlayerRuntimeIssue,
+  type PlayerSnapshot
+} from "@mage2/player";
 import {
   DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
   PlayerExperienceShell,
-  PlayerSceneAudio,
   PlayerSceneRenderer,
   resolvePlayerHotspotVisuals,
   resolvePlayerSystemCopy,
@@ -26,7 +34,7 @@ import { ForegroundMediaPlayer } from "./ForegroundMedia";
 import { resolveFileUrl } from "./file-url-cache";
 import { useEditorAssetFileUrl } from "./player-asset-url";
 import { getLocalizedAssetVariant } from "./localized-project";
-import { useEditorI18n } from "./i18n";
+import { useEditorI18n, type EditorTranslator } from "./i18n";
 import type { EditorAutomationPlaytestState } from "./automation-commands";
 import {
   PLAYTEST_SAVE_SLOT_IDS,
@@ -41,6 +49,7 @@ import {
   type PlaytestSaveStorage
 } from "./playtest-save-slots";
 import { useEditorStore } from "./store";
+import "./PlaytestDiagnostics.css";
 
 interface PlaytestPanelProps {
   project: ProjectBundle;
@@ -481,6 +490,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   }, [selectedInventoryItemId, snapshot.inventoryItems]);
 
   const preferredLoadSlotId = saveSlotInspections.find((slot) => slot.status === "ready")?.slotId;
+  const hotspotAvailability = controller.explainHotspotAvailability(playheadMs, sceneTimelineDurationMs);
+  const logicTrace = controller.getLogicTrace();
 
   return (
     <div className="panel-grid panel-grid--playtest">
@@ -636,6 +647,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             presentation={presentation}
             screen={playerScreen}
             onScreenChange={setPlayerScreen}
+            onGameplayStartRequest={() => playerRendererRef.current?.resumeSceneMedia()}
             locale={contentLocale}
             supportedLocales={supportedLocales}
             localeStrings={localeStrings}
@@ -694,7 +706,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             activeResponse={activeResponse}
             onResponseComplete={completeResponse}
             playbackResetKey={playbackResetKey}
-            onPlayheadMsChange={sceneAsset?.kind === "video" ? setPlayheadMs : undefined}
+            onPlayheadMsChange={setPlayheadMs}
             onPlayableDurationMsChange={
               sceneAsset?.kind === "video"
                 ? (durationMs) => {
@@ -706,6 +718,16 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
                   }
                 : undefined
             }
+            onSceneMediaEnd={() => {
+              const completedSceneId = snapshot.scene.id;
+              const resolution = controller.completeSceneMedia();
+              applyPlayerResponseResolution(resolution);
+              const nextSnapshot = controller.getSnapshot();
+              setSnapshot(nextSnapshot);
+              if (nextSnapshot.scene.id !== completedSceneId) {
+                setPlayheadMs(0);
+              }
+            }}
           />
           {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
             <ForegroundMediaPlayer
@@ -721,43 +743,268 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           </PlayerExperienceShell>
         </div>
 
-        <PlayerSceneAudio
-          sourcePath={sceneAudioVariant?.proxyPath ?? sceneAudioVariant?.sourcePath}
-          resolveSourcePath={resolveFileUrl}
-          sceneKey={snapshot.scene.id}
-          assetId={snapshot.scene.sceneAudioAssetId}
-          enabled={sceneAsset?.kind === "image" && Boolean(snapshot.scene.sceneAudioAssetId)}
-          playheadMs={playheadMs}
-          delayMs={snapshot.scene.sceneAudioDelayMs}
-          loop={snapshot.scene.sceneAudioLoop}
-          durationMs={sceneAudioVariant?.durationMs}
-          paused={gameplayPaused}
-          volume={playerPreferences.volume}
-          playbackResetKey={playbackResetKey}
-          onPlayheadMsChange={setPlayheadMs}
-        />
-
       </section>
 
-      <aside className="panel">
-        <h3>{t("Runtime State")}</h3>
-        <dl className="inspector-grid">
-          <dt>{t("Location")}</dt>
-          <dd>{snapshot.location.name}</dd>
-          <dt>{t("Scene")}</dt>
-          <dd>{snapshot.scene.name}</dd>
-          <dt>{t("Flags")}</dt>
-          <dd>
-            <pre>{JSON.stringify(snapshot.flags, null, 2)}</pre>
-          </dd>
-          <dt>{t("Inventory")}</dt>
-          <dd>{resolvePlaytestInventorySummary(snapshot.inventoryItems, localeStrings, t("Empty"))}</dd>
-          <dt>{t("Visited Scenes")}</dt>
-          <dd>{snapshot.saveState.visitedSceneIds.join(", ")}</dd>
-        </dl>
-      </aside>
+      <PlaytestDiagnostics
+        project={project}
+        snapshot={snapshot}
+        hotspotAvailability={hotspotAvailability}
+        logicTrace={logicTrace}
+        runtimeIssues={controller.getRuntimeIssues()}
+        localeStrings={localeStrings}
+        onClearTrace={() => {
+          controller.clearLogicTrace();
+          setSnapshot(controller.getSnapshot());
+        }}
+      />
     </div>
   );
+}
+
+function PlaytestDiagnostics({
+  project,
+  snapshot,
+  hotspotAvailability,
+  logicTrace,
+  runtimeIssues,
+  localeStrings,
+  onClearTrace
+}: {
+  project: ProjectBundle;
+  snapshot: PlayerSnapshot;
+  hotspotAvailability: HotspotAvailabilityExplanation[];
+  logicTrace: LogicTraceEntry[];
+  runtimeIssues: PlayerRuntimeIssue[];
+  localeStrings: Record<string, string>;
+  onClearTrace: () => void;
+}) {
+  const { t } = useEditorI18n();
+  const recentTrace = logicTrace.slice(-12).reverse();
+  return (
+    <aside className="panel playtest-diagnostics" aria-label={t("Playtest diagnostics")}>
+      <header className="playtest-diagnostics__header">
+        <div>
+          <h3>{t("Playtest diagnostics")}</h3>
+          <p>{t("Author-only state and rule explanations. These are never shown in exported games.")}</p>
+        </div>
+      </header>
+
+      <section className="playtest-diagnostics__context" aria-label={t("Current context")}>
+        <div><span>{t("Location")}</span><strong>{snapshot.location.name}</strong></div>
+        <div><span>{t("Scene")}</span><strong>{snapshot.scene.name}</strong></div>
+        <div>
+          <span>{t("Inventory")}</span>
+          <strong>{resolvePlaytestInventorySummary(snapshot.inventoryItems, localeStrings, t("Empty"))}</strong>
+        </div>
+      </section>
+
+      {runtimeIssues.length > 0 ? (
+        <section className="playtest-diagnostics__section playtest-diagnostics__section--warning">
+          <h4>{t("Runtime warnings")}</h4>
+          {runtimeIssues.map((issue, index) => <p key={`${issue.code}:${index}`}>{issue.message}</p>)}
+        </section>
+      ) : null}
+
+      <section className="playtest-diagnostics__section">
+        <header><h4>{t("Variables")}</h4><span>{project.manifest.variables.length}</span></header>
+        {project.manifest.variables.length > 0 ? (
+          <dl className="playtest-variable-list">
+            {project.manifest.variables.map((variable) => (
+              <div key={variable.id}>
+                <dt>
+                  <span>{variable.name}</span>
+                  {variable.system ? <small>{t("managed")}</small> : null}
+                </dt>
+                <dd>{formatPlaytestVariableValue(variable, snapshot.variables[variable.id] ?? variable.initialValue, t)}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : <p className="playtest-diagnostics__empty">{t("No variables in this project.")}</p>}
+      </section>
+
+      <section className="playtest-diagnostics__section">
+        <header>
+          <h4>{t("Hotspot availability")}</h4>
+          <span>{hotspotAvailability.filter((entry) => entry.available).length}/{hotspotAvailability.length}</span>
+        </header>
+        {hotspotAvailability.length > 0 ? (
+          <div className="playtest-hotspot-diagnostics">
+            {hotspotAvailability.map((entry) => (
+              <article key={entry.hotspotId} className={entry.available ? "playtest-hotspot-check playtest-hotspot-check--available" : "playtest-hotspot-check"}>
+                <header>
+                  <strong>{entry.hotspotName}</strong>
+                  <span>{entry.available ? t("Available") : t("Blocked")}</span>
+                </header>
+                {!entry.available ? (
+                  <ul>
+                    {!entry.timing.passed ? (
+                      <li>{t("Outside its timing window: now {current}, active {start} to {end}.", {
+                        current: formatDiagnosticTime(entry.timing.currentMs),
+                        start: formatDiagnosticTime(entry.timing.startMs),
+                        end: formatDiagnosticTime(entry.timing.endMs)
+                      })}</li>
+                    ) : null}
+                    {entry.requiredItems.filter((item) => !item.present).map((item) => (
+                      <li key={item.itemId}>{t("Missing inventory item: {name}.", {
+                        name: project.inventory.items.find((candidate) => candidate.id === item.itemId)?.name ?? item.itemId
+                      })}</li>
+                    ))}
+                    {entry.conditions.filter((condition) => !condition.passed).map((condition, index) => (
+                      <li key={index}>{formatConditionEvaluation(condition, project, t)}</li>
+                    ))}
+                  </ul>
+                ) : <p>{t("Timing, inventory, and conditions all pass.")}</p>}
+              </article>
+            ))}
+          </div>
+        ) : <p className="playtest-diagnostics__empty">{t("This scene has no hotspots.")}</p>}
+      </section>
+
+      <section className="playtest-diagnostics__section">
+        <header>
+          <h4>{t("Recent actions")}</h4>
+          {logicTrace.length > 0 ? <button type="button" onClick={onClearTrace}>{t("Clear")}</button> : null}
+        </header>
+        {recentTrace.length > 0 ? (
+          <ol className="playtest-trace-list">
+            {recentTrace.map((entry) => (
+              <li key={entry.sequence}>
+                <span className={entry.applied ? "playtest-trace-list__status playtest-trace-list__status--applied" : "playtest-trace-list__status"} aria-hidden="true" />
+                <div>
+                  <strong>{formatLogicTraceEffect(entry, project, t)}</strong>
+                  <small>{formatLogicTraceSource(entry, project, t)}</small>
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : <p className="playtest-diagnostics__empty">{t("Actions will appear here as you play.")}</p>}
+      </section>
+    </aside>
+  );
+}
+
+function formatPlaytestVariableValue(
+  variable: ProjectBundle["manifest"]["variables"][number],
+  value: boolean | number | string,
+  t: EditorTranslator
+): string {
+  if (variable.type === "boolean") return value === true ? t("Yes") : t("No");
+  if (variable.type === "choice") {
+    return variable.options.find((option) => option.id === value)?.name ?? String(value);
+  }
+  return String(value);
+}
+
+function formatConditionEvaluation(
+  evaluation: ConditionEvaluation,
+  project: ProjectBundle,
+  t: EditorTranslator
+): string {
+  const condition = evaluation.condition;
+  if (condition.type === "variableCompare") {
+    const variable = project.manifest.variables.find((entry) => entry.id === condition.variableId);
+    const variableName = variable?.name ?? condition.variableId;
+    const expected = variable
+      ? formatPlaytestVariableValue(variable, condition.value, t)
+      : String(condition.value);
+    const actual = variable && evaluation.actualValue !== undefined
+      ? formatPlaytestVariableValue(variable, evaluation.actualValue, t)
+      : String(evaluation.actualValue ?? t("missing"));
+    return t("{name} {operator} {expected}; currently {actual}.", {
+      name: variableName,
+      operator: formatDiagnosticOperator(condition.operator, t),
+      expected,
+      actual
+    });
+  }
+  if (condition.type === "inventoryHas") {
+    const itemName = project.inventory.items.find((entry) => entry.id === condition.itemId)?.name ?? condition.itemId;
+    return condition.present === false
+      ? t("Inventory must not contain {name}.", { name: itemName })
+      : t("Inventory must contain {name}.", { name: itemName });
+  }
+  if (condition.type === "sceneVisited") {
+    const sceneName = project.scenes.items.find((entry) => entry.id === condition.sceneId)?.name ?? condition.sceneId;
+    return condition.visited === false
+      ? t("Scene must not have been visited: {name}.", { name: sceneName })
+      : t("Scene must have been visited: {name}.", { name: sceneName });
+  }
+  return t("Condition did not pass.");
+}
+
+function formatDiagnosticOperator(
+  operator: Extract<ConditionEvaluation["condition"], { type: "variableCompare" }>["operator"],
+  t: EditorTranslator
+): string {
+  switch (operator) {
+    case "equals": return t("must be");
+    case "notEquals": return t("must not be");
+    case "greaterThan": return t("must be greater than");
+    case "greaterThanOrEqual": return t("must be at least");
+    case "lessThan": return t("must be less than");
+    case "lessThanOrEqual": return t("must be at most");
+  }
+}
+
+function formatLogicTraceEffect(entry: LogicTraceEntry, project: ProjectBundle, t: EditorTranslator): string {
+  const effect = entry.effect;
+  if (effect.type === "setVariable" || effect.type === "changeVariable") {
+    const variable = project.manifest.variables.find((candidate) => candidate.id === effect.variableId);
+    const name = variable?.name ?? effect.variableId;
+    const previous = variable && entry.previousValue !== undefined
+      ? formatPlaytestVariableValue(variable, entry.previousValue, t)
+      : String(entry.previousValue ?? t("missing"));
+    const next = variable && entry.nextValue !== undefined
+      ? formatPlaytestVariableValue(variable, entry.nextValue, t)
+      : String(entry.nextValue ?? t("missing"));
+    return entry.applied
+      ? t("{name}: {previous} → {next}", { name, previous, next })
+      : t("Could not change {name}", { name });
+  }
+  if (effect.type === "addItem" || effect.type === "removeItem") {
+    const name = project.inventory.items.find((candidate) => candidate.id === effect.itemId)?.name ?? effect.itemId;
+    if (!entry.applied) return t("Could not remove {name}; it was not in inventory.", { name });
+    return effect.type === "addItem"
+      ? t("Added {name} to inventory", { name })
+      : t("Removed {name} from inventory", { name });
+  }
+  if (effect.type === "goToScene") {
+    const name = project.scenes.items.find((candidate) => candidate.id === effect.sceneId)?.name ?? effect.sceneId;
+    return entry.applied ? t("Go to {name}", { name }) : t("Already in {name}", { name });
+  }
+  if (effect.type === "conditional") {
+    return entry.branch === "then"
+      ? t("Decision: Then branch")
+      : t("Decision: Otherwise branch");
+  }
+  const name = project.dialogues.items.find((candidate) => candidate.id === effect.dialogueTreeId)?.name ?? effect.dialogueTreeId;
+  return t("Start dialogue: {name}", { name });
+}
+
+function formatLogicTraceSource(entry: LogicTraceEntry, project: ProjectBundle, t: EditorTranslator): string {
+  const id = entry.source.entityId;
+  switch (entry.source.kind) {
+    case "sceneEnter":
+      return t("On entering {name}", { name: project.scenes.items.find((scene) => scene.id === id)?.name ?? id });
+    case "sceneExit":
+      return t("On leaving {name}", { name: project.scenes.items.find((scene) => scene.id === id)?.name ?? id });
+    case "sceneMediaEnd":
+      return t("When media ends in {name}", { name: project.scenes.items.find((scene) => scene.id === id)?.name ?? id });
+    case "hotspot":
+    case "hotspotClick":
+    case "hotspotOtherItem": {
+      const hotspot = project.scenes.items.flatMap((scene) => scene.hotspots).find((candidate) => candidate.id === id);
+      return t("From hotspot {name}", { name: hotspot?.name ?? id });
+    }
+    case "dialogueNode":
+      return t("From dialogue line {id}", { id });
+    case "dialogueChoice":
+      return t("From dialogue choice {id}", { id });
+  }
+}
+
+function formatDiagnosticTime(timeMs: number): string {
+  return `${(Math.max(0, timeMs) / 1000).toFixed(1)}s`;
 }
 
 

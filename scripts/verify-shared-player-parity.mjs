@@ -215,8 +215,12 @@ async function exportAndVerifyPackagedEditor() {
     await localeSelect.selectOption("en");
 
     await page.getByRole("button", { name: "File", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Export Runtime", exact: true }).click();
-    const exportDialog = page.locator(".dialog-shell");
+    await page.getByRole("menuitem", { name: "Build Release", exact: true }).click();
+    const buildAnywayButton = page.getByRole("button", { name: "Build Anyway", exact: true });
+    if (await buildAnywayButton.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false)) {
+      await buildAnywayButton.click();
+    }
+    const exportDialog = page.locator(".dialog-shell").filter({ hasText: "Standalone Windows executable" });
     await exportDialog.waitFor({ state: "visible", timeout: 20_000 });
     const exportDialogText = normalizeText(await exportDialog.innerText());
     for (const expectedText of [

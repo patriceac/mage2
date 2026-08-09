@@ -351,7 +351,8 @@ async function createValidProject(
     }
   ];
   project.scenes.items[0].backgroundAssetId = "asset_background";
-  project.scenes.items[0].hotspots[0]!.effects = [{ type: "setFlag", flag: "opening.checked", value: true }];
+  project.manifest.variables.push({ id: "opening.checked", name: "Opening checked", description: "", type: "boolean", initialValue: false, system: false });
+  project.scenes.items[0].hotspots[0]!.effects = [{ type: "setVariable", variableId: "opening.checked", value: true }];
 
   return { projectDir, project, sourcePath };
 }

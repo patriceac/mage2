@@ -90,6 +90,7 @@ const EDITOR_TABS = new Set<EditorTab>([
   "world",
   "scenes",
   "dialogue",
+  "logic",
   "inventory",
   "localization",
   "player",

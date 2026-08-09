@@ -159,6 +159,7 @@ const copy: PlayerSystemCopy = {
   continueDialogueTitle: "Read on",
   activateHotspot: "Use",
   missingVisual: "Missing scene art",
+  resumeSceneMedia: "Play with sound",
   skipResponseVideo: "Skip",
   stopResponseAudio: "Stop",
   playResponseAudio: "Play",
@@ -269,8 +270,8 @@ describe("shared player interaction contract", () => {
   it("routes placement clicks and wrong items to their explicitly authored events", () => {
     const eventPlacementHotspot = createHotspot({
       ...placementHotspot,
-      clickEvent: { effects: [{ type: "setFlag", flag: "cabinet.checked", value: true }] },
-      otherItemEvent: { effects: [{ type: "setFlag", flag: "cabinet.locked", value: true }] }
+      clickEvent: { effects: [{ type: "setVariable", variableId: "cabinet.checked", value: true }] },
+      otherItemEvent: { effects: [{ type: "setVariable", variableId: "cabinet.locked", value: true }] }
     });
 
     expect(
@@ -291,7 +292,7 @@ describe("shared player interaction contract", () => {
         hasActiveDialogue: false,
         selectedInventoryItemId: "item_coin",
         hotspot: createHotspot({
-          otherItemEvent: { effects: [{ type: "setFlag", flag: "cabinet.checked", value: true }] }
+          otherItemEvent: { effects: [{ type: "setVariable", variableId: "cabinet.checked", value: true }] }
         })
       })
     ).toEqual({ type: "event", eventType: "otherItem" });
@@ -301,7 +302,7 @@ describe("shared player interaction contract", () => {
   });
 
   it("activates a normal authored event only when no inventory item is selected", () => {
-    const eventHotspot = createHotspot({ effects: [{ type: "setFlag", flag: "cabinet.open", value: true }] });
+    const eventHotspot = createHotspot({ effects: [{ type: "setVariable", variableId: "cabinet.open", value: true }] });
 
     expect(
       resolvePlayerHotspotInteraction({ hasActiveDialogue: false, hotspot: eventHotspot })
@@ -521,8 +522,9 @@ describe("shared player component contract", () => {
     expect(styles).not.toMatch(/\.playtest-|\.runtime-|\.media-surface|\.dialogue-box/);
   });
 
-  it("keeps scene-audio orchestration shared by the editor and runtime adapters", () => {
+  it("keeps scene-audio orchestration inside the shared renderer", () => {
     const sharedAudioSource = readFileSync(new URL("./PlayerSceneAudio.tsx", import.meta.url), "utf8");
+    const rendererSource = readFileSync(new URL("./PlayerSceneRenderer.tsx", import.meta.url), "utf8");
     const editorSource = readFileSync(
       new URL("../../../apps/editor/src/PlaytestPanel.tsx", import.meta.url),
       "utf8"
@@ -535,12 +537,11 @@ describe("shared player component contract", () => {
     expect(sharedAudioSource).toContain("export function usePlayerSceneAudioPlayback");
     expect(sharedAudioSource).toContain('"mage2-player__scene-audio"');
     expect(sharedAudioSource).not.toMatch(/useEditorStore|electronAPI|localStorage|sessionStorage/);
+    expect(rendererSource).toContain("<PlayerSceneAudio");
+    expect(rendererSource).toContain('drivePlayhead={sceneAsset?.kind !== "video"}');
 
     for (const adapterSource of [editorSource, runtimeSource]) {
-      expect(adapterSource).toContain("<PlayerSceneAudio");
-      const sceneAudioMarkup = adapterSource.match(/<PlayerSceneAudio[\s\S]*?\/>/)?.[0];
-      expect(sceneAudioMarkup).toBeDefined();
-      expect(sceneAudioMarkup).not.toMatch(/\bcontrols\b|containerClassName/);
+      expect(adapterSource).not.toContain("<PlayerSceneAudio");
       expect(adapterSource).not.toMatch(
         /sceneAudioTimeoutRef|sceneAudioAnimationFrameRef|syncSceneAudioToPlayheadRef|sceneAudioPlaybackIntentRef/
       );

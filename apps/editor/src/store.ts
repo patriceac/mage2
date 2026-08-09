@@ -8,7 +8,7 @@ import {
 } from "@mage2/schema";
 import { createProjectRevision } from "./project-helpers";
 
-export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "inventory" | "localization" | "player" | "playtest";
+export type EditorTab = "assets" | "world" | "scenes" | "dialogue" | "logic" | "inventory" | "localization" | "player" | "playtest";
 export type LocalizationSection = "overview" | "strings" | "media";
 export type DialogueSection = "dialogues" | "responses";
 export interface ProjectUpdateOptions {
@@ -39,6 +39,7 @@ interface EditorState {
   selectedResponseGroupId?: string;
   selectedResponseEntryId?: string;
   selectedInventoryItemId?: string;
+  selectedVariableId?: string;
   selectedAssetId?: string;
   selectedTextId?: string;
   localizationLocale?: string;
@@ -62,6 +63,7 @@ interface EditorState {
   setSelectedResponseGroupId: (selectedResponseGroupId?: string) => void;
   setSelectedResponseEntryId: (selectedResponseEntryId?: string) => void;
   setSelectedInventoryItemId: (selectedInventoryItemId?: string) => void;
+  setSelectedVariableId: (selectedVariableId?: string) => void;
   setSelectedAssetId: (selectedAssetId?: string) => void;
   setSelectedTextId: (selectedTextId?: string) => void;
   setLocalizationLocale: (localizationLocale?: string) => void;
@@ -82,6 +84,7 @@ function resolveProjectSelectionState(project: ProjectBundle, state?: Partial<Ed
     selectedResponseGroupId: state?.selectedResponseGroupId ?? project.dialogues.responseGroups[0]?.id,
     selectedResponseEntryId: state?.selectedResponseEntryId,
     selectedInventoryItemId: state?.selectedInventoryItemId,
+    selectedVariableId: state?.selectedVariableId ?? project.manifest.variables.find((variable) => !variable.system)?.id,
     selectedAssetId: state?.selectedAssetId ?? project.assets.assets[0]?.id,
     selectedTextId: state?.selectedTextId,
     localizationLocale:
@@ -232,14 +235,14 @@ function clearLegacyPlacementTargetInventoryOwnership(
     ...hotspot,
     requiredItemIds: hotspot.requiredItemIds.filter((requiredItemId) => requiredItemId !== itemId),
     conditions: hotspot.conditions.filter(
-      (condition) => condition.type !== "flagEquals" || !inventoryActionFlags.has(condition.flag)
+      (condition) => condition.type !== "variableCompare" || !inventoryActionFlags.has(condition.variableId)
     ),
     effects: hotspot.effects.filter((effect) => {
       if ((effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId) {
         return false;
       }
 
-      return effect.type !== "setFlag" || !inventoryActionFlags.has(effect.flag);
+      return effect.type !== "setVariable" || !inventoryActionFlags.has(effect.variableId);
     })
   };
   delete nextHotspot.inventoryItemId;
@@ -384,6 +387,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       selectedResponseGroupId: undefined,
       selectedResponseEntryId: undefined,
       selectedInventoryItemId: undefined,
+      selectedVariableId: undefined,
       selectedAssetId: undefined,
       selectedTextId: undefined,
       localizationLocale: undefined,
@@ -401,6 +405,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelectedResponseGroupId: (selectedResponseGroupId) => set({ selectedResponseGroupId }),
   setSelectedResponseEntryId: (selectedResponseEntryId) => set({ selectedResponseEntryId }),
   setSelectedInventoryItemId: (selectedInventoryItemId) => set({ selectedInventoryItemId }),
+  setSelectedVariableId: (selectedVariableId) => set({ selectedVariableId }),
   setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
   setSelectedTextId: (selectedTextId) => set({ selectedTextId }),
   setLocalizationLocale: (localizationLocale) => set({ localizationLocale }),

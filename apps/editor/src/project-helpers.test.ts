@@ -106,7 +106,7 @@ describe("removeInventoryItemFromProject", () => {
     hotspot.effects = [
       { type: "addItem", itemId: deletedItem.id },
       { type: "removeItem", itemId: deletedItem.id },
-      { type: "setFlag", flag: "kept", value: true }
+      { type: "setVariable", variableId: "kept", value: true }
     ];
     scene.onEnterEffects = [{ type: "addItem", itemId: deletedItem.id }];
     project.dialogues.items = [
@@ -153,7 +153,7 @@ describe("removeInventoryItemFromProject", () => {
     expect(hotspot.placedInventoryGeometry).toBeUndefined();
     expect(hotspot.requiredItemIds).toEqual([]);
     expect(hotspot.conditions).toEqual([{ type: "always" }]);
-    expect(hotspot.effects).toEqual([{ type: "setFlag", flag: "kept", value: true }]);
+    expect(hotspot.effects).toEqual([{ type: "setVariable", variableId: "kept", value: true }]);
     expect(scene.onEnterEffects).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].effects).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].conditions).toEqual([]);
@@ -198,6 +198,38 @@ describe("removeInventoryItemFromProject", () => {
     ]);
     expect(scene.onExitEffects).toEqual([{ type: "removeItem", itemId: replacementItem.id }]);
     expect(countInventoryItemReferences(collectInventoryItemReferenceSummary(project, deletedItem.id))).toBe(0);
+  });
+
+  it("counts and rewires inventory references inside conditional branches", () => {
+    const project = createDefaultProjectBundle("Conditional inventory rewire");
+    const deletedItem = addInventoryItem(project);
+    const replacementItem = addInventoryItem(project);
+    const scene = project.scenes.items[0];
+    scene.onMediaEndEffects = [{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "inventoryHas", itemId: deletedItem.id, present: true }],
+      thenEffects: [{ type: "addItem", itemId: deletedItem.id }],
+      elseEffects: [{ type: "removeItem", itemId: deletedItem.id }]
+    }];
+
+    expect(collectInventoryItemReferenceSummary(project, deletedItem.id)).toMatchObject({
+      inventoryConditionCount: 1,
+      inventoryEffectCount: 2
+    });
+
+    removeInventoryItemFromProject(project, deletedItem.id, {
+      mode: "rewire",
+      replacementItemId: replacementItem.id
+    });
+
+    expect(scene.onMediaEndEffects).toEqual([{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "inventoryHas", itemId: replacementItem.id, present: true }],
+      thenEffects: [{ type: "addItem", itemId: replacementItem.id }],
+      elseEffects: [{ type: "removeItem", itemId: replacementItem.id }]
+    }]);
   });
 
   it("does not mutate the project when the replacement item is unavailable", () => {
@@ -618,23 +650,23 @@ describe("removeSceneFromProject", () => {
       { type: "sceneVisited", sceneId: deletedScene.id }
     ];
     hotspot.effects = [
-      { type: "setFlag", flag: "opened", value: true },
+      { type: "setVariable", variableId: "opened", value: true },
       { type: "goToScene", sceneId: deletedScene.id }
     ];
     hotspot.clickEvent = {
       targetSceneId: deletedScene.id,
       effects: [
-        { type: "setFlag", flag: "examined", value: true },
+        { type: "setVariable", variableId: "examined", value: true },
         { type: "goToScene", sceneId: deletedScene.id }
       ]
     };
     sourceScene.onEnterEffects = [
       { type: "goToScene", sceneId: deletedScene.id },
-      { type: "setFlag", flag: "entered", value: true }
+      { type: "setVariable", variableId: "entered", value: true }
     ];
     sourceScene.onExitEffects = [
       { type: "goToScene", sceneId: deletedScene.id },
-      { type: "setFlag", flag: "exited", value: true }
+      { type: "setVariable", variableId: "exited", value: true }
     ];
 
     project.dialogues.items = [
@@ -689,14 +721,14 @@ describe("removeSceneFromProject", () => {
     expect(project.locations.items[0].sceneIds).toEqual([sourceScene.id]);
     expect(project.manifest.startSceneId).toBe(deletedScene.id);
     expect(project.manifest.startLocationId).toBe(deletedScene.locationId);
-    expect(sourceScene.onEnterEffects).toEqual([{ type: "setFlag", flag: "entered", value: true }]);
-    expect(sourceScene.onExitEffects).toEqual([{ type: "setFlag", flag: "exited", value: true }]);
+    expect(sourceScene.onEnterEffects).toEqual([{ type: "setVariable", variableId: "entered", value: true }]);
+    expect(sourceScene.onExitEffects).toEqual([{ type: "setVariable", variableId: "exited", value: true }]);
     expect(sourceScene.hotspots[0].targetSceneId).toBeUndefined();
     expect(sourceScene.hotspots[0].conditions).toEqual([{ type: "always" }]);
-    expect(sourceScene.hotspots[0].effects).toEqual([{ type: "setFlag", flag: "opened", value: true }]);
+    expect(sourceScene.hotspots[0].effects).toEqual([{ type: "setVariable", variableId: "opened", value: true }]);
     expect(sourceScene.hotspots[0].clickEvent).toEqual({
       targetSceneId: undefined,
-      effects: [{ type: "setFlag", flag: "examined", value: true }]
+      effects: [{ type: "setVariable", variableId: "examined", value: true }]
     });
     expect(project.dialogues.items[0].nodes[0].effects).toEqual([]);
     expect(project.dialogues.items[0].nodes[0].choices[0].conditions).toEqual([]);
@@ -791,6 +823,38 @@ describe("removeSceneFromProject", () => {
     expect(project.dialogues.items[0].nodes[0].choices[0].effects).toEqual([
       { type: "goToScene", sceneId: replacementScene.id }
     ]);
+  });
+
+  it("counts and rewires scene references inside conditional branches", () => {
+    const project = createDefaultProjectBundle("Conditional scene rewire");
+    const deletedScene = project.scenes.items[0];
+    const sourceScene = addScene(project, deletedScene.locationId);
+    const replacementScene = addScene(project, deletedScene.locationId);
+    sourceScene.onMediaEndEffects = [{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "sceneVisited", sceneId: deletedScene.id, visited: true }],
+      thenEffects: [{ type: "goToScene", sceneId: deletedScene.id }],
+      elseEffects: [{ type: "goToScene", sceneId: replacementScene.id }]
+    }];
+
+    expect(collectSceneReferenceSummary(project, deletedScene.id)).toMatchObject({
+      sceneVisitedConditionCount: 1,
+      goToSceneEffectCount: 1
+    });
+
+    removeSceneFromProject(project, deletedScene.id, {
+      mode: "rewire",
+      replacementSceneId: replacementScene.id
+    });
+
+    expect(sourceScene.onMediaEndEffects).toEqual([{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "sceneVisited", sceneId: replacementScene.id, visited: true }],
+      thenEffects: [{ type: "goToScene", sceneId: replacementScene.id }],
+      elseEffects: [{ type: "goToScene", sceneId: replacementScene.id }]
+    }]);
   });
 
   it("prunes generated scene-owned text while preserving shared and manual text ids", () => {

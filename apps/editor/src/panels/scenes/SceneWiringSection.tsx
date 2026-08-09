@@ -1,22 +1,31 @@
-import type { Effect, ProjectBundle } from "@mage2/schema";
+import type { Effect, GameVariableDefinition, ProjectBundle } from "@mage2/schema";
 import { useEditorI18n } from "../../i18n/EditorI18nProvider";
-import { JsonField, parseJsonWithFallback } from "./JsonField";
+import { EffectListEditor } from "../../logic/RuleBuilder";
 
 type ProjectScene = ProjectBundle["scenes"]["items"][number];
 
 interface SceneWiringSectionProps {
+  project: ProjectBundle;
   scene: ProjectScene;
+  isVideoScene: boolean;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
 }
 
-export function SceneWiringSection({ scene, mutateProject }: SceneWiringSectionProps) {
+export function SceneWiringSection({ project, scene, isVideoScene, mutateProject }: SceneWiringSectionProps) {
   const { t } = useEditorI18n();
 
-  function updateEffects(field: "onEnterEffects" | "onExitEffects", input: string) {
+  function updateEffects(
+    field: "onEnterEffects" | "onExitEffects" | "onMediaEndEffects",
+    effects: Effect[],
+    variables?: GameVariableDefinition[]
+  ) {
     mutateProject((draft) => {
       const draftScene = draft.scenes.items.find((entry) => entry.id === scene.id);
       if (draftScene) {
-        draftScene[field] = parseSceneWiringEffectsJson(input, draftScene[field]);
+        draftScene[field] = effects;
+        if (variables) {
+          draft.manifest.variables = variables;
+        }
       }
     });
   }
@@ -25,32 +34,33 @@ export function SceneWiringSection({ scene, mutateProject }: SceneWiringSectionP
     <details className="scenes-panel__details">
       <summary className="scenes-panel__details-summary">
         <span>{t("Scene wiring")}</span>
-        <span>{t("Enter and exit effects")}</span>
+        <span>{isVideoScene ? t("Enter, exit, and video-end effects") : t("Enter and exit effects")}</span>
       </summary>
       <div className="scenes-panel__details-body">
-        <div className="split-columns">
-          <section>
-            <JsonField
-              label={t("On Enter Effects JSON")}
-              value={JSON.stringify(scene.onEnterEffects, null, 2)}
-              tooltip={t("JSON effect list that runs automatically when the player enters this scene.")}
-              labelClassName="field-label--inset"
-              onCommit={(nextValue) => updateEffects("onEnterEffects", nextValue)}
-            />
-            <JsonField
-              label={t("On Exit Effects JSON")}
-              value={JSON.stringify(scene.onExitEffects, null, 2)}
-              tooltip={t("JSON effect list that runs automatically when the player leaves this scene.")}
-              labelClassName="field-label--inset"
-              onCommit={(nextValue) => updateEffects("onExitEffects", nextValue)}
-            />
-          </section>
-        </div>
+        <EffectListEditor
+          project={project}
+          label={t("When the scene starts")}
+          description={t("Run these actions in order whenever the player enters this scene.")}
+          effects={scene.onEnterEffects}
+          onChange={(effects, variables) => updateEffects("onEnterEffects", effects, variables)}
+        />
+        <EffectListEditor
+          project={project}
+          label={t("When the scene ends")}
+          description={t("Run these actions before the player leaves this scene.")}
+          effects={scene.onExitEffects}
+          onChange={(effects, variables) => updateEffects("onExitEffects", effects, variables)}
+        />
+        {isVideoScene ? (
+          <EffectListEditor
+            project={project}
+            label={t("When the video ends")}
+            description={t("Run these actions once when a non-looping background video finishes.")}
+            effects={scene.onMediaEndEffects}
+            onChange={(effects, variables) => updateEffects("onMediaEndEffects", effects, variables)}
+          />
+        ) : null}
       </div>
     </details>
   );
-}
-
-export function parseSceneWiringEffectsJson(input: string, fallback: Effect[]): Effect[] {
-  return parseJsonWithFallback(input, fallback);
 }

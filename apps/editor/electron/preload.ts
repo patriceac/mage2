@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import type { Asset, AssetCategory, ProjectBundle } from "@mage2/schema";
+import type {
+  Asset,
+  AssetCategory,
+  ProjectBundle,
+  SaveCompatibilityAssessment
+} from "@mage2/schema";
 import type { EditorLaunchOptions } from "./launch-options";
 import type { ProjectDirectoryInspection } from "./project-io";
 import type { RecentProject } from "./recent-projects";
@@ -49,6 +54,11 @@ const editorApi = {
     ipcRenderer.invoke("mage2:load-project", projectDir),
   saveProject: (projectDir: string, project: ProjectBundle) =>
     ipcRenderer.invoke("mage2:save-project", projectDir, project),
+  inspectSaveCompatibility: (
+    projectDir: string,
+    project: ProjectBundle
+  ): Promise<SaveCompatibilityAssessment> =>
+    ipcRenderer.invoke("mage2:inspect-save-compatibility", projectDir, project),
   importAssets: (
     projectDir: string,
     locale: string,

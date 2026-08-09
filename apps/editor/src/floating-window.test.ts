@@ -33,6 +33,32 @@ describe("clampFloatingWindowPosition", () => {
       y: FLOATING_WINDOW_MARGIN_PX
     });
   });
+
+  it("keeps floating windows below a reserved app-chrome inset", () => {
+    expect(
+      clampFloatingWindowPosition(
+        { x: 1240, y: 16 },
+        { width: 340, height: 672 },
+        { width: 1599, height: 981, topInset: 54 }
+      )
+    ).toEqual({
+      x: 1240,
+      y: 54
+    });
+  });
+
+  it("preserves the app-chrome inset even when the floating window is too tall", () => {
+    expect(
+      clampFloatingWindowPosition(
+        { x: 20, y: 20 },
+        { width: 420, height: 900 },
+        { width: 1280, height: 800, topInset: 54 }
+      )
+    ).toEqual({
+      x: 20,
+      y: 54
+    });
+  });
 });
 
 describe("resolveDefaultFloatingWindowPosition", () => {

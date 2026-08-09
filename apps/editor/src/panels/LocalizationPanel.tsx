@@ -2210,6 +2210,8 @@ function formatNavigationTabLabel(tab: EditorNavigationTarget["tab"], t: EditorT
       return t("Scenes");
     case "dialogue":
       return t("Dialogue");
+    case "logic":
+      return t("Logic");
     case "inventory":
       return t("Inventory");
     case "localization":

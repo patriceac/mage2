@@ -12,6 +12,7 @@ import {
   importAssetsToProject,
   importAssetVariantToProject,
   importAssetToProject,
+  probeAsset,
   resolvePackagedExecutablePath
 } from "./index";
 
@@ -88,7 +89,30 @@ describe("importAssetToProject", () => {
     expect(variant?.proxyPath).toBe(path.join(projectDir, ".mage2", "proxies", `${asset.id}.en.mp3`));
     expect(variant?.posterPath).toBeUndefined();
     expect(variant?.durationMs).toBeGreaterThan(0);
+    expect(variant?.hasAudio).toBe(true);
+    expect(variant?.audioCodec).toBeTruthy();
     expect(await readFile(variant!.proxyPath!)).not.toHaveLength(0);
+  });
+
+  it("detects and preserves an embedded audio stream in imported video proxies", async () => {
+    const workspaceDir = await createTempWorkspace();
+    const sourceDir = path.join(workspaceDir, "source");
+    const projectDir = path.join(workspaceDir, "project");
+    const sourcePath = path.join(sourceDir, "intro.mp4");
+
+    await mkdir(sourceDir, { recursive: true });
+    await createVideoFileWithAudio(sourcePath);
+
+    const asset = await importAssetToProject(sourcePath, projectDir, "en");
+    const variant = asset.variants.en;
+    const proxyProbe = await probeAsset(variant!.proxyPath!);
+
+    expect(asset.kind).toBe("video");
+    expect(variant?.hasAudio).toBe(true);
+    expect(variant?.audioCodec).toBe("aac");
+    expect(variant?.durationMs).toBeGreaterThan(0);
+    expect(proxyProbe.hasAudio).toBe(true);
+    expect(proxyProbe.audioCodec).toBe("aac");
   });
 
   it("rejects unsupported text imports and cleans up the copied file", async () => {
@@ -648,6 +672,30 @@ async function createAudioFile(filePath: string, durationSeconds = 0.6): Promise
     "lavfi",
     "-i",
     `sine=frequency=880:duration=${durationSeconds}`,
+    filePath
+  ]);
+}
+
+async function createVideoFileWithAudio(filePath: string, durationSeconds = 0.8): Promise<void> {
+  await runCommand(getFfmpegPath(), [
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    `color=c=#12202b:s=320x180:r=24:d=${durationSeconds}`,
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=660:duration=${durationSeconds}`,
+    "-shortest",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
     filePath
   ]);
 }

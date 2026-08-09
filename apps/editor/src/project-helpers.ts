@@ -15,7 +15,9 @@ import {
   hasHotspotEvent,
   normalizeSupportedLocales,
   resolveAssetCategory,
-  resolveHotspotBounds
+  resolveHotspotBounds,
+  visitEffectConditions,
+  visitEffects
 } from "@mage2/schema";
 import { MIN_HOTSPOT_SIZE, roundHotspotCoordinate } from "./hotspot-geometry";
 import {
@@ -442,23 +444,31 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
           summary.hotspotTargetReferenceCount += 1;
         }
         summary.goToSceneEffectCount += countGoToSceneEffects(event?.effects ?? [], sceneId);
+        summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(event?.effects ?? [], sceneId);
       }
 
       summary.sceneVisitedConditionCount += countSceneVisitedConditions(hotspot.conditions, sceneId);
       summary.goToSceneEffectCount += countGoToSceneEffects(hotspot.effects, sceneId);
+      summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(hotspot.effects, sceneId);
     }
 
     summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onEnterEffects, sceneId);
     summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onExitEffects, sceneId);
+    summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onMediaEndEffects, sceneId);
+    summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(candidateScene.onEnterEffects, sceneId);
+    summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(candidateScene.onExitEffects, sceneId);
+    summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(candidateScene.onMediaEndEffects, sceneId);
   }
 
   for (const dialogue of project.dialogues.items) {
     for (const node of dialogue.nodes) {
       summary.goToSceneEffectCount += countGoToSceneEffects(node.effects, sceneId);
+      summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(node.effects, sceneId);
 
       for (const choice of node.choices) {
         summary.sceneVisitedConditionCount += countSceneVisitedConditions(choice.conditions, sceneId);
         summary.goToSceneEffectCount += countGoToSceneEffects(choice.effects, sceneId);
+        summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(choice.effects, sceneId);
       }
     }
   }
@@ -491,6 +501,10 @@ export function collectInventoryItemReferenceSummary(
   for (const scene of project.scenes.items) {
     summary.inventoryEffectCount += countInventoryItemEffects(scene.onEnterEffects, itemId);
     summary.inventoryEffectCount += countInventoryItemEffects(scene.onExitEffects, itemId);
+    summary.inventoryEffectCount += countInventoryItemEffects(scene.onMediaEndEffects, itemId);
+    summary.inventoryConditionCount += countInventoryItemConditionsInEffects(scene.onEnterEffects, itemId);
+    summary.inventoryConditionCount += countInventoryItemConditionsInEffects(scene.onExitEffects, itemId);
+    summary.inventoryConditionCount += countInventoryItemConditionsInEffects(scene.onMediaEndEffects, itemId);
 
     for (const hotspot of scene.hotspots) {
       if (hotspot.inventoryItemId === itemId) {
@@ -502,15 +516,22 @@ export function collectInventoryItemReferenceSummary(
       summary.requiredItemReferenceCount += hotspot.requiredItemIds.filter((entry) => entry === itemId).length;
       summary.inventoryConditionCount += countInventoryItemConditions(hotspot.conditions, itemId);
       summary.inventoryEffectCount += countInventoryItemEffects(hotspot.effects, itemId);
+      summary.inventoryConditionCount += countInventoryItemConditionsInEffects(hotspot.effects, itemId);
+      for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
+        summary.inventoryEffectCount += countInventoryItemEffects(event?.effects ?? [], itemId);
+        summary.inventoryConditionCount += countInventoryItemConditionsInEffects(event?.effects ?? [], itemId);
+      }
     }
   }
 
   for (const dialogue of project.dialogues.items) {
     for (const node of dialogue.nodes) {
       summary.inventoryEffectCount += countInventoryItemEffects(node.effects, itemId);
+      summary.inventoryConditionCount += countInventoryItemConditionsInEffects(node.effects, itemId);
       for (const choice of node.choices) {
         summary.inventoryConditionCount += countInventoryItemConditions(choice.conditions, itemId);
         summary.inventoryEffectCount += countInventoryItemEffects(choice.effects, itemId);
+        summary.inventoryConditionCount += countInventoryItemConditionsInEffects(choice.effects, itemId);
       }
     }
   }
@@ -566,6 +587,7 @@ export function removeInventoryItemFromProject(
   for (const scene of project.scenes.items) {
     scene.onEnterEffects = rewriteInventoryItemEffects(scene.onEnterEffects, itemId, strategy);
     scene.onExitEffects = rewriteInventoryItemEffects(scene.onExitEffects, itemId, strategy);
+    scene.onMediaEndEffects = rewriteInventoryItemEffects(scene.onMediaEndEffects, itemId, strategy);
 
     for (const hotspot of scene.hotspots) {
       const removedPlacement = hotspot.placedInventoryItemId === itemId;
@@ -582,6 +604,12 @@ export function removeInventoryItemFromProject(
       hotspot.requiredItemIds = rewriteInventoryItemIds(hotspot.requiredItemIds, itemId, strategy);
       hotspot.conditions = rewriteInventoryItemConditions(hotspot.conditions, itemId, strategy);
       hotspot.effects = rewriteInventoryItemEffects(hotspot.effects, itemId, strategy);
+      if (hotspot.clickEvent) {
+        hotspot.clickEvent.effects = rewriteInventoryItemEffects(hotspot.clickEvent.effects, itemId, strategy);
+      }
+      if (hotspot.otherItemEvent) {
+        hotspot.otherItemEvent.effects = rewriteInventoryItemEffects(hotspot.otherItemEvent.effects, itemId, strategy);
+      }
     }
   }
 
@@ -673,6 +701,7 @@ export function removeSceneFromProject(
 
     candidateScene.onEnterEffects = rewriteSceneEffects(candidateScene.onEnterEffects, sceneId, strategy);
     candidateScene.onExitEffects = rewriteSceneEffects(candidateScene.onExitEffects, sceneId, strategy);
+    candidateScene.onMediaEndEffects = rewriteSceneEffects(candidateScene.onMediaEndEffects, sceneId, strategy);
   }
 
   for (const dialogue of project.dialogues.items) {
@@ -806,10 +835,12 @@ export function addScene(project: ProjectBundle, locationId?: string): Scene {
     sceneAudioLoop: true,
     sceneAudioDelayMs: 0,
     backgroundVideoLoop: false,
+    videoAudioMode: "silent",
     hotspots: [],
     dialogueTreeIds: [],
     onEnterEffects: [],
-    onExitEffects: []
+    onExitEffects: [],
+    onMediaEndEffects: []
   };
 
   project.scenes.items.push(scene);
@@ -842,6 +873,7 @@ export function addDialogueTree(project: ProjectBundle): DialogueTree {
           {
             id: choiceId,
             textId: choiceTextId,
+            conditionMode: "all",
             conditions: [],
             effects: []
           }
@@ -964,7 +996,19 @@ function countSceneVisitedConditions(conditions: Condition[], sceneId: string): 
 }
 
 function countGoToSceneEffects(effects: Effect[], sceneId: string): number {
-  return effects.filter((effect) => effect.type === "goToScene" && effect.sceneId === sceneId).length;
+  let count = 0;
+  visitEffects(effects, (effect) => {
+    if (effect.type === "goToScene" && effect.sceneId === sceneId) count += 1;
+  });
+  return count;
+}
+
+function countSceneVisitedConditionsInEffects(effects: Effect[], sceneId: string): number {
+  let count = 0;
+  visitEffectConditions(effects, (conditions) => {
+    count += countSceneVisitedConditions([...conditions], sceneId);
+  });
+  return count;
 }
 
 function rewriteSceneConditions(
@@ -989,20 +1033,32 @@ function rewriteSceneConditions(
 }
 
 function rewriteSceneEffects(effects: Effect[], deletedSceneId: string, strategy: RemoveSceneStrategy): Effect[] {
-  return effects.flatMap((effect) => {
+  const rewrittenEffects: Effect[] = [];
+  for (const effect of effects) {
+    if (effect.type === "conditional") {
+      const conditions = rewriteSceneConditions(effect.conditions, deletedSceneId, strategy);
+      if (conditions.length === 0 && effect.conditions.length > 0) {
+        continue;
+      }
+      const rewritten: Effect = {
+        ...effect,
+        conditions,
+        thenEffects: rewriteSceneEffects(effect.thenEffects, deletedSceneId, strategy),
+        elseEffects: rewriteSceneEffects(effect.elseEffects, deletedSceneId, strategy)
+      };
+      rewrittenEffects.push(rewritten);
+      continue;
+    }
     if (effect.type !== "goToScene" || effect.sceneId !== deletedSceneId) {
-      return [effect];
+      rewrittenEffects.push(effect);
+      continue;
     }
 
-    return strategy.mode === "cleanup"
-      ? []
-      : [
-          {
-            ...effect,
-            sceneId: strategy.replacementSceneId
-          }
-        ];
-  });
+    if (strategy.mode === "rewire") {
+      rewrittenEffects.push({ ...effect, sceneId: strategy.replacementSceneId });
+    }
+  }
+  return rewrittenEffects;
 }
 
 function countInventoryItemConditions(conditions: Condition[], itemId: string): number {
@@ -1010,9 +1066,19 @@ function countInventoryItemConditions(conditions: Condition[], itemId: string): 
 }
 
 function countInventoryItemEffects(effects: Effect[], itemId: string): number {
-  return effects.filter(
-    (effect) => (effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId
-  ).length;
+  let count = 0;
+  visitEffects(effects, (effect) => {
+    if ((effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId) count += 1;
+  });
+  return count;
+}
+
+function countInventoryItemConditionsInEffects(effects: Effect[], itemId: string): number {
+  let count = 0;
+  visitEffectConditions(effects, (conditions) => {
+    count += countInventoryItemConditions([...conditions], itemId);
+  });
+  return count;
 }
 
 function rewriteInventoryItemIds(
@@ -1057,20 +1123,32 @@ function rewriteInventoryItemEffects(
   deletedItemId: string,
   strategy: RemoveInventoryItemStrategy
 ): Effect[] {
-  return effects.flatMap((effect) => {
+  const rewrittenEffects: Effect[] = [];
+  for (const effect of effects) {
+    if (effect.type === "conditional") {
+      const conditions = rewriteInventoryItemConditions(effect.conditions, deletedItemId, strategy);
+      if (conditions.length === 0 && effect.conditions.length > 0) {
+        continue;
+      }
+      const rewritten: Effect = {
+        ...effect,
+        conditions,
+        thenEffects: rewriteInventoryItemEffects(effect.thenEffects, deletedItemId, strategy),
+        elseEffects: rewriteInventoryItemEffects(effect.elseEffects, deletedItemId, strategy)
+      };
+      rewrittenEffects.push(rewritten);
+      continue;
+    }
     if ((effect.type !== "addItem" && effect.type !== "removeItem") || effect.itemId !== deletedItemId) {
-      return [effect];
+      rewrittenEffects.push(effect);
+      continue;
     }
 
-    return strategy.mode === "cleanup"
-      ? []
-      : [
-          {
-            ...effect,
-            itemId: strategy.replacementItemId
-          }
-        ];
-  });
+    if (strategy.mode === "rewire") {
+      rewrittenEffects.push({ ...effect, itemId: strategy.replacementItemId });
+    }
+  }
+  return rewrittenEffects;
 }
 
 function findFirstSceneInLocations(project: ProjectBundle, locations: Location[]): Scene | undefined {
@@ -1122,6 +1200,7 @@ function createHotspot(
     endMs: 30000,
     timingMode: "sceneDuration",
     requiredItemIds: [],
+    conditionMode: "all",
     conditions: [{ type: "always" as const }],
     effects: []
   };

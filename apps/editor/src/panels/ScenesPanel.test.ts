@@ -192,7 +192,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup.indexOf(">Delay (ms)</span>")).toBeLessThan(markup.indexOf(">Loop</span>"));
   });
 
-  it("disables video background choices while scene audio is assigned", () => {
+  it("allows video background choices while scene audio is assigned", () => {
     const markup = renderScenesPanel((project) => {
       project.assets.assets.push(
         {
@@ -241,9 +241,9 @@ describe("ScenesPanel scene audio UI", () => {
     expect(imageOption).toBeDefined();
     expect(imageOption).not.toContain('disabled=""');
     expect(videoOption).toBeDefined();
-    expect(videoOption).toContain('disabled=""');
-    expect(markup).toContain("Clear scene audio before choosing a video background.");
-    expect(markup).toContain("Create a new image background asset and assign it to this scene.");
+    expect(videoOption).not.toContain('disabled=""');
+    expect(markup).not.toContain("Clear scene audio before choosing a video background.");
+    expect(markup).toContain("Create a new background asset from an image or video file and assign it to this scene.");
   });
 
   it("keeps the empty scene-audio drop target compact", () => {
@@ -401,10 +401,12 @@ describe("ScenesPanel scene audio UI", () => {
       sceneAudioLoop: true,
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
+      videoAudioMode: "silent",
       hotspots: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
-      onExitEffects: []
+      onExitEffects: [],
+      onMediaEndEffects: []
     });
 
     expect(resolveSceneSwitcherOptions(project.scenes.items, project.locations.items, "scene_attic")).toEqual([
@@ -440,10 +442,12 @@ describe("ScenesPanel scene audio UI", () => {
       sceneAudioLoop: true,
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
+      videoAudioMode: "silent",
       hotspots: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
-      onExitEffects: []
+      onExitEffects: [],
+      onMediaEndEffects: []
     });
     project.locations.items[1]!.sceneIds.push("scene_attic");
 
@@ -618,7 +622,7 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("shows guidance and disables scene-audio imports for video backgrounds", () => {
+  it("shows explicit video sound modes and enables a synchronized external track", () => {
     const markup = renderScenesPanel((project) => {
       project.assets.assets.push(
         {
@@ -629,7 +633,8 @@ describe("ScenesPanel scene audio UI", () => {
             en: {
               sourcePath: "D:\\project\\assets\\intro.mp4",
               importedAt: new Date().toISOString(),
-              durationMs: 5000
+              durationMs: 5000,
+              hasAudio: true
             }
           }
         },
@@ -649,21 +654,21 @@ describe("ScenesPanel scene audio UI", () => {
       );
       project.scenes.items[0].backgroundAssetId = "asset_video";
       project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+      project.scenes.items[0].videoAudioMode = "external";
     });
 
-    expect(markup).toContain("Scene audio imports are disabled while this scene uses a video background.");
-    expect(markup).toContain("Scene audio unavailable for video backgrounds");
-    expect(markup).toContain("Use an image background to import or play a separate audio file.");
-    expect(markup).toContain("Assigned for reference: ambience.mp3");
-    expect(markup).toContain("scenes-panel__scene-audio-disabled");
-    expect(markup).not.toContain("Drop scene audio here");
-    expect(markup).not.toContain("scenes-panel__scene-audio-frame");
-    expect(markup).not.toContain("Assign or drop an audio file here to attach optional scene audio.");
+    expect(markup).toContain("Video Sound");
+    expect(markup).toContain("Embedded audio");
+    expect(markup).toContain("External track");
+    expect(markup).toContain("Silent");
+    expect(markup).toContain("Use an audio file as a synchronized replacement track for this video.");
+    expect(markup).toContain("scenes-panel__scene-audio-frame");
+    expect(markup).toContain("External audio follows the video playhead and restarts with the video.");
 
     const sceneAudioLabelIndex = markup.indexOf(">Scene Audio</span>");
     const sceneAudioSelectIndex = markup.indexOf("<select", sceneAudioLabelIndex);
     const sceneAudioSelectTag = markup.slice(sceneAudioSelectIndex, markup.indexOf(">", sceneAudioSelectIndex) + 1);
-    expect(sceneAudioSelectTag).toContain('disabled=""');
+    expect(sceneAudioSelectTag).not.toContain('disabled=""');
   });
 
   it("refuses non-audio files in the scene-audio drop area", () => {
@@ -678,26 +683,29 @@ describe("ScenesPanel scene audio UI", () => {
     expect(resolveSceneAudioDropAcceptance([{}])).toBe("unknown");
   });
 
-  it("blocks video background assignment while scene audio is assigned", () => {
+  it("preserves assigned scene audio by switching a new video background to external mode", () => {
     const scene = {
       backgroundAssetId: "asset_image",
-      sceneAudioAssetId: "asset_scene_audio"
+      sceneAudioAssetId: "asset_scene_audio",
+      videoAudioMode: "silent" as const
     };
 
     const didApply = applySceneBackgroundAsset(scene, "asset_video", "video");
 
-    expect(didApply).toBe(false);
+    expect(didApply).toBe(true);
     expect(scene).toEqual({
-      backgroundAssetId: "asset_image",
-      sceneAudioAssetId: "asset_scene_audio"
+      backgroundAssetId: "asset_video",
+      sceneAudioAssetId: "asset_scene_audio",
+      videoAudioMode: "external"
     });
-    expect(canAssignSceneBackgroundAsset(scene, "video")).toBe(false);
+    expect(canAssignSceneBackgroundAsset(scene, "video")).toBe(true);
   });
 
   it("keeps scene audio when an image background is assigned", () => {
     const scene = {
       backgroundAssetId: "asset_video",
-      sceneAudioAssetId: "asset_scene_audio"
+      sceneAudioAssetId: "asset_scene_audio",
+      videoAudioMode: "external" as const
     };
 
     const didApply = applySceneBackgroundAsset(scene, "asset_image", "image");
@@ -705,22 +713,25 @@ describe("ScenesPanel scene audio UI", () => {
     expect(didApply).toBe(true);
     expect(scene).toEqual({
       backgroundAssetId: "asset_image",
-      sceneAudioAssetId: "asset_scene_audio"
+      sceneAudioAssetId: "asset_scene_audio",
+      videoAudioMode: "silent"
     });
   });
 
-  it("allows video background assignment when no scene audio is assigned", () => {
+  it("defaults a video with detected audio to embedded playback", () => {
     const scene = {
       backgroundAssetId: "asset_image",
-      sceneAudioAssetId: undefined
+      sceneAudioAssetId: undefined,
+      videoAudioMode: "silent" as const
     };
 
-    const didApply = applySceneBackgroundAsset(scene, "asset_video", "video");
+    const didApply = applySceneBackgroundAsset(scene, "asset_video", "video", true);
 
     expect(didApply).toBe(true);
     expect(scene).toEqual({
       backgroundAssetId: "asset_video",
-      sceneAudioAssetId: undefined
+      sceneAudioAssetId: undefined,
+      videoAudioMode: "embedded"
     });
   });
 
@@ -764,6 +775,33 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain(">Loop background video indefinitely</span>");
   });
 
+  it("keeps the loop control available when video-end effects need it turned off", () => {
+    const markup = renderScenesPanel((project) => {
+      project.assets.assets.push({
+        id: "asset_video",
+        kind: "video",
+        name: "intro.mp4",
+        variants: {
+          en: {
+            sourcePath: "D:\\project\\assets\\intro.mp4",
+            importedAt: new Date().toISOString(),
+            durationMs: 5000
+          }
+        }
+      });
+      project.scenes.items[0].backgroundAssetId = "asset_video";
+      project.scenes.items[0].backgroundVideoLoop = true;
+      project.manifest.variables.push({ id: "finished", name: "Finished", description: "", type: "boolean", initialValue: false, system: false });
+      project.scenes.items[0].onMediaEndEffects = [{ type: "setVariable", variableId: "finished", value: true }];
+    });
+
+    const loopInputIndex = markup.indexOf('aria-label="Loop background video indefinitely"');
+    const loopInputTag = markup.slice(markup.lastIndexOf("<input", loopInputIndex), markup.indexOf(">", loopInputIndex));
+
+    expect(loopInputTag).not.toContain("disabled");
+    expect(markup).toContain("Turn off looping to run video-end effects.");
+  });
+
   it("renders the hotspot inspector as a floating window when a hotspot is selected", () => {
     const markup = renderScenesPanel(
       () => {},
@@ -790,9 +828,22 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Geometry</summary>");
     expect(markup).toContain(">Timing</summary>");
     expect(markup).toContain(">On click</summary>");
+    expect(markup.indexOf(">Actions</h5>")).toBeLessThan(markup.indexOf(">Target Scene</span>"));
+    for (const sectionTitle of ["Action", "Geometry", "Timing"]) {
+      const summaryIndex = markup.indexOf(`>${sectionTitle}</summary>`);
+      const detailsTag = markup.slice(markup.lastIndexOf("<details", summaryIndex), markup.indexOf(">", markup.lastIndexOf("<details", summaryIndex)) + 1);
+      expect(detailsTag).not.toContain("open");
+    }
+    const onClickSummaryIndex = markup.indexOf(">On click</summary>");
+    const onClickDetailsTag = markup.slice(
+      markup.lastIndexOf("<details", onClickSummaryIndex),
+      markup.indexOf(">", markup.lastIndexOf("<details", onClickSummaryIndex)) + 1
+    );
+    expect(onClickDetailsTag).toContain("open");
     expect(markup).not.toContain(">Otherwise</summary>");
     expect(markup).not.toContain(">Any other item</summary>");
-    expect(markup).toContain("Effects JSON");
+    expect(markup).toContain("Add action...");
+    expect(markup).toContain('class="button-secondary logic-editor__conditional-shortcut"');
     expect(markup).toContain(">Advanced</summary>");
     expect(markup).not.toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
@@ -834,8 +885,8 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain("None (silent)");
     expect(markup).toContain("Intro Dialogue");
     expect(markup).toContain("One specific response");
-    expect(markup).toContain("Effects JSON");
-    expect(markup).not.toContain("Advanced Effects JSON");
+    expect(markup).toContain("Add action...");
+    expect(markup).not.toContain("Effects JSON");
   });
 
   it("shows distinct click, matching-item, and other-item events for a placement hotspot", () => {
@@ -859,13 +910,17 @@ describe("ScenesPanel scene audio UI", () => {
         item.name = "Brass Key";
         project.strings.byLocale.en[item.textId] = "Brass Key";
         const hotspot = project.scenes.items[0].hotspots[0]!;
-        applyHotspotInventoryAction(hotspot, "placeItem", item.id);
+        applyHotspotInventoryAction(hotspot, "placeItem", item.id, project.manifest.variables);
+        project.manifest.variables.push(
+          { id: "cabinet.examined", name: "Cabinet examined", description: "", type: "boolean", initialValue: false, system: false },
+          { id: "cabinet.wrongItem", name: "Wrong item used", description: "", type: "boolean", initialValue: false, system: false }
+        );
         hotspot.clickEvent = {
           dialogueTreeId: "dialogue_locked",
-          effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+          effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
         };
         hotspot.otherItemEvent = {
-          effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+          effects: [{ type: "setVariable", variableId: "cabinet.wrongItem", value: true }]
         };
       },
       (project) => {
@@ -896,7 +951,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(hotspot).not.toHaveProperty("clickEvent");
 
     updateOptionalHotspotEvent(hotspot, "otherItemEvent", (event) => {
-      event.effects = [{ type: "setFlag", flag: "cabinet.examined", value: true }];
+      event.effects = [{ type: "setVariable", variableId: "cabinet.examined", value: true }];
     });
     expect(hotspot.otherItemEvent?.effects).toHaveLength(1);
 
@@ -963,14 +1018,15 @@ describe("ScenesPanel scene audio UI", () => {
       completionFlag: `hotspot.${hotspot.id}.pickedUp`
     });
     expect(hotspot.conditions).toContainEqual({
-      type: "flagEquals",
-      flag: `hotspot.${hotspot.id}.pickedUp`,
+      type: "variableCompare",
+      variableId: `hotspot.${hotspot.id}.pickedUp`,
+      operator: "equals",
       value: false
     });
     expect(hotspot.effects).toContainEqual({ type: "addItem", itemId: item.id });
     expect(hotspot.effects).toContainEqual({
-      type: "setFlag",
-      flag: `hotspot.${hotspot.id}.pickedUp`,
+      type: "setVariable",
+      variableId: `hotspot.${hotspot.id}.pickedUp`,
       value: true
     });
   });

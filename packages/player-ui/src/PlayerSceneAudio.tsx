@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 import {
   PLAYHEAD_SYNC_TOLERANCE_MS,
   getSceneAudioPlayheadMs,
@@ -23,9 +23,15 @@ export interface PlayerSceneAudioProps {
   volume?: number;
   playbackResetKey?: string | number;
   onPlayheadMsChange: (playheadMs: number) => void;
+  drivePlayhead?: boolean;
+  onPlaybackBlockedChange?: (blocked: boolean) => void;
   controls?: boolean;
   className?: string;
   containerClassName?: string;
+}
+
+export interface PlayerSceneAudioHandle {
+  resume(): void;
 }
 
 export interface PlayerSceneAudioPlaybackOptions {
@@ -40,9 +46,11 @@ export interface PlayerSceneAudioPlaybackOptions {
   paused?: boolean;
   playbackResetKey?: string | number;
   onPlayheadMsChange: (playheadMs: number) => void;
+  drivePlayhead?: boolean;
+  onPlaybackBlockedChange?: (blocked: boolean) => void;
 }
 
-export function PlayerSceneAudio({
+export const PlayerSceneAudio = forwardRef<PlayerSceneAudioHandle, PlayerSceneAudioProps>(function PlayerSceneAudio({
   sourcePath,
   resolveSourcePath,
   sceneKey,
@@ -56,10 +64,12 @@ export function PlayerSceneAudio({
   volume = 1,
   playbackResetKey,
   onPlayheadMsChange,
+  drivePlayhead = true,
+  onPlaybackBlockedChange,
   controls = false,
   className,
   containerClassName
-}: PlayerSceneAudioProps) {
+}: PlayerSceneAudioProps, ref) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceUrl = useResolvedSceneAudioSource(sourcePath, resolveSourcePath);
 
@@ -80,8 +90,35 @@ export function PlayerSceneAudio({
     durationMs,
     paused,
     playbackResetKey,
-    onPlayheadMsChange
+    onPlayheadMsChange,
+    drivePlayhead,
+    onPlaybackBlockedChange
   });
+
+  useImperativeHandle(ref, () => ({
+    resume: () => {
+      const audio = audioRef.current;
+      if (!audio || !enabled || !sourceUrl) {
+        return;
+      }
+
+      const syncState = resolveSceneAudioSyncState(
+        playheadMs,
+        delayMs,
+        resolvePlayableDurationMs(audio.duration, durationMs),
+        loop
+      );
+      if (syncState.phase !== "playing") {
+        return;
+      }
+
+      audio.currentTime = syncState.targetAudioCurrentTimeMs / 1000;
+      void audio.play().then(
+        () => onPlaybackBlockedChange?.(false),
+        () => onPlaybackBlockedChange?.(true)
+      );
+    }
+  }), [delayMs, durationMs, enabled, loop, onPlaybackBlockedChange, playheadMs, sourceUrl]);
 
   if (!sourceUrl) {
     return null;
@@ -104,7 +141,7 @@ export function PlayerSceneAudio({
   );
 
   return containerClassName ? <div className={containerClassName}>{audio}</div> : audio;
-}
+});
 
 export function usePlayerSceneAudioPlayback({
   audioRef,
@@ -117,7 +154,9 @@ export function usePlayerSceneAudioPlayback({
   durationMs,
   paused = false,
   playbackResetKey,
-  onPlayheadMsChange
+  onPlayheadMsChange,
+  drivePlayhead = true,
+  onPlaybackBlockedChange
 }: PlayerSceneAudioPlaybackOptions): void {
   const timeoutRef = useRef<number | undefined>(undefined);
   const animationFrameRef = useRef<number | undefined>(undefined);
@@ -195,6 +234,10 @@ export function usePlayerSceneAudioPlayback({
     };
 
     const updatePlayheadFromSceneAudio = (nextPlayheadMs: number) => {
+      if (!drivePlayhead) {
+        return;
+      }
+
       audioDrivenPlayheadMsRef.current = nextPlayheadMs;
       if (!shouldSyncPlayheadMs(latestPlayheadMsRef.current, nextPlayheadMs)) {
         return;
@@ -212,6 +255,9 @@ export function usePlayerSceneAudioPlayback({
 
     const startPlaybackClock = () => {
       cancelAnimationFrameSync();
+      if (!drivePlayhead) {
+        return;
+      }
 
       const step = () => {
         syncFromAudioClock();
@@ -228,6 +274,9 @@ export function usePlayerSceneAudioPlayback({
 
     const startDelayClock = (startingPlayheadMs: number) => {
       cancelAnimationFrameSync();
+      if (!drivePlayhead) {
+        return;
+      }
 
       const resolvedDelayMs = Math.max(delayMs, 0);
       const anchorMs = performance.now() - startingPlayheadMs;
@@ -283,11 +332,12 @@ export function usePlayerSceneAudioPlayback({
             void audio
               .play()
               .then(() => {
+                onPlaybackBlockedChange?.(false);
                 phaseRef.current = "playing";
                 startPlaybackClock();
               })
               .catch(() => {
-                // Autoplay can be blocked; a host control can still start playback.
+                onPlaybackBlockedChange?.(true);
               });
           }, syncState.startDelayMs);
           return;
@@ -308,11 +358,12 @@ export function usePlayerSceneAudioPlayback({
           void audio
             .play()
             .then(() => {
+              onPlaybackBlockedChange?.(false);
               phaseRef.current = "playing";
               startPlaybackClock();
             })
             .catch(() => {
-              // Autoplay can be blocked; a host control can still start playback.
+              onPlaybackBlockedChange?.(true);
             });
         } else {
           phaseRef.current = "playing";
@@ -331,6 +382,7 @@ export function usePlayerSceneAudioPlayback({
     syncToPlayheadRef.current = syncSceneAudioToPlayhead;
 
     const handlePlay = () => {
+      onPlaybackBlockedChange?.(false);
       playbackIntentRef.current = true;
       internalPauseRef.current = false;
       phaseRef.current = "playing";
@@ -398,7 +450,7 @@ export function usePlayerSceneAudioPlayback({
       audio.removeEventListener("ended", handleEnded);
       clearPlayback();
     };
-  }, [active, audioRef, delayMs, durationMs, loop, paused, sceneKey, sourceKey]);
+  }, [active, audioRef, delayMs, drivePlayhead, durationMs, loop, onPlaybackBlockedChange, paused, sceneKey, sourceKey]);
 
   useEffect(() => {
     const syncToPlayhead = syncToPlayheadRef.current;
@@ -407,6 +459,7 @@ export function usePlayerSceneAudioPlayback({
     }
 
     if (
+      drivePlayhead &&
       audioDrivenPlayheadMsRef.current !== undefined &&
       !shouldSyncPlayheadMs(audioDrivenPlayheadMsRef.current, playheadMs)
     ) {
@@ -415,7 +468,7 @@ export function usePlayerSceneAudioPlayback({
     }
 
     syncToPlayhead(playheadMs);
-  }, [active, playbackResetKey, playheadMs, sceneKey, sourceKey]);
+  }, [active, drivePlayhead, playbackResetKey, playheadMs, sceneKey, sourceKey]);
 }
 
 function useResolvedSceneAudioSource(

@@ -183,23 +183,27 @@ function hasInventoryEffect(effects: Effect[], type: "addItem" | "removeItem", i
 function resolveCompletionFlag(hotspot: Hotspot, fallbackFlag: string): string {
   const guardedFlags = new Set(
     hotspot.conditions
-      .filter((condition): condition is Extract<Condition, { type: "flagEquals" }> => condition.type === "flagEquals")
-      .filter((condition) => condition.value === false)
-      .map((condition) => condition.flag)
+      .filter(
+        (condition): condition is Extract<Condition, { type: "variableCompare" }> =>
+          condition.type === "variableCompare"
+      )
+      .filter((condition) => condition.operator === "equals" && condition.value === false)
+      .map((condition) => condition.variableId)
   );
 
   const guardedCompletionEffect = hotspot.effects.find(
-    (effect): effect is Extract<Effect, { type: "setFlag" }> =>
-      effect.type === "setFlag" && effect.value === true && guardedFlags.has(effect.flag)
+    (effect): effect is Extract<Effect, { type: "setVariable" }> =>
+      effect.type === "setVariable" && effect.value === true && guardedFlags.has(effect.variableId)
   );
   if (guardedCompletionEffect) {
-    return guardedCompletionEffect.flag;
+    return guardedCompletionEffect.variableId;
   }
 
   const completionEffect = hotspot.effects.find(
-    (effect): effect is Extract<Effect, { type: "setFlag" }> => effect.type === "setFlag" && effect.value === true
+    (effect): effect is Extract<Effect, { type: "setVariable" }> =>
+      effect.type === "setVariable" && effect.value === true
   );
-  return completionEffect?.flag ?? fallbackFlag;
+  return completionEffect?.variableId ?? fallbackFlag;
 }
 
 function clampHotspotSize(value: number): number {

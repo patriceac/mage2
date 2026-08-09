@@ -23,12 +23,12 @@ import {
 import {
   DEFAULT_PLAYER_EXPERIENCE_PREFERENCES,
   PlayerExperienceShell,
-  PlayerSceneAudio,
   PlayerSceneRenderer,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
   type PlayerExperiencePreferences,
   type PlayerExperienceScreen,
+  type PlayerSceneRendererHandle,
   type PlayerSourceResolver
 } from "@mage2/player-ui";
 
@@ -143,6 +143,7 @@ interface RuntimeSystemCopy {
   placedObject: string;
   playhead: string;
   rawSave: string;
+  saveIncompatible: string;
   saveRecovered: string;
   saveFailed: string;
   showHotspots: string;
@@ -165,6 +166,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     placedObject: "This object is placed here.",
     playhead: "Playhead",
     rawSave: "Raw save state",
+    saveIncompatible: "This saved game is from an incompatible release. A new game was started, and the previous save was preserved.",
     saveRecovered: "The saved game could not be read. A new game was started.",
     saveFailed: "Progress could not be saved in local storage.",
     showHotspots: "Show hotspots",
@@ -185,6 +187,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     placedObject: "Cet objet est placé ici.",
     playhead: "Tête de lecture",
     rawSave: "État brut de la sauvegarde",
+    saveIncompatible: "Cette sauvegarde provient d’une version incompatible. Une nouvelle partie a été lancée et l’ancienne sauvegarde a été conservée.",
     saveRecovered: "La sauvegarde était illisible. Une nouvelle partie a été lancée.",
     saveFailed: "La progression n’a pas pu être enregistrée dans le stockage local.",
     showHotspots: "Afficher les zones",
@@ -197,6 +200,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     loading: "Cargando el juego...", mediaUnavailable: "Este contenido no está disponible en el idioma del juego seleccionado.", noValidSave: "No hay ninguna partida guardada válida.",
     placedObject: "Este objeto está colocado aquí.", playhead: "Cabezal de reproducción", rawSave: "Estado de guardado sin procesar",
     saveFailed: "No se pudo guardar el progreso en el almacenamiento local.",
+    saveIncompatible: "Esta partida guardada pertenece a una versión incompatible. Se inició una partida nueva y se conservó la anterior.",
     saveRecovered: "No se pudo leer la partida guardada. Se ha iniciado una nueva partida.", showHotspots: "Mostrar zonas interactivas",
     startupErrorBody: "Comprueba que se haya publicado el juego exportado completo y vuelve a intentarlo.",
     startupErrorTitle: "No se puede iniciar este juego"
@@ -206,6 +210,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     gameSaved: "游戏已保存。", interactionMedia: "互动媒体", loading: "正在加载游戏……",
     mediaUnavailable: "所选游戏语言没有此媒体。", noValidSave: "没有可用的有效存档。", placedObject: "此物品已放置在这里。", playhead: "播放位置",
     rawSave: "原始存档状态", saveFailed: "无法将进度保存到本地存储。",
+    saveIncompatible: "此存档来自不兼容的版本。已开始新游戏，并保留了原存档。",
     saveRecovered: "无法读取存档。已开始新游戏。", showHotspots: "显示互动区域",
     startupErrorBody: "请检查是否已发布完整的导出游戏，然后重试。", startupErrorTitle: "无法启动此游戏"
   },
@@ -214,6 +219,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     gameRestarted: "ニューゲームを開始しました。", gameSaved: "ゲームをセーブしました。", interactionMedia: "インタラクションメディア",
     loading: "ゲームを読み込んでいます…", mediaUnavailable: "選択したゲーム言語ではこのメディアを利用できません。", noValidSave: "有効なセーブデータがありません。", placedObject: "このアイテムはここに置かれています。",
     playhead: "再生位置", rawSave: "セーブデータの生の状態", saveFailed: "進行状況をローカルストレージに保存できませんでした。",
+    saveIncompatible: "このセーブデータは互換性のないリリースのものです。以前のセーブを保持したままニューゲームを開始しました。",
     saveRecovered: "セーブデータを読み込めませんでした。ニューゲームを開始しました。", showHotspots: "ホットスポットを表示",
     startupErrorBody: "エクスポートしたゲーム全体が公開されていることを確認して、もう一度お試しください。",
     startupErrorTitle: "このゲームを開始できません"
@@ -223,6 +229,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     gameRestarted: "새 게임을 시작했습니다.", gameSaved: "게임을 저장했습니다.", interactionMedia: "상호작용 미디어",
     loading: "게임 불러오는 중…", mediaUnavailable: "선택한 게임 언어에서는 이 미디어를 사용할 수 없습니다.", noValidSave: "사용할 수 있는 유효한 저장 데이터가 없습니다.", placedObject: "이 물건은 여기에 놓여 있습니다.",
     playhead: "재생 위치", rawSave: "원시 저장 상태", saveFailed: "진행 상황을 로컬 저장소에 저장하지 못했습니다.",
+    saveIncompatible: "이 저장 데이터는 호환되지 않는 릴리스에서 만들어졌습니다. 이전 저장은 보존하고 새 게임을 시작했습니다.",
     saveRecovered: "저장한 게임을 읽을 수 없어 새 게임을 시작했습니다.", showHotspots: "핫스팟 표시",
     startupErrorBody: "내보낸 게임 전체가 게시되었는지 확인한 후 다시 시도하세요.", startupErrorTitle: "이 게임을 시작할 수 없습니다"
   },
@@ -231,6 +238,7 @@ const RUNTIME_SYSTEM_COPY: Readonly<Record<BuiltInLocale, RuntimeSystemCopy>> = 
     gameRestarted: "بدأت لعبة جديدة.", gameSaved: "تم حفظ اللعبة.", interactionMedia: "وسائط التفاعل",
     loading: "جارٍ تحميل اللعبة...", mediaUnavailable: "هذه الوسائط غير متاحة بلغة اللعبة المحددة.", noValidSave: "لا توجد لعبة محفوظة صالحة.", placedObject: "هذا العنصر موضوع هنا.",
     playhead: "موضع التشغيل", rawSave: "حالة الحفظ الأولية", saveFailed: "تعذر حفظ التقدم في التخزين المحلي.",
+    saveIncompatible: "تنتمي هذه اللعبة المحفوظة إلى إصدار غير متوافق. بدأت لعبة جديدة مع الاحتفاظ بالحفظ السابق.",
     saveRecovered: "تعذرت قراءة اللعبة المحفوظة. بدأت لعبة جديدة.", showHotspots: "إظهار مناطق التفاعل",
     startupErrorBody: "تحقق من نشر اللعبة المصدّرة كاملة، ثم حاول مرة أخرى.", startupErrorTitle: "تعذر بدء هذه اللعبة"
   }
@@ -241,10 +249,16 @@ export function resolveRuntimeSystemCopy(locale: string): RuntimeSystemCopy {
 }
 
 export function resolveRuntimeSaveLoadNotice(
-  loadResult: Pick<ReturnType<typeof loadSaveForProject>, "message" | "shouldQuarantine">,
+  loadResult: Pick<ReturnType<typeof loadSaveForProject>, "message" | "shouldQuarantine" | "status">,
   locale: string
 ): string | undefined {
-  return loadResult.shouldQuarantine ? resolveRuntimeSystemCopy(locale).saveRecovered : loadResult.message;
+  if (!loadResult.shouldQuarantine) {
+    return loadResult.message;
+  }
+  const copy = resolveRuntimeSystemCopy(locale);
+  return loadResult.status === "incompatible" || loadResult.status === "stale"
+    ? copy.saveIncompatible
+    : copy.saveRecovered;
 }
 
 export function resolveRuntimePlayerCopy(locale: string) {
@@ -406,6 +420,7 @@ export function App() {
   );
   const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const interactionMediaSequenceRef = useRef(0);
+  const playerRendererRef = useRef<PlayerSceneRendererHandle>(null);
   const [activeResponse, setActiveResponse] = useState<ActivePlayerResponse>();
   const completeResponse = useCallback((sequence: number) => {
     setActiveResponse((current) => (current?.sequence === sequence ? undefined : current));
@@ -699,7 +714,7 @@ export function App() {
     if (restoredSession.loadResult.shouldQuarantine) {
       quarantineRejectedRuntimeSave(storageKey, storedSave, restoredSession.loadResult.status);
       setHasValidStoredSave(false);
-      setRuntimeNotice(systemCopy.saveRecovered);
+      setRuntimeNotice(resolveRuntimeSaveLoadNotice(restoredSession.loadResult, interfaceLocale) ?? systemCopy.saveRecovered);
     } else {
       if (restoredSession.loadResult.status === "migrated" && restoredSession.loadResult.envelope) {
         persistRuntimeSave(storageKey, restoredSession.loadResult.envelope);
@@ -725,6 +740,7 @@ export function App() {
           presentation={content.manifest.playerPresentation}
           screen={playerScreen}
           onScreenChange={setPlayerScreen}
+          onGameplayStartRequest={() => playerRendererRef.current?.resumeSceneMedia()}
           locale={locale}
           supportedLocales={supportedLocales}
           localeStrings={localeStrings}
@@ -768,6 +784,7 @@ export function App() {
               />
             ) : null}
             <PlayerSceneRenderer
+              ref={playerRendererRef}
               className={
                 activeResponse?.entry.kind === "video"
                   ? "runtime-player-renderer runtime-player-renderer--response-video"
@@ -826,7 +843,17 @@ export function App() {
               onInteractionBlocked={() => setRuntimeNotice(undefined)}
               activeResponse={activeResponse}
               onResponseComplete={completeResponse}
-              onPlayheadMsChange={currentAsset?.kind === "video" ? setPlayheadMs : undefined}
+              onPlayheadMsChange={setPlayheadMs}
+              onSceneMediaEnd={() => {
+                const completedSceneId = snapshot.scene.id;
+                const resolution = controller.completeSceneMedia();
+                applyPlayerResponseResolution(resolution);
+                const nextSnapshot = controller.getSnapshot();
+                setSnapshot(nextSnapshot);
+                if (nextSnapshot.scene.id !== completedSceneId) {
+                  setPlayheadMs(0);
+                }
+              }}
               playbackResetKey={`${snapshot.scene.id}:${locale}`}
             />
             {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
@@ -842,22 +869,6 @@ export function App() {
               />
             ) : null}
           </div>
-
-          <PlayerSceneAudio
-            sourcePath={sceneAudioVariant?.sourcePath}
-            resolveSourcePath={resolveRuntimeSourcePath}
-            sceneKey={snapshot.scene.id}
-            assetId={snapshot.scene.sceneAudioAssetId}
-            enabled={currentAsset?.kind === "image" && Boolean(snapshot.scene.sceneAudioAssetId)}
-            playheadMs={playheadMs}
-            delayMs={snapshot.scene.sceneAudioDelayMs}
-            loop={snapshot.scene.sceneAudioLoop}
-            durationMs={sceneAudioVariant?.durationMs}
-            paused={gameplayPaused}
-            volume={playerPreferences.volume}
-            onPlayheadMsChange={setPlayheadMs}
-            className="runtime-scene-audio"
-          />
 
           {debugMode ? (
             <details className="runtime-debug-panel" open>

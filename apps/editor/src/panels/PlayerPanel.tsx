@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   DEFAULT_PLAYER_CREDITS_TEXT_ID,
   DEFAULT_PLAYER_TAGLINE_TEXT_ID,
@@ -16,18 +16,24 @@ import {
   type PlayerExperiencePreferences,
   type PlayerExperienceScreen
 } from "@mage2/player-ui";
+import { IMAGE_IMPORT_EXTENSIONS } from "../asset-file-types";
+import { useDialogs } from "../dialogs";
+import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "../i18n";
 import { setEditorLocalizedText } from "../localized-project";
-import { useEditorI18n } from "../i18n";
 import { useEditorAssetFileUrl } from "../player-asset-url";
-import { isPlayerPresentationAsset } from "../project-helpers";
+import { addAssetRoots, isPlayerPresentationAsset } from "../project-helpers";
+import { useEditorStore } from "../store";
 
 interface PlayerPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
   setStatusMessage: (message: string) => void;
+  setBusyLabel: (label?: string) => void;
 }
 
 export type EditorPlayerInterfaceLocalePreference = "automatic" | BuiltInLocale;
+export const PLAYER_APP_ICON_IMPORT_EXTENSIONS = [".png"] as const;
+export type PlayerArtworkField = "titleBackgroundAssetId" | "logoAssetId" | "appIconAssetId";
 
 export function resolveEditorPlayerInterfaceLocale(
   preference: EditorPlayerInterfaceLocalePreference,
@@ -36,8 +42,9 @@ export function resolveEditorPlayerInterfaceLocale(
   return preference === "automatic" ? editorLocale : preference;
 }
 
-export function PlayerPanel({ project, mutateProject, setStatusMessage }: PlayerPanelProps) {
+export function PlayerPanel({ project, mutateProject, setStatusMessage, setBusyLabel }: PlayerPanelProps) {
   const { locale: editorLocale, t } = useEditorI18n();
+  const dialogs = useDialogs();
   const presentation = project.manifest.playerPresentation;
   const defaultLocale = project.manifest.defaultLanguage;
   const supportedLocales = normalizeSupportedLocales(defaultLocale, project.manifest.supportedLocales);
@@ -93,6 +100,70 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
       }
       setEditorLocalizedText(draft, defaultLocale, textId, value);
     });
+  }
+
+  async function handleImportPlayerArtwork(field: PlayerArtworkField) {
+    const projectDir = useEditorStore.getState().projectDir;
+    if (!projectDir) {
+      setStatusMessage(t("No project directory is currently open."));
+      return;
+    }
+
+    const importConfig = resolvePlayerArtworkImportConfig(field, t);
+    try {
+      const filePaths = await dialogs.pickFiles({
+        title: importConfig.title,
+        description: importConfig.description,
+        initialPath: projectDir,
+        confirmLabel: importConfig.confirmLabel,
+        allowedExtensions: [...resolvePlayerArtworkImportExtensions(field)]
+      });
+      const filePath = filePaths[0];
+      if (!filePath) {
+        return;
+      }
+
+      setBusyLabel(t("Importing player artwork"));
+      const { importedAssets, duplicateAssets } = await window.editorApi.importAssets(
+        projectDir,
+        defaultLocale,
+        project.assets.assets,
+        [filePath],
+        "player"
+      );
+      const resolution = resolvePlayerArtworkImportResult(project, importedAssets, duplicateAssets);
+      if (!resolution) {
+        setStatusMessage(t("No player artwork asset was created."));
+        return;
+      }
+
+      mutateProject((draft) => {
+        if (resolution.imported) {
+          addAssetRoots(draft, [resolution.asset]);
+          draft.assets.assets.push(resolution.asset);
+        }
+        draft.manifest.playerPresentation[field] = resolution.asset.id;
+      });
+      useEditorStore.getState().setSelectedAssetId(resolution.asset.id);
+      setStatusMessage(
+        t("{message} Save the project to keep this change.", {
+          message: resolution.imported
+            ? t("Imported {asset} and selected it for {field}.", {
+                asset: resolution.asset.name,
+                field: importConfig.fieldLabel
+              })
+            : t("Selected existing {asset} for {field}.", {
+                asset: resolution.asset.name,
+                field: importConfig.fieldLabel
+              })
+        })
+      );
+    } catch (error) {
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Player artwork import failed: {message}", { message }));
+    } finally {
+      setBusyLabel(undefined);
+    }
   }
 
   return (
@@ -171,6 +242,8 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             noneLabel={t("None")}
             starterLabel={t("Starter")}
             onChange={(titleBackgroundAssetId) => updatePresentation({ titleBackgroundAssetId }, t("Updated the title background."))}
+            actionLabel={t("Import Background")}
+            onAction={() => void handleImportPlayerArtwork("titleBackgroundAssetId")}
           />
           <AssetSelect
             label={t("Logo")}
@@ -180,6 +253,8 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             noneLabel={t("None")}
             starterLabel={t("Starter")}
             onChange={(logoAssetId) => updatePresentation({ logoAssetId }, t("Updated the title logo."))}
+            actionLabel={t("Import Logo")}
+            onAction={() => void handleImportPlayerArtwork("logoAssetId")}
           />
           <AssetSelect
             label={t("App icon")}
@@ -190,6 +265,8 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             starterLabel={t("Starter")}
             help={t("Use a square PNG, ideally 512 by 512 pixels or larger.")}
             onChange={(appIconAssetId) => updatePresentation({ appIconAssetId }, t("Updated the player icon."))}
+            actionLabel={t("Import PNG")}
+            onAction={() => void handleImportPlayerArtwork("appIconAssetId")}
           />
           <label>
             <span>{t("Title alignment")}</span>
@@ -290,19 +367,13 @@ export function PlayerPanel({ project, mutateProject, setStatusMessage }: Player
             <small>{t("Use semantic versioning, such as 1.0.0 or 1.2.0-beta.1.")}</small>
           </label>
           <label>
-            <span>{t("Save compatibility version")}</span>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={project.manifest.saveCompatibilityVersion}
-              onChange={(event) => {
-                const saveCompatibilityVersion = Math.max(1, Math.trunc(Number(event.target.value) || 1));
-                mutateProject((draft) => { draft.manifest.saveCompatibilityVersion = saveCompatibilityVersion; });
-                setStatusMessage(t("Updated save compatibility. Existing saves with a different value will recover into a fresh game."));
-              }}
-            />
-            <small>{t("Increase only when a release intentionally breaks existing player saves.")}</small>
+            <span>{t("Save generation")}</span>
+            <output className="player-panel__save-generation-value">
+              {t("Generation {generation}", { generation: project.manifest.saveCompatibilityVersion })}
+            </output>
+            <small>
+              {t("Save generations advance only through the guarded release action. Normal content updates keep existing saves.")}
+            </small>
           </label>
         </fieldset>
 
@@ -324,7 +395,9 @@ function AssetSelect({
   noneLabel,
   starterLabel,
   help,
-  onChange
+  onChange,
+  actionLabel,
+  onAction
 }: {
   label: string;
   value?: string;
@@ -334,21 +407,78 @@ function AssetSelect({
   starterLabel: string;
   help?: string;
   onChange: (assetId?: string) => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
+  const selectId = useId();
+
   return (
-    <label>
-      <span>{label}</span>
-      <select value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)}>
-        {allowNone ? <option value="">{noneLabel}</option> : null}
-        {assets.map((asset) => (
-          <option key={asset.id} value={asset.id}>
-            {asset.name}{asset.provenance?.source === "starter-kit" ? ` (${starterLabel})` : ""}
-          </option>
-        ))}
-      </select>
+    <div className="player-panel__asset-field">
+      <label htmlFor={selectId}>{label}</label>
+      <div className="player-panel__asset-field-control">
+        <select id={selectId} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)}>
+          {allowNone ? <option value="">{noneLabel}</option> : null}
+          {assets.map((asset) => (
+            <option key={asset.id} value={asset.id}>
+              {asset.name}{asset.provenance?.source === "starter-kit" ? ` (${starterLabel})` : ""}
+            </option>
+          ))}
+        </select>
+        {actionLabel && onAction ? (
+          <button type="button" className="player-panel__asset-import-button" onClick={onAction}>
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
       {help ? <small>{help}</small> : null}
-    </label>
+    </div>
   );
+}
+
+export function resolvePlayerArtworkImportExtensions(field: PlayerArtworkField): readonly string[] {
+  return field === "appIconAssetId" ? PLAYER_APP_ICON_IMPORT_EXTENSIONS : IMAGE_IMPORT_EXTENSIONS;
+}
+
+export function resolvePlayerArtworkImportResult(
+  project: ProjectBundle,
+  importedAssets: Asset[],
+  duplicateAssets: Array<{ assetId: string }>
+): { asset: Asset; imported: boolean } | undefined {
+  const importedAsset = importedAssets[0];
+  if (importedAsset) {
+    return { asset: importedAsset, imported: true };
+  }
+
+  const duplicateAssetId = duplicateAssets[0]?.assetId;
+  const duplicateAsset = duplicateAssetId
+    ? project.assets.assets.find((asset) => asset.id === duplicateAssetId)
+    : undefined;
+  return duplicateAsset ? { asset: duplicateAsset, imported: false } : undefined;
+}
+
+function resolvePlayerArtworkImportConfig(field: PlayerArtworkField, t: EditorTranslator) {
+  const fieldLabel =
+    field === "titleBackgroundAssetId"
+      ? t("the title background")
+      : field === "logoAssetId"
+        ? t("the player logo")
+        : t("the player icon");
+
+  if (field === "appIconAssetId") {
+    return {
+      title: t("Import Player Icon"),
+      description: t("Choose a square PNG to import and select as the player application icon."),
+      confirmLabel: t("Import Icon"),
+      fieldLabel
+    };
+  }
+
+  return {
+    title: field === "titleBackgroundAssetId" ? t("Import Background") : t("Import Logo"),
+    description: t("Choose an image to import and select for {field}.", { field: fieldLabel }),
+    confirmLabel: field === "titleBackgroundAssetId" ? t("Import Background") : t("Import Logo"),
+    fieldLabel
+  };
 }
 
 function findAsset(assets: Asset[], assetId?: string): Asset | undefined {

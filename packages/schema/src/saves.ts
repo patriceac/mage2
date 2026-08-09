@@ -8,9 +8,16 @@ import {
   type SaveEnvelope,
   type SaveState
 } from "./types";
-import { createInitialSaveState } from "./project";
+import { createInitialSaveState, hydrateSaveStateVariables } from "./project";
 
-export type SaveLoadStatus = "missing" | "compatible" | "migrated" | "stale" | "corrupt" | "unsupported";
+export type SaveLoadStatus =
+  | "missing"
+  | "compatible"
+  | "migrated"
+  | "stale"
+  | "incompatible"
+  | "corrupt"
+  | "unsupported";
 
 export interface SaveLoadResult {
   status: SaveLoadStatus;
@@ -72,12 +79,13 @@ export function createSaveEnvelope(
   state: SaveState,
   savedAt = new Date().toISOString()
 ): SaveEnvelope {
+  const hydratedState = hydrateSaveStateVariables(project, SaveStateSchema.parse(state));
   return SaveEnvelopeSchema.parse({
     format: SAVE_ENVELOPE_FORMAT,
     version: CURRENT_SAVE_ENVELOPE_VERSION,
     identity: createProjectContentIdentity(project),
     savedAt,
-    state: SaveStateSchema.parse(state)
+    state: hydratedState
   });
 }
 
@@ -149,6 +157,33 @@ export function validateSaveStateForProject(state: SaveState, project: ProjectBu
     return `Saved visited scene '${missingVisitedScene}' no longer exists.`;
   }
 
+  const variableDefinitions = new Map(project.manifest.variables.map((definition) => [definition.id, definition]));
+  for (const [variableId, value] of Object.entries(state.variables)) {
+    const definition = variableDefinitions.get(variableId);
+    if (!definition) {
+      return `Saved variable '${variableId}' no longer exists.`;
+    }
+    if (definition.type === "boolean" && typeof value !== "boolean") {
+      return `Saved variable '${variableId}' is no longer Boolean.`;
+    }
+    if (definition.type === "integer" && (typeof value !== "number" || !Number.isInteger(value))) {
+      return `Saved variable '${variableId}' is no longer an integer.`;
+    }
+    if (
+      definition.type === "choice" &&
+      (typeof value !== "string" || !definition.options.some((option) => option.id === value))
+    ) {
+      return `Saved variable '${variableId}' no longer has a valid choice.`;
+    }
+  }
+
+  for (const flagId of Object.keys(state.flags)) {
+    const definition = variableDefinitions.get(flagId);
+    if (!definition || definition.type !== "boolean") {
+      return `Saved Boolean variable '${flagId}' no longer exists.`;
+    }
+  }
+
   if (Boolean(state.activeDialogueTreeId) !== Boolean(state.activeDialogueNodeId)) {
     return "Saved dialogue state is incomplete.";
   }
@@ -203,24 +238,25 @@ function loadVersionedSave(value: Record<string, unknown>, project: ProjectBundl
   }
   if (parsed.data.identity.saveCompatibilityVersion !== identity.saveCompatibilityVersion) {
     return recoverFromSave(
-      "stale",
+      "incompatible",
       project,
       `Saved progress targets compatibility version ${parsed.data.identity.saveCompatibilityVersion}; this game uses ${identity.saveCompatibilityVersion}.`
     );
   }
   if (parsed.data.identity.contentId !== identity.contentId) {
-    return recoverFromSave("stale", project, "Saved progress was created for different project content and was not loaded.");
+    return recoverFromSave("incompatible", project, "Saved progress was created for incompatible project content and was not loaded.");
   }
 
-  const compatibilityError = validateSaveStateForProject(parsed.data.state, project);
+  const hydratedState = hydrateSaveStateVariables(project, parsed.data.state);
+  const compatibilityError = validateSaveStateForProject(hydratedState, project);
   if (compatibilityError) {
-    return recoverFromSave("corrupt", project, `${compatibilityError} A fresh session started.`);
+    return recoverFromSave("incompatible", project, `${compatibilityError} A fresh session started.`);
   }
 
   return {
     status: "compatible",
-    saveState: parsed.data.state,
-    envelope: parsed.data,
+    saveState: hydratedState,
+    envelope: { ...parsed.data, state: hydratedState },
     shouldQuarantine: false
   };
 }
@@ -236,18 +272,19 @@ function migrateV1Save(value: Record<string, unknown>, project: ProjectBundle): 
     return recoverFromSave("corrupt", project, "Saved progress is malformed and was not loaded.");
   }
 
-  const compatibilityError = validateSaveStateForProject(parsedState.data, project);
+  const hydratedState = hydrateSaveStateVariables(project, parsedState.data);
+  const compatibilityError = validateSaveStateForProject(hydratedState, project);
   if (compatibilityError) {
-    return recoverFromSave("stale", project, `${compatibilityError} The version-one save was not migrated.`);
+    return recoverFromSave("incompatible", project, `${compatibilityError} The version-one save was not migrated.`);
   }
 
   const savedAt = typeof value.savedAt === "string" && value.savedAt.length > 0
     ? value.savedAt
     : new Date().toISOString();
-  const envelope = createSaveEnvelope(project, parsedState.data, savedAt);
+  const envelope = createSaveEnvelope(project, hydratedState, savedAt);
   return {
     status: "migrated",
-    saveState: parsedState.data,
+    saveState: hydratedState,
     envelope,
     message: "Saved progress was upgraded to the creator-controlled compatibility format.",
     shouldQuarantine: false
@@ -260,27 +297,33 @@ function migrateLegacySave(value: unknown, project: ProjectBundle): SaveLoadResu
   }
 
   const initial = createInitialSaveState(project);
-  const parsed = SaveStateSchema.safeParse({ ...initial, ...value });
+  const legacyVariables = isRecord(value) && isRecord(value.variables) ? value.variables : {};
+  const parsed = SaveStateSchema.safeParse({ ...initial, ...value, variables: legacyVariables });
   if (!parsed.success) {
     return recoverFromSave("corrupt", project, "Legacy saved progress is malformed and was not loaded.");
   }
 
-  const compatibilityError = validateSaveStateForProject(parsed.data, project);
+  const hydratedState = hydrateSaveStateVariables(project, parsed.data);
+  const compatibilityError = validateSaveStateForProject(hydratedState, project);
   if (compatibilityError) {
-    return recoverFromSave("stale", project, `${compatibilityError} The legacy save was not migrated.`);
+    return recoverFromSave("incompatible", project, `${compatibilityError} The legacy save was not migrated.`);
   }
 
-  const envelope = createSaveEnvelope(project, parsed.data);
+  const envelope = createSaveEnvelope(project, hydratedState);
   return {
     status: "migrated",
-    saveState: parsed.data,
+    saveState: hydratedState,
     envelope,
     message: "A compatible legacy save was upgraded to the current save format.",
     shouldQuarantine: false
   };
 }
 
-function recoverFromSave(status: Extract<SaveLoadStatus, "stale" | "corrupt" | "unsupported">, project: ProjectBundle, message: string): SaveLoadResult {
+function recoverFromSave(
+  status: Extract<SaveLoadStatus, "stale" | "incompatible" | "corrupt" | "unsupported">,
+  project: ProjectBundle,
+  message: string
+): SaveLoadResult {
   return {
     status,
     saveState: createInitialSaveState(project),

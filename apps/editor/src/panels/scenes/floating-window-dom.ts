@@ -1,3 +1,5 @@
+import { FLOATING_WINDOW_MARGIN_PX } from "../../floating-window";
+
 export interface FloatingWindowSize {
   width: number;
   height: number;
@@ -19,9 +21,13 @@ export function getFloatingWindowSize(
 }
 
 export function getViewportSize() {
+  const titlebarBottom = document
+    .querySelector<HTMLElement>(".titlebar-shell")
+    ?.getBoundingClientRect().bottom ?? 0;
   return {
     width: window.innerWidth,
-    height: window.innerHeight
+    height: window.innerHeight,
+    topInset: Math.max(FLOATING_WINDOW_MARGIN_PX, Math.ceil(titlebarBottom) + FLOATING_WINDOW_MARGIN_PX)
   };
 }
 

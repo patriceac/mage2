@@ -67,6 +67,7 @@ export function createStarterHotspot(): Hotspot {
     endMs: 30000,
     timingMode: "sceneDuration",
     requiredItemIds: [],
+    conditionMode: "all",
     conditions: [{ type: "always" }],
     effects: []
   };
@@ -94,6 +95,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
       engineVersion: "0.1.0",
       gameVersion: "1.0.0",
       saveCompatibilityVersion: 1,
+      variables: [],
       assetRoots: [],
       startLocationId: locationId,
       startSceneId: sceneId,
@@ -145,10 +147,12 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
           sceneAudioLoop: true,
           sceneAudioDelayMs: 0,
           backgroundVideoLoop: false,
+          videoAudioMode: "silent",
           hotspots: [createStarterHotspot()],
           dialogueTreeIds: [],
           onEnterEffects: [],
-          onExitEffects: []
+          onExitEffects: [],
+          onMediaEndEffects: []
         }
       ]
     },
@@ -173,11 +177,20 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
 }
 
 export function createInitialSaveState(project: ProjectBundle): SaveState {
+  const variables = Object.fromEntries(
+    project.manifest.variables.map((variable) => [variable.id, variable.initialValue])
+  );
+  const flags = Object.fromEntries(
+    project.manifest.variables
+      .filter((variable) => variable.type === "boolean")
+      .map((variable) => [variable.id, variable.initialValue])
+  );
   return {
     currentLocationId: project.manifest.startLocationId,
     currentSceneId: project.manifest.startSceneId,
     inventory: [],
-    flags: {},
+    flags,
+    variables,
     visitedSceneIds: [project.manifest.startSceneId],
     playheadMs: 0
   };
@@ -197,6 +210,37 @@ export function toExportProjectData(project: ProjectBundle): ExportProjectData {
     inventoryItems: project.inventory.items,
     strings: project.strings.byLocale,
     ...(Object.keys(playerUiOverrides).length > 0 ? { playerUiOverrides } : {})
+  };
+}
+
+/**
+ * Adds project variable defaults and upgrades Boolean values from the legacy
+ * flags map without discarding unknown keys that compatibility validation must
+ * still be able to report.
+ */
+export function hydrateSaveStateVariables(project: ProjectBundle, state: SaveState): SaveState {
+  const initial = createInitialSaveState(project);
+  const variables = { ...initial.variables, ...state.variables };
+  const flags = { ...initial.flags, ...state.flags };
+
+  for (const definition of project.manifest.variables) {
+    if (definition.type !== "boolean") {
+      continue;
+    }
+    if (
+      !Object.prototype.hasOwnProperty.call(state.variables, definition.id) &&
+      Object.prototype.hasOwnProperty.call(state.flags, definition.id)
+    ) {
+      variables[definition.id] = state.flags[definition.id]!;
+    }
+    flags[definition.id] = Boolean(variables[definition.id]);
+  }
+
+  return {
+    ...initial,
+    ...state,
+    flags,
+    variables
   };
 }
 
@@ -443,6 +487,8 @@ function normalizeAssetVariant(input: Record<string, unknown>): AssetVariant {
     width: typeof input.width === "number" ? input.width : undefined,
     height: typeof input.height === "number" ? input.height : undefined,
     codec: typeof input.codec === "string" ? input.codec : undefined,
+    hasAudio: typeof input.hasAudio === "boolean" ? input.hasAudio : undefined,
+    audioCodec: typeof input.audioCodec === "string" ? input.audioCodec : undefined,
     importedAt:
       typeof input.importedAt === "string" && input.importedAt.length > 0
         ? input.importedAt

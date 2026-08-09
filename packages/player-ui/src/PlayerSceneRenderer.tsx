@@ -57,6 +57,7 @@ import {
   type PlayerSystemCopy
 } from "./model";
 import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
+import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
 const INVENTORY_DRAWER_ID = "mage2-player-inventory-drawer";
@@ -85,6 +86,7 @@ export interface PlayerSceneRendererProps {
   onResponseComplete?: (sequence: number) => void;
   onPlayheadMsChange?: (playheadMs: number) => void;
   onPlayableDurationMsChange?: (durationMs: number) => void;
+  onSceneMediaEnd?: () => void;
   playbackResetKey?: string | number;
   volume?: number;
   paused?: boolean;
@@ -99,6 +101,7 @@ export interface PlayerSceneRendererHandle {
     selectedInventoryItemId?: string;
     isInventoryDrawerExpanded: boolean;
   };
+  resumeSceneMedia(): void;
 }
 
 export interface PlayerDialogueBoxProps {
@@ -335,6 +338,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       onResponseComplete,
       onPlayheadMsChange,
       onPlayableDurationMsChange,
+      onSceneMediaEnd,
       playbackResetKey,
       volume = 1,
       paused = false,
@@ -347,6 +351,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const [inventoryCursorPoint, setInventoryCursorPoint] = useState<PlayerCursorPoint>();
     const overlayRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const completedMediaEntryKeyRef = useRef<string | undefined>(undefined);
+    const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
+    const [sceneAudioPlaybackBlocked, setSceneAudioPlaybackBlocked] = useState(false);
+    const sceneAudioRef = useRef<PlayerSceneAudioHandle>(null);
     const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
     const gameplayPaused = paused || activeResponse?.entry.kind === "video";
 
@@ -354,6 +362,17 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const sceneAssetVariant = sceneAsset ? resolveAssetVariant(sceneAsset, locale) : undefined;
     const sceneSourcePath = sceneAssetVariant?.proxyPath ?? sceneAssetVariant?.sourcePath;
     const sceneUrl = useResolvedSource(sceneSourcePath, resolveSourcePath);
+    const videoAudioMode = snapshot.scene.videoAudioMode;
+    const sceneAudioAsset = snapshot.scene.sceneAudioAssetId
+      ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
+      : undefined;
+    const sceneAudioVariant = sceneAudioAsset ? resolveAssetVariant(sceneAudioAsset, locale) : undefined;
+    const sceneAudioSourcePath = sceneAudioVariant?.proxyPath ?? sceneAudioVariant?.sourcePath;
+    const sceneAudioEnabled = Boolean(
+      snapshot.scene.sceneAudioAssetId &&
+      (sceneAsset?.kind === "image" || (sceneAsset?.kind === "video" && videoAudioMode === "external"))
+    );
+    const mediaEntryKey = `${snapshot.scene.id}:${sceneAsset?.id ?? ""}:${snapshot.scene.sceneAudioAssetId ?? ""}:${videoAudioMode}:${String(playbackResetKey ?? "")}`;
     const sceneHotspots = useMemo(
       () => resolvePlayerSceneHotspots(visibleHotspots, snapshot.scene.hotspots, snapshot.flags),
       [snapshot.flags, snapshot.scene.hotspots, visibleHotspots]
@@ -420,6 +439,20 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       },
       [onSelectedInventoryItemIdChange]
     );
+
+    const resumeSceneMedia = useCallback(() => {
+      const video = videoRef.current;
+      if (!video) {
+        sceneAudioRef.current?.resume();
+        return;
+      }
+
+      void video.play().then(
+        () => setVideoPlaybackBlocked(false),
+        () => setVideoPlaybackBlocked(true)
+      );
+      sceneAudioRef.current?.resume();
+    }, []);
 
     const handleInventoryContextMenu = useCallback(
       (event: MouseEvent<HTMLDivElement>) => {
@@ -508,10 +541,17 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
         getInteractionState: () => ({
           selectedInventoryItemId,
           isInventoryDrawerExpanded
-        })
+        }),
+        resumeSceneMedia
       }),
-      [activateHotspot, isInventoryDrawerExpanded, selectInventoryItem, selectedInventoryItemId]
+      [activateHotspot, isInventoryDrawerExpanded, resumeSceneMedia, selectInventoryItem, selectedInventoryItemId]
     );
+
+    useEffect(() => {
+      completedMediaEntryKeyRef.current = undefined;
+      setVideoPlaybackBlocked(false);
+      setSceneAudioPlaybackBlocked(false);
+    }, [mediaEntryKey]);
 
     useEffect(() => {
       if (
@@ -569,7 +609,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       playheadMs,
       playbackResetKey,
       onPlayheadMsChange,
-      paused: gameplayPaused
+      paused: gameplayPaused,
+      muted: videoAudioMode !== "embedded",
+      volume,
+      onPlaybackBlockedChange: setVideoPlaybackBlocked
     });
 
     const surfaceStyle = resolvePlayerMediaAspectRatioStyle(sceneAssetVariant?.width, sceneAssetVariant?.height);
@@ -609,9 +652,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   src={sceneUrl}
                   autoPlay
                   loop={snapshot.scene.backgroundVideoLoop}
-                  muted
+                  muted={videoAudioMode !== "embedded"}
                   playsInline
                   className="mage2-player__media"
+                  data-video-audio-mode={videoAudioMode}
                   onLoadedMetadata={(event) => {
                     const durationMs = resolvePlayableDurationMs(
                       event.currentTarget.duration,
@@ -621,6 +665,17 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                       onPlayableDurationMsChange?.(durationMs);
                     }
                     syncVideoFromPlayhead(event.currentTarget, playheadMs, sceneAssetVariant?.durationMs);
+                  }}
+                  onEnded={() => {
+                    if (
+                      snapshot.scene.backgroundVideoLoop ||
+                      completedMediaEntryKeyRef.current === mediaEntryKey
+                    ) {
+                      return;
+                    }
+
+                    completedMediaEntryKeyRef.current = mediaEntryKey;
+                    onSceneMediaEnd?.();
                   }}
                 />
               ) : (
@@ -652,7 +707,33 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 />
               ))}
             </div>
+            {(videoPlaybackBlocked || sceneAudioPlaybackBlocked) && !gameplayPaused ? (
+              <div className="mage2-player__media-recovery">
+                <button type="button" onClick={resumeSceneMedia}>
+                  {copy.resumeSceneMedia}
+                </button>
+              </div>
+            ) : null}
           </div>
+
+          <PlayerSceneAudio
+            ref={sceneAudioRef}
+            sourcePath={sceneAudioSourcePath}
+            resolveSourcePath={resolveSourcePath}
+            sceneKey={snapshot.scene.id}
+            assetId={snapshot.scene.sceneAudioAssetId}
+            enabled={sceneAudioEnabled}
+            playheadMs={playheadMs}
+            delayMs={snapshot.scene.sceneAudioDelayMs}
+            loop={sceneAsset?.kind === "image" ? snapshot.scene.sceneAudioLoop : false}
+            durationMs={sceneAudioVariant?.durationMs}
+            paused={gameplayPaused}
+            volume={volume}
+            playbackResetKey={playbackResetKey}
+            onPlayheadMsChange={onPlayheadMsChange ?? (() => undefined)}
+            drivePlayhead={sceneAsset?.kind !== "video"}
+            onPlaybackBlockedChange={setSceneAudioPlaybackBlocked}
+          />
 
           <div className="mage2-player__scene-overlay mage2-player__hud-plane">
             <div
@@ -950,6 +1031,9 @@ function useControlledVideoPlayback(options: {
   playbackResetKey?: string | number;
   onPlayheadMsChange?: (playheadMs: number) => void;
   paused?: boolean;
+  muted: boolean;
+  volume: number;
+  onPlaybackBlockedChange?: (blocked: boolean) => void;
 }) {
   const {
     videoRef,
@@ -960,7 +1044,10 @@ function useControlledVideoPlayback(options: {
     playheadMs,
     playbackResetKey,
     onPlayheadMsChange,
-    paused = false
+    paused = false,
+    muted,
+    volume,
+    onPlaybackBlockedChange
   } = options;
   const latestPlayheadRef = useRef(playheadMs);
   const latestOnPlayheadChangeRef = useRef(onPlayheadMsChange);
@@ -971,6 +1058,16 @@ function useControlledVideoPlayback(options: {
     latestPlayheadRef.current = playheadMs;
     latestOnPlayheadChangeRef.current = onPlayheadMsChange;
   }, [onPlayheadMsChange, playheadMs]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.muted = muted;
+    video.volume = Math.min(1, Math.max(0, volume));
+  }, [muted, videoRef, volume]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -999,10 +1096,11 @@ function useControlledVideoPlayback(options: {
       video.pause();
       return;
     }
-    void video.play().catch(() => {
-      // Autoplay may be unavailable; user interaction can still start playback.
-    });
-  }, [assetId, assetUrl, paused, videoRef]);
+    void video.play().then(
+      () => onPlaybackBlockedChange?.(false),
+      () => onPlaybackBlockedChange?.(true)
+    );
+  }, [assetId, assetUrl, muted, onPlaybackBlockedChange, paused, videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1038,6 +1136,7 @@ function useControlledVideoPlayback(options: {
       }
     };
     const start = () => {
+      onPlaybackBlockedChange?.(false);
       cancelFrame();
       step();
     };
@@ -1060,7 +1159,7 @@ function useControlledVideoPlayback(options: {
       video.removeEventListener("ended", loop ? start : stop);
       video.removeEventListener("seeked", syncFromClock);
     };
-  }, [assetDurationMs, assetId, assetUrl, loop, onPlayheadMsChange, videoRef]);
+  }, [assetDurationMs, assetId, assetUrl, loop, onPlaybackBlockedChange, onPlayheadMsChange, videoRef]);
 }
 
 function syncVideoFromPlayhead(video: HTMLVideoElement, playheadMs: number, fallbackDurationMs?: number) {

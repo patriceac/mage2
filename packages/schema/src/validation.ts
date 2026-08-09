@@ -8,6 +8,7 @@ import {
   type ValidationIssue,
   type ValidationReport
 } from "./types";
+import { effectCanStartTerminalFlow, effectsContain, visitEffects } from "./effects";
 import { getLocalizedText, normalizeSupportedLocales, resolveAssetCategory, resolveAssetVariant } from "./localization";
 
 export function collectSceneLinks(scene: Scene): string[] {
@@ -18,35 +19,25 @@ export function collectSceneLinks(scene: Scene): string[] {
       links.add(hotspot.targetSceneId);
     }
 
-    for (const effect of hotspot.effects) {
-      if (effect.type === "goToScene") {
-        links.add(effect.sceneId);
-      }
-    }
+    visitEffects(hotspot.effects, (effect) => {
+      if (effect.type === "goToScene") links.add(effect.sceneId);
+    });
 
     for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
       if (event?.targetSceneId) {
         links.add(event.targetSceneId);
       }
 
-      for (const effect of event?.effects ?? []) {
-        if (effect.type === "goToScene") {
-          links.add(effect.sceneId);
-        }
-      }
+      visitEffects(event?.effects ?? [], (effect) => {
+        if (effect.type === "goToScene") links.add(effect.sceneId);
+      });
     }
   }
 
-  for (const effect of scene.onEnterEffects) {
-    if (effect.type === "goToScene") {
-      links.add(effect.sceneId);
-    }
-  }
-
-  for (const effect of scene.onExitEffects) {
-    if (effect.type === "goToScene") {
-      links.add(effect.sceneId);
-    }
+  for (const effects of [scene.onEnterEffects, scene.onExitEffects, scene.onMediaEndEffects ?? []]) {
+    visitEffects(effects, (effect) => {
+      if (effect.type === "goToScene") links.add(effect.sceneId);
+    });
   }
 
   return [...links];
@@ -72,6 +63,8 @@ export function validateProject(project: ProjectBundle): ValidationReport {
   validateDuplicateEntityIds(project.scenes.items, "scene", "DUPLICATE_SCENE_ID", issues);
   validateDuplicateEntityIds(project.dialogues.items, "dialogue tree", "DUPLICATE_DIALOGUE_ID", issues);
   validateDuplicateEntityIds(project.inventory.items, "inventory item", "DUPLICATE_INVENTORY_ITEM_ID", issues);
+  validateDuplicateEntityIds(project.manifest.variables, "game variable", "DUPLICATE_VARIABLE_ID", issues);
+  validateGameVariables(project, issues);
   validateDuplicateEntityIds(
     project.scenes.items.flatMap((scene) => scene.hotspots),
     "hotspot",
@@ -291,7 +284,10 @@ function validateScene(
   inventoryIds: Set<string>,
   issues: ValidationIssue[]
 ): void {
+  const onMediaEndEffects = scene.onMediaEndEffects ?? [];
   let backgroundAssetKind: ProjectBundle["assets"]["assets"][number]["kind"] | undefined;
+  let backgroundAsset: ProjectBundle["assets"]["assets"][number] | undefined;
+  let sceneAudioAsset: ProjectBundle["assets"]["assets"][number] | undefined;
   const { backgroundAssetId } = scene;
 
   validateDuplicateReferenceIds(
@@ -338,6 +334,7 @@ function validateScene(
   } else {
     const asset = assetsById.get(backgroundAssetId);
     if (asset) {
+      backgroundAsset = asset;
       backgroundAssetKind = asset.kind;
 
       if (resolveAssetCategory(asset) !== "background") {
@@ -385,6 +382,7 @@ function validateScene(
     } else {
       const asset = assetsById.get(scene.sceneAudioAssetId);
       if (asset) {
+        sceneAudioAsset = asset;
         if (resolveAssetCategory(asset) !== "sceneAudio") {
           issues.push({
             level: "error",
@@ -419,14 +417,91 @@ function validateScene(
       }
     }
 
-    if (backgroundAssetKind !== "image") {
+    if (
+      backgroundAssetKind !== "image" &&
+      !(backgroundAssetKind === "video" && scene.videoAudioMode === "external")
+    ) {
       issues.push({
         level: "error",
-        code: "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND",
-        message: `Scene '${scene.id}' can only use scene audio when its background asset is an image.`,
+        code: "SCENE_AUDIO_MODE_INVALID",
+        message: `Scene '${scene.id}' can only use scene audio with an image background or a video using external audio.`,
         entityId: scene.id
       });
     }
+  }
+
+  if (backgroundAssetKind === "video") {
+    if (scene.videoAudioMode === "external" && !scene.sceneAudioAssetId) {
+      issues.push({
+        level: "error",
+        code: "VIDEO_EXTERNAL_AUDIO_MISSING",
+        message: `Scene '${scene.id}' uses external video audio but has no scene audio asset assigned.`,
+        entityId: scene.id
+      });
+    }
+
+    if (scene.videoAudioMode === "embedded" && backgroundAsset) {
+      for (const locale of supportedLocales) {
+        const variant = resolveAssetVariant(backgroundAsset, locale);
+        if (!variant) {
+          continue;
+        }
+
+        if (variant.hasAudio === false) {
+          issues.push({
+            level: "warning",
+            code: "VIDEO_EMBEDDED_AUDIO_MISSING",
+            message: `Video asset '${backgroundAsset.id}' has no embedded audio stream for scene '${scene.id}'.`,
+            entityId: scene.id,
+            locale
+          });
+        } else if (variant.hasAudio === undefined) {
+          issues.push({
+            level: "warning",
+            code: "VIDEO_EMBEDDED_AUDIO_UNVERIFIED",
+            message: `Video asset '${backgroundAsset.id}' was imported before audio-stream detection and should be re-imported before using embedded audio.`,
+            entityId: scene.id,
+            locale
+          });
+        }
+      }
+    }
+
+    if (scene.videoAudioMode === "external" && backgroundAsset && sceneAudioAsset) {
+      for (const locale of supportedLocales) {
+        const videoVariant = resolveAssetVariant(backgroundAsset, locale);
+        const audioVariant = resolveAssetVariant(sceneAudioAsset, locale);
+        if (
+          videoVariant?.durationMs !== undefined &&
+          audioVariant?.durationMs !== undefined &&
+          Math.abs(videoVariant.durationMs - (Math.max(0, scene.sceneAudioDelayMs) + audioVariant.durationMs)) > 500
+        ) {
+          issues.push({
+            level: "warning",
+            code: "VIDEO_EXTERNAL_AUDIO_DURATION_MISMATCH",
+            message: `Scene '${scene.id}' external audio differs from the video duration by more than 500ms for '${locale}'.`,
+            entityId: scene.id,
+            locale
+          });
+        }
+      }
+    }
+
+    if (scene.backgroundVideoLoop && onMediaEndEffects.length > 0) {
+      issues.push({
+        level: "error",
+        code: "VIDEO_LOOP_MEDIA_END_EFFECTS_INVALID",
+        message: `Scene '${scene.id}' cannot run media-end effects while its background video loops.`,
+        entityId: scene.id
+      });
+    }
+  } else if (onMediaEndEffects.length > 0) {
+    issues.push({
+      level: "error",
+      code: "MEDIA_END_EFFECTS_REQUIRE_VIDEO",
+      message: `Scene '${scene.id}' can only run media-end effects with a video background.`,
+      entityId: scene.id
+    });
   }
 
   for (const hotspot of scene.hotspots) {
@@ -567,6 +642,7 @@ function validateScene(
     }
 
     validateConditionEffectRefs(
+      project,
       hotspot.conditions,
       hotspot.effects,
       issues,
@@ -577,8 +653,9 @@ function validateScene(
     );
   }
 
-  validateConditionEffectRefs([], scene.onEnterEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
-  validateConditionEffectRefs([], scene.onExitEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
+  validateConditionEffectRefs(project, [], scene.onEnterEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
+  validateConditionEffectRefs(project, [], scene.onExitEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
+  validateConditionEffectRefs(project, [], onMediaEndEffects, issues, inventoryIds, sceneIds, dialogueIds, scene.id);
 
 }
 
@@ -617,7 +694,7 @@ function validateHotspotEventReferences(
 
   validateResponseSelection(project, event, `Hotspot ${eventLabel.toLowerCase()} event`, hotspotId, issues);
 
-  validateConditionEffectRefs([], event.effects, issues, inventoryIds, sceneIds, dialogueIds, hotspotId);
+  validateConditionEffectRefs(project, [], event.effects, issues, inventoryIds, sceneIds, dialogueIds, hotspotId);
 }
 
 function validateResponseLibrary(
@@ -733,7 +810,7 @@ function validateResponseSelection(
   }
 
   const startsDialogue = Boolean(
-    event.dialogueTreeId || event.effects.some((effect) => effect.type === "playDialogue")
+    event.dialogueTreeId || effectsContain(event.effects, (effect) => effect.type === "playDialogue")
   );
   if (startsDialogue) {
     issues.push({
@@ -920,7 +997,7 @@ function validateDialogue(
       });
     }
 
-    validateConditionEffectRefs([], node.effects, issues, inventoryIds, sceneIds, dialogueIds, node.id);
+    validateConditionEffectRefs(project, [], node.effects, issues, inventoryIds, sceneIds, dialogueIds, node.id);
 
     for (const choice of node.choices) {
       validateLocalizedTextCoverage(
@@ -953,6 +1030,7 @@ function validateDialogue(
       }
 
       validateConditionEffectRefs(
+        project,
         choice.conditions,
         choice.effects,
         issues,
@@ -1080,15 +1158,48 @@ function validateLocalizedTextCoverage(
 }
 
 function validateConditionEffectRefs(
+  project: ProjectBundle,
   conditions: Condition[],
   effects: Effect[],
   issues: ValidationIssue[],
   inventoryIds: Set<string>,
   sceneIds: Set<string>,
   dialogueIds: Set<string>,
-  entityId: string
+  entityId: string,
+  conditionalDepth = 0
 ): void {
+  const variablesById = new Map(project.manifest.variables.map((variable) => [variable.id, variable]));
   for (const condition of conditions) {
+    if (condition.type === "variableCompare") {
+      const variable = variablesById.get(condition.variableId);
+      if (!variable) {
+        issues.push({
+          level: "error",
+          code: "CONDITION_VARIABLE_MISSING",
+          message: `Condition on '${entityId}' references missing variable '${condition.variableId}'.`,
+          entityId
+        });
+      } else if (!isVariableValueValid(variable, condition.value)) {
+        issues.push({
+          level: "error",
+          code: "CONDITION_VARIABLE_VALUE_INVALID",
+          message: `Condition on '${entityId}' compares variable '${condition.variableId}' with an invalid value.`,
+          entityId
+        });
+      } else if (
+        variable.type !== "integer" &&
+        condition.operator !== "equals" &&
+        condition.operator !== "notEquals"
+      ) {
+        issues.push({
+          level: "error",
+          code: "CONDITION_VARIABLE_OPERATOR_INVALID",
+          message: `Condition on '${entityId}' uses a numeric comparison for non-integer variable '${condition.variableId}'.`,
+          entityId
+        });
+      }
+    }
+
     if (condition.type === "inventoryHas" && !inventoryIds.has(condition.itemId)) {
       issues.push({
         level: "error",
@@ -1108,7 +1219,93 @@ function validateConditionEffectRefs(
     }
   }
 
-  for (const effect of effects) {
+  for (const [effectIndex, effect] of effects.entries()) {
+    if (effect.type === "conditional") {
+      if (conditionalDepth >= 1) {
+        issues.push({
+          level: "error",
+          code: "CONDITIONAL_NESTING_TOO_DEEP",
+          message: `Conditional action on '${entityId}' is nested more than one level deep.`,
+          entityId
+        });
+      }
+      if (effect.conditions.length === 0) {
+        issues.push({
+          level: "error",
+          code: "CONDITIONAL_CONDITION_MISSING",
+          message: `Conditional action on '${entityId}' needs at least one condition.`,
+          entityId
+        });
+      }
+      if (effect.thenEffects.length === 0 && effect.elseEffects.length === 0) {
+        issues.push({
+          level: "error",
+          code: "CONDITIONAL_BRANCHES_EMPTY",
+          message: `Conditional action on '${entityId}' needs an action in Then or Otherwise.`,
+          entityId
+        });
+      }
+      validateConditionEffectRefs(
+        project,
+        effect.conditions,
+        [],
+        issues,
+        inventoryIds,
+        sceneIds,
+        dialogueIds,
+        entityId,
+        conditionalDepth + 1
+      );
+      validateConditionEffectRefs(
+        project,
+        [],
+        effect.thenEffects,
+        issues,
+        inventoryIds,
+        sceneIds,
+        dialogueIds,
+        entityId,
+        conditionalDepth + 1
+      );
+      validateConditionEffectRefs(
+        project,
+        [],
+        effect.elseEffects,
+        issues,
+        inventoryIds,
+        sceneIds,
+        dialogueIds,
+        entityId,
+        conditionalDepth + 1
+      );
+    }
+
+    if (effect.type === "setVariable" || effect.type === "changeVariable") {
+      const variable = variablesById.get(effect.variableId);
+      if (!variable) {
+        issues.push({
+          level: "error",
+          code: "EFFECT_VARIABLE_MISSING",
+          message: `Effect on '${entityId}' references missing variable '${effect.variableId}'.`,
+          entityId
+        });
+      } else if (effect.type === "setVariable" && !isVariableValueValid(variable, effect.value)) {
+        issues.push({
+          level: "error",
+          code: "EFFECT_VARIABLE_VALUE_INVALID",
+          message: `Effect on '${entityId}' assigns an invalid value to variable '${effect.variableId}'.`,
+          entityId
+        });
+      } else if (effect.type === "changeVariable" && variable.type !== "integer") {
+        issues.push({
+          level: "error",
+          code: "EFFECT_VARIABLE_CHANGE_INVALID",
+          message: `Effect on '${entityId}' changes non-integer variable '${effect.variableId}'.`,
+          entityId
+        });
+      }
+    }
+
     if ((effect.type === "addItem" || effect.type === "removeItem") && !inventoryIds.has(effect.itemId)) {
       issues.push({
         level: "error",
@@ -1135,5 +1332,79 @@ function validateConditionEffectRefs(
         entityId
       });
     }
+
+    if (effectCanStartTerminalFlow(effect) && effectIndex < effects.length - 1) {
+      issues.push({
+        level: "warning",
+        code: "EFFECT_TERMINAL_NOT_LAST",
+        message: `Effect on '${entityId}' continues after '${effect.type}'. Move that action last unless the order is intentional.`,
+        entityId
+      });
+    }
   }
+}
+
+function validateGameVariables(project: ProjectBundle, issues: ValidationIssue[]): void {
+  for (const variable of project.manifest.variables) {
+    if (!variable.name.trim()) {
+      issues.push({
+        level: "error",
+        code: "VARIABLE_NAME_MISSING",
+        message: `Variable '${variable.id}' needs an author-facing name.`,
+        entityId: variable.id
+      });
+    }
+    if (variable.type !== "choice") {
+      continue;
+    }
+    if (variable.options.length < 2) {
+      issues.push({
+        level: "error",
+        code: "VARIABLE_CHOICES_TOO_FEW",
+        message: `Variable '${variable.id}' needs at least two choices.`,
+        entityId: variable.id
+      });
+    }
+    const optionIds = new Set<string>();
+    for (const option of variable.options) {
+      if (!option.name.trim()) {
+        issues.push({
+          level: "error",
+          code: "VARIABLE_CHOICE_NAME_MISSING",
+          message: `Choice '${option.id}' on variable '${variable.id}' needs a label.`,
+          entityId: variable.id
+        });
+      }
+      if (optionIds.has(option.id)) {
+        issues.push({
+          level: "error",
+          code: "DUPLICATE_VARIABLE_CHOICE_ID",
+          message: `Variable '${variable.id}' contains duplicate choice '${option.id}'.`,
+          entityId: variable.id
+        });
+      }
+      optionIds.add(option.id);
+    }
+    if (!optionIds.has(variable.initialValue)) {
+      issues.push({
+        level: "error",
+        code: "VARIABLE_INITIAL_CHOICE_MISSING",
+        message: `Variable '${variable.id}' starts with missing choice '${variable.initialValue}'.`,
+        entityId: variable.id
+      });
+    }
+  }
+}
+
+function isVariableValueValid(
+  variable: ProjectBundle["manifest"]["variables"][number],
+  value: boolean | number | string
+): boolean {
+  if (variable.type === "boolean") {
+    return typeof value === "boolean";
+  }
+  if (variable.type === "integer") {
+    return typeof value === "number" && Number.isInteger(value);
+  }
+  return typeof value === "string" && variable.options.some((option) => option.id === value);
 }

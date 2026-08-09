@@ -5,6 +5,7 @@ import {
   resolveHotspotInventoryAction,
   type Condition,
   type Effect,
+  type GameVariableDefinition,
   type Hotspot,
   type HotspotEvent,
   type InventoryItem
@@ -107,10 +108,11 @@ export function resolveHotspotInventoryActivationSummary(
 export function applyHotspotInventoryAction(
   hotspot: Hotspot,
   actionType: HotspotInventoryActionType,
-  itemId: string
+  itemId: string,
+  variables?: GameVariableDefinition[]
 ) {
   const previousAction = resolveHotspotInventoryAction(hotspot);
-  removeHotspotInventoryActionConvention(hotspot, previousAction);
+  removeHotspotInventoryActionConvention(hotspot, previousAction, variables);
 
   if (actionType === "none" || !itemId) {
     delete hotspot.inventoryItemId;
@@ -124,11 +126,12 @@ export function applyHotspotInventoryAction(
     delete hotspot.placedInventoryItemId;
     delete hotspot.placedInventoryGeometry;
     const completionFlag = buildHotspotPickupFlag(hotspot.id);
-    hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+    ensureManagedBooleanVariable(variables, completionFlag, `${hotspot.name} picked up`);
+    hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
     hotspot.effects = [
       ...hotspot.effects,
       { type: "addItem", itemId },
-      { type: "setFlag", flag: completionFlag, value: true }
+      { type: "setVariable", variableId: completionFlag, value: true }
     ];
     return;
   }
@@ -140,27 +143,30 @@ export function applyHotspotInventoryAction(
   delete hotspot.inventoryItemId;
   hotspot.placedInventoryItemId = itemId;
   const completionFlag = buildHotspotPlacementFlag(hotspot.id);
+  ensureManagedBooleanVariable(variables, completionFlag, `${hotspot.name} item placed`);
   hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
-  hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
+  hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
   hotspot.effects = [
     ...hotspot.effects,
     { type: "removeItem", itemId },
-    { type: "setFlag", flag: completionFlag, value: true }
+    { type: "setVariable", variableId: completionFlag, value: true }
   ];
 }
 
 export function applyInventoryLinkToHotspot(
   hotspot: Hotspot,
   item: InventoryItem,
-  strings: Record<string, string>
+  strings: Record<string, string>,
+  variables?: GameVariableDefinition[]
 ) {
-  applyHotspotInventoryAction(hotspot, "pickupItem", item.id);
+  applyHotspotInventoryAction(hotspot, "pickupItem", item.id, variables);
   hotspot.name = strings[item.textId] ?? item.name ?? hotspot.name;
 }
 
 function removeHotspotInventoryActionConvention(
   hotspot: Hotspot,
-  action: ReturnType<typeof resolveHotspotInventoryAction>
+  action: ReturnType<typeof resolveHotspotInventoryAction>,
+  variables?: GameVariableDefinition[]
 ) {
   const actionType = action.type;
   if (actionType === "none") {
@@ -176,6 +182,10 @@ function removeHotspotInventoryActionConvention(
   hotspot.conditions = hotspot.conditions.filter(
     (condition) => !isHotspotInventoryActionCondition(condition, actionFlag)
   );
+  if (variables && actionFlag) {
+    const variableIndex = variables.findIndex((variable) => variable.id === actionFlag && variable.system);
+    if (variableIndex >= 0) variables.splice(variableIndex, 1);
+  }
 
   if (actionType === "placeItem" && actionItemId) {
     hotspot.requiredItemIds = hotspot.requiredItemIds.filter((itemId) => itemId !== actionItemId);
@@ -188,8 +198,8 @@ function isHotspotInventoryActionEffect(
   itemId?: string,
   completionFlag?: string
 ): boolean {
-  if (effect.type === "setFlag") {
-    return Boolean(completionFlag && effect.flag === completionFlag);
+  if (effect.type === "setVariable") {
+    return Boolean(completionFlag && effect.variableId === completionFlag);
   }
 
   if (actionType === "pickupItem") {
@@ -200,5 +210,16 @@ function isHotspotInventoryActionEffect(
 }
 
 function isHotspotInventoryActionCondition(condition: Condition, completionFlag?: string): boolean {
-  return Boolean(completionFlag && condition.type === "flagEquals" && condition.flag === completionFlag);
+  return Boolean(completionFlag && condition.type === "variableCompare" && condition.variableId === completionFlag);
+}
+
+function ensureManagedBooleanVariable(
+  variables: GameVariableDefinition[] | undefined,
+  id: string,
+  name: string
+): void {
+  if (!variables || variables.some((variable) => variable.id === id)) {
+    return;
+  }
+  variables.push({ id, name, description: "", type: "boolean", initialValue: false, system: true });
 }

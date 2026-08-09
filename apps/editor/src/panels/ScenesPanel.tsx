@@ -16,11 +16,8 @@ import { resolveSceneTimelineDurationMs } from "@mage2/player";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
   FOREGROUND_MEDIA_IMPORT_EXTENSIONS,
-  IMAGE_IMPORT_EXTENSIONS,
   SCENE_AUDIO_IMPORT_EXTENSIONS,
   isBackgroundImportPath,
-  isImageImportPath,
-  isVideoImportPath,
   isSceneAudioImportPath
 } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
@@ -71,9 +68,7 @@ import {
 } from "./scenes/inventory-placement-domain";
 import {
   SCENE_AUDIO_DROP_REJECTION_MESSAGE,
-  VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE,
   applySceneBackgroundAsset,
-  canAssignSceneBackgroundAsset,
   resolveDeleteSceneBlockedMessage,
   resolveDeleteSceneStatusMessage,
   resolveSceneAudioDropAcceptance,
@@ -165,13 +160,14 @@ export function ScenesPanel({
     sceneAudioVariant: currentSceneAudioVariant,
     setPlayheadMs
   });
-  const sceneSupportsAudio = currentAsset?.kind === "image";
-  const hasSceneAudioAssigned = Boolean(currentScene?.sceneAudioAssetId);
-  const backgroundImportAcceptsVideo = !hasSceneAudioAssigned;
+  const sceneSupportsAudio =
+    currentAsset?.kind === "image" ||
+    (currentAsset?.kind === "video" && currentScene?.videoAudioMode === "external");
+  const backgroundImportAcceptsVideo = true;
   const sceneTimelineDurationMs = resolveSceneTimelineDurationMs(
     currentAssetVariant?.durationMs,
-    sceneSupportsAudio ? currentScene?.sceneAudioDelayMs ?? 0 : 0,
-    sceneSupportsAudio ? currentSceneAudioVariant?.durationMs : undefined
+    currentAsset?.kind === "image" ? currentScene?.sceneAudioDelayMs ?? 0 : 0,
+    currentAsset?.kind === "image" ? currentSceneAudioVariant?.durationMs : undefined
   );
   const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
   const localeStrings = getLocaleStringValues(project, activeLocale);
@@ -319,11 +315,6 @@ export function ScenesPanel({
       return;
     }
 
-    if (currentScene.sceneAudioAssetId && isVideoImportPath(filePath)) {
-      reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
-      return;
-    }
-
     try {
       const projectDir = useEditorStore.getState().projectDir;
       if (!projectDir) {
@@ -343,15 +334,15 @@ export function ScenesPanel({
           ? project.assets.assets.find((entry) => entry.id === duplicateAssets[0]!.assetId)
           : undefined;
         if (duplicateAsset) {
-          if (!canAssignSceneBackgroundAsset(currentScene, duplicateAsset.kind)) {
-            reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
-            return;
-          }
-
           mutateProject((draft) => {
             const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
             if (scene) {
-              applySceneBackgroundAsset(scene, duplicateAsset.id, duplicateAsset.kind);
+              applySceneBackgroundAsset(
+                scene,
+                duplicateAsset.id,
+                duplicateAsset.kind,
+                getLocalizedAssetVariant(duplicateAsset, activeLocale)?.hasAudio
+              );
             }
           });
           useEditorStore.getState().setSelectedAssetId(duplicateAsset.id);
@@ -377,17 +368,17 @@ export function ScenesPanel({
       }
 
       const importedAsset = importedAssets[0]!;
-      if (!canAssignSceneBackgroundAsset(currentScene, importedAsset.kind)) {
-        reportSceneOperation(t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE), "error");
-        return;
-      }
-
       mutateProject((draft) => {
         addAssetRoots(draft, [importedAsset]);
         draft.assets.assets.push(importedAsset);
         const scene = draft.scenes.items.find((entry) => entry.id === currentScene.id);
         if (scene) {
-          applySceneBackgroundAsset(scene, importedAsset.id, importedAsset.kind);
+          applySceneBackgroundAsset(
+            scene,
+            importedAsset.id,
+            importedAsset.kind,
+            getLocalizedAssetVariant(importedAsset, activeLocale)?.hasAudio
+          );
         }
       });
       useEditorStore.getState().setSelectedAssetId(importedAsset.id);
@@ -415,12 +406,10 @@ export function ScenesPanel({
       title: currentAsset
         ? t("Replace Background for {sceneName}", { sceneName: currentScene.name })
         : t("Upload Background for {sceneName}", { sceneName: currentScene.name }),
-      description: backgroundImportAcceptsVideo
-        ? t("Choose an image or video file to create a background asset and assign it to this scene.")
-        : t("Choose an image file to create a background asset and assign it to this scene."),
+      description: t("Choose an image or video file to create a background asset and assign it to this scene."),
       initialPath: useEditorStore.getState().projectDir,
       confirmLabel: currentAsset ? t("Use as Background") : t("Upload Background"),
-      allowedExtensions: [...(backgroundImportAcceptsVideo ? BACKGROUND_IMPORT_EXTENSIONS : IMAGE_IMPORT_EXTENSIONS)]
+      allowedExtensions: [...BACKGROUND_IMPORT_EXTENSIONS]
     });
     const filePath = filePaths[0];
     if (!filePath) {
@@ -436,7 +425,7 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
+      reportSceneOperation(t("Choose External track before assigning separate audio to a video scene."), "error");
       return;
     }
 
@@ -520,7 +509,7 @@ export function ScenesPanel({
     }
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
+      reportSceneOperation(t("Choose External track before assigning separate audio to a video scene."), "error");
       return;
     }
 
@@ -707,16 +696,10 @@ export function ScenesPanel({
     const droppedFilePaths = Array.from(event.dataTransfer.files)
       .map((file) => window.editorApi.getPathForDroppedFile(file))
       .filter((filePath) => filePath.trim().length > 0);
-    const filePath = droppedFilePaths.find(backgroundImportAcceptsVideo ? isBackgroundImportPath : isImageImportPath);
+    const filePath = droppedFilePaths.find(isBackgroundImportPath);
 
     if (!filePath) {
-      const message =
-        !backgroundImportAcceptsVideo && droppedFilePaths.some(isVideoImportPath)
-          ? t(VIDEO_BACKGROUND_BLOCKED_BY_SCENE_AUDIO_MESSAGE)
-          : backgroundImportAcceptsVideo
-            ? t("Drop an image or video file onto the scene preview to replace the background.")
-            : t("Drop an image file onto the scene preview to replace the background.");
-      reportSceneOperation(message, "error");
+      reportSceneOperation(t("Drop an image or video file onto the scene preview to replace the background."), "error");
       return;
     }
 
@@ -844,7 +827,7 @@ export function ScenesPanel({
     setIsSceneAudioDropActive(false);
 
     if (!sceneSupportsAudio) {
-      reportSceneOperation(t("Scene audio is only available when the scene uses an image background."), "error");
+      reportSceneOperation(t("Choose External track before assigning separate audio to a video scene."), "error");
       return;
     }
 
@@ -1023,7 +1006,7 @@ export function ScenesPanel({
         return;
       }
 
-      applyInventoryLinkToHotspot(hotspot, item, localeStrings);
+      applyInventoryLinkToHotspot(hotspot, item, localeStrings, draft.manifest.variables);
       const droppedBounds =
         position?.surfaceWidth && position.surfaceHeight && position.previewWidthPx && position.previewHeightPx
           ? resolveDroppedInventoryHotspotBounds({
@@ -1464,8 +1447,8 @@ export function ScenesPanel({
                 activeLocale={activeLocale}
                 availableBackgroundAssets={availableBackgroundAssets}
                 availableSceneAudioAssets={availableSceneAudioAssets}
-                backgroundImportAcceptsVideo={backgroundImportAcceptsVideo}
                 currentAsset={currentAsset}
+                currentAssetHasAudio={currentAssetVariant?.hasAudio}
                 currentSceneAudioAsset={currentSceneAudioAsset}
                 isSceneAudioDropActive={isSceneAudioDropActive}
                 mutateProject={mutateProject}
@@ -1486,7 +1469,12 @@ export function ScenesPanel({
                 setPlayheadMs={setPlayheadMs}
               />
 
-              <SceneWiringSection scene={currentScene} mutateProject={mutateProject} />
+              <SceneWiringSection
+                project={project}
+                scene={currentScene}
+                isVideoScene={currentAsset?.kind === "video"}
+                mutateProject={mutateProject}
+              />
 
             </div>
           </div>
@@ -1553,6 +1541,7 @@ export function ScenesPanel({
           responseGroups={project.dialogues.responseGroups}
           assets={project.assets.assets}
           localeStrings={localeStrings}
+          project={project}
           inventoryItemOptions={linkedInventoryOptions}
           sceneTimelineDurationMs={sceneTimelineDurationMs}
           scenes={project.scenes.items}

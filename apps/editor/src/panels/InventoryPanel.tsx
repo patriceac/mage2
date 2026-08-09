@@ -6,7 +6,8 @@ import {
   type Effect,
   type Hotspot,
   type InventoryItem,
-  type ProjectBundle
+  type ProjectBundle,
+  visitEffects
 } from "@mage2/schema";
 import { INVENTORY_IMAGE_EXTENSIONS, isInventoryImageImportPath } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
@@ -1000,7 +1001,11 @@ function countInventoryConditions(conditions: Condition[], itemId: string): numb
 }
 
 function countInventoryEffects(effects: Effect[], itemId: string): number {
-  return effects.filter((effect) => (effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId).length;
+  let count = 0;
+  visitEffects(effects, (effect) => {
+    if ((effect.type === "addItem" || effect.type === "removeItem") && effect.itemId === itemId) count += 1;
+  });
+  return count;
 }
 
 function hasInventoryEffect(effects: Effect[], type: "addItem" | "removeItem", itemId: string): boolean {

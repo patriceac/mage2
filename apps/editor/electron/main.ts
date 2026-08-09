@@ -18,7 +18,15 @@ import {
   importAssetsToProject,
   importAssetVariantToProject
 } from "@mage2/media";
-import { parseProjectBundle, validateProject, type Asset, type AssetCategory, type ProjectBundle } from "@mage2/schema";
+import {
+  assessSaveCompatibility,
+  parseProjectBundle,
+  validateProject,
+  type Asset,
+  type AssetCategory,
+  type ProjectBundle,
+  type SaveCompatibilityAssessment
+} from "@mage2/schema";
 import appMetadata from "../app-metadata.json";
 import { exportProjectBundle } from "./exporter";
 import {
@@ -33,7 +41,9 @@ import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } fr
 import {
   createProjectInDirectory,
   inspectProjectDirectory,
+  loadProjectSaveCompatibilityBaseline,
   loadProjectFromDirectory,
+  recordProjectSaveCompatibilityBaseline,
   saveProjectToDirectory
 } from "./project-io";
 import { parseEditorLaunchOptions, resolveEditorLaunchArguments } from "./launch-options";
@@ -358,6 +368,17 @@ function registerIpcHandlers(): void {
     };
   });
 
+  handleTrustedIpc("mage2:inspect-save-compatibility", async (
+    _event,
+    projectDir: string,
+    project: ProjectBundle
+  ) => {
+    const grantedProjectDir = await filesystemCapabilities.assertProjectRoot(projectDir);
+    const normalized = parseProjectBundle(project);
+    await filesystemCapabilities.assertProjectBundlePaths(grantedProjectDir, normalized);
+    return inspectProjectSaveCompatibility(grantedProjectDir, normalized);
+  });
+
   handleTrustedIpc(
     "mage2:import-assets",
     async (
@@ -429,6 +450,11 @@ function registerIpcHandlers(): void {
     }
 
     const parsedRequest = parseRuntimeExportRequest(request);
+    if (parsedRequest.mode === "release") {
+      assertReleaseSaveCompatibility(
+        await inspectProjectSaveCompatibility(grantedProjectDir, normalized)
+      );
+    }
     const destinationPath = parsedRequest.destinationPath
       ? resolveAutomationExportDestination(parsedRequest.destinationPath)
       : await chooseRuntimeExportDestination(
@@ -451,12 +477,68 @@ function registerIpcHandlers(): void {
         }
       }
     });
-    return { canceled: false as const, ...result };
+    let saveCompatibilityBaselineWarning: string | undefined;
+    if (parsedRequest.mode === "release") {
+      try {
+        await recordProjectSaveCompatibilityBaseline(
+          grantedProjectDir,
+          normalized,
+          result.buildManifest.generatedAt
+        );
+      } catch (error) {
+        saveCompatibilityBaselineWarning = error instanceof Error ? error.message : String(error);
+      }
+    }
+    return {
+      canceled: false as const,
+      ...result,
+      saveCompatibilityBaselineRecorded:
+        parsedRequest.mode === "release" ? saveCompatibilityBaselineWarning === undefined : undefined,
+      saveCompatibilityBaselineWarning
+    };
   });
 
   handleTrustedIpc("mage2:path-to-file-url", async (_event, inputPath: string) => {
     return filesystemCapabilities.createMediaUrl(inputPath);
   });
+}
+
+async function inspectProjectSaveCompatibility(
+  projectDir: string,
+  project: ProjectBundle
+): Promise<SaveCompatibilityAssessment> {
+  const baseline = await loadProjectSaveCompatibilityBaseline(
+    projectDir,
+    project.manifest.projectId
+  );
+  return assessSaveCompatibility(baseline, project);
+}
+
+function assertReleaseSaveCompatibility(assessment: SaveCompatibilityAssessment): void {
+  if (!assessment.blocksRelease) {
+    return;
+  }
+
+  if (assessment.status === "generation-regressed") {
+    throw new Error(
+      `Release build blocked because save compatibility generation ${assessment.currentSaveCompatibilityVersion} ` +
+        `is older than the last released generation ${assessment.baselineSaveCompatibilityVersion}. ` +
+        `Start generation ${assessment.nextSaveCompatibilityVersion} before releasing.`
+    );
+  }
+
+  const issuePreview = assessment.issues
+    .slice(0, 5)
+    .map((issue) => `${issue.code}:${issue.entityId}`)
+    .join(", ");
+  const remaining = assessment.issues.length > 5
+    ? `, plus ${assessment.issues.length - 5} more`
+    : "";
+  throw new Error(
+    `Release build blocked because generation ${assessment.currentSaveCompatibilityVersion} changes saved IDs ` +
+      `from the last successful release (${issuePreview}${remaining}). ` +
+      `Start generation ${assessment.nextSaveCompatibilityVersion} before releasing.`
+  );
 }
 
 function parseRuntimeExportRequest(input: RuntimeExportRequest): RuntimeExportRequest {

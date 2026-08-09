@@ -14,6 +14,8 @@ export interface ProbeResult {
   width?: number;
   height?: number;
   codec?: string;
+  hasAudio?: boolean;
+  audioCodec?: string;
 }
 
 export interface DeleteManagedAssetFilesResult {
@@ -102,7 +104,9 @@ export async function probeAsset(filePath: string): Promise<ProbeResult> {
     durationMs: parsed.format?.duration ? Math.round(Number(parsed.format.duration) * 1000) : undefined,
     width: videoStream?.width,
     height: videoStream?.height,
-    codec: videoStream?.codec_name ?? audioStream?.codec_name
+    codec: videoStream?.codec_name ?? audioStream?.codec_name,
+    hasAudio: Boolean(audioStream),
+    audioCodec: audioStream?.codec_name
   };
 }
 
@@ -484,6 +488,8 @@ async function createImportedAssetVariantRecord(
     width: probe.width,
     height: probe.height,
     codec: probe.codec,
+    hasAudio: probe.hasAudio,
+    audioCodec: probe.audioCodec,
     importedAt: metadata.birthtime.toISOString()
   };
 }

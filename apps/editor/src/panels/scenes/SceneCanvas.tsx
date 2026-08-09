@@ -270,6 +270,7 @@ export function SceneCanvas({
             className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
             locale={activeLocale}
             loopVideo={scene.backgroundVideoLoop}
+            videoMuted={scene.videoAudioMode !== "embedded"}
             hotspots={hotspots}
             hotspotVisuals={hotspotVisuals}
             onSurfaceDragEnter={onInventoryPlacementDragEnter}

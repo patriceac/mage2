@@ -17,7 +17,9 @@ import {
   __projectIoTestHooks,
   createProjectInDirectory,
   inspectProjectDirectory,
+  loadProjectSaveCompatibilityBaseline,
   loadProjectFromDirectory,
+  recordProjectSaveCompatibilityBaseline,
   saveProjectToDirectory
 } from "./project-io";
 
@@ -176,6 +178,38 @@ describe("starter project creation", () => {
     expect(await readFile(path.join(projectDir, relativeAssetPath), "utf8")).toBe(
       concurrentContents
     );
+  });
+});
+
+describe("release save-compatibility baseline", () => {
+  it("records the last successful release snapshot without becoming an authored project file", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-save-baseline-"));
+    tempDirs.push(projectDir);
+    const project = await createProjectInDirectory(projectDir, "Save baseline");
+
+    expect(
+      await loadProjectSaveCompatibilityBaseline(projectDir, project.manifest.projectId)
+    ).toBeUndefined();
+
+    const first = await recordProjectSaveCompatibilityBaseline(
+      projectDir,
+      project,
+      "2026-08-08T12:00:00.000Z"
+    );
+    expect(await loadProjectSaveCompatibilityBaseline(projectDir, project.manifest.projectId)).toEqual(first);
+
+    project.manifest.saveCompatibilityVersion = 2;
+    project.scenes.items = [];
+    const second = await recordProjectSaveCompatibilityBaseline(
+      projectDir,
+      project,
+      "2026-08-08T13:00:00.000Z"
+    );
+    await saveProjectToDirectory(projectDir, project);
+
+    expect(await loadProjectSaveCompatibilityBaseline(projectDir, project.manifest.projectId)).toEqual(second);
+    expect(await loadProjectSaveCompatibilityBaseline(projectDir, "project_other")).toBeUndefined();
+    expect(projectFileNames).not.toContain("save-compatibility-baseline.json");
   });
 });
 

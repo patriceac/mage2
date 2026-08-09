@@ -41,9 +41,13 @@ describe("release readiness", () => {
   it("does not mistake requirements, conditions, or empty event shells for player-facing behavior", () => {
     const project = createReleaseReadyProject();
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    project.manifest.variables.push(
+      { id: "door.open", name: "Door open", description: "", type: "boolean", initialValue: false, system: false },
+      { id: "door.checked", name: "Door checked", description: "", type: "boolean", initialValue: false, system: false }
+    );
     hotspot.effects = [];
     hotspot.requiredItemIds = ["item_key"];
-    hotspot.conditions = [{ type: "flagEquals", flag: "door.open", value: false }];
+    hotspot.conditions = [{ type: "variableCompare", variableId: "door.open", operator: "equals", value: false }];
     hotspot.clickEvent = { effects: [] };
 
     expect(hasPlayerFacingHotspotBehavior(hotspot)).toBe(false);
@@ -51,7 +55,7 @@ describe("release readiness", () => {
       expect.arrayContaining([expect.objectContaining({ code: "STARTER_HOTSPOT_UNWIRED", level: "error" })])
     );
 
-    hotspot.clickEvent.effects = [{ type: "setFlag", flag: "door.checked", value: true }];
+    hotspot.clickEvent.effects = [{ type: "setVariable", variableId: "door.checked", value: true }];
     expect(hasPlayerFacingHotspotBehavior(hotspot)).toBe(true);
     expect(validateProjectReleaseReadiness(project).issues.map((issue) => issue.code)).not.toContain(
       "STARTER_HOTSPOT_UNWIRED"
@@ -138,7 +142,8 @@ function createReleaseReadyProject(): ProjectBundle {
     createImageAsset("asset_starter_icon", "player", "icon.png")
   ];
   project.scenes.items[0]!.backgroundAssetId = "asset_creator_scene";
-  project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setFlag", flag: "opening.checked", value: true }];
+  project.manifest.variables.push({ id: "opening.checked", name: "Opening checked", description: "", type: "boolean", initialValue: false, system: false });
+  project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setVariable", variableId: "opening.checked", value: true }];
   return project;
 }
 

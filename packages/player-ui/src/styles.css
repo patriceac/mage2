@@ -903,6 +903,28 @@
   }
 }
 
+.mage2-player__media-recovery {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(4, 9, 14, 0.42);
+}
+
+.mage2-player__media-recovery button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(8, 15, 22, 0.9);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .mage2-experience {
   --mage2-experience-accent: #e0b56a;
   --mage2-experience-text-scale: 1;

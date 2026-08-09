@@ -1,53 +1,128 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 15;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
 export const AssetKindSchema = z.enum(["video", "image", "audio"]);
 export const AssetCategorySchema = z.enum(["background", "inventory", "sceneAudio", "foreground", "response", "player"]);
+export const VideoAudioModeSchema = z.enum(["embedded", "external", "silent"]);
 export const LocationIconSchema = z.enum(["mapPin", "settlement", "forest", "castle", "mine", "coast", "crystal", "mountain"]);
+
+export const GameVariableValueSchema = z.union([z.boolean(), z.number().int(), z.string()]);
+export const GameVariableChoiceOptionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1)
+});
+export const GameVariableDefinitionSchema = z.discriminatedUnion("type", [
+  z.object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    type: z.literal("boolean"),
+    initialValue: z.boolean().default(false),
+    system: z.boolean().default(false)
+  }),
+  z.object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    type: z.literal("integer"),
+    initialValue: z.number().int().default(0),
+    system: z.boolean().default(false)
+  }),
+  z.object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    type: z.literal("choice"),
+    options: z.array(GameVariableChoiceOptionSchema).min(2),
+    initialValue: z.string().min(1),
+    system: z.boolean().default(false)
+  })
+]);
+export const VariableComparisonOperatorSchema = z.enum([
+  "equals",
+  "notEquals",
+  "greaterThan",
+  "greaterThanOrEqual",
+  "lessThan",
+  "lessThanOrEqual"
+]);
+export const ConditionMatchModeSchema = z.enum(["all", "any"]);
 
 export const ConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("always") }),
   z.object({
-    type: z.literal("flagEquals"),
-    flag: z.string().min(1),
-    value: z.boolean()
+    type: z.literal("variableCompare"),
+    variableId: z.string().min(1),
+    operator: VariableComparisonOperatorSchema.default("equals"),
+    value: GameVariableValueSchema
   }),
   z.object({
     type: z.literal("inventoryHas"),
-    itemId: z.string().min(1)
+    itemId: z.string().min(1),
+    present: z.boolean().optional()
   }),
   z.object({
     type: z.literal("sceneVisited"),
-    sceneId: z.string().min(1)
+    sceneId: z.string().min(1),
+    visited: z.boolean().optional()
   })
 ]);
 
-export const EffectSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("setFlag"),
-    flag: z.string().min(1),
-    value: z.boolean()
-  }),
-  z.object({
-    type: z.literal("addItem"),
-    itemId: z.string().min(1)
-  }),
-  z.object({
-    type: z.literal("removeItem"),
-    itemId: z.string().min(1)
-  }),
-  z.object({
-    type: z.literal("goToScene"),
-    sceneId: z.string().min(1)
-  }),
-  z.object({
-    type: z.literal("playDialogue"),
-    dialogueTreeId: z.string().min(1)
-  })
-]);
+export type Effect =
+  | { type: "setVariable"; variableId: string; value: GameVariableValue }
+  | { type: "changeVariable"; variableId: string; delta: number }
+  | { type: "addItem"; itemId: string }
+  | { type: "removeItem"; itemId: string }
+  | { type: "goToScene"; sceneId: string }
+  | { type: "playDialogue"; dialogueTreeId: string }
+  | {
+      type: "conditional";
+      conditionMode: ConditionMatchMode;
+      conditions: Condition[];
+      thenEffects: Effect[];
+      elseEffects: Effect[];
+    };
+
+export const EffectSchema: z.ZodType<Effect, unknown> = z.lazy(() =>
+  z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("setVariable"),
+      variableId: z.string().min(1),
+      value: GameVariableValueSchema
+    }),
+    z.object({
+      type: z.literal("changeVariable"),
+      variableId: z.string().min(1),
+      delta: z.number().int()
+    }),
+    z.object({
+      type: z.literal("addItem"),
+      itemId: z.string().min(1)
+    }),
+    z.object({
+      type: z.literal("removeItem"),
+      itemId: z.string().min(1)
+    }),
+    z.object({
+      type: z.literal("goToScene"),
+      sceneId: z.string().min(1)
+    }),
+    z.object({
+      type: z.literal("playDialogue"),
+      dialogueTreeId: z.string().min(1)
+    }),
+    z.object({
+      type: z.literal("conditional"),
+      conditionMode: ConditionMatchModeSchema.default("all"),
+      conditions: z.array(ConditionSchema).default([]),
+      thenEffects: z.array(EffectSchema).default([]),
+      elseEffects: z.array(EffectSchema).default([])
+    })
+  ])
+);
 
 export const ResponseSelectionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -107,6 +182,7 @@ export const HotspotSchema = z.object({
   clickEvent: HotspotEventSchema.optional(),
   otherItemEvent: HotspotEventSchema.optional(),
   requiredItemIds: z.array(z.string()).default([]),
+  conditionMode: ConditionMatchModeSchema.optional(),
   conditions: z.array(ConditionSchema).default([]),
   placedInventoryGeometry: PlacedInventoryGeometrySchema.optional(),
   effects: z.array(EffectSchema).default([])
@@ -121,10 +197,12 @@ export const SceneSchema = z.object({
   sceneAudioLoop: z.boolean().default(true),
   sceneAudioDelayMs: z.number().nonnegative().default(0),
   backgroundVideoLoop: z.boolean().default(false),
+  videoAudioMode: VideoAudioModeSchema.default("silent"),
   hotspots: z.array(HotspotSchema).default([]),
   dialogueTreeIds: z.array(z.string()).default([]),
   onEnterEffects: z.array(EffectSchema).default([]),
-  onExitEffects: z.array(EffectSchema).default([])
+  onExitEffects: z.array(EffectSchema).default([]),
+  onMediaEndEffects: z.array(EffectSchema).default([])
 });
 
 export const LocationSchema = z.object({
@@ -141,6 +219,7 @@ export const DialogueChoiceSchema = z.object({
   id: z.string().min(1),
   textId: z.string().min(1),
   nextNodeId: z.string().optional(),
+  conditionMode: ConditionMatchModeSchema.optional(),
   conditions: z.array(ConditionSchema).default([]),
   effects: z.array(EffectSchema).default([])
 });
@@ -204,6 +283,8 @@ export const AssetVariantSchema = z.object({
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),
   codec: z.string().optional(),
+  hasAudio: z.boolean().optional(),
+  audioCodec: z.string().optional(),
   importedAt: z.string().min(1)
 });
 
@@ -267,6 +348,7 @@ export const ProjectManifestSchema = z.object({
   engineVersion: z.string().min(1),
   gameVersion: z.string().min(1).default("1.0.0"),
   saveCompatibilityVersion: z.number().int().positive().default(1),
+  variables: z.array(GameVariableDefinitionSchema).default([]),
   assetRoots: z.array(z.string()).default([]),
   startLocationId: z.string().min(1),
   startSceneId: z.string().min(1),
@@ -279,6 +361,7 @@ export const SaveStateSchema = z.object({
   currentSceneId: z.string().min(1),
   inventory: z.array(z.string()).default([]),
   flags: z.record(z.string(), z.boolean()).default({}),
+  variables: z.record(z.string(), GameVariableValueSchema).default({}),
   visitedSceneIds: z.array(z.string()).default([]),
   activeDialogueTreeId: z.string().optional(),
   activeDialogueNodeId: z.string().optional(),
@@ -360,9 +443,14 @@ export const ProjectBundleSchema = z.object({
 
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 export type AssetCategory = z.infer<typeof AssetCategorySchema>;
+export type VideoAudioMode = z.infer<typeof VideoAudioModeSchema>;
 export type LocationIcon = z.infer<typeof LocationIconSchema>;
+export type GameVariableValue = z.infer<typeof GameVariableValueSchema>;
+export type GameVariableChoiceOption = z.infer<typeof GameVariableChoiceOptionSchema>;
+export type GameVariableDefinition = z.infer<typeof GameVariableDefinitionSchema>;
+export type VariableComparisonOperator = z.infer<typeof VariableComparisonOperatorSchema>;
+export type ConditionMatchMode = z.infer<typeof ConditionMatchModeSchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
-export type Effect = z.infer<typeof EffectSchema>;
 export type ResponseSelection = z.infer<typeof ResponseSelectionSchema>;
 export type HotspotPoint = z.infer<typeof HotspotPointSchema>;
 export type HotspotTimingMode = z.infer<typeof HotspotTimingModeSchema>;

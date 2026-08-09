@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./built-in-locales";
+export * from "./effects";
 export * from "./hotspot-actions";
 export * from "./hotspots";
 export * from "./hotspot-hit-testing";
@@ -9,5 +10,6 @@ export * from "./release-readiness";
 export * from "./migrations";
 export * from "./project";
 export * from "./responses";
+export * from "./save-compatibility";
 export * from "./saves";
 export * from "./validation";

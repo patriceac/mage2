@@ -47,7 +47,10 @@ export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
   { fromVersion: 8, toVersion: 9, migrate: migrateV8ToV9 },
   { fromVersion: 9, toVersion: 10, migrate: migrateV9ToV10 },
   { fromVersion: 10, toVersion: 11, migrate: migrateV10ToV11 },
-  { fromVersion: 11, toVersion: 12, migrate: migrateV11ToV12 }
+  { fromVersion: 11, toVersion: 12, migrate: migrateV11ToV12 },
+  { fromVersion: 12, toVersion: 13, migrate: migrateV12ToV13 },
+  { fromVersion: 13, toVersion: 14, migrate: migrateV13ToV14 },
+  { fromVersion: 14, toVersion: 15, migrate: migrateV14ToV15 }
 ];
 
 /** Returns the ordered transformations required to reach the current format. */
@@ -269,6 +272,190 @@ function migrateV11ToV12(bundle: UnknownRecord): UnknownRecord {
         : { titleScreenEnabled: false }
     }
   });
+}
+
+function migrateV12ToV13(bundle: UnknownRecord): UnknownRecord {
+  const scenes = requireRecord(bundle.scenes, "Project scenes must be an object.");
+  const migratedScenes = {
+    ...scenes,
+    items: (Array.isArray(scenes.items) ? scenes.items : []).map((scene) =>
+      isRecord(scene)
+        ? {
+            ...scene,
+            // Video backgrounds were always muted before schema 13. Preserve
+            // that silent behavior until the creator explicitly chooses a mode.
+            videoAudioMode:
+              scene.videoAudioMode === "embedded" ||
+              scene.videoAudioMode === "external" ||
+              scene.videoAudioMode === "silent"
+                ? scene.videoAudioMode
+                : "silent",
+            onMediaEndEffects: Array.isArray(scene.onMediaEndEffects) ? scene.onMediaEndEffects : []
+          }
+        : scene
+    )
+  };
+
+  return withSchemaVersion(bundle, 13, { scenes: migratedScenes });
+}
+
+function migrateV13ToV14(bundle: UnknownRecord): UnknownRecord {
+  const manifest = requireRecord(bundle.manifest, "Project manifest must be an object.");
+  const scenes = requireRecord(bundle.scenes, "Project scenes must be an object.");
+  const dialogues = requireRecord(bundle.dialogues, "Project dialogues must be an object.");
+  const referencedFlagIds = new Set<string>();
+
+  const migrateConditions = (value: unknown): unknown[] =>
+    (Array.isArray(value) ? value : []).map((condition) => migrateLegacyCondition(condition, referencedFlagIds));
+  const migrateEffects = (value: unknown): unknown[] =>
+    (Array.isArray(value) ? value : []).map((effect) => migrateLegacyEffect(effect, referencedFlagIds));
+  const migrateHotspotEvent = (value: unknown): unknown => {
+    if (!isRecord(value)) {
+      return value;
+    }
+    return { ...value, effects: migrateEffects(value.effects) };
+  };
+
+  const migratedScenes = {
+    ...scenes,
+    items: (Array.isArray(scenes.items) ? scenes.items : []).map((scene) => {
+      if (!isRecord(scene)) {
+        return scene;
+      }
+      return {
+        ...scene,
+        onEnterEffects: migrateEffects(scene.onEnterEffects),
+        onExitEffects: migrateEffects(scene.onExitEffects),
+        onMediaEndEffects: migrateEffects(scene.onMediaEndEffects),
+        hotspots: (Array.isArray(scene.hotspots) ? scene.hotspots : []).map((hotspot) => {
+          if (!isRecord(hotspot)) {
+            return hotspot;
+          }
+          return {
+            ...hotspot,
+            conditionMode: hotspot.conditionMode === "any" ? "any" : "all",
+            conditions: migrateConditions(hotspot.conditions),
+            effects: migrateEffects(hotspot.effects),
+            ...(hotspot.clickEvent === undefined ? {} : { clickEvent: migrateHotspotEvent(hotspot.clickEvent) }),
+            ...(hotspot.otherItemEvent === undefined ? {} : { otherItemEvent: migrateHotspotEvent(hotspot.otherItemEvent) })
+          };
+        })
+      };
+    })
+  };
+
+  const migratedDialogues = {
+    ...dialogues,
+    items: (Array.isArray(dialogues.items) ? dialogues.items : []).map((dialogue) => {
+      if (!isRecord(dialogue)) {
+        return dialogue;
+      }
+      return {
+        ...dialogue,
+        nodes: (Array.isArray(dialogue.nodes) ? dialogue.nodes : []).map((node) => {
+          if (!isRecord(node)) {
+            return node;
+          }
+          return {
+            ...node,
+            effects: migrateEffects(node.effects),
+            choices: (Array.isArray(node.choices) ? node.choices : []).map((choice) => {
+              if (!isRecord(choice)) {
+                return choice;
+              }
+              return {
+                ...choice,
+                conditionMode: choice.conditionMode === "any" ? "any" : "all",
+                conditions: migrateConditions(choice.conditions),
+                effects: migrateEffects(choice.effects)
+              };
+            })
+          };
+        })
+      };
+    })
+  };
+
+  const existingVariables = Array.isArray(manifest.variables) ? manifest.variables : [];
+  const existingVariableIds = new Set(
+    existingVariables
+      .filter(isRecord)
+      .map((variable) => variable.id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+  );
+  const inferredVariables = [...referencedFlagIds]
+    .filter((id) => !existingVariableIds.has(id))
+    .sort((left, right) => left.localeCompare(right, "en"))
+    .map((id) => ({
+      id,
+      name: humanizeVariableId(id),
+      description: "",
+      type: "boolean",
+      initialValue: false,
+      system: id.startsWith("hotspot.")
+    }));
+
+  return withSchemaVersion(bundle, 14, {
+    manifest: {
+      ...manifest,
+      variables: [...existingVariables, ...inferredVariables]
+    },
+    scenes: migratedScenes,
+    dialogues: migratedDialogues
+  });
+}
+
+// Schema 15 adds conditional actions. Existing flat action lists already have
+// the intended behavior, so advancing every project file is sufficient.
+function migrateV14ToV15(bundle: UnknownRecord): UnknownRecord {
+  return withSchemaVersion(bundle, 15);
+}
+
+function migrateLegacyCondition(value: unknown, flagIds: Set<string>): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+  if (value.type === "flagEquals" && typeof value.flag === "string" && value.flag) {
+    flagIds.add(value.flag);
+    return {
+      type: "variableCompare",
+      variableId: value.flag,
+      operator: "equals",
+      value: typeof value.value === "boolean" ? value.value : false
+    };
+  }
+  if (value.type === "inventoryHas") {
+    return { ...value, present: typeof value.present === "boolean" ? value.present : true };
+  }
+  if (value.type === "sceneVisited") {
+    return { ...value, visited: typeof value.visited === "boolean" ? value.visited : true };
+  }
+  return value;
+}
+
+function migrateLegacyEffect(value: unknown, flagIds: Set<string>): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+  if (value.type === "setFlag" && typeof value.flag === "string" && value.flag) {
+    flagIds.add(value.flag);
+    return {
+      type: "setVariable",
+      variableId: value.flag,
+      value: typeof value.value === "boolean" ? value.value : false
+    };
+  }
+  return value;
+}
+
+function humanizeVariableId(id: string): string {
+  const words = id
+    .replace(/^hotspot\./, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[._-]+/)
+    .filter(Boolean);
+  const label = words.join(" ").trim();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : id;
 }
 
 function withSchemaVersion(

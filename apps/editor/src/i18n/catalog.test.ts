@@ -21,6 +21,7 @@ describe("editor feature catalogs", () => {
       "world",
       "scenes",
       "dialogue",
+      "logic",
       "inventory",
       "localization",
       "assets",

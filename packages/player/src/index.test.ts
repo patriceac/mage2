@@ -200,7 +200,8 @@ describe("player controller", () => {
       imageAssetId: "asset_item"
     });
     project.scenes.items[0]!.hotspots[0]!.inventoryItemId = "item_lantern";
-    project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setFlag", flag: "lanternSeen", value: true }];
+    addBooleanVariables(project, "lanternSeen");
+    project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "setVariable", variableId: "lanternSeen", value: true }];
 
     const controller = createPlayerController(project);
     controller.selectHotspot(project.scenes.items[0]!.hotspots[0]!.id, 1000);
@@ -211,18 +212,19 @@ describe("player controller", () => {
   it("executes explicit hotspot interaction events without running the primary event", () => {
     const project = createDefaultProjectBundle();
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
-    hotspot.effects = [{ type: "setFlag", flag: "cabinet.opened", value: true }];
+    addBooleanVariables(project, "cabinet.opened", "cabinet.examined", "cabinet.wrongItem");
+    hotspot.effects = [{ type: "setVariable", variableId: "cabinet.opened", value: true }];
     hotspot.clickEvent = {
-      effects: [{ type: "setFlag", flag: "cabinet.examined", value: true }]
+      effects: [{ type: "setVariable", variableId: "cabinet.examined", value: true }]
     };
     hotspot.otherItemEvent = {
-      effects: [{ type: "setFlag", flag: "cabinet.wrongItem", value: true }]
+      effects: [{ type: "setVariable", variableId: "cabinet.wrongItem", value: true }]
     };
     const controller = createPlayerController(project);
 
     expect(controller.selectHotspotEvent(hotspot.id, "click", 1000)).toEqual({});
     expect(controller.getSnapshot().flags).toMatchObject({ "cabinet.examined": true });
-    expect(controller.getSnapshot().flags["cabinet.opened"]).toBeUndefined();
+    expect(controller.getSnapshot().flags["cabinet.opened"]).toBe(false);
 
     expect(controller.selectHotspotEvent(hotspot.id, "otherItem", 1000)).toEqual({});
     expect(controller.getSnapshot().flags).toMatchObject({ "cabinet.wrongItem": true });
@@ -244,6 +246,100 @@ describe("player controller", () => {
     expect(controller.selectHotspotEvent(hotspot.id, "click", 1000)).toEqual({});
     expect(controller.selectHotspotEvent(hotspot.id, "otherItem", 1000)).toEqual({});
     expect(controller.save()).toEqual(before);
+  });
+
+  it("evaluates typed variables, all/any matching, and ordered variable actions", () => {
+    const project = createDefaultProjectBundle("Typed logic");
+    project.manifest.variables.push(
+      { id: "door.open", name: "Door open", description: "", type: "boolean", initialValue: false, system: false },
+      { id: "attempts", name: "Attempts", description: "", type: "integer", initialValue: 1, system: false },
+      {
+        id: "trust",
+        name: "Trust",
+        description: "",
+        type: "choice",
+        options: [{ id: "neutral", name: "Neutral" }, { id: "friend", name: "Friend" }, { id: "rival", name: "Rival" }],
+        initialValue: "neutral",
+        system: false
+      }
+    );
+    const setup = createTestHotspot("hotspot_setup");
+    setup.effects = [
+      { type: "changeVariable", variableId: "attempts", delta: 1 },
+      { type: "setVariable", variableId: "trust", value: "friend" },
+      { type: "setVariable", variableId: "door.open", value: true }
+    ];
+    const target = createTestHotspot("hotspot_target");
+    target.conditions = [
+      { type: "variableCompare", variableId: "attempts", operator: "greaterThanOrEqual", value: 2 },
+      { type: "variableCompare", variableId: "trust", operator: "notEquals", value: "rival" },
+      { type: "variableCompare", variableId: "door.open", operator: "equals", value: true }
+    ];
+    target.conditionMode = "all";
+    const anyTarget = createTestHotspot("hotspot_any");
+    anyTarget.conditions = [
+      { type: "variableCompare", variableId: "door.open", operator: "equals", value: true },
+      { type: "variableCompare", variableId: "attempts", operator: "greaterThan", value: 20 }
+    ];
+    anyTarget.conditionMode = "any";
+    project.scenes.items[0]!.hotspots = [setup, target, anyTarget];
+
+    const controller = createPlayerController(project);
+    const before = controller.explainHotspotAvailability(1000).find((entry) => entry.hotspotId === target.id)!;
+    expect(before.available).toBe(false);
+    expect(before.conditions.map((condition) => condition.passed)).toEqual([false, true, false]);
+
+    controller.selectHotspot(setup.id, 1000);
+
+    expect(controller.getSnapshot().variables).toMatchObject({ attempts: 2, trust: "friend", "door.open": true });
+    expect(controller.getSnapshot().flags["door.open"]).toBe(true);
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).toEqual([
+      setup.id,
+      target.id,
+      anyTarget.id
+    ]);
+    expect(controller.getLogicTrace().map((entry) => [entry.effect.type, entry.previousValue, entry.nextValue])).toEqual([
+      ["changeVariable", 1, 2],
+      ["setVariable", "neutral", "friend"],
+      ["setVariable", false, true]
+    ]);
+    controller.clearLogicTrace();
+    expect(controller.getLogicTrace()).toEqual([]);
+  });
+
+  it("runs the matching If / Otherwise action branch and records the decision", () => {
+    const project = createDefaultProjectBundle("Conditional actions");
+    const startScene = project.scenes.items[0]!;
+    const closedScene = addTestScene(project, "scene_cabinet_closed");
+    const openScene = addTestScene(project, "scene_cabinet_open");
+    addBooleanVariables(project, "cabinet.open");
+    const openCabinet = createTestHotspot("hotspot_open_cabinet");
+    openCabinet.effects = [{ type: "setVariable", variableId: "cabinet.open", value: true }];
+    const inspectCabinet = createTestHotspot("hotspot_inspect_cabinet");
+    inspectCabinet.effects = [{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "variableCompare", variableId: "cabinet.open", operator: "equals", value: true }],
+      thenEffects: [{ type: "goToScene", sceneId: openScene.id }],
+      elseEffects: [{ type: "goToScene", sceneId: closedScene.id }]
+    }];
+    startScene.hotspots = [openCabinet, inspectCabinet];
+
+    const controller = createPlayerController(project);
+    expect(controller.selectHotspot(inspectCabinet.id, 1000).transitionedToSceneId).toBe(closedScene.id);
+    expect(controller.getLogicTrace().map((entry) => [entry.effect.type, entry.branch])).toEqual([
+      ["conditional", "otherwise"],
+      ["goToScene", undefined]
+    ]);
+    expect(controller.getLogicTrace()[0]?.conditionEvaluations?.[0]).toMatchObject({ passed: false, actualValue: false });
+
+    controller.enterScene(startScene.id);
+    controller.clearLogicTrace();
+    controller.selectHotspot(openCabinet.id, 1000);
+    controller.selectHotspot(inspectCabinet.id, 1000);
+
+    expect(controller.getSnapshot().saveState.currentSceneId).toBe(openScene.id);
+    expect(controller.getLogicTrace().find((entry) => entry.effect.type === "conditional")?.branch).toBe("then");
   });
 
   it("adds newly picked up inventory items before older items", () => {
@@ -381,13 +477,14 @@ describe("player controller", () => {
     const project = createDefaultProjectBundle();
     const sourceScene = project.scenes.items[0]!;
     const targetScene = addTestScene(project, "scene_target");
+    addBooleanVariables(project, "sourceExited", "targetEntered");
     sourceScene.onExitEffects = [
       { type: "goToScene", sceneId: sourceScene.id },
-      { type: "setFlag", flag: "sourceExited", value: true }
+      { type: "setVariable", variableId: "sourceExited", value: true }
     ];
     targetScene.onEnterEffects = [
       { type: "goToScene", sceneId: targetScene.id },
-      { type: "setFlag", flag: "targetEntered", value: true }
+      { type: "setVariable", variableId: "targetEntered", value: true }
     ];
 
     const controller = createPlayerController(project);
@@ -401,21 +498,41 @@ describe("player controller", () => {
     expect(controller.getRuntimeIssues()).toEqual([]);
   });
 
+  it("runs scene media-end effects once per scene entry", () => {
+    const project = createDefaultProjectBundle();
+    const sourceScene = project.scenes.items[0]!;
+    const targetScene = addTestScene(project, "scene_target");
+    sourceScene.onMediaEndEffects = [
+      { type: "addItem", itemId: "media_marker" },
+      { type: "goToScene", sceneId: targetScene.id }
+    ];
+
+    const controller = createPlayerController(project);
+    const firstResolution = controller.completeSceneMedia();
+    const secondResolution = controller.completeSceneMedia();
+
+    expect(firstResolution.transitionedToSceneId).toBe(targetScene.id);
+    expect(controller.getSnapshot().scene.id).toBe(targetScene.id);
+    expect(controller.save().inventory).toEqual(["media_marker"]);
+    expect(secondResolution).toEqual({});
+  });
+
   it("queues exit-effect transitions in authored order until the current transition completes", () => {
     const project = createDefaultProjectBundle();
     const sourceScene = project.scenes.items[0]!;
     const intermediateScene = addTestScene(project, "scene_intermediate");
     const queuedScene = addTestScene(project, "scene_queued");
     const finalScene = addTestScene(project, "scene_final");
+    addBooleanVariables(project, "intermediateEntered", "intermediateExited", "queuedEntered", "queuedExited", "finalEntered");
     sourceScene.onExitEffects = [
       { type: "goToScene", sceneId: queuedScene.id },
       { type: "goToScene", sceneId: finalScene.id }
     ];
-    intermediateScene.onEnterEffects = [{ type: "setFlag", flag: "intermediateEntered", value: true }];
-    intermediateScene.onExitEffects = [{ type: "setFlag", flag: "intermediateExited", value: true }];
-    queuedScene.onEnterEffects = [{ type: "setFlag", flag: "queuedEntered", value: true }];
-    queuedScene.onExitEffects = [{ type: "setFlag", flag: "queuedExited", value: true }];
-    finalScene.onEnterEffects = [{ type: "setFlag", flag: "finalEntered", value: true }];
+    intermediateScene.onEnterEffects = [{ type: "setVariable", variableId: "intermediateEntered", value: true }];
+    intermediateScene.onExitEffects = [{ type: "setVariable", variableId: "intermediateExited", value: true }];
+    queuedScene.onEnterEffects = [{ type: "setVariable", variableId: "queuedEntered", value: true }];
+    queuedScene.onExitEffects = [{ type: "setVariable", variableId: "queuedExited", value: true }];
+    finalScene.onEnterEffects = [{ type: "setVariable", variableId: "finalEntered", value: true }];
 
     const controller = createPlayerController(project);
 
@@ -466,9 +583,10 @@ describe("player controller", () => {
     const sceneB = addTestScene(project, "scene_b");
     const sceneC = addTestScene(project, "scene_c");
     const hotspot = createTestHotspot("hotspot_multi_transition");
+    addBooleanVariables(project, "betweenTransitions");
     hotspot.effects = [
       { type: "goToScene", sceneId: sceneB.id },
-      { type: "setFlag", flag: "betweenTransitions", value: true },
+      { type: "setVariable", variableId: "betweenTransitions", value: true },
       { type: "goToScene", sceneId: sceneC.id }
     ];
     sourceScene.hotspots = [hotspot];
@@ -667,10 +785,12 @@ function addTestScene(project: ProjectBundle, sceneId: string): Scene {
     sceneAudioLoop: true,
     sceneAudioDelayMs: 0,
     backgroundVideoLoop: false,
+    videoAudioMode: "silent",
     hotspots: [],
     dialogueTreeIds: [],
     onEnterEffects: [],
-    onExitEffects: []
+    onExitEffects: [],
+    onMediaEndEffects: []
   };
 
   project.scenes.items.push(scene);
@@ -693,4 +813,17 @@ function createTestHotspot(hotspotId: string): Hotspot {
     conditions: [{ type: "always" }],
     effects: []
   };
+}
+
+function addBooleanVariables(project: ProjectBundle, ...variableIds: string[]): void {
+  for (const variableId of variableIds) {
+    project.manifest.variables.push({
+      id: variableId,
+      name: variableId,
+      description: "",
+      type: "boolean",
+      initialValue: false,
+      system: false
+    });
+  }
 }

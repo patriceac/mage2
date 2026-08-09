@@ -22,11 +22,14 @@ import {
   type Effect,
   type Hotspot,
   type ProjectBundle,
+  type SaveCompatibilityAssessment,
+  type SaveCompatibilityIssue,
   type ValidationIssue
 } from "@mage2/schema";
 import { AssetsPanel } from "./panels/AssetsPanel";
 import { DialoguePanel } from "./panels/DialoguePanel";
 import { InventoryPanel } from "./panels/InventoryPanel";
+import { LogicPanel } from "./panels/LogicPanel";
 import { LocalizationPanel } from "./panels/LocalizationPanel";
 import { PlayerPanel } from "./panels/PlayerPanel";
 import { ScenesPanel } from "./panels/ScenesPanel";
@@ -76,6 +79,7 @@ const TABS: Array<{ id: EditorTab; label: string }> = [
   { id: "world", label: "World" },
   { id: "scenes", label: "Scenes" },
   { id: "dialogue", label: "Dialogue" },
+  { id: "logic", label: "Logic" },
   { id: "inventory", label: "Inventory" },
   { id: "localization", label: "Localization" },
   { id: "player", label: "Player" },
@@ -88,11 +92,103 @@ const TAB_TOOLTIPS: Record<EditorTab, string> = {
   world: "Arrange locations, review derived cross-location scene transitions, and manage the scenes inside each location.",
   scenes: "Edit scene media, upload background and scene-audio assets, hotspots, and scene-level wiring.",
   dialogue: "Write conversations and reusable text, audio, or video player responses, then assign them from scene hotspots.",
+  logic: "Create and review the named story variables used by scene and dialogue conditions and actions.",
   inventory: "Create inventory items, assign item art, and edit the player-facing text tied to each item.",
   localization: "Manage locale coverage and edit localized strings and media variants in one place.",
   player: "Customize the title screen, player chrome, credits, release identity, and save compatibility.",
   playtest: "Run the current project in the editor to test hotspots, dialogue, and state."
 };
+
+async function confirmReleaseSaveGenerationAdvance(
+  assessment: SaveCompatibilityAssessment,
+  dialogs: ReturnType<typeof useDialogs>,
+  t: EditorTranslator
+): Promise<boolean> {
+  const visibleIssues = assessment.issues.slice(0, 8);
+  const hiddenIssueCount = assessment.issues.length - visibleIssues.length;
+  const currentGeneration = assessment.currentSaveCompatibilityVersion;
+  const nextGeneration = assessment.nextSaveCompatibilityVersion;
+
+  return dialogs.confirm({
+    title: t("Existing Saves Need a Decision"),
+    body: (
+      <>
+        <p>
+          {assessment.status === "generation-regressed"
+            ? t(
+                "Save generation {currentGeneration} is older than the last released generation {baselineGeneration}.",
+                {
+                  currentGeneration,
+                  baselineGeneration: assessment.baselineSaveCompatibilityVersion ?? currentGeneration
+                }
+              )
+            : assessment.issues.length === 1
+              ? t("This release changes {count} saved-state ID from generation {generation}.", {
+                  count: assessment.issues.length,
+                  generation: currentGeneration
+                })
+              : t("This release changes {count} saved-state IDs from generation {generation}.", {
+                  count: assessment.issues.length,
+                  generation: currentGeneration
+                })}
+        </p>
+        {visibleIssues.length > 0 ? (
+          <>
+            <p>{t("These changes would make existing saves fail:")}</p>
+            <ul className="dialog-detail-list">
+              {visibleIssues.map((issue, index) => (
+                <li key={`${issue.code}:${issue.entityId}:${index}`}>
+                  {formatSaveCompatibilityIssue(issue, t)}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {hiddenIssueCount > 0 ? (
+          <p>{t("{count} more save compatibility changes are hidden.", { count: hiddenIssueCount })}</p>
+        ) : null}
+        <p>
+          {t(
+            "Start generation {generation} to preserve older save data but begin a new game for players on this release.",
+            { generation: nextGeneration }
+          )}
+        </p>
+      </>
+    ),
+    confirmLabel: t("Start Generation {generation}", { generation: nextGeneration }),
+    cancelLabel: t("Cancel Release"),
+    tone: "danger"
+  });
+}
+
+function formatSaveCompatibilityIssue(
+  issue: SaveCompatibilityIssue,
+  t: EditorTranslator
+): string {
+  switch (issue.code) {
+    case "LOCATION_REMOVED":
+      return t('Location "{entityId}" was removed.', { entityId: issue.entityId });
+    case "SCENE_REMOVED":
+      return t('Scene "{entityId}" was removed.', { entityId: issue.entityId });
+    case "SCENE_LOCATION_CHANGED":
+      return t('Scene "{entityId}" moved from location "{previousParentId}" to "{currentParentId}".', {
+        entityId: issue.entityId,
+        previousParentId: issue.previousParentId,
+        currentParentId: issue.currentParentId
+      });
+    case "INVENTORY_ITEM_REMOVED":
+      return t('Inventory item "{entityId}" was removed.', { entityId: issue.entityId });
+    case "VARIABLE_REMOVED":
+      return t('Variable "{entityId}" was removed.', { entityId: issue.entityId });
+    case "DIALOGUE_TREE_REMOVED":
+      return t('Dialogue "{entityId}" was removed.', { entityId: issue.entityId });
+    case "DIALOGUE_NODE_REMOVED":
+      return t('Dialogue node "{entityId}" was removed from "{previousParentId}".', {
+        entityId: issue.entityId,
+        previousParentId: issue.previousParentId
+      });
+  }
+}
 
 interface InitialLaunchOptions {
   projectDir?: string;
@@ -124,6 +220,7 @@ export function App() {
     setSelectedResponseGroupId,
     setSelectedResponseEntryId,
     setSelectedInventoryItemId,
+    setSelectedVariableId,
     setSelectedAssetId,
     setSelectedTextId,
     setLocalizationLocale,
@@ -156,6 +253,7 @@ export function App() {
   const nativeCloseHandlerRef = useRef<() => Promise<boolean>>(async () => true);
   const busyOperationRef = useRef<string | undefined>(undefined);
   const runtimeExportDismissTimerRef = useRef<number | undefined>(undefined);
+  const editorScrollRegionRef = useRef<HTMLDivElement | null>(null);
   const hasEditorApi = typeof window.editorApi !== "undefined";
   const hasHandledInitialLaunchRef = useRef(false);
   const dialogs = useDialogs();
@@ -338,6 +436,10 @@ export function App() {
     if (activeTab !== "playtest") {
       lastAuthoringTabRef.current = activeTab;
     }
+  }, [activeTab]);
+
+  useEffect(() => {
+    editorScrollRegionRef.current?.scrollTo({ top: 0, left: 0 });
   }, [activeTab]);
 
   const handleExitPlaytest = useCallback(() => {
@@ -608,19 +710,22 @@ export function App() {
     await openProjectDirectory(chosenDirectory);
   }
 
-  async function saveCurrentProject(): Promise<ProjectBundle | undefined> {
-    if (!hasEditorApi || !project || !projectDir) {
+  async function saveProjectSnapshot(
+    projectSnapshot: ProjectBundle,
+    options?: { clearHistory?: boolean }
+  ): Promise<ProjectBundle | undefined> {
+    if (!hasEditorApi || !projectDir) {
       return undefined;
     }
 
     const result = await withBusy(t("Saving project"), () =>
-      window.editorApi.saveProject(projectDir, project)
+      window.editorApi.saveProject(projectDir, projectSnapshot)
     );
     if (!result) {
       return undefined;
     }
 
-    markProjectSaved(result.project);
+    markProjectSaved(result.project, { clearHistory: options?.clearHistory });
     setStatusMessage(
       result.validationReport.valid
         ? t("Project saved successfully.")
@@ -629,6 +734,10 @@ export function App() {
           : t("Project saved with {count} validation issues.", { count: result.validationReport.issues.length })
     );
     return result.project;
+  }
+
+  async function saveCurrentProject(): Promise<ProjectBundle | undefined> {
+    return project ? saveProjectSnapshot(project) : undefined;
   }
 
   async function handleSaveProject() {
@@ -700,6 +809,56 @@ export function App() {
     setStatusMessage(t("Closed {projectName}.", { projectName: closingProjectName }));
   }
 
+  async function handleStartNewSaveGeneration() {
+    if (!hasEditorApi || !project || !projectDir) {
+      return;
+    }
+
+    const assessment = await withBusy(
+      t("Checking save compatibility"),
+      () => window.editorApi.inspectSaveCompatibility(projectDir, project)
+    );
+    if (!assessment) {
+      return;
+    }
+
+    const nextGeneration = assessment.nextSaveCompatibilityVersion;
+    const confirmed = await dialogs.confirm({
+      title: t("Start save generation {generation}?", { generation: nextGeneration }),
+      body: (
+        <>
+          <p>
+            {t(
+              "Players using releases from generation {currentGeneration} will start a new game after you publish generation {generation}. Their previous save data remains preserved.",
+              {
+                currentGeneration: project.manifest.saveCompatibilityVersion,
+                generation: nextGeneration
+              }
+            )}
+          </p>
+          <p>{t("Use this only for an intentional saved-state break that MAGE2 cannot migrate safely.")}</p>
+        </>
+      ),
+      confirmLabel: t("Start Generation {generation}", { generation: nextGeneration }),
+      cancelLabel: t("Keep Generation {generation}", {
+        generation: project.manifest.saveCompatibilityVersion
+      }),
+      tone: "danger"
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    const nextProject = cloneProject(project);
+    nextProject.manifest.saveCompatibilityVersion = nextGeneration;
+    const savedProject = await saveProjectSnapshot(nextProject, { clearHistory: true });
+    if (savedProject) {
+      setStatusMessage(t("Save generation {generation} started. Older saves will remain preserved but will start a new game in future releases.", {
+        generation: nextGeneration
+      }));
+    }
+  }
+
   async function handleExportProject(options?: {
     format?: RuntimeExportFormat;
     mode?: RuntimeExportMode;
@@ -769,15 +928,46 @@ export function App() {
       }
     }
 
+    let projectForExport = project;
+    let generationAdvancedForRelease = false;
+    if (mode === "release") {
+      const assessment = await withBusy(
+        t("Checking save compatibility"),
+        () => window.editorApi.inspectSaveCompatibility(projectDir, projectForExport)
+      );
+      if (!assessment) {
+        return;
+      }
+
+      if (assessment.blocksRelease) {
+        setStatusMessage(t("Release build blocked by save compatibility changes."));
+        if (options?.suppressErrorDialog) {
+          return;
+        }
+
+        const confirmed = await confirmReleaseSaveGenerationAdvance(assessment, dialogs, t);
+        if (!confirmed) {
+          setStatusMessage(t("Release build canceled. Existing saves were left unchanged."));
+          return;
+        }
+
+        projectForExport = cloneProject(projectForExport);
+        projectForExport.manifest.saveCompatibilityVersion = assessment.nextSaveCompatibilityVersion;
+        generationAdvancedForRelease = true;
+      }
+    }
+
     const format = options?.legacyAutomation
       ? undefined
-      : options?.format ?? (await dialogs.chooseRuntimeExport(project.manifest.projectName, mode));
+      : options?.format ?? (await dialogs.chooseRuntimeExport(projectForExport.manifest.projectName, mode));
     if (!options?.legacyAutomation && !format) {
       setStatusMessage(t("Runtime export canceled."));
       return;
     }
 
-    const savedProject = await saveCurrentProject();
+    const savedProject = await saveProjectSnapshot(projectForExport, {
+      clearHistory: generationAdvancedForRelease
+    });
     if (!savedProject) {
       return;
     }
@@ -837,6 +1027,22 @@ export function App() {
           ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
           : t("Web runtime exported to {outputPath}.", { outputPath })
     );
+    if (mode === "release" && result.saveCompatibilityBaselineWarning && !options?.suppressErrorDialog) {
+      await dialogs.alert({
+        title: t("Release Built, Save Check Needs Attention"),
+        body: (
+          <>
+            <p>
+              {t("The release was created, but MAGE2 could not record its save-compatibility baseline. The next release may not detect breaking save changes.")}
+            </p>
+            <p>{t("Details: {message}", { message: result.saveCompatibilityBaselineWarning })}</p>
+          </>
+        ),
+        confirmLabel: t("Close"),
+        tone: "danger"
+      });
+      setStatusMessage(t("Release created, but its save-compatibility baseline was not recorded."));
+    }
     dismissRuntimeExportProgress(900);
     return result;
   }
@@ -1034,6 +1240,7 @@ export function App() {
     setSelectedResponseGroupId(target.responseGroupId);
     setSelectedResponseEntryId(target.responseEntryId);
     setSelectedInventoryItemId(target.inventoryItemId);
+    setSelectedVariableId(target.variableId);
     setSelectedAssetId(target.assetId);
     setSelectedTextId(target.textId);
     if (target.tab === "dialogue" && target.dialogueSection) {
@@ -1305,7 +1512,7 @@ export function App() {
         return;
       }
 
-      applyAutomationHotspotInventoryAction(draftHotspot, command.action, command.itemId ?? "");
+      applyAutomationHotspotInventoryAction(draftHotspot, command.action, command.itemId ?? "", draft.manifest.variables);
     });
 
     setSelectedSceneId(targetScene.id);
@@ -1334,7 +1541,7 @@ export function App() {
         return;
       }
 
-      applyAutomationHotspotInventoryAction(draftHotspot, "placeItem", command.itemId);
+      applyAutomationHotspotInventoryAction(draftHotspot, "placeItem", command.itemId, draft.manifest.variables);
     });
 
     setSelectedSceneId(targetScene.id);
@@ -1812,6 +2019,16 @@ export function App() {
                   >
                     {t("Build Release")}
                   </button>
+                  <button
+                    type="button"
+                    className="titlebar-menu__item"
+                    role="menuitem"
+                    onClick={() => void handleFileMenuAction(handleStartNewSaveGeneration)}
+                    onKeyDown={(event) => handleFileMenuItemKeyDown(3, event)}
+                    title={t("Manually start a new save generation for an intentional saved-state break.")}
+                  >
+                    {t("Start New Save Generation")}
+                  </button>
                   <div className="titlebar-menu__submenu" ref={fileLanguageSubmenuRef}>
                     <button
                       ref={fileLanguageSubmenuButtonRef}
@@ -1824,7 +2041,7 @@ export function App() {
                       onClick={() => setIsFileLanguageSubmenuOpen((value) => !value)}
                       onPointerEnter={() => setIsFileLanguageSubmenuOpen(true)}
                       onKeyDown={(event) => {
-                        handleFileMenuItemKeyDown(3, event);
+                        handleFileMenuItemKeyDown(4, event);
                         handleFileLanguageSubmenuTriggerKeyDown(event);
                       }}
                     >
@@ -1849,7 +2066,7 @@ export function App() {
         </div>
       </header>
 
-      <div className="editor-scroll-region">
+      <div ref={editorScrollRegionRef} className="editor-scroll-region">
         <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
           <div className="editor-primary">
             <main className="workspace">
@@ -1886,6 +2103,13 @@ export function App() {
                         : t("Choose a hotspot, then set its Player feedback field.")
                     );
                   }}
+                />
+              ) : null}
+              {activeTab === "logic" ? (
+                <LogicPanel
+                  project={project}
+                  mutateProject={mutateProject}
+                  setStatusMessage={setStatusMessage}
                 />
               ) : null}
               {activeTab === "inventory" ? (
@@ -1926,6 +2150,7 @@ export function App() {
                   project={project}
                   mutateProject={mutateProject}
                   setStatusMessage={setStatusMessage}
+                  setBusyLabel={setBusyLabel}
                 />
               ) : null}
               {activeTab === "playtest" ? <PlaytestPanel project={project} onExit={handleExitPlaytest} /> : null}
@@ -2337,7 +2562,8 @@ function waitForAutomationUpdate(): Promise<void> {
 function applyAutomationHotspotInventoryAction(
   hotspot: Hotspot,
   actionType: EditorAutomationHotspotAction,
-  itemId: string
+  itemId: string,
+  variables: ProjectBundle["manifest"]["variables"]
 ) {
   const previousAction = resolveHotspotInventoryAction(hotspot);
   removeAutomationHotspotInventoryActionConvention(hotspot, previousAction);
@@ -2354,8 +2580,9 @@ function applyAutomationHotspotInventoryAction(
     delete hotspot.placedInventoryItemId;
     delete hotspot.placedInventoryGeometry;
     const completionFlag = buildHotspotPickupFlag(hotspot.id);
-    hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
-    hotspot.effects = [...hotspot.effects, { type: "addItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+    ensureAutomationBooleanVariable(variables, completionFlag, `${hotspot.name} picked up`);
+    hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
+    hotspot.effects = [...hotspot.effects, { type: "addItem", itemId }, { type: "setVariable", variableId: completionFlag, value: true }];
     return;
   }
 
@@ -2366,9 +2593,10 @@ function applyAutomationHotspotInventoryAction(
   delete hotspot.inventoryItemId;
   hotspot.placedInventoryItemId = itemId;
   const completionFlag = buildHotspotPlacementFlag(hotspot.id);
+  ensureAutomationBooleanVariable(variables, completionFlag, `${hotspot.name} item placed`);
   hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
-  hotspot.conditions = [...hotspot.conditions, { type: "flagEquals", flag: completionFlag, value: false }];
-  hotspot.effects = [...hotspot.effects, { type: "removeItem", itemId }, { type: "setFlag", flag: completionFlag, value: true }];
+  hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
+  hotspot.effects = [...hotspot.effects, { type: "removeItem", itemId }, { type: "setVariable", variableId: completionFlag, value: true }];
 }
 
 function removeAutomationHotspotInventoryActionConvention(
@@ -2399,8 +2627,8 @@ function isAutomationHotspotInventoryActionEffect(
   itemId?: string,
   completionFlag?: string
 ): boolean {
-  if (effect.type === "setFlag") {
-    return Boolean(completionFlag && effect.flag === completionFlag);
+  if (effect.type === "setVariable") {
+    return Boolean(completionFlag && effect.variableId === completionFlag);
   }
 
   if (actionType === "pickupItem") {
@@ -2411,7 +2639,17 @@ function isAutomationHotspotInventoryActionEffect(
 }
 
 function isAutomationHotspotInventoryActionCondition(condition: Condition, completionFlag?: string): boolean {
-  return Boolean(completionFlag && condition.type === "flagEquals" && condition.flag === completionFlag);
+  return Boolean(completionFlag && condition.type === "variableCompare" && condition.variableId === completionFlag);
+}
+
+function ensureAutomationBooleanVariable(
+  variables: ProjectBundle["manifest"]["variables"],
+  id: string,
+  name: string
+): void {
+  if (!variables.some((variable) => variable.id === id)) {
+    variables.push({ id, name, description: "", type: "boolean", initialValue: false, system: true });
+  }
 }
 
 function getInitialRecentProjects(): RecentProjectSummary[] {
@@ -2460,6 +2698,8 @@ function resolveIssuesPanelTitle(tab: EditorTab, t: EditorTranslator): string {
       return t("Scene Issues");
     case "dialogue":
       return t("Dialogue Issues");
+    case "logic":
+      return t("Logic Issues");
     case "inventory":
       return t("Inventory Issues");
     case "localization":

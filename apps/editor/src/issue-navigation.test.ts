@@ -203,7 +203,7 @@ describe("resolveIssueNavigation", () => {
     });
   });
 
-  it("routes scene-audio image-background violations back to Scenes", () => {
+  it("routes invalid video sound configurations back to Scenes", () => {
     const project = createDefaultProjectBundle("Scene audio validation navigation");
     project.assets.assets.push(
       {
@@ -232,8 +232,9 @@ describe("resolveIssueNavigation", () => {
     );
     project.scenes.items[0].backgroundAssetId = "asset_video";
     project.scenes.items[0].sceneAudioAssetId = "asset_scene_audio";
+    project.scenes.items[0].videoAudioMode = "silent";
 
-    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_AUDIO_REQUIRES_IMAGE_BACKGROUND");
+    const issue = validateProject(project).issues.find((entry) => entry.code === "SCENE_AUDIO_MODE_INVALID");
     const target = issue ? resolveIssueNavigation(project, issue) : undefined;
 
     expect(target).toMatchObject({
