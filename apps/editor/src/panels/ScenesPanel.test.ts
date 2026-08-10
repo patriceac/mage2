@@ -894,9 +894,11 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">Action</summary>");
     expect(markup).toContain(">Geometry</summary>");
     expect(markup).toContain(">Timing</summary>");
+    expect(markup).toContain(">Availability</summary>");
     expect(markup).toContain(">On click</summary>");
+    expect(markup.indexOf(">Availability</summary>")).toBeLessThan(markup.indexOf(">On click</summary>"));
     expect(markup.indexOf(">Actions</h5>")).toBeLessThan(markup.indexOf(">Target Scene</span>"));
-    for (const sectionTitle of ["Action", "Geometry", "Timing"]) {
+    for (const sectionTitle of ["Action", "Geometry", "Timing", "Availability"]) {
       const summaryIndex = markup.indexOf(`>${sectionTitle}</summary>`);
       const detailsTag = markup.slice(markup.lastIndexOf("<details", summaryIndex), markup.indexOf(">", markup.lastIndexOf("<details", summaryIndex)) + 1);
       expect(detailsTag).not.toContain("open");
@@ -909,9 +911,17 @@ describe("ScenesPanel scene audio UI", () => {
     expect(onClickDetailsTag).toContain("open");
     expect(markup).not.toContain(">Else</summary>");
     expect(markup).not.toContain(">Any other item</summary>");
+    expect(markup).toContain(">Required inventory</h5>");
+    expect(markup).toContain("Require the player to own these items before this hotspot becomes available.");
+    expect(markup).toContain(">No inventory required</strong>");
+    expect(markup).toContain("The hotspot can be used without owning a specific item.");
+    expect(markup).toContain("Choose when this hotspot appears and can be used.");
+    expect(markup).toContain("Decide what happens when this interaction occurs. Actions run in order.");
     expect(markup).toContain("Add action...");
     expect(markup).toContain('class="button-secondary logic-editor__conditional-shortcut"');
-    expect(markup).toContain(">Advanced</summary>");
+    expect(markup).not.toContain(">Advanced</summary>");
+    expect(markup).not.toContain("Selected item requirements");
+    expect(markup).not.toContain("Require selected item");
     expect(markup).not.toContain(">Editing Help</summary>");
     expect(markup).not.toContain(
       '<p class="muted">Links this hotspot to an inventory item and uses that item&#x27;s art in the scene.</p>'
@@ -922,6 +932,27 @@ describe("ScenesPanel scene audio UI", () => {
     );
     expect(markup).toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
+  });
+
+  it("opens Availability when the hotspot has a real global restriction", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        const scene = project.scenes.items[0]!;
+        scene.hotspots[0]!.conditions = [{ type: "sceneVisited", sceneId: scene.id, visited: true }];
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0]!.hotspots[0]!.id;
+      }
+    );
+
+    const availabilitySummaryIndex = markup.indexOf(">Availability</summary>");
+    const availabilityDetailsTag = markup.slice(
+      markup.lastIndexOf("<details", availabilitySummaryIndex),
+      markup.indexOf(">", markup.lastIndexOf("<details", availabilitySummaryIndex)) + 1
+    );
+
+    expect(availabilityDetailsTag).toContain("open");
+    expect(markup.indexOf(">Availability</summary>")).toBeLessThan(markup.indexOf(">On click</summary>"));
   });
 
   it("widens the hotspot inspector for decisions and keeps scene changes in the action list", () => {

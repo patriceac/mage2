@@ -17,7 +17,7 @@ export const scenesMessages = defineEditorMessages("scenes", {
   "Add inventory item": m("Ajouter un article d'inventaire", "Agregar artículo de inventario", "添加库存商品", "在庫アイテムを追加", "인벤토리 항목 추가", "إضافة عنصر مخزون"),
   "Add item to inventory": m("Ajouter un article à l'inventaire", "Agregar artículo al inventario", "将商品添加到库存", "アイテムを在庫に追加", "인벤토리에 항목 추가", "إضافة عنصر إلى المخزون"),
   "Adds {itemLabel} to inventory and hides this hotspot after pickup.": m("Ajoute {itemLabel} pour inventorier et masquer ce point d'accès après le ramassage.", "Agrega {itemLabel} para inventariar y oculta este punto de acceso después de la recogida.", "添加{itemLabel} 到库存，并在拾取后隐藏此热点。", "追加{itemLabel} をインベントリに追加し、ピックアップ後にこのホットスポットを非表示にします。", "추가 {itemLabel}를 인벤토리에 추가하고 픽업 후 이 핫스팟을 숨깁니다.", "يضيف {itemLabel} إلى المخزون ويخفي نقطة الاتصال هذه بعد الالتقاط."),
-  "Advanced": m("Avancé", "Avanzado", "高级", "詳細", "고급", "متقدم"),
+  "Availability": m("Disponibilité", "Disponibilidad", "可用性", "利用条件", "사용 가능 조건", "التوفر"),
   "Advanced JSON condition list that must pass before this hotspot is enabled.": m("Liste de conditions JSON avancée qui doit être satisfaite avant que ce point d'accès soit activé.", "Lista de condiciones JSON avanzadas que deben cumplirse antes de habilitar este punto de acceso.", "启用此热点之前必须通过的高级 JSON 条件列表。", "このホットスポットを有効にする前に通過する必要がある詳細な JSON 条件リスト。", "이 핫스팟을 활성화하기 전에 통과해야 하는 고급 JSON 조건 목록입니다.", "قائمة شروط JSON المتقدمة التي يجب أن تمر قبل تمكين نقطة الاتصال هذه."),
   "Angle (degrees)": m("Angle (degrés)", "Ángulo (grados)", "角度（度）", "角度 (度)", "각도(도)", "الزاوية (بالدرجات)"),
   "Any other item": m("Tout autre élément", "Cualquier otro elemento", "任何其他项目", "その他のアイテム", "기타 항목", "أي عنصر آخر"),

@@ -324,6 +324,9 @@ export function HotspotInspectorWindow({
     selectedHotspot.clickEvent?.effects ?? [],
     selectedHotspot.otherItemEvent?.effects ?? []
   ].some(effectsContainConditional);
+  const hasAvailabilityRestrictions =
+    selectedHotspot.requiredItemIds.length > 0 ||
+    selectedHotspot.conditions.some((condition) => condition.type !== "always");
   const inspectorClassName = [
     "panel",
     "scenes-floating-inspector",
@@ -574,6 +577,36 @@ export function HotspotInspectorWindow({
               </label>
             </div>
             </details>
+            <details
+              open={hasAvailabilityRestrictions}
+              className="scenes-floating-inspector__section scenes-floating-inspector__section--availability"
+            >
+              <summary className="scenes-floating-inspector__section-title">{t("Availability")}</summary>
+              <RequiredItemsEditor
+                project={project}
+                requiredItemIds={selectedHotspot.requiredItemIds}
+                onChange={(requiredItemIds) =>
+                  mutateSelectedHotspot((hotspot) => {
+                    hotspot.requiredItemIds = requiredItemIds;
+                  })
+                }
+              />
+              <ConditionListEditor
+                compact
+                project={project}
+                label={t("Available when")}
+                description={t("Choose when this hotspot appears and can be used. Every condition uses names from this project.")}
+                conditions={selectedHotspot.conditions}
+                mode={selectedHotspot.conditionMode ?? "all"}
+                onChange={(conditions, conditionMode, variables) =>
+                  mutateSelectedHotspot((hotspot, draft) => {
+                    hotspot.conditions = conditions;
+                    hotspot.conditionMode = conditionMode;
+                    if (variables) draft.manifest.variables = variables;
+                  })
+                }
+              />
+            </details>
             {isPlacementHotspot ? (
               <HotspotEventSection
                 project={project}
@@ -672,29 +705,6 @@ export function HotspotInspectorWindow({
                 </p>
               </div>
             </details>
-            <details className="scenes-floating-inspector__section scenes-floating-inspector__section--advanced">
-              <summary className="scenes-floating-inspector__section-title">{t("Advanced")}</summary>
-            <RequiredItemsEditor
-              project={project}
-              requiredItemIds={selectedHotspot.requiredItemIds}
-              onChange={(requiredItemIds) => mutateSelectedHotspot((hotspot) => { hotspot.requiredItemIds = requiredItemIds; })}
-            />
-            <ConditionListEditor
-              compact
-              project={project}
-              label={t("Available when")}
-              description={t("Choose when this hotspot can be used. Every condition uses names from this project.")}
-              conditions={selectedHotspot.conditions}
-              mode={selectedHotspot.conditionMode ?? "all"}
-              onChange={(conditions, conditionMode, variables) =>
-                mutateSelectedHotspot((hotspot, draft) => {
-                  hotspot.conditions = conditions;
-                  hotspot.conditionMode = conditionMode;
-                  if (variables) draft.manifest.variables = variables;
-                })
-              }
-            />
-            </details>
           </div>
         </div>
       </aside>
@@ -714,17 +724,17 @@ function RequiredItemsEditor({
   const { t } = useEditorI18n();
   const availableItems = project.inventory.items.filter((item) => !requiredItemIds.includes(item.id));
   return (
-    <section className="logic-editor logic-editor--compact" aria-label={t("Selected item requirements")}>
+    <section className="logic-editor logic-editor--compact" aria-label={t("Required inventory")}>
       <header className="logic-editor__header">
         <div>
-          <h5>{t("Selected item requirements")}</h5>
-          <p>{t("Require the player to select these inventory items before this hotspot responds.")}</p>
+          <h5>{t("Required inventory")}</h5>
+          <p>{t("Require the player to own these items before this hotspot becomes available.")}</p>
         </div>
       </header>
       {requiredItemIds.length === 0 ? (
         <div className="logic-editor__empty">
-          <strong>{t("No selected item required")}</strong>
-          <span>{t("The hotspot can respond without a selected inventory item.")}</span>
+          <strong>{t("No inventory required")}</strong>
+          <span>{t("The hotspot can be used without owning a specific item.")}</span>
         </div>
       ) : (
         <div className="logic-editor__requirement-list">
@@ -750,12 +760,12 @@ function RequiredItemsEditor({
         <div className="logic-editor__add-row">
           <DropdownSelect
             value=""
-            aria-label={t("Add selected item requirement")}
+            aria-label={t("Add required inventory item")}
             onChange={(event) => {
               if (event.target.value) onChange([...requiredItemIds, event.target.value]);
             }}
           >
-            <option value="">{t("Require selected item...")}</option>
+            <option value="">{t("Require inventory item...")}</option>
             {availableItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </DropdownSelect>
         </div>
@@ -804,7 +814,7 @@ function HotspotEventSection({
         compact
         project={project}
         label={t("Actions")}
-        description={t("Run these actions in order when {eventTitle} happens.", { eventTitle: title })}
+        description={t("Decide what happens when this interaction occurs. Actions run in order.")}
         effects={event.effects}
         onChange={(effects, variables) =>
           onChange((hotspotEvent) => { applyHotspotEventActionUpdate(hotspotEvent, effects); }, variables)
