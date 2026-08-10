@@ -307,7 +307,7 @@ describe("player controller", () => {
     expect(controller.getLogicTrace()).toEqual([]);
   });
 
-  it("runs the matching If / Otherwise action branch and records the decision", () => {
+  it("runs the matching If / Then / Else action branch and records the decision", () => {
     const project = createDefaultProjectBundle("Conditional actions");
     const startScene = project.scenes.items[0]!;
     const closedScene = addTestScene(project, "scene_cabinet_closed");

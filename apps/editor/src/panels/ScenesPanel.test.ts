@@ -24,8 +24,10 @@ import {
   resolveSceneSwitcherMenuNavigation,
   resolveSceneSwitcherOptions
 } from "./scenes/SceneListRail";
+import { SceneInspectorPresentationIcon } from "./scenes/SceneEditorIcons";
 import {
   applyHotspotFeedbackValue,
+  applyHotspotEventActionUpdate,
   applyHotspotInventoryAction,
   applyInventoryLinkToHotspot,
   resolveHotspotFeedbackValue,
@@ -42,10 +44,16 @@ import {
 import {
   applySceneBackgroundAsset,
   canAssignSceneBackgroundAsset,
+  loadHotspotInspectorDockWidth,
+  loadHotspotInspectorPresentation,
   loadCornerFirstHotspotHandlesPreference,
   resolveCornerFirstHotspotHandlesPreferenceValue,
+  resolveHotspotInspectorDockWidthValue,
+  resolveHotspotInspectorPresentation,
   resolveSceneAudioDropAcceptance,
-  saveCornerFirstHotspotHandlesPreference
+  saveCornerFirstHotspotHandlesPreference,
+  saveHotspotInspectorDockWidth,
+  saveHotspotInspectorPresentation
 } from "./scenes/scene-domain";
 import { addInventoryItem } from "../project-helpers";
 
@@ -98,6 +106,23 @@ describe("hotspot player feedback", () => {
     applyHotspotFeedbackValue(event, "");
     expect(event).not.toHaveProperty("dialogueTreeId");
     expect(event).not.toHaveProperty("response");
+  });
+});
+
+describe("hotspot inspector presentation icons", () => {
+  it("renders distinct decorative targets for floating and right-docked panels", () => {
+    const floatingMarkup = renderToStaticMarkup(
+      React.createElement(SceneInspectorPresentationIcon, { target: "floating" })
+    );
+    const dockedMarkup = renderToStaticMarkup(
+      React.createElement(SceneInspectorPresentationIcon, { target: "docked" })
+    );
+
+    expect(floatingMarkup).toContain('data-icon="float-panel"');
+    expect(dockedMarkup).toContain('data-icon="dock-right-panel"');
+    expect(floatingMarkup).toContain('aria-hidden="true"');
+    expect(dockedMarkup).toContain('aria-hidden="true"');
+    expect(floatingMarkup).not.toBe(dockedMarkup);
   });
 });
 
@@ -333,7 +358,7 @@ describe("ScenesPanel scene audio UI", () => {
     const markup = renderScenesPanel(() => {});
     const createHotspotIndex = markup.indexOf("Create Hotspot");
     const addInventoryItemIndex = markup.indexOf("Add Inventory Item");
-    const deleteButtonIndex = markup.indexOf(">Delete</button>");
+    const deleteButtonIndex = markup.indexOf('class="scenes-panel__tool-label">Delete</span>');
     const actionRailIndex = markup.indexOf('class="scenes-panel__action-rail"');
 
     expect(actionRailIndex).toBeGreaterThanOrEqual(0);
@@ -346,6 +371,24 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).not.toContain("Clear Hotspot");
     expect(markup).not.toContain("Delete Hotspot");
     expect(markup).toContain("button-danger-quiet");
+  });
+
+  it("renders a selected hotspot inspector in the docked right workbench host", () => {
+    const markup = renderScenesPanel(
+      () => {},
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0]?.hotspots[0]?.id;
+      }
+    );
+
+    expect(markup).toContain("scenes-panel__stage-layout--inspector-docked");
+    expect(markup).toContain("scenes-panel__right-rail--inspector-docked");
+    expect(markup).toContain("scenes-floating-inspector-layer--docked");
+    expect(markup).toContain('role="complementary"');
+    expect(markup).toContain('aria-label="Resize hotspot inspector"');
+    expect(markup).toContain('aria-label="Float"');
+    expect(markup).toContain('data-icon="float-panel"');
+    expect(markup).not.toContain(">Float</button>");
   });
 
   it("renders wired canvas view controls with active tool state and zoom label", () => {
@@ -382,6 +425,30 @@ describe("ScenesPanel scene audio UI", () => {
 
     saveCornerFirstHotspotHandlesPreference(true, storage);
     expect(loadCornerFirstHotspotHandlesPreference(storage)).toBe(true);
+  });
+
+  it("defaults the hotspot inspector to a docked layout and clamps its stored width", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value)
+    };
+
+    expect(resolveHotspotInspectorPresentation(undefined)).toBe("docked");
+    expect(resolveHotspotInspectorPresentation("floating")).toBe("floating");
+    expect(resolveHotspotInspectorPresentation("unknown")).toBe("docked");
+    expect(loadHotspotInspectorPresentation(storage)).toBe("docked");
+
+    saveHotspotInspectorPresentation("floating", storage);
+    expect(loadHotspotInspectorPresentation(storage)).toBe("floating");
+
+    expect(resolveHotspotInspectorDockWidthValue(undefined)).toBe(384);
+    expect(resolveHotspotInspectorDockWidthValue("200")).toBe(320);
+    expect(resolveHotspotInspectorDockWidthValue("700")).toBe(560);
+    expect(resolveHotspotInspectorDockWidthValue("not-a-number")).toBe(384);
+
+    saveHotspotInspectorDockWidth(700, storage);
+    expect(loadHotspotInspectorDockWidth(storage)).toBe(560);
   });
 
   it("builds scene switcher options with location metadata", () => {
@@ -840,7 +907,7 @@ describe("ScenesPanel scene audio UI", () => {
       markup.indexOf(">", markup.lastIndexOf("<details", onClickSummaryIndex)) + 1
     );
     expect(onClickDetailsTag).toContain("open");
-    expect(markup).not.toContain(">Otherwise</summary>");
+    expect(markup).not.toContain(">Else</summary>");
     expect(markup).not.toContain(">Any other item</summary>");
     expect(markup).toContain("Add action...");
     expect(markup).toContain('class="button-secondary logic-editor__conditional-shortcut"');
@@ -855,6 +922,27 @@ describe("ScenesPanel scene audio UI", () => {
     );
     expect(markup).toContain("open=\"\"");
     expect(markup).not.toContain("scenes-floating-inspector__grip");
+  });
+
+  it("widens the hotspot inspector for decisions and keeps scene changes in the action list", () => {
+    const markup = renderScenesPanel(
+      (project) => {
+        project.scenes.items[0]!.hotspots[0]!.effects = [{
+          type: "conditional",
+          conditionMode: "all",
+          conditions: [],
+          thenEffects: [],
+          elseEffects: []
+        }];
+      },
+      (project) => {
+        mockedStore.state.selectedHotspotId = project.scenes.items[0]!.hotspots[0]!.id;
+      }
+    );
+
+    expect(markup).toContain("scenes-floating-inspector--logic-wide");
+    expect(markup).toContain("Add scene changes as Go to scene actions above.");
+    expect(markup).not.toContain(">Target Scene</span>");
   });
 
   it("shows available dialogue trees in the selected hotspot inspector", () => {
@@ -931,7 +1019,7 @@ describe("ScenesPanel scene audio UI", () => {
     expect(markup).toContain(">On click</summary>");
     expect(markup).toContain(">Use Brass Key</summary>");
     expect(markup).toContain(">Any other item</summary>");
-    expect(markup).not.toContain(">Otherwise</summary>");
+    expect(markup).not.toContain(">Else</summary>");
     expect(markup).toContain("Locked Cabinet");
     expect(markup).toContain("cabinet.examined");
     expect(markup).toContain("cabinet.wrongItem");
@@ -959,6 +1047,36 @@ describe("ScenesPanel scene audio UI", () => {
       event.effects = [];
     });
     expect(hotspot).not.toHaveProperty("otherItemEvent");
+  });
+
+  it("moves unambiguous legacy scene targets into actions and keeps real conditional fallbacks", () => {
+    const simpleEvent: HotspotEvent = { targetSceneId: "scene_target", effects: [] };
+    applyHotspotEventActionUpdate(simpleEvent, [{ type: "setVariable", variableId: "door.open", value: true }]);
+    expect(simpleEvent).toEqual({
+      effects: [
+        { type: "setVariable", variableId: "door.open", value: true },
+        { type: "goToScene", sceneId: "scene_target" }
+      ]
+    });
+
+    const fallbackEvent: HotspotEvent = { targetSceneId: "scene_fallback", effects: [] };
+    applyHotspotEventActionUpdate(fallbackEvent, [{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "sceneVisited", sceneId: "scene_seen", visited: true }],
+      thenEffects: [{ type: "goToScene", sceneId: "scene_then" }],
+      elseEffects: []
+    }]);
+    expect(fallbackEvent.targetSceneId).toBe("scene_fallback");
+
+    applyHotspotEventActionUpdate(fallbackEvent, [{
+      type: "conditional",
+      conditionMode: "all",
+      conditions: [{ type: "sceneVisited", sceneId: "scene_seen", visited: true }],
+      thenEffects: [{ type: "goToScene", sceneId: "scene_then" }],
+      elseEffects: [{ type: "goToScene", sceneId: "scene_else" }]
+    }]);
+    expect(fallbackEvent.targetSceneId).toBeUndefined();
   });
 
   it("shows scene-duration timing for selected default hotspots", () => {
@@ -1071,18 +1189,13 @@ describe("ScenesPanel scene audio UI", () => {
     });
   });
 
-  it("requires a second click to open the inspector after hotspot selection and preserves that state across deselection", () => {
-    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "preserve")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "preserve")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "open")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, undefined, "hotspot_item", "toggle")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "hotspot_item", "toggle")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "hotspot_item", "toggle")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_other", "hotspot_item", "toggle")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_other", "hotspot_item", "toggle")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", undefined, "preserve")).toBe(false);
-    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", undefined, "preserve")).toBe(true);
-    expect(resolveNextHotspotInspectorOpenState(true, undefined, "hotspot_item", "toggle")).toBe(true);
+  it("opens the inspector on the first hotspot click and preserves explicit closed state during drags", () => {
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "preserve")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, "hotspot_item", "open")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(true, "hotspot_item", "open")).toBe(true);
+    expect(resolveNextHotspotInspectorOpenState(false, undefined, "preserve")).toBe(false);
+    expect(resolveNextHotspotInspectorOpenState(true, undefined, "preserve")).toBe(true);
   });
 
   it("applies automation hotspot inspector open requests only for a new request with a selected hotspot", () => {

@@ -66,7 +66,7 @@ export function createVariableCondition(variable: GameVariableDefinition): Condi
     type: "variableCompare",
     variableId: variable.id,
     operator: "equals",
-    value: variable.initialValue
+    value: resolveSuggestedVariableValue(variable)
   };
 }
 
@@ -74,8 +74,12 @@ export function createSetVariableEffect(variable: GameVariableDefinition): Effec
   return {
     type: "setVariable",
     variableId: variable.id,
-    value: variable.initialValue
+    value: resolveSuggestedVariableValue(variable)
   };
+}
+
+export function resolveSuggestedVariableValue(variable: GameVariableDefinition): GameVariableValue {
+  return variable.type === "boolean" ? true : variable.initialValue;
 }
 
 export function isValueValidForVariable(variable: GameVariableDefinition, value: GameVariableValue): boolean {

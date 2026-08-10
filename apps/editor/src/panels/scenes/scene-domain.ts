@@ -6,6 +6,11 @@ import type { EditorTranslator } from "../../i18n/translate";
 export const SCENE_AUDIO_DROP_REJECTION_MESSAGE =
   "Scene audio accepts MP3, WAV, OGG, M4A, or AAC files only.";
 const CORNER_FIRST_HOTSPOT_HANDLES_STORAGE_KEY = "mage2:scene-editor:corner-first-hotspot-handles";
+const HOTSPOT_INSPECTOR_PRESENTATION_STORAGE_KEY = "mage2:scene-editor:hotspot-inspector-presentation";
+const HOTSPOT_INSPECTOR_DOCK_WIDTH_STORAGE_KEY = "mage2:scene-editor:hotspot-inspector-dock-width";
+export const DEFAULT_HOTSPOT_INSPECTOR_DOCK_WIDTH = 384;
+export const MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH = 320;
+export const MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH = 560;
 const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
   source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
     Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
@@ -15,6 +20,8 @@ export interface SceneAudioDropCandidate {
   filePath?: string;
   mimeType?: string;
 }
+
+export type HotspotInspectorPresentation = "docked" | "floating";
 
 export type SceneAudioDropAcceptance = "accept" | "reject" | "unknown";
 
@@ -43,6 +50,69 @@ export function saveCornerFirstHotspotHandlesPreference(enabled: boolean, storag
   } catch {
     // Ignore storage failures; the editor should keep working in restricted contexts.
   }
+}
+
+export function resolveHotspotInspectorPresentation(value: string | null | undefined): HotspotInspectorPresentation {
+  return value === "floating" ? "floating" : "docked";
+}
+
+export function loadHotspotInspectorPresentation(storage?: ScenesPreferenceStorage): HotspotInspectorPresentation {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    return resolveHotspotInspectorPresentation(
+      preferenceStorage?.getItem(HOTSPOT_INSPECTOR_PRESENTATION_STORAGE_KEY)
+    );
+  } catch {
+    return "docked";
+  }
+}
+
+export function saveHotspotInspectorPresentation(
+  presentation: HotspotInspectorPresentation,
+  storage?: ScenesPreferenceStorage
+): void {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    preferenceStorage?.setItem(HOTSPOT_INSPECTOR_PRESENTATION_STORAGE_KEY, presentation);
+  } catch {
+    // Ignore storage failures; the editor should keep working in restricted contexts.
+  }
+}
+
+export function resolveHotspotInspectorDockWidthValue(value: string | null | undefined): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_HOTSPOT_INSPECTOR_DOCK_WIDTH;
+  }
+
+  return clampHotspotInspectorDockWidth(Math.round(parsed));
+}
+
+export function loadHotspotInspectorDockWidth(storage?: ScenesPreferenceStorage): number {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    return resolveHotspotInspectorDockWidthValue(
+      preferenceStorage?.getItem(HOTSPOT_INSPECTOR_DOCK_WIDTH_STORAGE_KEY)
+    );
+  } catch {
+    return DEFAULT_HOTSPOT_INSPECTOR_DOCK_WIDTH;
+  }
+}
+
+export function saveHotspotInspectorDockWidth(width: number, storage?: ScenesPreferenceStorage): void {
+  try {
+    const preferenceStorage = storage ?? getScenesPreferenceStorage();
+    preferenceStorage?.setItem(
+      HOTSPOT_INSPECTOR_DOCK_WIDTH_STORAGE_KEY,
+      String(clampHotspotInspectorDockWidth(Math.round(width)))
+    );
+  } catch {
+    // Ignore storage failures; the editor should keep working in restricted contexts.
+  }
+}
+
+function clampHotspotInspectorDockWidth(width: number): number {
+  return Math.min(Math.max(width, MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH), MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH);
 }
 
 function getScenesPreferenceStorage(): ScenesPreferenceStorage | undefined {

@@ -48,6 +48,16 @@
   margin-bottom: 9px;
 }
 
+.playtest-diagnostics__section-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.playtest-diagnostics__section-heading > span {
+  color: #8c98a6;
+  font-size: 0.64rem;
+}
+
 .playtest-diagnostics__section > header h4,
 .playtest-diagnostics__section > h4 {
   color: #cbd3dc;

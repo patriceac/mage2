@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   resolveHotspotInventoryAction,
   resolveHotspotRotationDegrees,
   resolveRelativeHotspotFrame,
   type Asset,
+  type Effect,
   type GameVariableDefinition,
   type Hotspot,
   type HotspotEvent,
@@ -29,7 +30,9 @@ import type { EditorTranslator } from "../../i18n/translate";
 import { ConditionListEditor, EffectListEditor } from "../../logic/RuleBuilder";
 import {
   applyHotspotFeedbackValue,
+  applyHotspotEventActionUpdate,
   applyHotspotInventoryAction,
+  effectsAlwaysTransitionToScene,
   resolveHotspotFeedbackValue,
   resolveHotspotInventoryActionSummary,
   resolveHotspotInventoryActivationSummary,
@@ -37,6 +40,12 @@ import {
   type HotspotInventoryActionType
 } from "./hotspot-domain";
 import type { LinkedInventoryOption } from "./inventory-placement-domain";
+import {
+  MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH,
+  MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH,
+  type HotspotInspectorPresentation
+} from "./scene-domain";
+import { SceneInspectorPresentationIcon } from "./SceneEditorIcons";
 import { getFloatingWindowSize, getViewportSize, shouldStartFloatingWindowDrag } from "./floating-window-dom";
 
 interface HotspotInspectorWindowProps {
@@ -44,11 +53,13 @@ interface HotspotInspectorWindowProps {
   activeLocale: string;
   assets: ProjectBundle["assets"]["assets"];
   dialogueOptions: ProjectBundle["dialogues"]["items"];
+  dockWidth: number;
   foregroundMediaAssets: Asset[];
   responseGroups: ProjectBundle["dialogues"]["responseGroups"];
   inventoryItemOptions: LinkedInventoryOption[];
   localeStrings: Record<string, string>;
   project: ProjectBundle;
+  presentation: HotspotInspectorPresentation;
   position?: FloatingWindowPosition;
   rotationSurfaceSize?: HotspotSurfaceSize;
   sceneTimelineDurationMs: number;
@@ -57,19 +68,35 @@ interface HotspotInspectorWindowProps {
   mutateSelectedHotspot: (mutator: (hotspot: Hotspot, draft: ProjectBundle) => void) => void;
   onRotationDegreesChange: (rotationDegrees: number) => void;
   onPositionChange: React.Dispatch<React.SetStateAction<FloatingWindowPosition | undefined>>;
+  onDockWidthChange: (width: number) => void;
+  onPresentationChange: (presentation: HotspotInspectorPresentation) => void;
   onInteractionActiveChange: (active: boolean) => void;
   onImportInteractionMedia: (hotspot: Hotspot) => void;
   onDismiss: () => void;
 }
 
 const HOTSPOT_INSPECTOR_FALLBACK_SIZE = {
-  width: 420,
-  height: 640
+  width: 736,
+  height: 800
 };
 const identityEditorTranslator: EditorTranslator = (source, params = {}) =>
   source.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (placeholder, name: string) =>
     Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : placeholder
   );
+
+function effectsContainConditional(effects: readonly Effect[]): boolean {
+  return effects.some((effect) => effect.type === "conditional");
+}
+
+function resolveDockWidthForViewport(width: number): number {
+  const viewportLimit = typeof window === "undefined"
+    ? MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH
+    : Math.max(MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH, window.innerWidth - 520);
+  return Math.min(
+    Math.max(Math.round(width), MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH),
+    Math.min(MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH, viewportLimit)
+  );
+}
 
 const useFloatingWindowLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -78,11 +105,13 @@ export function HotspotInspectorWindow({
   activeLocale,
   assets,
   dialogueOptions,
+  dockWidth,
   foregroundMediaAssets,
   responseGroups,
   inventoryItemOptions,
   localeStrings,
   project,
+  presentation,
   position,
   rotationSurfaceSize,
   sceneTimelineDurationMs,
@@ -91,6 +120,8 @@ export function HotspotInspectorWindow({
   mutateSelectedHotspot,
   onRotationDegreesChange,
   onPositionChange,
+  onDockWidthChange,
+  onPresentationChange,
   onInteractionActiveChange,
   onImportInteractionMedia,
   onDismiss
@@ -98,11 +129,12 @@ export function HotspotInspectorWindow({
   const { t } = useEditorI18n();
   const inspectorRef = useRef<HTMLElement>(null);
   const dragCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const dockResizeCleanupRef = useRef<(() => void) | undefined>(undefined);
   const [isHovered, setIsHovered] = useState(false);
   const [isFocusedWithin, setIsFocusedWithin] = useState(false);
 
   useFloatingWindowLayoutEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || presentation !== "floating") {
       return;
     }
 
@@ -147,7 +179,7 @@ export function HotspotInspectorWindow({
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [anchorRef, onPositionChange, selectedHotspot.id]);
+  }, [anchorRef, onPositionChange, presentation, selectedHotspot.id]);
 
   const selectedHotspotRotationDegrees = rotationSurfaceSize
     ? resolveRelativeHotspotFrame(selectedHotspot, rotationSurfaceSize).rotationDegrees
@@ -166,6 +198,7 @@ export function HotspotInspectorWindow({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      dockResizeCleanupRef.current?.();
     };
   }, []);
 
@@ -180,7 +213,7 @@ export function HotspotInspectorWindow({
   }, [onInteractionActiveChange]);
 
   function startDrag(event: React.MouseEvent<HTMLElement>) {
-    if (event.button !== 0 || typeof window === "undefined") {
+    if (presentation !== "floating" || event.button !== 0 || typeof window === "undefined") {
       return;
     }
 
@@ -230,15 +263,97 @@ export function HotspotInspectorWindow({
     window.addEventListener("mouseup", finishDrag);
   }
 
+  function startDockResize(event: React.PointerEvent<HTMLElement>) {
+    if (presentation !== "docked" || event.button !== 0 || typeof window === "undefined") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dockResizeCleanupRef.current?.();
+
+    const startX = event.clientX;
+    const startWidth = dockWidth;
+    const body = document.body;
+    const previousCursor = body.style.cursor;
+    const previousUserSelect = body.style.userSelect;
+    body.style.cursor = "col-resize";
+    body.style.userSelect = "none";
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      onDockWidthChange(resolveDockWidthForViewport(startWidth + startX - moveEvent.clientX));
+    };
+
+    const finishResize = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishResize);
+      body.style.cursor = previousCursor;
+      body.style.userSelect = previousUserSelect;
+      dockResizeCleanupRef.current = undefined;
+    };
+
+    dockResizeCleanupRef.current = finishResize;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishResize);
+  }
+
+  function handleDockResizeKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") {
+      return;
+    }
+
+    event.preventDefault();
+    if (event.key === "Home") {
+      onDockWidthChange(MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH);
+      return;
+    }
+
+    if (event.key === "End") {
+      onDockWidthChange(resolveDockWidthForViewport(MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH));
+      return;
+    }
+
+    onDockWidthChange(
+      resolveDockWidthForViewport(dockWidth + (event.key === "ArrowLeft" ? 16 : -16))
+    );
+  }
+
   const inspectorTitleId = `hotspot-inspector-title-${selectedHotspot.id}`;
+  const hasConditionalActions = [
+    selectedHotspot.effects,
+    selectedHotspot.clickEvent?.effects ?? [],
+    selectedHotspot.otherItemEvent?.effects ?? []
+  ].some(effectsContainConditional);
+  const inspectorClassName = [
+    "panel",
+    "scenes-floating-inspector",
+    presentation === "docked" ? "scenes-floating-inspector--docked" : "",
+    presentation === "floating" && position ? "scenes-floating-inspector--ready" : "",
+    hasConditionalActions ? "scenes-floating-inspector--logic-wide" : ""
+  ].filter(Boolean).join(" ");
+  const inspectorStyle: CSSProperties = {
+    ...(presentation === "floating" && position
+      ? { left: `${position.x}px`, top: `${position.y}px` }
+      : {}),
+    ...(presentation === "docked"
+      ? { "--hotspot-inspector-dock-width": `${dockWidth}px` }
+      : {})
+  } as CSSProperties;
+  const nextPresentation: HotspotInspectorPresentation = presentation === "docked" ? "floating" : "docked";
+  const presentationActionLabel = t(nextPresentation === "floating" ? "Float" : "Dock right");
 
   return (
-    <div className="scenes-floating-inspector-layer">
+    <div
+      className={[
+        "scenes-floating-inspector-layer",
+        presentation === "docked" ? "scenes-floating-inspector-layer--docked" : ""
+      ].filter(Boolean).join(" ")}
+    >
       <aside
         ref={inspectorRef}
-        role="dialog"
+        role={presentation === "docked" ? "complementary" : "dialog"}
         aria-labelledby={inspectorTitleId}
-        onMouseDown={startDrag}
+        onMouseDown={presentation === "floating" ? startDrag : undefined}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onFocusCapture={() => setIsFocusedWithin(true)}
@@ -247,27 +362,48 @@ export function HotspotInspectorWindow({
             setIsFocusedWithin(false);
           }
         }}
-        className={
-          position
-            ? "panel scenes-floating-inspector scenes-floating-inspector--ready"
-            : "panel scenes-floating-inspector"
-        }
-        style={position ? { left: `${position.x}px`, top: `${position.y}px` } : undefined}
+        className={inspectorClassName}
+        style={inspectorStyle}
       >
+        {presentation === "docked" ? (
+          <div
+            className="scenes-floating-inspector__resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("Resize hotspot inspector")}
+            aria-valuemin={MIN_HOTSPOT_INSPECTOR_DOCK_WIDTH}
+            aria-valuemax={MAX_HOTSPOT_INSPECTOR_DOCK_WIDTH}
+            aria-valuenow={dockWidth}
+            tabIndex={0}
+            onPointerDown={startDockResize}
+            onKeyDown={handleDockResizeKeyDown}
+          />
+        ) : null}
         <header className="scenes-floating-inspector__header">
           <div className="scenes-floating-inspector__title-group">
             <p className="eyebrow">{t("Hotspot Inspector")}</p>
             <h3 id={inspectorTitleId}>{t("Hotspot Inspector")}</h3>
           </div>
-          <button
-            type="button"
-            className="button-secondary scenes-floating-inspector__close"
-            aria-label={t("Close hotspot inspector")}
-            title={t("Hide the floating hotspot inspector.")}
-            onClick={onDismiss}
-          >
-            <span aria-hidden="true">x</span>
-          </button>
+          <div className="scenes-floating-inspector__header-actions">
+            <button
+              type="button"
+              className="button-secondary scenes-floating-inspector__presentation-toggle"
+              aria-label={presentationActionLabel}
+              title={presentationActionLabel}
+              onClick={() => onPresentationChange(nextPresentation)}
+            >
+              <SceneInspectorPresentationIcon target={nextPresentation} />
+            </button>
+            <button
+              type="button"
+              className="button-secondary scenes-floating-inspector__close"
+              aria-label={t("Close hotspot inspector")}
+              title={t("Hide the floating hotspot inspector.")}
+              onClick={onDismiss}
+            >
+              <span aria-hidden="true">x</span>
+            </button>
+          </div>
         </header>
 
         <div className="scenes-floating-inspector__body">
@@ -658,6 +794,8 @@ function HotspotEventSection({
   const { t } = useEditorI18n();
   const feedbackValue = resolveHotspotFeedbackValue(event);
   const feedbackOptions = buildHotspotFeedbackOptions(responseGroups, dialogueOptions, assets, localeStrings, t);
+  const hasActions = event.effects.length > 0;
+  const hasReachableFallbackScene = Boolean(event.targetSceneId) && !effectsAlwaysTransitionToScene(event.effects);
   return (
     <details open={open} className="scenes-floating-inspector__section">
       <summary className="scenes-floating-inspector__section-title">{title}</summary>
@@ -669,27 +807,40 @@ function HotspotEventSection({
         description={t("Run these actions in order when {eventTitle} happens.", { eventTitle: title })}
         effects={event.effects}
         onChange={(effects, variables) =>
-          onChange((hotspotEvent) => { hotspotEvent.effects = effects; }, variables)
+          onChange((hotspotEvent) => { applyHotspotEventActionUpdate(hotspotEvent, effects); }, variables)
         }
       />
-      <label title={t("Scene that should open for {eventTitle}.", { eventTitle: title })}>
-        <span className="field-label--inset">{t("Target Scene")}</span>
-        <DropdownSelect
-          value={event.targetSceneId ?? ""}
-          onChange={(changeEvent) =>
-            onChange((hotspotEvent) => {
-              hotspotEvent.targetSceneId = changeEvent.target.value || undefined;
-            })
-          }
-        >
-          <option value="">{t("None")}</option>
-          {scenes.map((scene) => (
-            <option key={scene.id} value={scene.id}>
-              {scene.name}
-            </option>
-          ))}
-        </DropdownSelect>
-      </label>
+      {!hasActions || hasReachableFallbackScene ? (
+        <label title={hasActions
+          ? t("Used only if the actions above do not already go to a scene for {eventTitle}.", { eventTitle: title })
+          : t("Scene that should open for {eventTitle}.", { eventTitle: title })}>
+          <span className="field-label--inset">{hasActions ? t("Fallback Scene") : t("Target Scene")}</span>
+          <DropdownSelect
+            value={event.targetSceneId ?? ""}
+            onChange={(changeEvent) =>
+              onChange((hotspotEvent) => {
+                hotspotEvent.targetSceneId = changeEvent.target.value || undefined;
+              })
+            }
+          >
+            <option value="">{t("None")}</option>
+            {scenes.map((scene) => (
+              <option key={scene.id} value={scene.id}>
+                {scene.name}
+              </option>
+            ))}
+          </DropdownSelect>
+          {hasActions ? (
+            <span className="scenes-event-transition-note">
+              {t("Used only when the actions above do not already go to a scene.")}
+            </span>
+          ) : null}
+        </label>
+      ) : (
+        <p className="muted scenes-event-transition-note">
+          {t("Add scene changes as Go to scene actions above.")}
+        </p>
+      )}
       <label title={t("Optional player-facing feedback for {eventTitle}. None means the interaction stays silent.", { eventTitle: title })}>
         <span className="field-label--inset">{t("Player feedback")}</span>
         <DropdownSelect

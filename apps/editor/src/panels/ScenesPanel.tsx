@@ -1,7 +1,8 @@
 import {
   useEffect,
   useRef,
-  useState
+  useState,
+  type CSSProperties
 } from "react";
 import { type MediaSurfaceDropEvent } from "../MediaSurface";
 import {
@@ -69,9 +70,14 @@ import {
 import {
   SCENE_AUDIO_DROP_REJECTION_MESSAGE,
   applySceneBackgroundAsset,
+  loadHotspotInspectorDockWidth,
+  loadHotspotInspectorPresentation,
+  saveHotspotInspectorDockWidth,
+  saveHotspotInspectorPresentation,
   resolveDeleteSceneBlockedMessage,
   resolveDeleteSceneStatusMessage,
   resolveSceneAudioDropAcceptance,
+  type HotspotInspectorPresentation,
   type SceneAudioDropAcceptance
 } from "./scenes/scene-domain";
 import { useSceneMediaPlayback } from "./scenes/useSceneMediaPlayback";
@@ -85,12 +91,21 @@ export {
 export {
   applySceneBackgroundAsset,
   canAssignSceneBackgroundAsset,
+  DEFAULT_HOTSPOT_INSPECTOR_DOCK_WIDTH,
   loadCornerFirstHotspotHandlesPreference,
+  loadHotspotInspectorDockWidth,
+  loadHotspotInspectorPresentation,
   resolveCornerFirstHotspotHandlesPreferenceValue,
   resolveSceneAudioDropAcceptance,
-  saveCornerFirstHotspotHandlesPreference
+  saveCornerFirstHotspotHandlesPreference,
+  saveHotspotInspectorDockWidth,
+  saveHotspotInspectorPresentation
 } from "./scenes/scene-domain";
-export type { SceneAudioDropAcceptance, SceneAudioDropCandidate } from "./scenes/scene-domain";
+export type {
+  HotspotInspectorPresentation,
+  SceneAudioDropAcceptance,
+  SceneAudioDropCandidate
+} from "./scenes/scene-domain";
 export { formatCanvasZoomLabel } from "./scenes/SceneCanvas";
 export {
   resolveInventoryPickerKeyboardAction,
@@ -178,6 +193,12 @@ export function ScenesPanel({
   const [isInventoryPlacementDropActive, setIsInventoryPlacementDropActive] = useState(false);
   const [isHotspotInspectorOpen, setIsHotspotInspectorOpen] = useState(Boolean(selectedHotspot));
   const [isHotspotInspectorActive, setIsHotspotInspectorActive] = useState(false);
+  const [hotspotInspectorPresentation, setHotspotInspectorPresentation] = useState<HotspotInspectorPresentation>(() =>
+    loadHotspotInspectorPresentation()
+  );
+  const [hotspotInspectorDockWidth, setHotspotInspectorDockWidth] = useState(() =>
+    loadHotspotInspectorDockWidth()
+  );
   const [inventoryPickerPosition, setInventoryPickerPosition] = useState<FloatingWindowPosition>();
   const [inventoryPickerSearch, setInventoryPickerSearch] = useState("");
   const [activeInventoryPickerItemId, setActiveInventoryPickerItemId] = useState<string>();
@@ -223,6 +244,15 @@ export function ScenesPanel({
     Boolean(selectedHotspot),
     isHotspotInspectorOpen
   );
+  const isHotspotInspectorDocked =
+    floatingWindowVisibility.isHotspotInspectorVisible && hotspotInspectorPresentation === "docked";
+  const stageLayoutClassName = [
+    "scenes-panel__stage-layout",
+    isHotspotInspectorDocked ? "scenes-panel__stage-layout--inspector-docked" : ""
+  ].filter(Boolean).join(" ");
+  const stageLayoutStyle = isHotspotInspectorDocked
+    ? ({ "--hotspot-inspector-dock-width": `${hotspotInspectorDockWidth}px` } as CSSProperties)
+    : undefined;
 
   function reportSceneOperation(message: string, tone: SceneOperationFeedbackTone) {
     setSceneOperationFeedback({ message, tone });
@@ -265,6 +295,14 @@ export function ScenesPanel({
 
     setActiveInventoryPickerItemId(visibleInventoryPickerOptions[0]?.itemId);
   }, [activeInventoryPickerItemId, visibleInventoryPickerOptions]);
+
+  useEffect(() => {
+    saveHotspotInspectorPresentation(hotspotInspectorPresentation);
+  }, [hotspotInspectorPresentation]);
+
+  useEffect(() => {
+    saveHotspotInspectorDockWidth(hotspotInspectorDockWidth);
+  }, [hotspotInspectorDockWidth]);
 
   function updateHotspotGeometry(hotspotId: string, geometry: HotspotGeometry) {
     const currentProject = useEditorStore.getState().project ?? project;
@@ -895,7 +933,6 @@ export function ScenesPanel({
     setIsHotspotInspectorOpen((currentIsHotspotInspectorOpen) =>
       resolveNextHotspotInspectorOpenState(
         currentIsHotspotInspectorOpen,
-        selectedHotspotId,
         nextSelectedHotspotId,
         inspectorSelectionMode
       )
@@ -1376,10 +1413,49 @@ export function ScenesPanel({
     setStatusMessage(t("Created {sceneName}.", { sceneName: scene.name }));
   }
 
+  function renderHotspotInspector(presentation: HotspotInspectorPresentation) {
+    if (
+      !floatingWindowVisibility.isHotspotInspectorVisible ||
+      hotspotInspectorPresentation !== presentation ||
+      !selectedHotspot
+    ) {
+      return null;
+    }
+
+    return (
+      <HotspotInspectorWindow
+        anchorRef={scenesPanelRef}
+        activeLocale={activeLocale}
+        dialogueOptions={project.dialogues.items}
+        dockWidth={hotspotInspectorDockWidth}
+        foregroundMediaAssets={availableForegroundMediaAssets}
+        responseGroups={project.dialogues.responseGroups}
+        assets={project.assets.assets}
+        localeStrings={localeStrings}
+        project={project}
+        presentation={presentation}
+        inventoryItemOptions={linkedInventoryOptions}
+        sceneTimelineDurationMs={sceneTimelineDurationMs}
+        scenes={project.scenes.items}
+        position={hotspotInspectorPosition}
+        rotationSurfaceSize={resolveCurrentSceneSurfaceSize()}
+        selectedHotspot={selectedHotspot}
+        mutateSelectedHotspot={mutateSelectedHotspot}
+        onRotationDegreesChange={updateSelectedHotspotRotationDegrees}
+        onPositionChange={setHotspotInspectorPosition}
+        onDockWidthChange={setHotspotInspectorDockWidth}
+        onPresentationChange={setHotspotInspectorPresentation}
+        onInteractionActiveChange={setIsHotspotInspectorActive}
+        onImportInteractionMedia={(hotspot) => void handleImportInteractionMedia(hotspot)}
+        onDismiss={() => setIsHotspotInspectorOpen(false)}
+      />
+    );
+  }
+
   return (
     <div ref={scenesPanelRef} className="panel-grid panel-grid--single scenes-panel-shell">
       <section className="panel scenes-panel">
-        <div className="scenes-panel__stage-layout">
+        <div className={stageLayoutClassName} style={stageLayoutStyle}>
           <SceneListRail
             activeLocale={activeLocale}
             currentScene={currentScene}
@@ -1416,7 +1492,7 @@ export function ScenesPanel({
               onHotspotChange={updateHotspotGeometry}
               onHotspotClick={(hotspotId, interaction) => {
                 setIsInventoryPickerOpen(false);
-                selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "toggle");
+                selectHotspot(hotspotId, interaction === "drag" ? "preserve" : "open");
               }}
               onHotspotDragStart={captureHotspotDragCheckpoint}
               onInventoryPlacementDragEnter={handleInventoryPlacementDragEnter}
@@ -1479,15 +1555,24 @@ export function ScenesPanel({
             </div>
           </div>
 
-          <SceneActionRail
-            hasBackground={Boolean(currentAsset)}
-            hasSelectedHotspot={Boolean(selectedHotspotId)}
-            inventoryPickerAnchorRef={inventoryPickerAnchorRef}
-            isInventoryPickerVisible={floatingWindowVisibility.isInventoryPickerVisible}
-            onCreateHotspot={createHotspotAtBestAvailablePosition}
-            onDeleteSelectedHotspot={() => deleteHotspot(selectedHotspotId)}
-            onToggleInventoryPicker={handleInventoryPickerToggle}
-          />
+          <div
+            className={[
+              "scenes-panel__right-rail",
+              isHotspotInspectorDocked ? "scenes-panel__right-rail--inspector-docked" : ""
+            ].filter(Boolean).join(" ")}
+          >
+            <SceneActionRail
+              compact={isHotspotInspectorDocked}
+              hasBackground={Boolean(currentAsset)}
+              hasSelectedHotspot={Boolean(selectedHotspotId)}
+              inventoryPickerAnchorRef={inventoryPickerAnchorRef}
+              isInventoryPickerVisible={floatingWindowVisibility.isInventoryPickerVisible}
+              onCreateHotspot={createHotspotAtBestAvailablePosition}
+              onDeleteSelectedHotspot={() => deleteHotspot(selectedHotspotId)}
+              onToggleInventoryPicker={handleInventoryPickerToggle}
+            />
+            {renderHotspotInspector("docked")}
+          </div>
         </div>
       </section>
 
@@ -1532,35 +1617,12 @@ export function ScenesPanel({
         />
       ) : null}
 
-      {floatingWindowVisibility.isHotspotInspectorVisible && selectedHotspot ? (
-        <HotspotInspectorWindow
-          anchorRef={scenesPanelRef}
-          activeLocale={activeLocale}
-          dialogueOptions={project.dialogues.items}
-          foregroundMediaAssets={availableForegroundMediaAssets}
-          responseGroups={project.dialogues.responseGroups}
-          assets={project.assets.assets}
-          localeStrings={localeStrings}
-          project={project}
-          inventoryItemOptions={linkedInventoryOptions}
-          sceneTimelineDurationMs={sceneTimelineDurationMs}
-          scenes={project.scenes.items}
-          position={hotspotInspectorPosition}
-          rotationSurfaceSize={resolveCurrentSceneSurfaceSize()}
-          selectedHotspot={selectedHotspot}
-          mutateSelectedHotspot={mutateSelectedHotspot}
-          onRotationDegreesChange={updateSelectedHotspotRotationDegrees}
-          onPositionChange={setHotspotInspectorPosition}
-          onInteractionActiveChange={setIsHotspotInspectorActive}
-          onImportInteractionMedia={(hotspot) => void handleImportInteractionMedia(hotspot)}
-          onDismiss={() => setIsHotspotInspectorOpen(false)}
-        />
-      ) : null}
+      {renderHotspotInspector("floating")}
     </div>
   );
 }
 
-type HotspotInspectorSelectionMode = "open" | "preserve" | "toggle";
+type HotspotInspectorSelectionMode = "open" | "preserve";
 
 export function resolveScenesFloatingWindowVisibility(
   isInventoryPickerOpen: boolean,
@@ -1575,16 +1637,11 @@ export function resolveScenesFloatingWindowVisibility(
 
 export function resolveNextHotspotInspectorOpenState(
   currentIsHotspotInspectorOpen: boolean,
-  currentSelectedHotspotId: string | undefined,
   nextSelectedHotspotId: string | undefined,
   inspectorSelectionMode: HotspotInspectorSelectionMode
 ) {
   if (!nextSelectedHotspotId) {
     return currentIsHotspotInspectorOpen;
-  }
-
-  if (inspectorSelectionMode === "toggle") {
-    return currentSelectedHotspotId === nextSelectedHotspotId ? !currentIsHotspotInspectorOpen : currentIsHotspotInspectorOpen;
   }
 
   return inspectorSelectionMode === "open" ? true : currentIsHotspotInspectorOpen;

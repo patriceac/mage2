@@ -153,3 +153,73 @@ export function SceneActionIcon({ kind }: { kind: "hotspot" | "item" | "delete" 
     </svg>
   );
 }
+
+export function SceneInspectorPresentationIcon({ target }: { target: "docked" | "floating" }) {
+  if (target === "floating") {
+    return (
+      <svg
+        className="scene-inspector-presentation-icon"
+        data-icon="float-panel"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <rect
+          x="3.5"
+          y="4.5"
+          width="12.25"
+          height="11.25"
+          rx="1.5"
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity="0.62"
+          strokeWidth="1.65"
+        />
+        <rect
+          className="scene-inspector-presentation-icon__target"
+          x="8.25"
+          y="8.25"
+          width="12.25"
+          height="11.25"
+          rx="1.5"
+        />
+        <rect
+          x="8.25"
+          y="8.25"
+          width="12.25"
+          height="11.25"
+          rx="1.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.65"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      className="scene-inspector-presentation-icon"
+      data-icon="dock-right-panel"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        className="scene-inspector-presentation-icon__target"
+        d="M14 5.25h4.5c.7 0 1.25.55 1.25 1.25v11c0 .7-.55 1.25-1.25 1.25H14V5.25Z"
+      />
+      <rect
+        x="3.5"
+        y="4.5"
+        width="17"
+        height="15"
+        rx="1.75"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.65"
+      />
+      <path d="M14 4.75v14.5" fill="none" stroke="currentColor" strokeWidth="1.65" />
+    </svg>
+  );
+}

@@ -1241,7 +1241,7 @@ function validateConditionEffectRefs(
         issues.push({
           level: "error",
           code: "CONDITIONAL_BRANCHES_EMPTY",
-          message: `Conditional action on '${entityId}' needs an action in Then or Otherwise.`,
+          message: `Conditional action on '${entityId}' needs an action in Then or Else.`,
           entityId
         });
       }

@@ -779,7 +779,7 @@ function PlaytestDiagnostics({
   onClearTrace: () => void;
 }) {
   const { t } = useEditorI18n();
-  const recentTrace = logicTrace.slice(-12).reverse();
+  const recentTrace = logicTrace.slice(-12);
   return (
     <aside className="panel playtest-diagnostics" aria-label={t("Playtest diagnostics")}>
       <header className="playtest-diagnostics__header">
@@ -862,7 +862,10 @@ function PlaytestDiagnostics({
 
       <section className="playtest-diagnostics__section">
         <header>
-          <h4>{t("Recent actions")}</h4>
+          <div className="playtest-diagnostics__section-heading">
+            <h4>{t("Execution order")}</h4>
+            <span>{t("Oldest first")}</span>
+          </div>
           {logicTrace.length > 0 ? <button type="button" onClick={onClearTrace}>{t("Clear")}</button> : null}
         </header>
         {recentTrace.length > 0 ? (
@@ -975,7 +978,7 @@ function formatLogicTraceEffect(entry: LogicTraceEntry, project: ProjectBundle, 
   if (effect.type === "conditional") {
     return entry.branch === "then"
       ? t("Decision: Then branch")
-      : t("Decision: Otherwise branch");
+      : t("Decision: Else branch");
   }
   const name = project.dialogues.items.find((candidate) => candidate.id === effect.dialogueTreeId)?.name ?? effect.dialogueTreeId;
   return t("Start dialogue: {name}", { name });

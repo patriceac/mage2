@@ -3,8 +3,11 @@ import { createDefaultProjectBundle } from "@mage2/schema";
 import {
   collectVariableUsage,
   createGameVariableDefinition,
+  createSetVariableEffect,
+  createVariableCondition,
   createVariableId,
-  isValueValidForVariable
+  isValueValidForVariable,
+  resolveSuggestedVariableValue
 } from "./logic-model";
 
 describe("logic model", () => {
@@ -41,6 +44,17 @@ describe("logic model", () => {
     expect(isValueValidForVariable(integerVariable, 2.5)).toBe(false);
     expect(isValueValidForVariable(choiceVariable, "friend")).toBe(true);
     expect(isValueValidForVariable(choiceVariable, "rival")).toBe(false);
+  });
+
+  it("suggests an active value for new Boolean conditions and actions", () => {
+    const booleanVariable = createGameVariableDefinition("Door open", "boolean", []);
+    const integerVariable = createGameVariableDefinition("Attempts", "integer", []);
+
+    expect(booleanVariable.initialValue).toBe(false);
+    expect(resolveSuggestedVariableValue(booleanVariable)).toBe(true);
+    expect(createVariableCondition(booleanVariable)).toMatchObject({ value: true });
+    expect(createSetVariableEffect(booleanVariable)).toMatchObject({ value: true });
+    expect(resolveSuggestedVariableValue(integerVariable)).toBe(0);
   });
 
   it("counts conditions and actions across scenes, events, and dialogue", () => {

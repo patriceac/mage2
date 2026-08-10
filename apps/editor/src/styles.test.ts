@@ -15,7 +15,7 @@ const styles = [
   .join("\n")
   .replace(/\r\n/g, "\n");
 const workbenchSharedButtonSelector =
-  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
+  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchScreenTabSelector =
   ".app-shell--editor-workbench\n  button.scene-screen-tabs__tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchLocalizationSubtabActiveSelector =
@@ -279,6 +279,17 @@ describe("hotspot idle visibility styles", () => {
     );
     expect(styles).toMatch(
       /\.app-shell--scene-editor \.scenes-floating-inspector__interaction-media-note\s*\{[\s\S]*?margin: 0;[\s\S]*?line-height: 1\.4;/
+    );
+  });
+
+  it("centers hotspot inspector header icons outside shared button chrome", () => {
+    expect(workbenchSharedButtonSelector).toContain(".scenes-floating-inspector__presentation-toggle");
+    expect(workbenchSharedButtonSelector).toContain(".scenes-floating-inspector__close");
+    expect(styles).toMatch(
+      /\.app-shell--scene-editor \.scenes-floating-inspector__presentation-toggle\s*\{[\s\S]*?flex: 0 0 1\.75rem;[\s\S]*?width: 1\.75rem;[\s\S]*?height: 1\.75rem;[\s\S]*?place-items: center;[\s\S]*?padding: 0;/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--scene-editor \.scene-inspector-presentation-icon\s*\{[\s\S]*?display: block;[\s\S]*?width: 1rem;[\s\S]*?height: 1rem;/
     );
   });
 

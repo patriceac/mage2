@@ -7434,7 +7434,7 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
   min-height: 2rem;
   border: 1px solid rgba(108, 128, 145, 0.28);
   border-radius: 4px;
@@ -7446,16 +7446,16 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
   border-color: rgba(23, 183, 216, 0.44);
   background: rgba(23, 119, 168, 0.22);
   color: #f4fbff;
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
   border-color: rgba(108, 128, 145, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: #708190;

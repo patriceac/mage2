@@ -67,6 +67,24 @@
   font-weight: 650;
 }
 
+.logic-editor__pending-condition {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px dashed color-mix(in srgb, var(--logic-accent) 42%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-bg, #171a20) 88%, var(--logic-accent) 3%);
+}
+
+.logic-editor__pending-condition-content,
+.logic-editor__pending-condition-content > .dropdown-select {
+  min-width: 0;
+  width: 100%;
+}
+
 .logic-editor__rows {
   display: grid;
   gap: 7px;
@@ -188,7 +206,7 @@
   border-left: 1px solid color-mix(in srgb, var(--logic-accent) 38%, transparent);
 }
 
-.logic-editor__branch--otherwise {
+.logic-editor__branch--else {
   border-left-color: color-mix(in srgb, var(--text-muted, #98a2b3) 42%, transparent);
 }
 
@@ -202,7 +220,7 @@
   color: var(--logic-accent);
 }
 
-.logic-editor__branch--otherwise .logic-editor__header h5 {
+.logic-editor__branch--else .logic-editor__header h5 {
   color: var(--text-color, #e6e9ee);
 }
 
@@ -357,6 +375,10 @@
   }
 
   .logic-editor__row {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .logic-editor__pending-condition {
     grid-template-columns: 30px minmax(0, 1fr);
   }
 

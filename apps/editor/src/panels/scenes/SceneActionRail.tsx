@@ -7,6 +7,7 @@ interface SceneActionRailProps {
   hasSelectedHotspot: boolean;
   inventoryPickerAnchorRef: RefObject<HTMLButtonElement | null>;
   isInventoryPickerVisible: boolean;
+  compact?: boolean;
   onCreateHotspot: () => void;
   onDeleteSelectedHotspot: () => void;
   onToggleInventoryPicker: () => void;
@@ -17,6 +18,7 @@ export function SceneActionRail({
   hasSelectedHotspot,
   inventoryPickerAnchorRef,
   isInventoryPickerVisible,
+  compact = false,
   onCreateHotspot,
   onDeleteSelectedHotspot,
   onToggleInventoryPicker
@@ -24,16 +26,23 @@ export function SceneActionRail({
   const { t } = useEditorI18n();
 
   return (
-    <aside className="scenes-panel__action-rail" aria-label={t("Scene object actions")}>
+    <aside
+      className={[
+        "scenes-panel__action-rail",
+        compact ? "scenes-panel__action-rail--compact" : ""
+      ].filter(Boolean).join(" ")}
+      aria-label={t("Scene object actions")}
+    >
       <div className="scenes-panel__hotspot-actions">
         <button
           type="button"
           className="scenes-panel__tool-button scenes-panel__tool-button--primary"
+          aria-label={t("Create Hotspot")}
           title={t("Create a new hotspot in the emptiest available area of this scene. Shortcut: Ctrl+click empty space in the preview.")}
           onClick={onCreateHotspot}
         >
           <SceneActionIcon kind="hotspot" />
-          {t("Create Hotspot")}
+          <span className="scenes-panel__tool-label">{t("Create Hotspot")}</span>
         </button>
         <button
           ref={inventoryPickerAnchorRef}
@@ -45,17 +54,18 @@ export function SceneActionRail({
           onClick={onToggleInventoryPicker}
         >
           <SceneActionIcon kind="item" />
-          {t("Add Item")}
+          <span className="scenes-panel__tool-label">{t("Add Item")}</span>
         </button>
         <button
           type="button"
           className="button-danger-quiet scenes-panel__tool-button scenes-panel__tool-button--danger scenes-panel__hotspot-delete-button"
+          aria-label={t("Delete")}
           disabled={!hasSelectedHotspot}
           title={t("Delete the currently selected hotspot or linked inventory placement from this scene. Shortcut: Delete.")}
           onClick={onDeleteSelectedHotspot}
         >
           <SceneActionIcon kind="delete" />
-          {t("Delete")}
+          <span className="scenes-panel__tool-label">{t("Delete")}</span>
         </button>
       </div>
       {!hasBackground ? (

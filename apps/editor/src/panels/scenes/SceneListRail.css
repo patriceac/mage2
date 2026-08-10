@@ -5,6 +5,13 @@
   gap: 0.9rem;
 }
 
+.scenes-panel__right-rail {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .scenes-panel__side-controls {
   display: grid;
   align-content: start;
@@ -491,4 +498,3 @@
 .scenes-panel__scene-actions-menu-item--danger:focus-visible {
   background: rgba(255, 95, 95, 0.12);
 }
-

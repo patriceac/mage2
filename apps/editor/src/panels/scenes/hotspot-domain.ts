@@ -69,6 +69,44 @@ export function updateOptionalHotspotEvent(
   }
 }
 
+export function applyHotspotEventActionUpdate(event: HotspotEvent, nextEffects: Effect[]): void {
+  let reconciledEffects = nextEffects;
+  const legacyTargetSceneId = event.targetSceneId;
+
+  if (legacyTargetSceneId && effectsAlwaysTransitionToScene(nextEffects)) {
+    delete event.targetSceneId;
+  } else if (
+    legacyTargetSceneId &&
+    nextEffects.length > 0 &&
+    !effectsContainDecisionOrSceneTransition(nextEffects)
+  ) {
+    reconciledEffects = [...nextEffects, { type: "goToScene", sceneId: legacyTargetSceneId }];
+    delete event.targetSceneId;
+  }
+
+  event.effects = reconciledEffects;
+}
+
+export function effectsAlwaysTransitionToScene(effects: readonly Effect[]): boolean {
+  return effects.some((effect) => {
+    if (effect.type === "goToScene") {
+      return true;
+    }
+    return effect.type === "conditional" &&
+      effectsAlwaysTransitionToScene(effect.thenEffects) &&
+      effectsAlwaysTransitionToScene(effect.elseEffects);
+  });
+}
+
+function effectsContainDecisionOrSceneTransition(effects: readonly Effect[]): boolean {
+  return effects.some((effect) => {
+    if (effect.type === "goToScene" || effect.type === "conditional") {
+      return true;
+    }
+    return false;
+  });
+}
+
 export function resolveHotspotInventoryActionSummary(
   actionType: HotspotInventoryActionType,
   itemLabel: string,

@@ -16,6 +16,7 @@ import {
   createSetVariableEffect,
   createVariableCondition,
   isValueValidForVariable,
+  resolveSuggestedVariableValue,
   type NewVariableType
 } from "./logic-model";
 import "./RuleBuilder.css";
@@ -30,6 +31,7 @@ interface LogicEditorProps {
 interface ConditionListEditorProps extends LogicEditorProps {
   conditions: Condition[];
   mode: ConditionMatchMode;
+  emptyState?: "always" | "choose";
   onChange: (
     conditions: Condition[],
     mode: ConditionMatchMode,
@@ -53,6 +55,7 @@ export function ConditionListEditor({
   description,
   conditions,
   mode,
+  emptyState = "always",
   compact,
   onChange
 }: ConditionListEditorProps) {
@@ -118,12 +121,12 @@ export function ConditionListEditor({
         ) : null}
       </header>
 
-      {editableConditions.length === 0 ? (
+      {editableConditions.length === 0 && emptyState === "always" ? (
         <div className="logic-editor__empty">
           <strong>{t("Always")}</strong>
           <span>{t("No conditions limit this behavior.")}</span>
         </div>
-      ) : (
+      ) : editableConditions.length > 0 ? (
         <ol className="logic-editor__rows">
           {editableConditions.map((condition, index) => (
             <li key={`${condition.type}:${index}`} className="logic-editor__row">
@@ -149,37 +152,72 @@ export function ConditionListEditor({
             </li>
           ))}
         </ol>
-      )}
-
-      {isCreatingVariable ? (
-        <VariableCreator
-          existingVariables={project.manifest.variables}
-          onCreate={createVariable}
-          onCancel={() => setIsCreatingVariable(false)}
-        />
       ) : (
-        <div className="logic-editor__add-row">
-          <DropdownSelect
-            value=""
-            aria-label={t("Add condition")}
-            onChange={(event) => {
-              const kind = event.target.value as ConditionKind;
-              if (kind) {
-                addCondition(kind);
-              }
-            }}
-          >
-            <option value="">{t("Add condition...")}</option>
-            <option value="variableCompare">{t("Compare a variable")}</option>
-            <option value="inventoryHas" disabled={project.inventory.items.length === 0}>
-              {t("Check inventory")}
-            </option>
-            <option value="sceneVisited" disabled={project.scenes.items.length === 0}>
-              {t("Check scene history")}
-            </option>
-          </DropdownSelect>
+        <div className="logic-editor__pending-condition">
+          <span className="logic-editor__connector" aria-hidden="true">{t("If")}</span>
+          <div className="logic-editor__pending-condition-content">
+            {isCreatingVariable ? (
+              <VariableCreator
+                existingVariables={project.manifest.variables}
+                onCreate={createVariable}
+                onCancel={() => setIsCreatingVariable(false)}
+              />
+            ) : (
+              <DropdownSelect
+                value=""
+                aria-label={t("Choose condition")}
+                onChange={(event) => {
+                  const kind = event.target.value as ConditionKind;
+                  if (kind) {
+                    addCondition(kind);
+                  }
+                }}
+              >
+                <option value="">{t("Choose condition...")}</option>
+                <option value="variableCompare">{t("Compare a variable")}</option>
+                <option value="inventoryHas" disabled={project.inventory.items.length === 0}>
+                  {t("Check inventory")}
+                </option>
+                <option value="sceneVisited" disabled={project.scenes.items.length === 0}>
+                  {t("Check scene history")}
+                </option>
+              </DropdownSelect>
+            )}
+          </div>
         </div>
       )}
+
+      {editableConditions.length > 0 || emptyState === "always" ? (
+        isCreatingVariable ? (
+          <VariableCreator
+            existingVariables={project.manifest.variables}
+            onCreate={createVariable}
+            onCancel={() => setIsCreatingVariable(false)}
+          />
+        ) : (
+          <div className="logic-editor__add-row">
+            <DropdownSelect
+              value=""
+              aria-label={t("Add condition")}
+              onChange={(event) => {
+                const kind = event.target.value as ConditionKind;
+                if (kind) {
+                  addCondition(kind);
+                }
+              }}
+            >
+              <option value="">{t("Add condition...")}</option>
+              <option value="variableCompare">{t("Compare a variable")}</option>
+              <option value="inventoryHas" disabled={project.inventory.items.length === 0}>
+                {t("Check inventory")}
+              </option>
+              <option value="sceneVisited" disabled={project.scenes.items.length === 0}>
+                {t("Check scene history")}
+              </option>
+            </DropdownSelect>
+          </div>
+        )
+      ) : null}
     </section>
   );
 }
@@ -236,7 +274,7 @@ export function EffectListEditor({
         return;
       case "conditional":
         if (nestingDepth === 0) {
-          onChange([...effects, createConditionalEffect(project)]);
+          onChange([...effects, createConditionalEffect()]);
         }
         return;
     }
@@ -323,7 +361,7 @@ export function EffectListEditor({
             <option value="removeItem" disabled={project.inventory.items.length === 0}>{t("Remove inventory item")}</option>
             <option value="goToScene" disabled={project.scenes.items.length === 0}>{t("Go to scene")}</option>
             <option value="playDialogue" disabled={project.dialogues.items.length === 0}>{t("Start dialogue")}</option>
-            {nestingDepth === 0 ? <option value="conditional">{t("If / Otherwise")}</option> : null}
+            {nestingDepth === 0 ? <option value="conditional">{t("If / Then / Else")}</option> : null}
           </DropdownSelect>
           {nestingDepth === 0 ? (
             <button
@@ -332,7 +370,7 @@ export function EffectListEditor({
               onClick={() => addEffect("conditional")}
             >
               <span aria-hidden="true">+</span>
-              {t("If / Otherwise")}
+              {t("If / Then / Else")}
             </button>
           ) : null}
         </div>
@@ -351,72 +389,93 @@ function ConditionRow({
   onChange: (condition: Condition, variables?: GameVariableDefinition[]) => void;
 }) {
   const { t } = useEditorI18n();
+  const [isCreatingVariable, setIsCreatingVariable] = useState(false);
   return (
-    <div className="logic-editor__sentence">
-      <DropdownSelect
-        value={condition.type}
-        aria-label={t("Condition type")}
-        onChange={(event) => {
-          const kind = event.target.value as ConditionKind;
-          if (kind === "variableCompare") {
-            const variable = project.manifest.variables[0];
-            if (variable) {
-              onChange(createVariableCondition(variable));
+    <div className="logic-editor__sentence-wrap">
+      <div className="logic-editor__sentence">
+        <DropdownSelect
+          value={condition.type}
+          aria-label={t("Condition type")}
+          onChange={(event) => {
+            const kind = event.target.value as ConditionKind;
+            setIsCreatingVariable(false);
+            if (kind === "variableCompare") {
+              const variable = project.manifest.variables[0];
+              if (variable) {
+                onChange(createVariableCondition(variable));
+              } else {
+                setIsCreatingVariable(true);
+              }
+            } else if (kind === "inventoryHas") {
+              const item = project.inventory.items[0];
+              if (item) {
+                onChange({ type: kind, itemId: item.id, present: true });
+              }
+            } else {
+              const scene = project.scenes.items[0];
+              if (scene) {
+                onChange({ type: kind, sceneId: scene.id, visited: true });
+              }
             }
-          } else if (kind === "inventoryHas") {
-            const item = project.inventory.items[0];
-            if (item) {
-              onChange({ type: kind, itemId: item.id, present: true });
-            }
-          } else {
-            const scene = project.scenes.items[0];
-            if (scene) {
-              onChange({ type: kind, sceneId: scene.id, visited: true });
-            }
-          }
-        }}
-      >
-        <option value="variableCompare">{t("Variable")}</option>
-        <option value="inventoryHas" disabled={project.inventory.items.length === 0}>{t("Inventory")}</option>
-        <option value="sceneVisited" disabled={project.scenes.items.length === 0}>{t("Scene history")}</option>
-      </DropdownSelect>
-      {condition.type === "variableCompare" ? (
-        <VariableConditionFields condition={condition} project={project} onChange={onChange} />
-      ) : condition.type === "inventoryHas" ? (
-        <>
-          <DropdownSelect
-            value={condition.present !== false ? "has" : "missing"}
-            aria-label={t("Inventory comparison")}
-            onChange={(event) => onChange({ ...condition, present: event.target.value === "has" })}
-          >
-            <option value="has">{t("contains")}</option>
-            <option value="missing">{t("does not contain")}</option>
-          </DropdownSelect>
-          <ReferenceSelect
-            value={condition.itemId}
-            label={t("Inventory item")}
-            options={project.inventory.items.map((item) => ({ id: item.id, name: item.name }))}
-            onChange={(itemId) => onChange({ ...condition, itemId })}
+          }}
+        >
+          <option value="variableCompare">{t("Variable")}</option>
+          <option value="inventoryHas" disabled={project.inventory.items.length === 0}>{t("Inventory")}</option>
+          <option value="sceneVisited" disabled={project.scenes.items.length === 0}>{t("Scene history")}</option>
+        </DropdownSelect>
+        {condition.type === "variableCompare" ? (
+          <VariableConditionFields condition={condition} project={project} onChange={onChange} />
+        ) : condition.type === "inventoryHas" ? (
+          <>
+            <DropdownSelect
+              value={condition.present !== false ? "has" : "missing"}
+              aria-label={t("Inventory comparison")}
+              onChange={(event) => onChange({ ...condition, present: event.target.value === "has" })}
+            >
+              <option value="has">{t("contains")}</option>
+              <option value="missing">{t("does not contain")}</option>
+            </DropdownSelect>
+            <ReferenceSelect
+              value={condition.itemId}
+              label={t("Inventory item")}
+              options={project.inventory.items.map((item) => ({ id: item.id, name: item.name }))}
+              onChange={(itemId) => onChange({ ...condition, itemId })}
+            />
+          </>
+        ) : (
+          <>
+            <DropdownSelect
+              value={condition.visited !== false ? "visited" : "notVisited"}
+              aria-label={t("Scene history comparison")}
+              onChange={(event) => onChange({ ...condition, visited: event.target.value === "visited" })}
+            >
+              <option value="visited">{t("includes")}</option>
+              <option value="notVisited">{t("does not include")}</option>
+            </DropdownSelect>
+            <ReferenceSelect
+              value={condition.sceneId}
+              label={t("Scene")}
+              options={project.scenes.items.map((scene) => ({ id: scene.id, name: scene.name }))}
+              onChange={(sceneId) => onChange({ ...condition, sceneId })}
+            />
+          </>
+        )}
+      </div>
+      {isCreatingVariable ? (
+        <div className="logic-editor__inline-creator">
+          <VariableCreator
+            existingVariables={project.manifest.variables}
+            onCreate={(nextVariable) => {
+              onChange(
+                createVariableCondition(nextVariable),
+                [...project.manifest.variables, nextVariable]
+              );
+              setIsCreatingVariable(false);
+            }}
+            onCancel={() => setIsCreatingVariable(false)}
           />
-        </>
-      ) : (
-        <>
-          <DropdownSelect
-            value={condition.visited !== false ? "visited" : "notVisited"}
-            aria-label={t("Scene history comparison")}
-            onChange={(event) => onChange({ ...condition, visited: event.target.value === "visited" })}
-          >
-            <option value="visited">{t("includes")}</option>
-            <option value="notVisited">{t("does not include")}</option>
-          </DropdownSelect>
-          <ReferenceSelect
-            value={condition.sceneId}
-            label={t("Scene")}
-            options={project.scenes.items.map((scene) => ({ id: scene.id, name: scene.name }))}
-            onChange={(sceneId) => onChange({ ...condition, sceneId })}
-          />
-        </>
-      )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -449,7 +508,7 @@ function VariableConditionFields({
           onChange={(variableId) => {
             const nextVariable = project.manifest.variables.find((entry) => entry.id === variableId);
             if (nextVariable) {
-              onChange({ ...condition, variableId, operator: "equals", value: nextVariable.initialValue });
+              onChange({ ...condition, variableId, operator: "equals", value: resolveSuggestedVariableValue(nextVariable) });
             }
           }}
         />
@@ -465,7 +524,7 @@ function VariableConditionFields({
       {variable ? (
         <VariableValueEditor
           variable={variable}
-          value={isValueValidForVariable(variable, condition.value) ? condition.value : variable.initialValue}
+          value={isValueValidForVariable(variable, condition.value) ? condition.value : resolveSuggestedVariableValue(variable)}
           label={t("Comparison value")}
           onChange={(value) => onChange({ ...condition, value })}
         />
@@ -523,7 +582,7 @@ function EffectRow({
             if ((kind === "addItem" || kind === "removeItem") && item) onChange({ type: kind, itemId: item.id });
             if (kind === "goToScene" && scene) onChange({ type: kind, sceneId: scene.id });
             if (kind === "playDialogue" && dialogue) onChange({ type: kind, dialogueTreeId: dialogue.id });
-            if (kind === "conditional" && nestingDepth === 0) onChange(createConditionalEffect(project));
+            if (kind === "conditional" && nestingDepth === 0) onChange(createConditionalEffect());
           }}
         >
           <option value="setVariable" disabled={project.manifest.variables.length === 0}>{t("Set variable")}</option>
@@ -533,7 +592,7 @@ function EffectRow({
           <option value="goToScene" disabled={project.scenes.items.length === 0}>{t("Go to scene")}</option>
           <option value="playDialogue" disabled={project.dialogues.items.length === 0}>{t("Start dialogue")}</option>
           {nestingDepth === 0 || effect.type === "conditional" ? (
-            <option value="conditional">{t("If / Otherwise")}</option>
+            <option value="conditional">{t("If / Then / Else")}</option>
           ) : null}
         </DropdownSelect>
         {effect.type === "setVariable" ? (
@@ -603,9 +662,10 @@ function ConditionalEffectEditor({
         compact
         project={project}
         label={t("Choose a branch")}
-        description={t("When these conditions pass, run Then. Otherwise, run Otherwise.")}
+        description={t("When these conditions pass, run Then. If they do not, run Else.")}
         conditions={effect.conditions}
         mode={effect.conditionMode}
+        emptyState="choose"
         onChange={(conditions, conditionMode, variables) =>
           onChange({ ...effect, conditions, conditionMode }, variables)
         }
@@ -622,11 +682,11 @@ function ConditionalEffectEditor({
             onChange={(thenEffects, variables) => onChange({ ...effect, thenEffects }, variables)}
           />
         </div>
-        <div className="logic-editor__branch logic-editor__branch--otherwise">
+        <div className="logic-editor__branch logic-editor__branch--else">
           <EffectListEditor
             compact
             project={project}
-            label={t("Otherwise")}
+            label={t("Else")}
             description={t("Runs when the conditions do not pass. Leave empty to do nothing.")}
             effects={effect.elseEffects}
             nestingDepth={nestingDepth + 1}
@@ -638,7 +698,7 @@ function ConditionalEffectEditor({
         <span className="logic-editor__warning">{t("Add a condition so MAGE2 can choose a branch.")}</span>
       ) : null}
       {hasNoBranchActions ? (
-        <span className="logic-editor__warning">{t("Add an action to Then or Otherwise.")}</span>
+        <span className="logic-editor__warning">{t("Add an action to Then or Else.")}</span>
       ) : null}
     </div>
   );
@@ -665,7 +725,7 @@ function VariableEffectFields({
           options={project.manifest.variables.map((entry) => ({ id: entry.id, name: entry.name }))}
           onChange={(variableId) => {
             const nextVariable = project.manifest.variables.find((entry) => entry.id === variableId);
-            if (nextVariable) onChange({ ...effect, variableId, value: nextVariable.initialValue });
+            if (nextVariable) onChange({ ...effect, variableId, value: resolveSuggestedVariableValue(nextVariable) });
           }}
         />
         <NewVariableButton expanded={isCreatingVariable} onClick={() => setIsCreatingVariable((value) => !value)} />
@@ -674,7 +734,7 @@ function VariableEffectFields({
       {variable ? (
         <VariableValueEditor
           variable={variable}
-          value={isValueValidForVariable(variable, effect.value) ? effect.value : variable.initialValue}
+          value={isValueValidForVariable(variable, effect.value) ? effect.value : resolveSuggestedVariableValue(variable)}
           label={t("New value")}
           onChange={(value) => onChange({ ...effect, value })}
         />
@@ -864,21 +924,11 @@ function RowActions({
   );
 }
 
-function createConditionalEffect(project: ProjectBundle): Extract<Effect, { type: "conditional" }> {
-  const variable = project.manifest.variables.find((entry) => !entry.system) ?? project.manifest.variables[0];
-  const item = project.inventory.items[0];
-  const scene = project.scenes.items[0];
-  const condition: Condition | undefined = variable
-    ? createVariableCondition(variable)
-    : item
-      ? { type: "inventoryHas", itemId: item.id, present: true }
-      : scene
-        ? { type: "sceneVisited", sceneId: scene.id, visited: true }
-        : undefined;
+function createConditionalEffect(): Extract<Effect, { type: "conditional" }> {
   return {
     type: "conditional",
     conditionMode: "all",
-    conditions: condition ? [condition] : [],
+    conditions: [],
     thenEffects: [],
     elseEffects: []
   };

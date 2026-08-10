@@ -56,6 +56,18 @@
   gap: 0;
 }
 
+.app-shell--scene-editor .scenes-panel__stage-layout--inspector-docked {
+  --hotspot-inspector-dock-width: 24rem;
+  grid-template-columns:
+    minmax(17.5rem, 19.5rem)
+    minmax(0, 1fr)
+    minmax(25rem, calc(4.5rem + var(--hotspot-inspector-dock-width)));
+}
+
+.app-shell--scene-editor .scenes-panel__right-rail--inspector-docked {
+  grid-template-columns: 4.5rem minmax(0, var(--hotspot-inspector-dock-width));
+}
+
 .app-shell--editor-workbench.app-shell--scene-editor .scenes-panel {
   align-content: stretch;
   grid-template-rows: minmax(0, 1fr);
@@ -68,3 +80,47 @@
   box-shadow: none;
 }
 
+@media (max-width: 1100px) {
+  .app-shell--scene-editor .scenes-panel__stage-layout,
+  .app-shell--editor-workbench.app-shell--scene-editor .scenes-panel__stage-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .app-shell--scene-editor .scenes-panel__right-rail,
+  .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked {
+    grid-template-rows: auto minmax(26rem, min(42rem, 70vh));
+  }
+
+  .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked .scenes-floating-inspector__resize-handle {
+    display: none;
+  }
+
+  .app-shell--scene-editor .scenes-panel__action-rail--compact {
+    gap: 0.65rem;
+    padding: 1rem 0.75rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--scene-editor-border-strong);
+  }
+
+  .app-shell--scene-editor .scenes-panel__action-rail--compact .scenes-panel__hotspot-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .app-shell--scene-editor .scenes-panel__action-rail--compact .scenes-panel__tool-button {
+    min-height: 3.4rem;
+  }
+
+  .app-shell--scene-editor .scenes-panel__action-rail--compact .scenes-panel__tool-label {
+    display: inline;
+  }
+
+  .app-shell--scene-editor .scenes-panel__action-rail--compact .scenes-panel__hotspot-delete-button {
+    padding-top: 0.58rem;
+    border-top: 0;
+  }
+}

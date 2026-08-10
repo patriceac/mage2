@@ -96,7 +96,7 @@ describe("visual rule builders", () => {
     expect(markup).not.toContain("Create a variable...");
   });
 
-  it("renders action-first If / Then / Otherwise branches without raw code", () => {
+  it("renders action-first If / Then / Else branches without raw code", () => {
     const project = createDefaultProjectBundle("Conditional actions");
     project.manifest.variables.push({
       id: "cabinet.open",
@@ -121,16 +121,16 @@ describe("visual rule builders", () => {
       />
     );
 
-    expect(markup).toContain("If / Otherwise");
+    expect(markup).toContain("If / Then / Else");
     expect(markup).toContain("Choose a branch");
     expect(markup).toContain("Cabinet door open");
     expect(markup).toContain("Then");
-    expect(markup).toContain("Otherwise");
+    expect(markup).toContain("Else");
     expect(markup).not.toContain("textarea");
     expect(markup).not.toContain("JSON");
   });
 
-  it("exposes If / Otherwise as a direct top-level action without allowing nested decisions", () => {
+  it("exposes If / Then / Else as a direct top-level action without allowing nested decisions", () => {
     const project = createDefaultProjectBundle("Discoverable conditional actions");
     const topLevelMarkup = renderToStaticMarkup(
       <EffectListEditor
@@ -151,8 +151,30 @@ describe("visual rule builders", () => {
     );
 
     expect(topLevelMarkup).toContain('class="button-secondary logic-editor__conditional-shortcut"');
-    expect(topLevelMarkup).toContain("If / Otherwise");
+    expect(topLevelMarkup).toContain("If / Then / Else");
     expect(nestedMarkup).not.toContain("logic-editor__conditional-shortcut");
     expect(nestedMarkup).not.toContain('value="conditional"');
+  });
+
+  it("starts a new decision with an explicit condition choice instead of an unrelated default", () => {
+    const project = createDefaultProjectBundle("Blank decision");
+    const markup = renderToStaticMarkup(
+      <EffectListEditor
+        project={project}
+        label="Actions"
+        effects={[{
+          type: "conditional",
+          conditionMode: "all",
+          conditions: [],
+          thenEffects: [],
+          elseEffects: []
+        }]}
+        onChange={() => undefined}
+      />
+    );
+
+    expect(markup).toContain('aria-label="Choose condition"');
+    expect(markup).toContain("Choose condition...");
+    expect(markup).not.toContain("<strong>Always</strong>");
   });
 });
