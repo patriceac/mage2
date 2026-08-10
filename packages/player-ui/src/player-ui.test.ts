@@ -213,7 +213,6 @@ function createHotspot(overrides: Partial<Hotspot> = {}): Hotspot {
     startMs: 0,
     endMs: 30_000,
     timingMode: "sceneDuration",
-    requiredItemIds: [],
     conditions: [],
     effects: [],
     ...overrides
@@ -222,8 +221,7 @@ function createHotspot(overrides: Partial<Hotspot> = {}): Hotspot {
 
 describe("shared player interaction contract", () => {
   const placementHotspot = createHotspot({
-    inventoryItemId: "item_key",
-    requiredItemIds: ["item_key"],
+    placedInventoryItemId: "item_key",
     effects: [{ type: "removeItem", itemId: "item_key" }]
   });
 

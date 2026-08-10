@@ -911,15 +911,12 @@ describe("ScenesPanel scene audio UI", () => {
     expect(onClickDetailsTag).toContain("open");
     expect(markup).not.toContain(">Else</summary>");
     expect(markup).not.toContain(">Any other item</summary>");
-    expect(markup).toContain(">Required inventory</h5>");
-    expect(markup).toContain("Require the player to own these items before this hotspot becomes available.");
-    expect(markup).toContain(">No inventory required</strong>");
-    expect(markup).toContain("The hotspot can be used without owning a specific item.");
     expect(markup).toContain("Choose when this hotspot appears and can be used.");
     expect(markup).toContain("Decide what happens when this interaction occurs. Actions run in order.");
     expect(markup).toContain("Add action...");
     expect(markup).toContain('class="button-secondary logic-editor__conditional-shortcut"');
     expect(markup).not.toContain(">Advanced</summary>");
+    expect(markup).not.toContain("Required inventory");
     expect(markup).not.toContain("Selected item requirements");
     expect(markup).not.toContain("Require selected item");
     expect(markup).not.toContain(">Editing Help</summary>");
@@ -1195,7 +1192,8 @@ describe("ScenesPanel scene audio UI", () => {
     });
     expect(hotspot.inventoryItemId).toBeUndefined();
     expect(hotspot.placedInventoryItemId).toBe(item.id);
-    expect(hotspot.requiredItemIds).toContain(item.id);
+    expect(hotspot).not.toHaveProperty("requiredItemIds");
+    expect(hotspot.conditions.some((condition) => condition.type === "inventoryHas")).toBe(false);
     expect(hotspot.effects).not.toContainEqual({ type: "addItem", itemId: item.id });
     expect(hotspot.effects).toContainEqual({ type: "removeItem", itemId: item.id });
   });

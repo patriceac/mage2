@@ -106,7 +106,6 @@ export const dialogsMessages = defineEditorMessages("dialogs", {
   "Replacement": m("Remplacement", "Reemplazo", "替代品", "交換", "대사", "استبدال"),
   "Replacement Item": m("Article de remplacement", "Artículo de reemplazo", "替换品", "交換品", "교체 품목", "البند البديل"),
   "Replacement Scene": m("Scène de remplacement", "Escena de reemplazo", "替换场景", "交代シーン", "교체 장면", "مشهد الاستبدال"),
-  "Required-item references: {count}": m("Références des articles obligatoires : {count}", "Referencias de elementos requeridos: {count}", "所需项目参考：{count}", "必須項目参照: {count}", "필수 항목 참조: {count}", "مراجع العناصر المطلوبة: {count}"),
   "Rewire References": m("Références de recâblage", "Referencias de recableado", "重新连线参考", "参照を再配線する", "참조 다시 연결", "تجديد المراجع"),
 "Save Changes?": m("Enregistrer les modifications ?", "¿Guardar cambios?", "保存更改？", "変更を保存しますか?", "변경사항을 저장하시겠습니까?", "حفظ التغييرات؟"),
   "Save and Close": m("Enregistrer et fermer", "Guardar y cerrar", "保存并关闭", "保存して閉じる", "저장하고 닫기", "حفظ وإغلاق"),

@@ -622,25 +622,6 @@ function validateScene(
       });
     }
 
-    validateDuplicateReferenceIds(
-      hotspot.requiredItemIds,
-      "HOTSPOT_REQUIRED_ITEM_DUPLICATE",
-      `Hotspot '${hotspot.id}' requires the same inventory item more than once.`,
-      hotspot.id,
-      issues
-    );
-
-    for (const itemId of hotspot.requiredItemIds) {
-      if (!inventoryIds.has(itemId)) {
-        issues.push({
-          level: "error",
-          code: "HOTSPOT_ITEM_MISSING",
-          message: `Hotspot '${hotspot.id}' requires missing inventory item '${itemId}'.`,
-          entityId: hotspot.id
-        });
-      }
-    }
-
     validateConditionEffectRefs(
       project,
       hotspot.conditions,

@@ -50,7 +50,8 @@ export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
   { fromVersion: 11, toVersion: 12, migrate: migrateV11ToV12 },
   { fromVersion: 12, toVersion: 13, migrate: migrateV12ToV13 },
   { fromVersion: 13, toVersion: 14, migrate: migrateV13ToV14 },
-  { fromVersion: 14, toVersion: 15, migrate: migrateV14ToV15 }
+  { fromVersion: 14, toVersion: 15, migrate: migrateV14ToV15 },
+  { fromVersion: 15, toVersion: 16, migrate: migrateV15ToV16 }
 ];
 
 /** Returns the ordered transformations required to reach the current format. */
@@ -409,6 +410,13 @@ function migrateV13ToV14(bundle: UnknownRecord): UnknownRecord {
 // the intended behavior, so advancing every project file is sufficient.
 function migrateV14ToV15(bundle: UnknownRecord): UnknownRecord {
   return withSchemaVersion(bundle, 15);
+}
+
+// Schema 16 removes the redundant hotspot requiredItemIds field. Inventory
+// availability is authored through conditions, while place-item ownership is
+// derived from placedInventoryItemId by the runtime.
+function migrateV15ToV16(bundle: UnknownRecord): UnknownRecord {
+  return withSchemaVersion(bundle, 16);
 }
 
 function migrateLegacyCondition(value: unknown, flagIds: Set<string>): unknown {

@@ -101,7 +101,6 @@ describe("removeInventoryItemFromProject", () => {
     hotspot.inventoryItemId = deletedItem.id;
     hotspot.placedInventoryItemId = deletedItem.id;
     hotspot.placedInventoryGeometry = { x: 0.2, y: 0.2, width: 0.3, height: 0.3 };
-    hotspot.requiredItemIds = [deletedItem.id];
     hotspot.conditions = [{ type: "always" }, { type: "inventoryHas", itemId: deletedItem.id }];
     hotspot.effects = [
       { type: "addItem", itemId: deletedItem.id },
@@ -137,11 +136,10 @@ describe("removeInventoryItemFromProject", () => {
     expect(summary).toEqual({
       hotspotItemReferenceCount: 1,
       placementReferenceCount: 1,
-      requiredItemReferenceCount: 1,
       inventoryConditionCount: 2,
       inventoryEffectCount: 5
     });
-    expect(countInventoryItemReferences(summary)).toBe(10);
+    expect(countInventoryItemReferences(summary)).toBe(9);
 
     const result = removeInventoryItemFromProject(project, deletedItem.id, { mode: "cleanup" });
 
@@ -151,7 +149,6 @@ describe("removeInventoryItemFromProject", () => {
     expect(hotspot.inventoryItemId).toBeUndefined();
     expect(hotspot.placedInventoryItemId).toBeUndefined();
     expect(hotspot.placedInventoryGeometry).toBeUndefined();
-    expect(hotspot.requiredItemIds).toEqual([]);
     expect(hotspot.conditions).toEqual([{ type: "always" }]);
     expect(hotspot.effects).toEqual([{ type: "setVariable", variableId: "kept", value: true }]);
     expect(scene.onEnterEffects).toEqual([]);
@@ -162,7 +159,7 @@ describe("removeInventoryItemFromProject", () => {
     expect(getDefaultStrings(project)[deletedItem.descriptionTextId!]).toBeUndefined();
   });
 
-  it("rewires all references to another item without duplicating requirements", () => {
+  it("rewires all references to another item", () => {
     const project = createDefaultProjectBundle("Inventory rewire");
     const deletedItem = addInventoryItem(project);
     const replacementItem = addInventoryItem(project);
@@ -172,7 +169,6 @@ describe("removeInventoryItemFromProject", () => {
     hotspot.inventoryItemId = deletedItem.id;
     hotspot.placedInventoryItemId = deletedItem.id;
     hotspot.placedInventoryGeometry = { x: 0.15, y: 0.25, width: 0.2, height: 0.2 };
-    hotspot.requiredItemIds = [deletedItem.id, replacementItem.id];
     hotspot.conditions = [{ type: "inventoryHas", itemId: deletedItem.id }];
     hotspot.effects = [
       { type: "addItem", itemId: deletedItem.id },
@@ -190,7 +186,6 @@ describe("removeInventoryItemFromProject", () => {
     expect(hotspot.inventoryItemId).toBe(replacementItem.id);
     expect(hotspot.placedInventoryItemId).toBe(replacementItem.id);
     expect(hotspot.placedInventoryGeometry).toEqual({ x: 0.15, y: 0.25, width: 0.2, height: 0.2 });
-    expect(hotspot.requiredItemIds).toEqual([replacementItem.id]);
     expect(hotspot.conditions).toEqual([{ type: "inventoryHas", itemId: replacementItem.id }]);
     expect(hotspot.effects).toEqual([
       { type: "addItem", itemId: replacementItem.id },

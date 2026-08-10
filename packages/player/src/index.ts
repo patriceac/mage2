@@ -14,6 +14,7 @@ import {
   type Location,
   parseSaveState,
   type ProjectBundle,
+  resolveHotspotInventoryAction,
   type ResponseEntry,
   type ResponseSelection,
   type SaveState,
@@ -75,7 +76,7 @@ export interface HotspotAvailabilityExplanation {
   hotspotName: string;
   available: boolean;
   timing: { startMs: number; endMs: number; currentMs: number; passed: boolean };
-  requiredItems: Array<{ itemId: string; present: boolean }>;
+  placementItem?: { itemId: string; present: boolean };
   conditionMode: "all" | "any";
   conditions: ConditionEvaluation[];
 }
@@ -599,7 +600,10 @@ export function createPlayerController(
     return scene.hotspots.map((hotspot) => {
       const timingWindow = resolveHotspotTimingWindow(hotspot, resolvedSceneTimelineDurationMs);
       const withinWindow = timeMs >= timingWindow.startMs && timeMs <= timingWindow.endMs;
-      const requiredItems = hotspot.requiredItemIds.map((itemId) => ({ itemId, present: hasInventoryItem(itemId) }));
+      const inventoryAction = resolveHotspotInventoryAction(hotspot);
+      const placementItem = inventoryAction.type === "placeItem" && inventoryAction.itemId
+        ? { itemId: inventoryAction.itemId, present: hasInventoryItem(inventoryAction.itemId) }
+        : undefined;
       const conditions = hotspot.conditions.map(explainCondition);
       const conditionMode = hotspot.conditionMode ?? "all";
       const conditionsPassed = conditions.length === 0
@@ -609,9 +613,9 @@ export function createPlayerController(
       return {
         hotspotId: hotspot.id,
         hotspotName: hotspot.name,
-        available: withinWindow && requiredItems.every((item) => item.present) && conditionsPassed,
+        available: withinWindow && (placementItem?.present ?? true) && conditionsPassed,
         timing: { ...timingWindow, currentMs: timeMs, passed: withinWindow },
-        requiredItems,
+        placementItem,
         conditionMode,
         conditions
       };

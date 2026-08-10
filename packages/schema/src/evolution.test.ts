@@ -47,7 +47,8 @@ describe("project schema evolution", () => {
       [11, 12],
       [12, 13],
       [13, 14],
-      [14, 15]
+      [14, 15],
+      [15, 16]
     ]);
 
     const parsed = parseProjectBundle(raw);
@@ -104,6 +105,19 @@ describe("project schema evolution", () => {
 
     expect(parsed.scenes.items[0]?.videoAudioMode).toBe("silent");
     expect(parsed.scenes.items[0]?.onMediaEndEffects).toEqual([]);
+  });
+
+  it("removes the obsolete required-item list when advancing schema 15", () => {
+    const raw = structuredClone(createDefaultProjectBundle("Schema 15 hotspot availability")) as Record<string, any>;
+    for (const fileName of ["manifest", "assets", "locations", "scenes", "dialogues", "inventory", "strings"] as const) {
+      raw[fileName].schemaVersion = 15;
+    }
+    raw.scenes.items[0].hotspots[0].requiredItemIds = ["item_unused"];
+
+    const parsed = parseProjectBundle(raw);
+
+    expect(parsed.manifest.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(parsed.scenes.items[0]!.hotspots[0]).not.toHaveProperty("requiredItemIds");
   });
 
   it("migrates schema 13 flags into named Boolean variables across every rule surface", () => {
@@ -256,7 +270,6 @@ describe("project integrity validation", () => {
     scene.dialogueTreeIds = ["dialogue_missing", "dialogue_missing"];
     hotspot.inventoryItemId = "item_one";
     hotspot.placedInventoryItemId = "item_two";
-    hotspot.requiredItemIds = ["item_one", "item_one"];
     hotspot.placedInventoryGeometry = { x: 0.1, y: 0.1, width: 0.2, height: 0.2 };
 
     const codes = new Set(validateProject(project).issues.map((issue) => issue.code));
@@ -265,8 +278,7 @@ describe("project integrity validation", () => {
       expect.arrayContaining([
         "SCENE_DIALOGUE_MISSING",
         "SCENE_DIALOGUE_DUPLICATE",
-        "HOTSPOT_INVENTORY_REFERENCE_AMBIGUOUS",
-        "HOTSPOT_REQUIRED_ITEM_DUPLICATE"
+        "HOTSPOT_INVENTORY_REFERENCE_AMBIGUOUS"
       ])
     );
   });

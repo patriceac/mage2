@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createDefaultProjectBundle } from "@mage2/schema";
+import { createDefaultProjectBundle, resolveHotspotInventoryAction } from "@mage2/schema";
+import { applyHotspotInventoryAction } from "./panels/scenes/hotspot-domain";
 import { useEditorStore } from "./store";
 
 beforeEach(() => {
@@ -69,6 +70,40 @@ describe("useEditorStore project history", () => {
     expect(useEditorStore.getState().canUndo).toBe(true);
     expect(useEditorStore.getState().canRedo).toBe(false);
     expect(useEditorStore.getState().hasUnsavedChanges).toBe(true);
+  });
+
+  it("undoes and redoes a pickup-to-placement action without legacy normalization", () => {
+    const project = createDefaultProjectBundle("Placement history");
+    project.inventory.items.push({ id: "item_key", name: "Key", textId: "text.item_key" });
+    const hotspot = project.scenes.items[0]!.hotspots[0]!;
+    applyHotspotInventoryAction(hotspot, "pickupItem", "item_key", project.manifest.variables);
+    useEditorStore.getState().setProjectContext(project, "D:\\project");
+
+    const placementProject = structuredClone(project);
+    applyHotspotInventoryAction(
+      placementProject.scenes.items[0]!.hotspots[0]!,
+      "placeItem",
+      "item_key",
+      placementProject.manifest.variables
+    );
+    useEditorStore.getState().updateProject(placementProject);
+
+    expect(resolveHotspotInventoryAction(useEditorStore.getState().project!.scenes.items[0]!.hotspots[0]!)).toMatchObject({
+      type: "placeItem",
+      itemId: "item_key"
+    });
+
+    useEditorStore.getState().undoProject();
+
+    const restoredPickup = useEditorStore.getState().project!.scenes.items[0]!.hotspots[0]!;
+    expect(resolveHotspotInventoryAction(restoredPickup)).toMatchObject({ type: "pickupItem", itemId: "item_key" });
+    expect(restoredPickup.placedInventoryItemId).toBeUndefined();
+
+    useEditorStore.getState().redoProject();
+
+    const restoredPlacement = useEditorStore.getState().project!.scenes.items[0]!.hotspots[0]!;
+    expect(resolveHotspotInventoryAction(restoredPlacement)).toMatchObject({ type: "placeItem", itemId: "item_key" });
+    expect(restoredPlacement).not.toHaveProperty("requiredItemIds");
   });
 
   it("preserves undo history across save while moving the dirty baseline", () => {

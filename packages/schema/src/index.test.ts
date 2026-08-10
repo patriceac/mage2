@@ -211,7 +211,6 @@ describe("project defaults", () => {
                 ],
                 startMs: 0,
                 endMs: 30000,
-                requiredItemIds: [],
                 conditions: [{ type: "always" }],
                 effects: []
               }
@@ -474,7 +473,6 @@ describe("project defaults", () => {
     placementProject.manifest.variables.push({ id: "cabinet.examined", name: "Cabinet examined", description: "", type: "boolean", initialValue: false, system: false });
     const placementHotspot = placementProject.scenes.items[0]!.hotspots[0]!;
     placementHotspot.placedInventoryItemId = "item_key";
-    placementHotspot.requiredItemIds = ["item_key"];
     placementHotspot.effects = [{ type: "removeItem", itemId: "item_key" }];
     Object.assign(placementHotspot as unknown as Record<string, unknown>, {
       otherwise: {

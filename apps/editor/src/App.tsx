@@ -2469,7 +2469,6 @@ function serializeAutomationHotspot(
     sceneName: scene.name,
     inventoryItemId: hotspot.inventoryItemId,
     placedInventoryItemId: hotspot.placedInventoryItemId,
-    requiredItemIds: hotspot.requiredItemIds,
     action: {
       type: action.type,
       itemId: action.itemId,
@@ -2594,7 +2593,6 @@ function applyAutomationHotspotInventoryAction(
   hotspot.placedInventoryItemId = itemId;
   const completionFlag = buildHotspotPlacementFlag(hotspot.id);
   ensureAutomationBooleanVariable(variables, completionFlag, `${hotspot.name} item placed`);
-  hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
   hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
   hotspot.effects = [...hotspot.effects, { type: "removeItem", itemId }, { type: "setVariable", variableId: completionFlag, value: true }];
 }
@@ -2615,10 +2613,6 @@ function removeAutomationHotspotInventoryActionConvention(
     !isAutomationHotspotInventoryActionEffect(effect, actionType, actionItemId, actionFlag)
   );
   hotspot.conditions = hotspot.conditions.filter((condition) => !isAutomationHotspotInventoryActionCondition(condition, actionFlag));
-
-  if (actionType === "placeItem" && actionItemId) {
-    hotspot.requiredItemIds = hotspot.requiredItemIds.filter((currentItemId) => currentItemId !== actionItemId);
-  }
 }
 
 function isAutomationHotspotInventoryActionEffect(

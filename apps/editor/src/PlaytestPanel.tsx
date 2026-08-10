@@ -844,11 +844,12 @@ function PlaytestDiagnostics({
                         end: formatDiagnosticTime(entry.timing.endMs)
                       })}</li>
                     ) : null}
-                    {entry.requiredItems.filter((item) => !item.present).map((item) => (
-                      <li key={item.itemId}>{t("Missing inventory item: {name}.", {
-                        name: project.inventory.items.find((candidate) => candidate.id === item.itemId)?.name ?? item.itemId
+                    {entry.placementItem && !entry.placementItem.present ? (
+                      <li>{t("Missing inventory item: {name}.", {
+                        name: project.inventory.items.find((candidate) => candidate.id === entry.placementItem?.itemId)?.name
+                          ?? entry.placementItem.itemId
                       })}</li>
-                    ))}
+                    ) : null}
                     {entry.conditions.filter((condition) => !condition.passed).map((condition, index) => (
                       <li key={index}>{formatConditionEvaluation(condition, project, t)}</li>
                     ))}

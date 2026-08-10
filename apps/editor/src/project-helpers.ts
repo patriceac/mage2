@@ -109,7 +109,6 @@ export interface RemoveSceneFromProjectResult {
 export interface InventoryItemReferenceSummary {
   hotspotItemReferenceCount: number;
   placementReferenceCount: number;
-  requiredItemReferenceCount: number;
   inventoryConditionCount: number;
   inventoryEffectCount: number;
 }
@@ -493,7 +492,6 @@ export function collectInventoryItemReferenceSummary(
   const summary: InventoryItemReferenceSummary = {
     hotspotItemReferenceCount: 0,
     placementReferenceCount: 0,
-    requiredItemReferenceCount: 0,
     inventoryConditionCount: 0,
     inventoryEffectCount: 0
   };
@@ -513,7 +511,6 @@ export function collectInventoryItemReferenceSummary(
       if (hotspot.placedInventoryItemId === itemId) {
         summary.placementReferenceCount += 1;
       }
-      summary.requiredItemReferenceCount += hotspot.requiredItemIds.filter((entry) => entry === itemId).length;
       summary.inventoryConditionCount += countInventoryItemConditions(hotspot.conditions, itemId);
       summary.inventoryEffectCount += countInventoryItemEffects(hotspot.effects, itemId);
       summary.inventoryConditionCount += countInventoryItemConditionsInEffects(hotspot.effects, itemId);
@@ -543,7 +540,6 @@ export function countInventoryItemReferences(summary: InventoryItemReferenceSumm
   return (
     summary.hotspotItemReferenceCount +
     summary.placementReferenceCount +
-    summary.requiredItemReferenceCount +
     summary.inventoryConditionCount +
     summary.inventoryEffectCount
   );
@@ -601,7 +597,6 @@ export function removeInventoryItemFromProject(
         }
       }
 
-      hotspot.requiredItemIds = rewriteInventoryItemIds(hotspot.requiredItemIds, itemId, strategy);
       hotspot.conditions = rewriteInventoryItemConditions(hotspot.conditions, itemId, strategy);
       hotspot.effects = rewriteInventoryItemEffects(hotspot.effects, itemId, strategy);
       if (hotspot.clickEvent) {
@@ -1081,22 +1076,6 @@ function countInventoryItemConditionsInEffects(effects: Effect[], itemId: string
   return count;
 }
 
-function rewriteInventoryItemIds(
-  itemIds: string[],
-  deletedItemId: string,
-  strategy: RemoveInventoryItemStrategy
-): string[] {
-  const rewrittenIds = itemIds.flatMap((itemId) => {
-    if (itemId !== deletedItemId) {
-      return [itemId];
-    }
-
-    return strategy.mode === "cleanup" ? [] : [strategy.replacementItemId];
-  });
-
-  return [...new Set(rewrittenIds)];
-}
-
 function rewriteInventoryItemConditions(
   conditions: Condition[],
   deletedItemId: string,
@@ -1199,7 +1178,6 @@ function createHotspot(
     startMs: 0,
     endMs: 30000,
     timingMode: "sceneDuration",
-    requiredItemIds: [],
     conditionMode: "all",
     conditions: [{ type: "always" as const }],
     effects: []

@@ -66,7 +66,6 @@ export function createStarterHotspot(): Hotspot {
     startMs: 0,
     endMs: 30000,
     timingMode: "sceneDuration",
-    requiredItemIds: [],
     conditionMode: "all",
     conditions: [{ type: "always" }],
     effects: []
@@ -350,18 +349,7 @@ function hasRawHotspotEvent(event: Record<string, unknown>): boolean {
 }
 
 function isRawPlacementHotspot(hotspot: Record<string, unknown>): boolean {
-  if (typeof hotspot.placedInventoryItemId === "string") {
-    return true;
-  }
-
-  const itemId = typeof hotspot.inventoryItemId === "string" ? hotspot.inventoryItemId : undefined;
-  return Boolean(
-    itemId &&
-      Array.isArray(hotspot.requiredItemIds) &&
-      hotspot.requiredItemIds.includes(itemId) &&
-      Array.isArray(hotspot.effects) &&
-      hotspot.effects.some((effect) => isRecord(effect) && effect.type === "removeItem" && effect.itemId === itemId)
-  );
+  return typeof hotspot.placedInventoryItemId === "string";
 }
 
 function hasRawHotspotPrimaryEvent(hotspot: Record<string, unknown>): boolean {

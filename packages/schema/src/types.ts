@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 16;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -181,7 +181,6 @@ export const HotspotSchema = z.object({
   response: ResponseSelectionSchema.optional(),
   clickEvent: HotspotEventSchema.optional(),
   otherItemEvent: HotspotEventSchema.optional(),
-  requiredItemIds: z.array(z.string()).default([]),
   conditionMode: ConditionMatchModeSchema.optional(),
   conditions: z.array(ConditionSchema).default([]),
   placedInventoryGeometry: PlacedInventoryGeometrySchema.optional(),

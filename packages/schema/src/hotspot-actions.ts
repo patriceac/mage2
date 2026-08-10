@@ -36,7 +36,7 @@ export function buildPlacedInventoryHotspotId(dropTargetHotspotId: string, itemI
 
 export function resolveHotspotInventoryAction(hotspot: Hotspot): HotspotInventoryAction {
   const placedItemId = hotspot.placedInventoryItemId;
-  if (placedItemId && hasInventoryEffect(hotspot.effects, "removeItem", placedItemId) && hotspot.requiredItemIds.includes(placedItemId)) {
+  if (placedItemId && hasInventoryEffect(hotspot.effects, "removeItem", placedItemId)) {
     return {
       type: "placeItem",
       itemId: placedItemId,
@@ -45,14 +45,6 @@ export function resolveHotspotInventoryAction(hotspot: Hotspot): HotspotInventor
   }
 
   const itemId = hotspot.inventoryItemId;
-  if (itemId && hasInventoryEffect(hotspot.effects, "removeItem", itemId) && hotspot.requiredItemIds.includes(itemId)) {
-    return {
-      type: "placeItem",
-      itemId,
-      completionFlag: resolveCompletionFlag(hotspot, buildHotspotPlacementFlag(hotspot.id))
-    };
-  }
-
   if (itemId && hasInventoryEffect(hotspot.effects, "addItem", itemId)) {
     return {
       type: "pickupItem",
@@ -114,7 +106,6 @@ export function resolvePlacedInventoryHotspotInstance(
       name: sourceHotspot?.name ?? visualHotspot.name,
       conditions: [],
       effects: [],
-      requiredItemIds: [],
       inventoryItemId: action.itemId,
       polygon: dropTargetHotspot.placedInventoryGeometry?.polygon
     }

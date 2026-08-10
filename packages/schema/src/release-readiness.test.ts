@@ -38,7 +38,7 @@ describe("release readiness", () => {
     expect(report.issues.some((issue) => issue.code.startsWith("PLAYER_") && issue.level === "error")).toBe(false);
   });
 
-  it("does not mistake requirements, conditions, or empty event shells for player-facing behavior", () => {
+  it("does not mistake conditions or empty event shells for player-facing behavior", () => {
     const project = createReleaseReadyProject();
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
     project.manifest.variables.push(
@@ -46,7 +46,6 @@ describe("release readiness", () => {
       { id: "door.checked", name: "Door checked", description: "", type: "boolean", initialValue: false, system: false }
     );
     hotspot.effects = [];
-    hotspot.requiredItemIds = ["item_key"];
     hotspot.conditions = [{ type: "variableCompare", variableId: "door.open", operator: "equals", value: false }];
     hotspot.clickEvent = { effects: [] };
 

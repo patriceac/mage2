@@ -884,10 +884,6 @@ function collectInventoryUsage(project: ProjectBundle, itemId: string, t: Editor
         });
       }
 
-      if (hotspot.requiredItemIds.includes(itemId)) {
-        hotspotRefs += 1;
-      }
-
       hotspotRefs += countInventoryConditions(hotspot.conditions, itemId);
       hotspotRefs += countInventoryEffects(hotspot.effects, itemId);
       hotspotRefs += countInventoryEffects(hotspot.clickEvent?.effects ?? [], itemId);

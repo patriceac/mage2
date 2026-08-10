@@ -342,6 +342,42 @@ describe("player controller", () => {
     expect(controller.getLogicTrace().find((entry) => entry.effect.type === "conditional")?.branch).toBe("then");
   });
 
+  it("derives a place-item hotspot's ownership gate from its selected action", () => {
+    const project = createDefaultProjectBundle("Implicit placement availability");
+    const scene = project.scenes.items[0]!;
+    project.inventory.items.push({
+      id: "item_key",
+      name: "Key",
+      textId: "text.item_key.name"
+    });
+    const pickup = createTestHotspot("hotspot_pickup_key");
+    pickup.inventoryItemId = "item_key";
+    pickup.effects = [{ type: "addItem", itemId: "item_key" }];
+    const placement = createTestHotspot("hotspot_place_key");
+    placement.placedInventoryItemId = "item_key";
+    placement.conditionMode = "any";
+    placement.conditions = [{ type: "always" }];
+    placement.effects = [{ type: "removeItem", itemId: "item_key" }];
+    scene.hotspots = [pickup, placement];
+
+    const controller = createPlayerController(project);
+
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).toEqual([pickup.id]);
+    expect(controller.explainHotspotAvailability(1000).find((entry) => entry.hotspotId === placement.id)?.placementItem)
+      .toEqual({ itemId: "item_key", present: false });
+
+    controller.selectHotspot(pickup.id, 1000);
+
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).toContain(placement.id);
+    expect(controller.explainHotspotAvailability(1000).find((entry) => entry.hotspotId === placement.id)?.placementItem)
+      .toEqual({ itemId: "item_key", present: true });
+
+    controller.selectHotspot(placement.id, 1000);
+
+    expect(controller.getSnapshot().saveState.inventory).toEqual([]);
+    expect(controller.getVisibleHotspots(1000).map((hotspot) => hotspot.id)).not.toContain(placement.id);
+  });
+
   it("adds newly picked up inventory items before older items", () => {
     const project = createDefaultProjectBundle();
     const scene = project.scenes.items[0]!;
@@ -368,7 +404,6 @@ describe("player controller", () => {
         startMs: 0,
         endMs: 30000,
         timingMode: "sceneDuration",
-        requiredItemIds: [],
         conditions: [{ type: "always" }],
         effects: [{ type: "addItem", itemId: "item_candle" }]
       },
@@ -382,7 +417,6 @@ describe("player controller", () => {
         startMs: 0,
         endMs: 30000,
         timingMode: "sceneDuration",
-        requiredItemIds: [],
         conditions: [{ type: "always" }],
         effects: [{ type: "addItem", itemId: "item_map" }]
       }
@@ -415,7 +449,6 @@ describe("player controller", () => {
         startMs: 0,
         endMs: 30000,
         timingMode: "sceneDuration",
-        requiredItemIds: [],
         conditions: [{ type: "always" }],
         effects: [{ type: "addItem", itemId: "item_candle" }]
       },
@@ -429,7 +462,6 @@ describe("player controller", () => {
         startMs: 0,
         endMs: 30000,
         timingMode: "sceneDuration",
-        requiredItemIds: [],
         conditions: [{ type: "always" }],
         effects: [{ type: "addItem", itemId: "item_candle" }]
       },
@@ -443,8 +475,7 @@ describe("player controller", () => {
         startMs: 0,
         endMs: 30000,
         timingMode: "sceneDuration",
-        requiredItemIds: ["item_candle"],
-        conditions: [{ type: "always" }],
+        conditions: [{ type: "inventoryHas", itemId: "item_candle", present: true }],
         effects: [{ type: "removeItem", itemId: "item_candle" }]
       }
     ];
@@ -809,7 +840,6 @@ function createTestHotspot(hotspotId: string): Hotspot {
     startMs: 0,
     endMs: 30000,
     timingMode: "sceneDuration",
-    requiredItemIds: [],
     conditions: [{ type: "always" }],
     effects: []
   };

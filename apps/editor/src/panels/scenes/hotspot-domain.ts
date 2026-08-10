@@ -182,7 +182,6 @@ export function applyHotspotInventoryAction(
   hotspot.placedInventoryItemId = itemId;
   const completionFlag = buildHotspotPlacementFlag(hotspot.id);
   ensureManagedBooleanVariable(variables, completionFlag, `${hotspot.name} item placed`);
-  hotspot.requiredItemIds = Array.from(new Set([...hotspot.requiredItemIds, itemId]));
   hotspot.conditions = [...hotspot.conditions, { type: "variableCompare", variableId: completionFlag, operator: "equals", value: false }];
   hotspot.effects = [
     ...hotspot.effects,
@@ -223,10 +222,6 @@ function removeHotspotInventoryActionConvention(
   if (variables && actionFlag) {
     const variableIndex = variables.findIndex((variable) => variable.id === actionFlag && variable.system);
     if (variableIndex >= 0) variables.splice(variableIndex, 1);
-  }
-
-  if (actionType === "placeItem" && actionItemId) {
-    hotspot.requiredItemIds = hotspot.requiredItemIds.filter((itemId) => itemId !== actionItemId);
   }
 }
 

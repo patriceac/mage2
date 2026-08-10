@@ -72,10 +72,9 @@ describe("first project checklist", () => {
     expect(checklist.shouldShow).toBe(false);
   });
 
-  it("does not count conditions or required items without an actual player-facing outcome", () => {
+  it("does not count conditions without an actual player-facing outcome", () => {
     const project = createDefaultProjectBundle("Conditions only");
     const hotspot = project.scenes.items[0]!.hotspots[0]!;
-    hotspot.requiredItemIds = ["item_key"];
     project.manifest.variables.push({
       id: "door.open",
       name: "Door open",

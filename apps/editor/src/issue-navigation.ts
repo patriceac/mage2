@@ -251,7 +251,6 @@ export function resolveIssueNavigation(
         responseGroupId: issue.entityId,
         responseEntryId: issue.entityId
       };
-    case "HOTSPOT_ITEM_MISSING":
     case "HOTSPOT_INVENTORY_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":
     case "EFFECT_ITEM_MISSING":
@@ -404,7 +403,6 @@ export function getIssueHint(issue: ValidationIssue): string {
     case "HOTSPOT_TARGET_SCENE_MISSING":
     case "EFFECT_SCENE_MISSING":
       return "Create the target scene first, then update the scene link or effect.";
-    case "HOTSPOT_ITEM_MISSING":
     case "HOTSPOT_INVENTORY_ITEM_MISSING":
     case "CONDITION_ITEM_MISSING":
     case "EFFECT_ITEM_MISSING":

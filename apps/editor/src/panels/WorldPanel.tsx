@@ -864,10 +864,6 @@ function collectSceneReferences(scene: Scene, refs: ReturnType<typeof createStor
       refs.itemIds.add(hotspot.placedInventoryItemId);
     }
 
-    for (const itemId of hotspot.requiredItemIds) {
-      refs.itemIds.add(itemId);
-    }
-
     collectConditionReferences(hotspot.conditions, refs);
     collectEffectReferences(hotspot.effects, refs);
     collectEffectReferences(hotspot.clickEvent?.effects ?? [], refs);

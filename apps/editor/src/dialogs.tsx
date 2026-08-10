@@ -2033,11 +2033,6 @@ function resolveInventoryItemReferenceRows(
       t("Placement links: {count}", { count: formatCount(summary.placementReferenceCount) })
     );
   }
-  if (summary.requiredItemReferenceCount > 0) {
-    rows.push(
-      t("Required-item references: {count}", { count: formatCount(summary.requiredItemReferenceCount) })
-    );
-  }
   if (summary.inventoryConditionCount > 0) {
     rows.push(
       t("Inventory conditions: {count}", { count: formatCount(summary.inventoryConditionCount) })
