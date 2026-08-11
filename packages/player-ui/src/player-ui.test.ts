@@ -13,11 +13,13 @@ import {
   hasCompleteBuiltInPlayerChrome,
   isOpaqueHotspotVisualHit,
   resolvePlayerHotspotInteraction,
+  resolvePlayerHotspotAccessibleName,
   resolvePlayerInventoryContextMenuAction,
   resolvePlayerExperienceShellCopy,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
   resolveResponseTextDurationMs,
+  shouldActivatePlayerHotspotClick,
   type PlayerSystemCopy
 } from "./index";
 
@@ -314,6 +316,72 @@ describe("shared player interaction contract", () => {
     ).toEqual({ type: "none" });
   });
 
+  it("uses localized player-facing hotspot copy before the author-only name", () => {
+    const hotspot = createHotspot({
+      name: "Internal English name",
+      commentTextId: "text.hotspot.comment"
+    });
+
+    expect(
+      resolvePlayerHotspotAccessibleName(hotspot, {
+        "text.hotspot.comment": "  Ouvrir   la porte  "
+      })
+    ).toBe("Ouvrir la porte");
+    expect(resolvePlayerHotspotAccessibleName(hotspot, {})).toBe("Internal English name");
+  });
+
+  it("uses the localized inventory label when an inventory hotspot has no player-facing comment", () => {
+    const hotspot = createHotspot({
+      name: "Internal English pickup name",
+      inventoryItemId: "item_fuse"
+    });
+    const inventoryItems = [
+      {
+        id: "item_fuse",
+        name: "Internal English item name",
+        textId: "text.item.fuse"
+      }
+    ];
+
+    expect(
+      resolvePlayerHotspotAccessibleName(
+        hotspot,
+        { "text.item.fuse": "  Fusible   patiné  " },
+        inventoryItems
+      )
+    ).toBe("Fusible patiné");
+    expect(resolvePlayerHotspotAccessibleName(hotspot, {}, inventoryItems)).toBe(
+      "Internal English pickup name"
+    );
+  });
+
+  it("lets keyboard-generated clicks bypass pointer-only alpha hit testing", () => {
+    expect(
+      shouldActivatePlayerHotspotClick({
+        clickDetail: 0,
+        hasVisual: true,
+        hasAlphaMask: true,
+        opaquePointerHit: false
+      })
+    ).toBe(true);
+    expect(
+      shouldActivatePlayerHotspotClick({
+        clickDetail: 1,
+        hasVisual: true,
+        hasAlphaMask: true,
+        opaquePointerHit: false
+      })
+    ).toBe(false);
+    expect(
+      shouldActivatePlayerHotspotClick({
+        clickDetail: 1,
+        hasVisual: true,
+        hasAlphaMask: true,
+        opaquePointerHit: true
+      })
+    ).toBe(true);
+  });
+
   it("keeps alpha-transparent parts of placed art outside its hit target", () => {
     expect(
       isOpaqueHotspotVisualHit(
@@ -484,6 +552,7 @@ describe("shared player component contract", () => {
     );
 
     expect(markup).toContain('class="mage2-player"');
+    expect(markup).toContain('data-input-modality="pointer"');
     expect(markup).not.toContain("mage2-player--runtime-responsive");
     expect(markup).toContain("mage2-player__scene-surface");
     expect(markup).toContain("mage2-player__hotspots");

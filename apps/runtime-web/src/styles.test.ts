@@ -94,9 +94,13 @@ describe("runtime hotspot and debug styles", () => {
     expect(styles).toContain(".runtime-debug-panel {");
   });
 
-  it("removes every border and shadow state from hidden player hotspots", () => {
+  it("keeps pointer hotspots invisible while revealing keyboard focus with a compact beacon", () => {
     expect(sharedStyles).toMatch(
       /\.mage2-player__hotspot-button--hidden,[\s\S]*?\.mage2-player__hotspot-button--hidden:hover,[\s\S]*?\.mage2-player__hotspot-button--hidden:focus-visible\s*\{[\s\S]*?border-color: transparent;[\s\S]*?outline: none;[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/
+    );
+    expect(sharedStyles).toContain('.mage2-player[data-input-modality="keyboard"]');
+    expect(sharedStyles).toMatch(
+      /\.mage2-player__hotspot-button--hidden:focus-visible[\s\S]*?\.mage2-player__hotspot-beacon\s*\{[\s\S]*?display: block;[\s\S]*?width: 1\.7rem;/
     );
     expect(sharedStyles).not.toContain(".mage2-player__hotspot-button--hidden:focus-visible::after");
   });

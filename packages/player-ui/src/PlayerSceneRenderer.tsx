@@ -29,6 +29,7 @@ import {
   resolveRelativeHotspotVisualBox,
   type Hotspot,
   type HotspotSurfaceSize,
+  type InventoryItem,
   type ProjectBundle
 } from "@mage2/schema";
 import {
@@ -356,6 +357,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const [sceneAudioPlaybackBlocked, setSceneAudioPlaybackBlocked] = useState(false);
     const sceneAudioRef = useRef<PlayerSceneAudioHandle>(null);
     const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
+    const [inputModality, setInputModality] = useState<"keyboard" | "pointer">("pointer");
     const gameplayPaused = paused || activeResponse?.entry.kind === "video";
 
     const sceneAsset = project.assets.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId);
@@ -615,6 +617,22 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       onPlaybackBlockedChange: setVideoPlaybackBlocked
     });
 
+    useEffect(() => {
+      const handleKeyboardInput = (event: KeyboardEvent) => {
+        if (event.key === "Alt" || event.key === "Control" || event.key === "Meta" || event.key === "Shift") {
+          return;
+        }
+        setInputModality("keyboard");
+      };
+
+      window.addEventListener("keydown", handleKeyboardInput, true);
+      return () => window.removeEventListener("keydown", handleKeyboardInput, true);
+    }, []);
+
+    const restorePointerModality = useCallback(() => {
+      setInputModality("pointer");
+    }, []);
+
     const surfaceStyle = resolvePlayerMediaAspectRatioStyle(sceneAssetVariant?.width, sceneAssetVariant?.height);
     const responsiveRootStyle =
       presentation === "runtime-responsive" &&
@@ -641,6 +659,9 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
           style={presentation === "runtime-responsive" ? responsiveRootStyle : surfaceStyle}
           lang={locale}
           dir={resolvePlayerTextDirection(locale)}
+          data-input-modality={inputModality}
+          onPointerDown={restorePointerModality}
+          onPointerMove={inputModality === "keyboard" ? restorePointerModality : undefined}
           onClick={isInventoryDrawerExpanded ? () => setIsInventoryDrawerExpanded(false) : undefined}
           onContextMenu={handleInventoryContextMenu}
         >
@@ -702,7 +723,11 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   alphaMask={hotspotAlphaMasks[hotspot.id]}
                   showHotspots={showHotspots}
                   sceneInteractionBlocked={Boolean(snapshot.activeDialogue) || gameplayPaused}
-                  ariaLabel={`${resolvePlayerHotspotTitle(hotspot, strings)}: ${copy.activateHotspot}`}
+                  ariaLabel={`${resolvePlayerHotspotAccessibleName(
+                    hotspot,
+                    strings,
+                    project.inventory.items
+                  )}: ${copy.activateHotspot}`}
                   onActivate={() => activateHotspot(hotspot.id)}
                 />
               ))}
@@ -891,7 +916,13 @@ function PlayerHotspotButton({
           if (sceneInteractionBlocked) {
             return;
           }
-          if (visual?.url && alphaMask && !isOpaquePointerEvent(event)) {
+          const opaquePointerHit = visual?.url && alphaMask ? isOpaquePointerEvent(event) : false;
+          if (!shouldActivatePlayerHotspotClick({
+            clickDetail: event.detail,
+            hasVisual: Boolean(visual?.url),
+            hasAlphaMask: Boolean(alphaMask),
+            opaquePointerHit
+          })) {
             setIsPointerOverOpaquePixel(false);
             return;
           }
@@ -1264,7 +1295,40 @@ function isPositiveFiniteNumber(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function resolvePlayerHotspotTitle(hotspot: Hotspot, strings: Record<string, string>): string {
-  const comment = hotspot.commentTextId ? strings[hotspot.commentTextId]?.replace(/\s+/g, " ").trim() : undefined;
-  return hotspot.name || comment || hotspot.id;
+export function resolvePlayerHotspotAccessibleName(
+  hotspot: Hotspot,
+  strings: Record<string, string>,
+  inventoryItems: readonly InventoryItem[] = []
+): string {
+  const localizedComment = hotspot.commentTextId
+    ? strings[hotspot.commentTextId]?.replace(/\s+/g, " ").trim()
+    : undefined;
+  const inventoryItemId = hotspot.inventoryItemId ?? hotspot.placedInventoryItemId;
+  const inventoryItem = inventoryItemId
+    ? inventoryItems.find((item) => item.id === inventoryItemId)
+    : undefined;
+  const localizedInventoryLabel = inventoryItem
+    ? strings[inventoryItem.textId]?.replace(/\s+/g, " ").trim()
+    : undefined;
+  return (
+    localizedComment ||
+    localizedInventoryLabel ||
+    hotspot.name.replace(/\s+/g, " ").trim() ||
+    inventoryItem?.name.replace(/\s+/g, " ").trim() ||
+    hotspot.id
+  );
+}
+
+export function shouldActivatePlayerHotspotClick(options: {
+  clickDetail: number;
+  hasVisual: boolean;
+  hasAlphaMask: boolean;
+  opaquePointerHit: boolean;
+}): boolean {
+  return (
+    options.clickDetail === 0 ||
+    !options.hasVisual ||
+    !options.hasAlphaMask ||
+    options.opaquePointerHit
+  );
 }
