@@ -157,6 +157,15 @@ function renderScenesPanel(
 }
 
 describe("ScenesPanel scene audio UI", () => {
+  it("offers narrow scene and action drawers without duplicating their controls", () => {
+    const markup = renderScenesPanel(() => {});
+
+    expect(markup).toContain("scenes-panel__narrow-nav");
+    expect(markup).toContain("scenes-panel__narrow-nav-button");
+    expect(markup.match(/>Scenes<\/button>/g)).toHaveLength(1);
+    expect(markup.match(/>Actions<\/button>/g)).toHaveLength(1);
+  });
+
   it("shows an empty background state for scenes without assigned media", () => {
     const markup = renderScenesPanel((project) => {
       delete project.scenes.items[0].backgroundAssetId;

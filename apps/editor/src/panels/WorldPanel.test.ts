@@ -48,6 +48,10 @@ describe("WorldPanel", () => {
     expect(markup).toContain("Locations");
     expect(markup).toContain("Search locations...");
     expect(markup).toContain("World Overview");
+    expect(markup).toContain("world-panel--narrow-map");
+    expect(markup).toContain(">Map</span>");
+    expect(markup).toContain(">Details</span>");
+    expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("World overview tools");
     expect(markup).toContain("Search map...");
     expect(markup).toContain("world-panel__map-node");
@@ -152,6 +156,8 @@ describe("WorldPanel", () => {
     const arabic = createEditorTranslator(catalog, "ar");
 
     expect(french("Add Location")).toBe("Ajouter un lieu");
+    expect(french("Map")).toBe("Carte");
+    expect(french("Details")).toBe("Détails");
     expect(french("Open {name} in Scenes.", { name: "Citadel_01" })).toBe("Ouvrir Citadel_01 dans Scènes.");
     expect(arabic("{source} to {target}: {transitionCount}", {
       source: "location_intro",

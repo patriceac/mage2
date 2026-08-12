@@ -9,6 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent
 } from "react";
 import {
+  analyzeProjectAssetReachability,
   assessProjectReadiness,
   buildHotspotPickupFlag,
   buildHotspotPlacementFlag,
@@ -60,6 +61,7 @@ import {
 } from "./recent-project-list";
 import { isRedoShortcut, isSaveShortcut, isUndoShortcut } from "./keyboard-shortcuts";
 import { type EditorTab, useEditorStore } from "./store";
+import { formatRuntimeExportMediaStatus } from "./runtime-export-summary";
 import { formatEditorWindowTitle } from "./window-title";
 import {
   parseEditorAutomationCommand,
@@ -957,9 +959,13 @@ export function App() {
       }
     }
 
+    const exportReachability = analyzeProjectAssetReachability(projectForExport);
     const format = options?.legacyAutomation
       ? undefined
-      : options?.format ?? (await dialogs.chooseRuntimeExport(projectForExport.manifest.projectName, mode));
+      : options?.format ?? (await dialogs.chooseRuntimeExport(projectForExport.manifest.projectName, mode, {
+          warningCount: mode === "release" ? readiness.warnings.length : 0,
+          unusedAssetCount: exportReachability.unusedAssetCount
+        }));
     if (!options?.legacyAutomation && !format) {
       setStatusMessage(t("Runtime export canceled."));
       return;
@@ -974,12 +980,12 @@ export function App() {
 
     dismissRuntimeExportProgress();
     const result = await withBusy(
-      format === "windows" ? t("Creating standalone Windows executable") : t("Exporting web runtime build"),
+      format === "windows" ? t("Creating ready-to-play Windows folder") : t("Exporting web runtime build"),
       () =>
         window.editorApi.exportProject(
           projectDir,
           savedProject,
-          format ? { format, mode, destinationPath: options?.destinationPath } : undefined
+          format ? { format, mode, interfaceLocale: locale, destinationPath: options?.destinationPath } : undefined
       ),
       async (message, rawMessage) => {
         dismissRuntimeExportProgress();
@@ -1018,15 +1024,15 @@ export function App() {
     }
 
     const outputPath = result.outputPath ?? result.outputDirectory;
-    setStatusMessage(
-      mode === "preview"
-        ? result.format === "windows"
-          ? t("Standalone Windows preview created at {outputPath}.", { outputPath })
-          : t("Web preview exported to {outputPath}.", { outputPath })
-        : result.format === "windows"
-          ? t("Standalone Windows executable created at {outputPath}.", { outputPath })
-          : t("Web runtime exported to {outputPath}.", { outputPath })
-    );
+    const exportStatus = mode === "preview"
+      ? result.format === "windows"
+        ? t("Windows preview folder created at {outputPath}.", { outputPath })
+        : t("Web preview exported to {outputPath}.", { outputPath })
+      : result.format === "windows"
+        ? t("Windows player folder created at {outputPath}.", { outputPath })
+        : t("Web runtime exported to {outputPath}.", { outputPath });
+    const mediaStatus = formatRuntimeExportMediaStatus(result.exportReport?.media, locale, t);
+    setStatusMessage(mediaStatus ? `${exportStatus} ${mediaStatus}` : exportStatus);
     if (mode === "release" && result.saveCompatibilityBaselineWarning && !options?.suppressErrorDialog) {
       await dialogs.alert({
         title: t("Release Built, Save Check Needs Attention"),
@@ -1837,6 +1843,8 @@ export function App() {
     firstProjectChecklist.shouldShow && dismissedFirstProjectGuideId !== project.manifest.projectId;
   const shouldShowIssuesSidebar =
     showValidationDetails || visibleValidationIssues.length > 0 || shouldShowFirstProjectChecklist;
+  const isIssuesSidebarSummaryOnly =
+    visibleValidationIssues.length === 0 && !shouldShowFirstProjectChecklist;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
@@ -2158,7 +2166,13 @@ export function App() {
           </div>
 
           {shouldShowIssuesSidebar ? (
-            <aside className="validation-panel issues-sidebar">
+            <aside
+              className={
+                isIssuesSidebarSummaryOnly
+                  ? "validation-panel issues-sidebar issues-sidebar--summary-only"
+                  : "validation-panel issues-sidebar"
+              }
+            >
               <button
                 type="button"
                 className={
@@ -2240,9 +2254,9 @@ export function App() {
                     );
                   })}
                 </div>
-              ) : (
+              ) : shouldShowFirstProjectChecklist ? (
                 <p className="muted">{t("No issues right now.")}</p>
-              )}
+              ) : null}
             </aside>
           ) : null}
         </div>

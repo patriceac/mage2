@@ -14,6 +14,7 @@ import {
   isOpaqueHotspotVisualHit,
   resolvePlayerHotspotInteraction,
   resolvePlayerHotspotAccessibleName,
+  resolvePlayerHotspotAriaLabel,
   resolvePlayerInventoryContextMenuAction,
   resolvePlayerExperienceShellCopy,
   resolvePlayerSystemCopy,
@@ -327,7 +328,16 @@ describe("shared player interaction contract", () => {
         "text.hotspot.comment": "  Ouvrir   la porte  "
       })
     ).toBe("Ouvrir la porte");
-    expect(resolvePlayerHotspotAccessibleName(hotspot, {})).toBe("Internal English name");
+    expect(
+      resolvePlayerHotspotAriaLabel(
+        hotspot,
+        { "text.hotspot.comment": "Ouvrir la porte" },
+        [],
+        "Activer"
+      )
+    ).toBe("Ouvrir la porte");
+    expect(resolvePlayerHotspotAccessibleName(hotspot, {})).toBeUndefined();
+    expect(resolvePlayerHotspotAriaLabel(hotspot, {}, [], "Activer")).toBe("Activer");
   });
 
   it("uses the localized inventory label when an inventory hotspot has no player-facing comment", () => {
@@ -350,9 +360,8 @@ describe("shared player interaction contract", () => {
         inventoryItems
       )
     ).toBe("Fusible patiné");
-    expect(resolvePlayerHotspotAccessibleName(hotspot, {}, inventoryItems)).toBe(
-      "Internal English pickup name"
-    );
+    expect(resolvePlayerHotspotAccessibleName(hotspot, {}, inventoryItems)).toBeUndefined();
+    expect(resolvePlayerHotspotAriaLabel(hotspot, {}, inventoryItems, "Activer")).toBe("Activer");
   });
 
   it("lets keyboard-generated clicks bypass pointer-only alpha hit testing", () => {
@@ -570,6 +579,10 @@ describe("shared player component contract", () => {
     expect(source).toContain("onContextMenu={handleInventoryContextMenu}");
     expect(source).toContain("resolvePlayerInventoryContextMenuAction(");
     expect(source).toContain("onClick={canContinueBySurfaceClick ? onContinue : undefined}");
+    expect(source).toContain('"--mage2-player-contained-width"');
+    expect(source).toContain('<img src={sceneUrl} alt="" className="mage2-player__media"');
+    expect(source).toContain('event.key !== "Escape" || !isExpanded');
+    expect(source).toContain("toggleButtonRef.current?.focus()");
     expect(styles).toContain(".mage2-player__media");
     expect(styles).toMatch(/\.mage2-player__dialogue--continue\s*\{[^}]*cursor:\s*pointer;/s);
     expect(styles).toMatch(
@@ -579,6 +592,9 @@ describe("shared player component contract", () => {
     expect(styles).not.toContain("mage2-player__inventory-hint");
     expect(styles).toMatch(
       /@media \(max-width: 780px\) and \(orientation: portrait\)[\s\S]*?\.mage2-player--runtime-responsive\s*\{[\s\S]*?height: 100%;[\s\S]*?aspect-ratio: auto;/
+    );
+    expect(styles).toMatch(
+      /\.mage2-player--runtime-responsive\s*\{[\s\S]*?width: min\(100%, var\(--mage2-player-contained-width, 100%\)\);[\s\S]*?max-height: 100dvh;/
     );
     expect(styles).toMatch(
       /\.mage2-player--runtime-responsive \.mage2-player__scene-surface\s*\{[\s\S]*?aspect-ratio: var\(--mage2-player-media-aspect, 16 \/ 9\);/

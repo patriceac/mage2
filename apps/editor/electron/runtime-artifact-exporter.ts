@@ -1,27 +1,19 @@
-import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import * as nodeFs from "node:fs";
 import { constants } from "node:fs";
-import {
-  copyFile,
-  cp,
-  lstat,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rename,
-  rm,
-  unlink,
-  writeFile
-} from "node:fs/promises";
-import os from "node:os";
+import { createRequire } from "node:module";
 import path from "node:path";
-import type { ProjectBundle } from "@mage2/schema";
+import type { BuiltInLocale, ProjectBundle } from "@mage2/schema";
 import {
   exportProjectBundle,
   type ExportResult,
   type ProjectExportMode
 } from "./exporter";
+import {
+  filesystemObjectIdentityChangedFields,
+  filesystemObjectIdentityFromStats
+} from "./filesystem-identity";
+import { retryTransientWindowsFilesystemOperation } from "./filesystem-retry";
 
 export type RuntimeExportFormat = "windows" | "web";
 export type RuntimeExportMode = ProjectExportMode;
@@ -30,7 +22,6 @@ export type RuntimeExportProgressPhase =
   | "preparing"
   | "building-web"
   | "assembling-player"
-  | "compressing"
   | "publishing"
   | "complete";
 
@@ -48,12 +39,14 @@ export interface RuntimeExportProgress {
 
 export type RuntimeExportProgressHandler = (progress: RuntimeExportProgress) => void;
 
-export type PortableWindowsRuntimeProgress = Omit<RuntimeExportProgress, "format" | "elapsedSeconds">;
-export type PortableWindowsRuntimeProgressHandler = (progress: PortableWindowsRuntimeProgress) => void;
+export type WindowsRuntimeProgress = Omit<RuntimeExportProgress, "format" | "elapsedSeconds">;
+export type WindowsRuntimeProgressHandler = (progress: WindowsRuntimeProgress) => void;
 
 export interface RuntimeExportRequest {
   format: RuntimeExportFormat;
   mode?: RuntimeExportMode;
+  /** Editor interface locale used only for product-owned native dialog copy. */
+  interfaceLocale?: BuiltInLocale;
   /** Trusted automation-only override. Normal exports obtain this path from Electron's native dialog. */
   destinationPath?: string;
 }
@@ -65,25 +58,15 @@ export interface RuntimeArtifactExportResult extends ExportResult {
 
 export interface WindowsRuntimePackagingResources {
   runtimeTemplateDirectory: string;
-  nsisDirectory: string;
-  iconPath?: string;
 }
 
-export interface PortableCompilationOptions {
-  nsisDirectory: string;
-  outputFile: string;
-  payloadDirectory: string;
-  scriptPath: string;
-  script: string;
-}
-
-export interface CreatePortableWindowsRuntimeOptions {
+export interface CreateWindowsRuntimeFolderOptions {
   buildDirectory: string;
-  destinationFile: string;
+  destinationDirectory: string;
+  mode: RuntimeExportMode;
   project: ProjectBundle;
   resources: WindowsRuntimePackagingResources;
-  compilePortableExecutable?: (options: PortableCompilationOptions) => Promise<void>;
-  onProgress?: PortableWindowsRuntimeProgressHandler;
+  onProgress?: WindowsRuntimeProgressHandler;
 }
 
 interface DirectoryIdentity {
@@ -91,27 +74,53 @@ interface DirectoryIdentity {
   canonicalPath: string;
   dev: string;
   ino: string;
-  birthtimeNs: string;
+  birthtime: string;
 }
 
-type FileSnapshot =
-  | { kind: "missing" }
-  | {
-      kind: "file";
-      dev: string;
-      ino: string;
-      birthtimeNs: string;
-      mtimeNs: string;
-      size: string;
-    };
+interface WindowsRuntimeFileRecord {
+  path: string;
+  sha256: string;
+  size: number;
+}
 
-const PORTABLE_INNER_EXECUTABLE = "MAGE2 Player.exe";
+interface WindowsRuntimeOwnershipMarker {
+  format: typeof WINDOWS_RUNTIME_MARKER_FORMAT;
+  version: typeof WINDOWS_RUNTIME_MARKER_VERSION;
+  projectId: string;
+  exportId: string;
+  executableName: string;
+  files: WindowsRuntimeFileRecord[];
+}
+
+type WindowsRuntimeDestinationSnapshot =
+  | { kind: "missing" }
+  | { kind: "empty"; identity: DirectoryIdentity }
+  | { kind: "owned"; identity: DirectoryIdentity; fingerprint: string };
+
+const WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE = "MAGE2 Player.exe";
+const WINDOWS_RUNTIME_DIRECTORY = "runtime";
 const BUNDLED_RUNTIME_APP_ARCHIVE = "app.mage2asar";
-const MAX_PORTABLE_EXECUTABLE_BYTES = 1_900_000_000;
-const PORTABLE_COMPRESSION_BYTES_PER_SECOND = 2.6 * 1024 * 1024;
-const PORTABLE_COMPRESSION_BASE_SECONDS = 8;
-const PORTABLE_COMPRESSION_PROGRESS_START = 0.38;
-const PORTABLE_COMPRESSION_PROGRESS_END = 0.94;
+const WINDOWS_RUNTIME_MARKER_FILE = ".mage2-windows-player.json";
+const WINDOWS_RUNTIME_MARKER_FORMAT = "mage2-windows-player";
+const WINDOWS_RUNTIME_MARKER_VERSION = 1;
+const rawFilesystem: typeof nodeFs = process.versions.electron
+  ? (createRequire(process.execPath)("original-fs") as typeof nodeFs)
+  : nodeFs;
+const {
+  copyFile,
+  cp,
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  rmdir,
+  unlink,
+  writeFile
+} = rawFilesystem.promises;
 
 export async function exportRuntimeArtifact(options: {
   projectDir: string;
@@ -161,15 +170,15 @@ export async function exportRuntimeArtifact(options: {
   }
 
   if (process.platform !== "win32") {
-    throw new Error("Standalone Windows exports can only be created by the Windows editor.");
+    throw new Error("Windows player folders can only be created by the Windows editor.");
   }
   if (!options.windowsResources) {
     throw new Error("The packaged Windows runtime resources are unavailable.");
   }
 
   // Keep the project-local web build as the canonical, inspectable source of
-  // the portable executable. The selected destination is not touched until
-  // that build and the portable payload have both completed successfully.
+  // the ready-to-play Windows folder. The selected destination is not touched
+  // until both the web build and the complete player folder are verified.
   const result = await exportProjectBundle(options.projectDir, options.project, {
     mode,
     onProgress: (bundleProgress) => {
@@ -179,9 +188,10 @@ export async function exportRuntimeArtifact(options: {
       });
     }
   });
-  const outputPath = await createPortableWindowsRuntime({
+  const outputPath = await createWindowsRuntimeFolder({
     buildDirectory: result.outputDirectory,
-    destinationFile: destinationPath,
+    destinationDirectory: destinationPath,
+    mode,
     project: options.project,
     resources: options.windowsResources,
     onProgress: reportProgress
@@ -189,155 +199,110 @@ export async function exportRuntimeArtifact(options: {
   return { ...result, format: "windows", outputPath };
 }
 
-export async function createPortableWindowsRuntime(
-  options: CreatePortableWindowsRuntimeOptions
+export async function createWindowsRuntimeFolder(
+  options: CreateWindowsRuntimeFolderOptions
 ): Promise<string> {
-  const destinationFile = path.resolve(options.destinationFile);
-  if (path.extname(destinationFile).toLocaleLowerCase("en-US") !== ".exe") {
-    throw new Error(`Windows runtime destination must end in .exe: "${destinationFile}".`);
-  }
-
-  const destinationParent = await captureDirectoryIdentity(path.dirname(destinationFile), "export destination folder");
-  await assertDirectChild(destinationParent, destinationFile, "Windows runtime destination");
-  const initialDestination = await inspectDestinationFile(destinationFile);
-
-  const runtimeTemplateDirectory = await assertRuntimeTemplate(options.resources.runtimeTemplateDirectory);
-  const nsisDirectory = await assertNsisDirectory(options.resources.nsisDirectory);
-  const workDirectory = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-runtime-"));
-  const payloadDirectory = path.join(workDirectory, "payload");
-  const compiledExecutable = path.join(workDirectory, "portable.exe");
-  const scriptPath = path.join(workDirectory, "portable.nsi");
+  const destinationDirectory = path.resolve(options.destinationDirectory);
+  const destinationParent = await captureDirectoryIdentity(
+    path.dirname(destinationDirectory),
+    "export destination folder"
+  );
+  await assertDirectChild(destinationParent, destinationDirectory, "Windows player folder");
+  const initialDestination = await inspectWindowsRuntimeDestination(
+    destinationDirectory,
+    options.project.manifest.projectId
+  );
+  const runtimeTemplateDirectory = await assertRuntimeTemplate(
+    options.resources.runtimeTemplateDirectory
+  );
+  const stagingDirectory = path.join(
+    destinationParent.path,
+    `.mage2-windows-player-${randomUUID()}.staging`
+  );
+  await assertDirectChild(destinationParent, stagingDirectory, "Windows player staging folder");
+  let stagingPromoted = false;
 
   try {
-    emitPortableProgress(options.onProgress, {
+    emitWindowsRuntimeProgress(options.onProgress, {
       phase: "assembling-player",
       progress: 0.24
     });
-    await cp(runtimeTemplateDirectory, payloadDirectory, {
+    await cp(runtimeTemplateDirectory, stagingDirectory, {
       recursive: true,
       force: false,
       errorOnExist: true
     });
+    await chmod(stagingDirectory, 0o755);
+    const stagingIdentity = await captureDirectoryIdentity(
+      stagingDirectory,
+      "Windows player staging folder"
+    );
+    if (!isStrictDescendant(destinationParent.canonicalPath, stagingIdentity.canonicalPath)) {
+      throw new Error("The Windows player staging folder escaped the selected destination.");
+    }
+
     await rename(
-      path.join(payloadDirectory, "resources", BUNDLED_RUNTIME_APP_ARCHIVE),
-      path.join(payloadDirectory, "resources", "app.asar")
+      path.join(stagingDirectory, WINDOWS_RUNTIME_DIRECTORY, "resources", BUNDLED_RUNTIME_APP_ARCHIVE),
+      path.join(stagingDirectory, WINDOWS_RUNTIME_DIRECTORY, "resources", "app.asar")
     );
-    const playerDirectory = path.join(payloadDirectory, "resources", "player");
-    await cp(path.resolve(options.buildDirectory), playerDirectory, {
-      recursive: true,
-      force: false,
-      errorOnExist: true
-    });
-    await copyCreatorIconIfConfigured(options.buildDirectory, payloadDirectory);
+    const executableName = suggestedWindowsRuntimeExecutableName(
+      options.project.manifest.projectName,
+      options.mode
+    );
+    await rename(
+      path.join(stagingDirectory, WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE),
+      path.join(stagingDirectory, executableName)
+    );
+    await cp(
+      path.resolve(options.buildDirectory),
+      path.join(stagingDirectory, WINDOWS_RUNTIME_DIRECTORY, "resources", "player"),
+      {
+        recursive: true,
+        force: false,
+        errorOnExist: true
+      }
+    );
+    await copyCreatorIconIfConfigured(options.buildDirectory, stagingDirectory);
+    await writeWindowsRuntimeOwnershipMarker(
+      stagingIdentity,
+      options.project.manifest.projectId,
+      executableName
+    );
 
-    const payloadBytes = await measureRegularDirectoryBytes(payloadDirectory);
-    const estimatedCompressionSeconds = estimatePortableCompressionSeconds(payloadBytes);
-
-    const script = createPortableNsisScript({
-      iconPath: options.resources.iconPath,
-      outputFile: compiledExecutable,
-      payloadDirectory,
-      productName: `${options.project.manifest.projectName} Player`,
-      version: options.project.manifest.gameVersion
-    });
-    await writeFile(scriptPath, script, { encoding: "utf8", flag: "wx" });
-
-    const compile = options.compilePortableExecutable ?? compilePortableWithNsis;
-    const compressionStartedAt = Date.now();
-    const reportCompression = () => {
-      const elapsedSeconds = Math.max(0, (Date.now() - compressionStartedAt) / 1000);
-      const remainingSeconds = Math.ceil(estimatedCompressionSeconds - elapsedSeconds);
-      emitPortableProgress(options.onProgress, {
-        phase: "compressing",
-        progress: resolvePortableCompressionProgress(elapsedSeconds, estimatedCompressionSeconds),
-        estimatedSecondsRemaining: remainingSeconds > 0 ? remainingSeconds : undefined,
-        payloadBytes
-      });
-    };
-    reportCompression();
-    const compressionTimer = setInterval(reportCompression, 1_000);
-    try {
-      await compile({
-        nsisDirectory,
-        outputFile: compiledExecutable,
-        payloadDirectory,
-        scriptPath,
-        script
-      });
-    } finally {
-      clearInterval(compressionTimer);
-    }
-
-    const compiledStats = await lstat(compiledExecutable, { bigint: true });
-    if (compiledStats.isSymbolicLink() || !compiledStats.isFile()) {
-      throw new Error("Windows runtime packaging did not create a normal executable file.");
-    }
-    if (compiledStats.size <= 0n) {
-      throw new Error("Windows runtime packaging created an empty executable file.");
-    }
-    if (compiledStats.size > BigInt(MAX_PORTABLE_EXECUTABLE_BYTES)) {
-      throw new Error(
-        "The standalone Windows executable is too large for the portable container. Export a web build or reduce the packaged media size."
-      );
-    }
-
-    emitPortableProgress(options.onProgress, {
+    emitWindowsRuntimeProgress(options.onProgress, {
       phase: "publishing",
-      progress: 0.97,
-      estimatedSecondsRemaining: 2,
-      payloadBytes
+      progress: 0.95
     });
-    await publishPortableExecutable(
-      compiledExecutable,
-      destinationFile,
+    await publishWindowsRuntimeDirectory(
+      stagingIdentity,
+      destinationDirectory,
       destinationParent,
-      initialDestination
+      initialDestination,
+      options.project.manifest.projectId
     );
-    emitPortableProgress(options.onProgress, {
+    stagingPromoted = true;
+    await rm(stagingDirectory, { recursive: true, force: true }).catch((error) => {
+      console.warn(`MAGE2 left a published Windows player staging folder at "${stagingDirectory}":`, error);
+    });
+    emitWindowsRuntimeProgress(options.onProgress, {
       phase: "complete",
       progress: 1,
-      estimatedSecondsRemaining: 0,
-      payloadBytes
+      estimatedSecondsRemaining: 0
     });
-    return destinationFile;
+    return destinationDirectory;
   } finally {
-    await rm(workDirectory, { recursive: true, force: true }).catch((error) => {
-      console.warn(`MAGE2 could not remove temporary Windows export files at "${workDirectory}":`, error);
-    });
+    if (!stagingPromoted) {
+      await rm(stagingDirectory, { recursive: true, force: true }).catch((error) => {
+        console.warn(`MAGE2 left a temporary Windows player folder at "${stagingDirectory}":`, error);
+      });
+    }
   }
-}
-
-export function estimatePortableCompressionSeconds(payloadBytes: number): number {
-  const normalizedBytes = Number.isFinite(payloadBytes) ? Math.max(0, payloadBytes) : 0;
-  return Math.min(
-    15 * 60,
-    Math.max(
-      PORTABLE_COMPRESSION_BASE_SECONDS,
-      Math.ceil(PORTABLE_COMPRESSION_BASE_SECONDS + normalizedBytes / PORTABLE_COMPRESSION_BYTES_PER_SECOND)
-    )
-  );
-}
-
-export function resolvePortableCompressionProgress(
-  elapsedSeconds: number,
-  estimatedCompressionSeconds: number
-): number {
-  const normalizedElapsed = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
-  const normalizedEstimate = Number.isFinite(estimatedCompressionSeconds)
-    ? Math.max(1, estimatedCompressionSeconds)
-    : PORTABLE_COMPRESSION_BASE_SECONDS;
-  const ratio = normalizedElapsed / normalizedEstimate;
-  const easedAtEstimate = 1 - Math.exp(-2.5);
-  const eased = (1 - Math.exp(-2.5 * ratio)) / easedAtEstimate;
-  const capped = Math.min(0.985, Math.max(0, eased));
-  return PORTABLE_COMPRESSION_PROGRESS_START +
-    (PORTABLE_COMPRESSION_PROGRESS_END - PORTABLE_COMPRESSION_PROGRESS_START) * capped;
 }
 
 function createRuntimeExportProgressReporter(
   format: RuntimeExportFormat,
   handler: RuntimeExportProgressHandler | undefined
-): PortableWindowsRuntimeProgressHandler {
+): WindowsRuntimeProgressHandler {
   const startedAt = Date.now();
   let lastPhase: RuntimeExportProgressPhase | undefined;
   let lastProgress = 0;
@@ -376,9 +341,9 @@ function createRuntimeExportProgressReporter(
   };
 }
 
-function emitPortableProgress(
-  handler: PortableWindowsRuntimeProgressHandler | undefined,
-  progress: PortableWindowsRuntimeProgress
+function emitWindowsRuntimeProgress(
+  handler: WindowsRuntimeProgressHandler | undefined,
+  progress: WindowsRuntimeProgress
 ): void {
   if (!handler) {
     return;
@@ -386,85 +351,8 @@ function emitPortableProgress(
   try {
     handler(progress);
   } catch (error) {
-    console.warn("MAGE2 portable export progress listener failed:", error);
+    console.warn("MAGE2 Windows export progress listener failed:", error);
   }
-}
-
-async function measureRegularDirectoryBytes(rootDirectory: string): Promise<number> {
-  let totalBytes = 0;
-
-  async function walk(directory: string): Promise<void> {
-    const directoryStats = await lstat(directory);
-    if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
-      throw new Error(`Windows runtime payload contains an unsafe directory: "${directory}".`);
-    }
-
-    for (const entry of await readdir(directory)) {
-      const entryPath = path.join(directory, entry);
-      const stats = await lstat(entryPath);
-      if (stats.isSymbolicLink()) {
-        throw new Error(`Windows runtime payload contains a linked path: "${entryPath}".`);
-      }
-      if (stats.isDirectory()) {
-        await walk(entryPath);
-        continue;
-      }
-      if (!stats.isFile()) {
-        throw new Error(`Windows runtime payload contains unsupported content: "${entryPath}".`);
-      }
-      totalBytes += stats.size;
-      if (!Number.isSafeInteger(totalBytes)) {
-        throw new Error("Windows runtime payload is too large to estimate safely.");
-      }
-    }
-  }
-
-  await walk(path.resolve(rootDirectory));
-  return totalBytes;
-}
-
-export function createPortableNsisScript(options: {
-  iconPath?: string;
-  outputFile: string;
-  payloadDirectory: string;
-  productName: string;
-  version: string;
-}): string {
-  const productName = escapeNsisString(options.productName);
-  const payloadGlob = escapeNsisString(path.join(options.payloadDirectory, "*"));
-  const outputFile = escapeNsisString(options.outputFile);
-  const iconDirective = options.iconPath
-    ? `Icon "${escapeNsisString(path.resolve(options.iconPath))}"\n`
-    : "";
-
-  return [
-    "Unicode true",
-    '!include "FileFunc.nsh"',
-    "RequestExecutionLevel user",
-    "SilentInstall silent",
-    "AutoCloseWindow true",
-    "CRCCheck on",
-    "SetDatablockOptimize on",
-    "SetCompressor /SOLID lzma",
-    `Name "${productName}"`,
-    `OutFile "${outputFile}"`,
-    iconDirective.trimEnd(),
-    `VIProductVersion "${resolveNsisProductVersion(options.version)}"`,
-    `VIAddVersionKey /LANG=1033 "ProductName" "${productName}"`,
-    `VIAddVersionKey /LANG=1033 "FileDescription" "Portable ${productName}"`,
-    `VIAddVersionKey /LANG=1033 "FileVersion" "${escapeNsisString(options.version)}"`,
-    "Section",
-    "  InitPluginsDir",
-    '  SetOutPath "$PLUGINSDIR\\app"',
-    `  File /r "${payloadGlob}"`,
-    '  ${GetParameters} $R0',
-    `  ExecWait '"$PLUGINSDIR\\app\\${PORTABLE_INNER_EXECUTABLE}" $R0' $0`,
-    "  SetErrorLevel $0",
-    "SectionEnd",
-    ""
-  ]
-    .filter((line) => line.length > 0)
-    .join("\n");
 }
 
 export function sanitizeRuntimeArtifactName(value: string): string {
@@ -482,39 +370,40 @@ export function suggestedRuntimeArtifactName(
 ): string {
   const baseName = sanitizeRuntimeArtifactName(projectName);
   if (mode === "preview") {
-    return format === "windows" ? `${baseName} Preview.exe` : `${baseName} Preview Web`;
+    return format === "windows" ? `${baseName} Preview` : `${baseName} Preview Web`;
   }
-  return format === "windows" ? `${baseName} Player.exe` : `${baseName} Web`;
+  return format === "windows" ? `${baseName} Player` : `${baseName} Web`;
+}
+
+export function suggestedWindowsRuntimeExecutableName(
+  projectName: string,
+  mode: RuntimeExportMode = "release"
+): string {
+  return `${suggestedRuntimeArtifactName(projectName, "windows", mode)}.exe`;
 }
 
 async function assertRuntimeTemplate(inputPath: string): Promise<string> {
   const identity = await captureDirectoryIdentity(inputPath, "bundled Windows runtime template");
-  const executablePath = path.join(identity.path, PORTABLE_INNER_EXECUTABLE);
+  const executablePath = path.join(identity.path, WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE);
   const executableStats = await lstat(executablePath);
   if (executableStats.isSymbolicLink() || !executableStats.isFile()) {
-    throw new Error(`Bundled Windows runtime template is missing ${PORTABLE_INNER_EXECUTABLE}.`);
+    throw new Error(`Bundled Windows runtime template is missing ${WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE}.`);
+  }
+  const runtimeExecutableStats = await lstat(
+    path.join(identity.path, WINDOWS_RUNTIME_DIRECTORY, WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE)
+  );
+  if (runtimeExecutableStats.isSymbolicLink() || !runtimeExecutableStats.isFile()) {
+    throw new Error(
+      `Bundled Windows runtime template is missing ${WINDOWS_RUNTIME_DIRECTORY}/${WINDOWS_RUNTIME_TEMPLATE_EXECUTABLE}.`
+    );
   }
   const appArchiveStats = await lstat(
-    path.join(identity.path, "resources", BUNDLED_RUNTIME_APP_ARCHIVE)
+    path.join(identity.path, WINDOWS_RUNTIME_DIRECTORY, "resources", BUNDLED_RUNTIME_APP_ARCHIVE)
   );
   if (appArchiveStats.isSymbolicLink() || !appArchiveStats.isFile()) {
     throw new Error(
-      `Bundled Windows runtime template is missing resources/${BUNDLED_RUNTIME_APP_ARCHIVE}.`
+      `Bundled Windows runtime template is missing ${WINDOWS_RUNTIME_DIRECTORY}/resources/${BUNDLED_RUNTIME_APP_ARCHIVE}.`
     );
-  }
-  return identity.path;
-}
-
-async function assertNsisDirectory(inputPath: string): Promise<string> {
-  const identity = await captureDirectoryIdentity(inputPath, "bundled Windows packaging tools");
-  for (const requiredPath of ["makensis.exe", "Include", "Stubs"]) {
-    const requiredStats = await lstat(path.join(identity.path, requiredPath));
-    if (requiredStats.isSymbolicLink()) {
-      throw new Error(`Bundled Windows packaging tool path is linked: ${requiredPath}.`);
-    }
-    if (requiredPath.endsWith(".exe") ? !requiredStats.isFile() : !requiredStats.isDirectory()) {
-      throw new Error(`Bundled Windows packaging tools are missing ${requiredPath}.`);
-    }
   }
   return identity.path;
 }
@@ -564,99 +453,605 @@ async function copyCreatorIconIfConfigured(buildDirectory: string, payloadDirect
   if (sourceStats.isSymbolicLink() || !sourceStats.isFile()) {
     throw new Error(`Configured player icon '${appIconAssetId}' is not a normal file.`);
   }
-  await copyFile(sourcePath, path.join(payloadDirectory, "resources", "creator-icon.png"), constants.COPYFILE_EXCL);
+  await copyFile(
+    sourcePath,
+    path.join(payloadDirectory, WINDOWS_RUNTIME_DIRECTORY, "resources", "creator-icon.png"),
+    constants.COPYFILE_EXCL
+  );
 }
 
-async function compilePortableWithNsis(options: PortableCompilationOptions): Promise<void> {
-  const makensisPath = path.join(options.nsisDirectory, "makensis.exe");
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(makensisPath, ["/V2", options.scriptPath], {
-      cwd: options.nsisDirectory,
-      env: { ...process.env, NSISDIR: options.nsisDirectory },
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout = appendBoundedOutput(stdout, String(chunk));
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr = appendBoundedOutput(stderr, String(chunk));
-    });
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(
-        new Error(
-          `Windows runtime packaging failed with exit code ${code ?? "unknown"}. ${stderr.trim() || stdout.trim()}`
-        )
-      );
-    });
-  });
-}
-
-async function publishPortableExecutable(
-  compiledExecutable: string,
-  destinationFile: string,
-  destinationParent: DirectoryIdentity,
-  initialDestination: FileSnapshot
+async function writeWindowsRuntimeOwnershipMarker(
+  stagingIdentity: DirectoryIdentity,
+  projectId: string,
+  executableName: string
 ): Promise<void> {
-  await assertDirectoryIdentity(destinationParent, "export destination folder");
-  const currentDestination = await inspectDestinationFile(destinationFile);
-  if (!sameFileSnapshot(initialDestination, currentDestination)) {
-    throw new Error(`Export stopped because the selected destination changed: "${destinationFile}".`);
+  const files = await collectWindowsRuntimeFileInventory(
+    stagingIdentity,
+    new Set([WINDOWS_RUNTIME_MARKER_FILE])
+  );
+  if (!files.some((record) => record.path === executableName)) {
+    throw new Error(`The Windows player executable is missing from the staged folder: "${executableName}".`);
+  }
+  const marker: WindowsRuntimeOwnershipMarker = {
+    format: WINDOWS_RUNTIME_MARKER_FORMAT,
+    version: WINDOWS_RUNTIME_MARKER_VERSION,
+    projectId,
+    exportId: randomUUID(),
+    executableName,
+    files
+  };
+  await writeFile(
+    path.join(stagingIdentity.path, WINDOWS_RUNTIME_MARKER_FILE),
+    `${JSON.stringify(marker, null, 2)}\n`,
+    { encoding: "utf8", flag: "wx" }
+  );
+}
+
+async function inspectWindowsRuntimeDestination(
+  destinationDirectory: string,
+  projectId: string
+): Promise<WindowsRuntimeDestinationSnapshot> {
+  let stats;
+  try {
+    stats = await lstat(destinationDirectory);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return { kind: "missing" };
+    }
+    throw error;
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new Error(`Windows player destination is not a normal folder: "${destinationDirectory}".`);
   }
 
-  const stagingFile = path.join(destinationParent.path, `.mage2-portable-${randomUUID()}.tmp`);
-  const backupFile = path.join(destinationParent.path, `.mage2-portable-${randomUUID()}.backup`);
-  await assertDirectChild(destinationParent, stagingFile, "portable export staging file");
-  await copyFile(compiledExecutable, stagingFile, constants.COPYFILE_EXCL);
-  let backupCreated = false;
+  const identity = await captureDirectoryIdentity(destinationDirectory, "Windows player destination");
+  if ((await readdir(destinationDirectory)).length === 0) {
+    return { kind: "empty", identity };
+  }
 
   try {
-    await assertDirectoryIdentity(destinationParent, "export destination folder");
-    if (!sameFileSnapshot(initialDestination, await inspectDestinationFile(destinationFile))) {
-      throw new Error(`Export stopped because the selected destination changed: "${destinationFile}".`);
+    const markerPath = path.join(destinationDirectory, WINDOWS_RUNTIME_MARKER_FILE);
+    const markerStats = await lstat(markerPath);
+    if (markerStats.isSymbolicLink() || !markerStats.isFile() || markerStats.size > 5 * 1024 * 1024) {
+      throw new Error("the ownership marker is not a supported regular file");
+    }
+    const markerText = await readFile(markerPath, "utf8");
+    const marker = parseWindowsRuntimeOwnershipMarker(JSON.parse(markerText));
+    if (marker.projectId !== projectId) {
+      throw new Error("the ownership marker belongs to another project");
+    }
+    const actualFiles = await collectWindowsRuntimeFileInventory(
+      identity,
+      new Set([WINDOWS_RUNTIME_MARKER_FILE])
+    );
+    if (JSON.stringify(marker.files) !== JSON.stringify(actualFiles)) {
+      throw new Error("the player folder contains unknown, missing, or changed files");
+    }
+    if (!actualFiles.some((record) => record.path === marker.executableName)) {
+      throw new Error("the recorded player executable is missing");
+    }
+    return {
+      kind: "owned",
+      identity,
+      fingerprint: createHash("sha256").update(markerText).digest("hex")
+    };
+  } catch (error) {
+    throw new Error(
+      `Windows player export refused: "${destinationDirectory}" is not an empty folder or a verified previous MAGE2 player for project "${projectId}". ` +
+        `Unknown, changed, linked, or added files are never replaced. ${errorMessage(error)}`,
+      { cause: error }
+    );
+  }
+}
+
+function parseWindowsRuntimeOwnershipMarker(input: unknown): WindowsRuntimeOwnershipMarker {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("the Windows player ownership marker is invalid");
+  }
+  const marker = input as Record<string, unknown>;
+  const keys = Object.keys(marker).sort();
+  if (
+    keys.length !== 6 ||
+    keys[0] !== "executableName" ||
+    keys[1] !== "exportId" ||
+    keys[2] !== "files" ||
+    keys[3] !== "format" ||
+    keys[4] !== "projectId" ||
+    keys[5] !== "version" ||
+    marker.format !== WINDOWS_RUNTIME_MARKER_FORMAT ||
+    marker.version !== WINDOWS_RUNTIME_MARKER_VERSION ||
+    typeof marker.projectId !== "string" ||
+    marker.projectId.length === 0 ||
+    typeof marker.exportId !== "string" ||
+    !/^[0-9a-f-]{36}$/iu.test(marker.exportId) ||
+    typeof marker.executableName !== "string" ||
+    !isCanonicalWindowsRuntimeRelativePath(marker.executableName) ||
+    marker.executableName.includes("/") ||
+    !marker.executableName.toLocaleLowerCase("en-US").endsWith(".exe") ||
+    !Array.isArray(marker.files)
+  ) {
+    throw new Error("the Windows player ownership marker is invalid");
+  }
+  const files = marker.files.map(parseWindowsRuntimeFileRecord);
+  assertWindowsRuntimeInventoryPaths(files);
+  return { ...marker, files } as WindowsRuntimeOwnershipMarker;
+}
+
+function parseWindowsRuntimeFileRecord(input: unknown): WindowsRuntimeFileRecord {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("the Windows player file inventory is invalid");
+  }
+  const record = input as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (
+    keys.length !== 3 ||
+    keys[0] !== "path" ||
+    keys[1] !== "sha256" ||
+    keys[2] !== "size" ||
+    typeof record.path !== "string" ||
+    !isCanonicalWindowsRuntimeRelativePath(record.path) ||
+    typeof record.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(record.sha256) ||
+    typeof record.size !== "number" ||
+    !Number.isSafeInteger(record.size) ||
+    record.size < 0
+  ) {
+    throw new Error("the Windows player file inventory is invalid");
+  }
+  return record as unknown as WindowsRuntimeFileRecord;
+}
+
+async function collectWindowsRuntimeFileInventory(
+  rootIdentity: DirectoryIdentity,
+  excludedRootFiles: ReadonlySet<string>
+): Promise<WindowsRuntimeFileRecord[]> {
+  await assertDirectoryIdentity(rootIdentity, "Windows player folder");
+  const records: WindowsRuntimeFileRecord[] = [];
+  const directories = new Set<string>();
+
+  async function walk(directoryIdentity: DirectoryIdentity, relativeDirectory: string): Promise<void> {
+    await assertDirectoryIdentity(rootIdentity, "Windows player folder");
+    await assertDirectoryIdentity(directoryIdentity, "Windows player subfolder");
+    const entries = (await readdir(directoryIdentity.path)).sort((left, right) => left.localeCompare(right));
+    if (entries.length === 0 && relativeDirectory) {
+      throw new Error(`unexpected empty Windows player directory: "${relativeDirectory}"`);
     }
 
-    if (initialDestination.kind === "file") {
-      await assertDirectChild(destinationParent, backupFile, "portable export backup file");
-      await rename(destinationFile, backupFile);
-      backupCreated = true;
-      const movedSnapshot = await inspectDestinationFile(backupFile);
-      if (!sameFileSnapshot(initialDestination, movedSnapshot)) {
-        throw new Error("The previous executable changed while it was being preserved.");
+    for (const entry of entries) {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${entry}` : entry;
+      if (!isCanonicalWindowsRuntimeRelativePath(relativePath)) {
+        throw new Error(`non-canonical Windows player path: "${relativePath}"`);
       }
+      const absolutePath = path.join(directoryIdentity.path, entry);
+      const entryStats = await lstat(absolutePath);
+      if (entryStats.isSymbolicLink()) {
+        throw new Error(`linked Windows player content is not allowed: "${relativePath}"`);
+      }
+      if (entryStats.isDirectory()) {
+        directories.add(relativePath);
+        await walk(
+          await captureDirectoryIdentity(absolutePath, "Windows player subfolder"),
+          relativePath
+        );
+        continue;
+      }
+      if (!entryStats.isFile()) {
+        throw new Error(`unsupported Windows player content: "${relativePath}"`);
+      }
+      if (!relativeDirectory && excludedRootFiles.has(entry)) {
+        continue;
+      }
+      records.push({ path: relativePath, ...(await hashWindowsRuntimeFile(absolutePath)) });
     }
+  }
 
-    await rename(stagingFile, destinationFile);
+  await walk(rootIdentity, "");
+  const expectedDirectories = new Set<string>();
+  for (const record of records) {
+    const segments = record.path.split("/");
+    for (let index = 1; index < segments.length; index += 1) {
+      expectedDirectories.add(segments.slice(0, index).join("/"));
+    }
+  }
+  if (![...directories].every((directory) => expectedDirectories.has(directory))) {
+    throw new Error("the Windows player contains an unknown or empty directory");
+  }
+  records.sort((left, right) => left.path.localeCompare(right.path));
+  assertWindowsRuntimeInventoryPaths(records);
+  return records;
+}
+
+async function hashWindowsRuntimeFile(
+  filePath: string
+): Promise<Omit<WindowsRuntimeFileRecord, "path">> {
+  const handle = await rawFilesystem.promises.open(
+    filePath,
+    constants.O_RDONLY | constants.O_NOFOLLOW
+  );
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile() || before.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(`Windows player content is not a supported regular file: "${filePath}"`);
+    }
+    const hash = createHash("sha256");
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    let position = 0;
+    while (position < Number(before.size)) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        Math.min(buffer.length, Number(before.size) - position),
+        position
+      );
+      if (bytesRead === 0) break;
+      hash.update(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeNs !== after.mtimeNs ||
+      position !== Number(before.size)
+    ) {
+      throw new Error(`Windows player file changed while it was verified: "${filePath}"`);
+    }
+    return { sha256: hash.digest("hex"), size: position };
+  } finally {
+    await handle.close();
+  }
+}
+
+function assertWindowsRuntimeInventoryPaths(records: WindowsRuntimeFileRecord[]): void {
+  const caseFolded = new Set<string>();
+  let previous = "";
+  for (const record of records) {
+    if (!isCanonicalWindowsRuntimeRelativePath(record.path)) {
+      throw new Error(`non-canonical Windows player path: "${record.path}"`);
+    }
+    if (previous && previous.localeCompare(record.path) >= 0) {
+      throw new Error("the Windows player inventory must be strictly sorted and unique");
+    }
+    previous = record.path;
+    const folded = record.path.toLocaleLowerCase("en-US");
+    if (caseFolded.has(folded)) {
+      throw new Error("the Windows player inventory contains a Windows path collision");
+    }
+    caseFolded.add(folded);
+  }
+}
+
+function isCanonicalWindowsRuntimeRelativePath(relativePath: string): boolean {
+  if (!relativePath || relativePath.includes("\\") || path.posix.isAbsolute(relativePath)) {
+    return false;
+  }
+  return relativePath.split("/").every(
+    (segment) =>
+      segment.length > 0 &&
+      segment !== "." &&
+      segment !== ".." &&
+      !segment.endsWith(".") &&
+      !segment.endsWith(" ") &&
+      !/[<>:"|?*\u0000-\u001f]/u.test(segment)
+  );
+}
+
+async function publishWindowsRuntimeDirectory(
+  stagingIdentity: DirectoryIdentity,
+  destinationDirectory: string,
+  destinationParent: DirectoryIdentity,
+  initialDestination: WindowsRuntimeDestinationSnapshot,
+  projectId: string
+): Promise<void> {
+  await assertDirectoryIdentity(destinationParent, "export destination folder");
+  await assertDirectoryIdentity(stagingIdentity, "Windows player staging folder");
+  const currentDestination = await inspectWindowsRuntimeDestination(destinationDirectory, projectId);
+  if (!sameWindowsRuntimeDestinationSnapshot(initialDestination, currentDestination)) {
+    throw new Error(`Export stopped because the Windows player destination changed: "${destinationDirectory}".`);
+  }
+
+  if (initialDestination.kind === "missing") {
+    await copyNewWindowsRuntimeDirectory(
+      stagingIdentity,
+      destinationDirectory,
+      destinationParent,
+      projectId
+    );
+    return;
+  }
+
+  const backupDirectory = path.join(
+    destinationParent.path,
+    `.mage2-windows-player-${randomUUID()}.backup`
+  );
+  await assertDirectChild(destinationParent, backupDirectory, "Windows player backup folder");
+  let backupCreated = false;
+  try {
+    await retryTransientWindowsFilesystemOperation(
+      () => rename(destinationDirectory, backupDirectory),
+      {
+        onRetry: async () => {
+          await assertDirectoryIdentity(destinationParent, "export destination folder");
+          const retryDestination = await inspectWindowsRuntimeDestination(
+            destinationDirectory,
+            projectId
+          );
+          if (!sameWindowsRuntimeDestinationSnapshot(initialDestination, retryDestination)) {
+            throw new Error("The previous Windows player folder changed before it could be preserved.");
+          }
+        }
+      }
+    );
+    backupCreated = true;
+    const movedDestination = await inspectWindowsRuntimeDestination(backupDirectory, projectId);
+    if (!sameWindowsRuntimeDestinationAfterMove(initialDestination, movedDestination)) {
+      throw new Error("The previous Windows player folder changed while it was being preserved.");
+    }
+    await retryTransientWindowsFilesystemOperation(
+      () => rename(stagingIdentity.path, destinationDirectory),
+      {
+        onRetry: async () => {
+          await assertDirectoryIdentity(destinationParent, "export destination folder");
+          await assertDirectoryIdentity(stagingIdentity, "Windows player staging folder");
+          if ((await inspectWindowsRuntimeDestination(destinationDirectory, projectId)).kind !== "missing") {
+            throw new Error("The Windows player destination changed before publication could be retried.");
+          }
+        }
+      }
+    );
   } catch (error) {
     if (backupCreated) {
-      await rename(backupFile, destinationFile).catch((rollbackError) => {
+      await retryTransientWindowsFilesystemOperation(
+        () => rename(backupDirectory, destinationDirectory),
+        {
+          onRetry: async () => {
+            await assertDirectoryIdentity(destinationParent, "export destination folder");
+            const backupDestination = await inspectWindowsRuntimeDestination(
+              backupDirectory,
+              projectId
+            );
+            if (!sameWindowsRuntimeDestinationAfterMove(initialDestination, backupDestination)) {
+              throw new Error("The preserved Windows player folder changed before rollback.");
+            }
+          }
+        }
+      ).catch((rollbackError) => {
         throw new Error(
-          `MAGE2 could not publish the new executable or restore the previous one. The previous file remains at "${backupFile}". ${errorMessage(rollbackError)}`,
+          `MAGE2 could not publish the new Windows player or restore the previous one. ` +
+            `The previous folder remains at "${backupDirectory}". ${errorMessage(rollbackError)}`,
           { cause: rollbackError }
         );
       });
     }
     throw error;
-  } finally {
-    await unlink(stagingFile).catch((error) => {
-      if (!isMissingPathError(error)) {
-        console.warn(`MAGE2 left a temporary export file at "${stagingFile}":`, error);
-      }
-    });
   }
 
   if (backupCreated) {
-    await unlink(backupFile).catch((error) => {
-      console.warn(`MAGE2 preserved the previous executable at "${backupFile}":`, error);
+    await rm(backupDirectory, { recursive: true, force: true }).catch((error) => {
+      console.warn(`MAGE2 preserved the previous Windows player at "${backupDirectory}":`, error);
     });
   }
+}
+
+async function copyNewWindowsRuntimeDirectory(
+  stagingIdentity: DirectoryIdentity,
+  destinationDirectory: string,
+  destinationParent: DirectoryIdentity,
+  projectId: string
+): Promise<void> {
+  await assertDirectoryIdentity(destinationParent, "export destination folder");
+  await assertDirectoryIdentity(stagingIdentity, "Windows player staging folder");
+  if ((await inspectWindowsRuntimeDestination(destinationDirectory, projectId)).kind !== "missing") {
+    throw new Error("The Windows player destination changed before publication began.");
+  }
+
+  await mkdir(destinationDirectory);
+  const destinationIdentity = await captureDirectoryIdentity(
+    destinationDirectory,
+    "Windows player destination"
+  );
+  if (!isStrictDescendant(destinationParent.canonicalPath, destinationIdentity.canonicalPath)) {
+    throw new Error("The Windows player destination escaped the selected export folder.");
+  }
+
+  try {
+    const markerText = await readFile(
+      path.join(stagingIdentity.path, WINDOWS_RUNTIME_MARKER_FILE),
+      "utf8"
+    );
+    const marker = parseWindowsRuntimeOwnershipMarker(JSON.parse(markerText));
+    if (marker.projectId !== projectId) {
+      throw new Error("The staged Windows player ownership marker belongs to another project.");
+    }
+
+    const directoryIdentities = new Map<string, DirectoryIdentity>([["", destinationIdentity]]);
+    const relativeDirectories = new Set<string>();
+    for (const record of marker.files) {
+      const segments = record.path.split("/");
+      for (let index = 1; index < segments.length; index += 1) {
+        relativeDirectories.add(segments.slice(0, index).join("/"));
+      }
+    }
+    const orderedDirectories = [...relativeDirectories].sort((left, right) => {
+      const depthDifference = left.split("/").length - right.split("/").length;
+      return depthDifference || left.localeCompare(right);
+    });
+    for (const relativeDirectory of orderedDirectories) {
+      const parentRelative = relativeDirectory.includes("/")
+        ? relativeDirectory.slice(0, relativeDirectory.lastIndexOf("/"))
+        : "";
+      const parentIdentity = directoryIdentities.get(parentRelative);
+      if (!parentIdentity) {
+        throw new Error(`Windows player publication lost parent directory "${parentRelative}".`);
+      }
+      await assertDirectoryIdentity(destinationIdentity, "Windows player destination");
+      await assertDirectoryIdentity(parentIdentity, "Windows player destination subfolder");
+      const childName = relativeDirectory.slice(parentRelative ? parentRelative.length + 1 : 0);
+      const childPath = path.join(parentIdentity.path, childName);
+      await mkdir(childPath);
+      const childIdentity = await captureDirectoryIdentity(
+        childPath,
+        "Windows player destination subfolder"
+      );
+      if (!isStrictDescendant(destinationIdentity.canonicalPath, childIdentity.canonicalPath)) {
+        throw new Error(`Windows player publication directory escaped: "${relativeDirectory}".`);
+      }
+      directoryIdentities.set(relativeDirectory, childIdentity);
+    }
+
+    for (const record of marker.files) {
+      await assertDirectoryIdentity(stagingIdentity, "Windows player staging folder");
+      await assertDirectoryIdentity(destinationIdentity, "Windows player destination");
+      const segments = record.path.split("/");
+      const fileName = segments.pop()!;
+      const parentRelative = segments.join("/");
+      const parentIdentity = directoryIdentities.get(parentRelative);
+      if (!parentIdentity) {
+        throw new Error(`Windows player publication lost destination directory "${parentRelative}".`);
+      }
+      await assertDirectoryIdentity(parentIdentity, "Windows player destination subfolder");
+      const sourcePath = path.join(stagingIdentity.path, ...record.path.split("/"));
+      const sourceStats = await lstat(sourcePath);
+      if (sourceStats.isSymbolicLink() || !sourceStats.isFile()) {
+        throw new Error(`Staged Windows player content is not a normal file: "${record.path}".`);
+      }
+      const destinationPath = path.join(parentIdentity.path, fileName);
+      await copyWindowsRuntimeFileVerified(sourcePath, destinationPath, record);
+    }
+
+    await assertDirectoryIdentity(destinationIdentity, "Windows player destination");
+    await copyFile(
+      path.join(stagingIdentity.path, WINDOWS_RUNTIME_MARKER_FILE),
+      path.join(destinationIdentity.path, WINDOWS_RUNTIME_MARKER_FILE),
+      constants.COPYFILE_EXCL
+    );
+    await chmod(destinationIdentity.path, 0o755);
+    const publishedDestination = await inspectWindowsRuntimeDestination(
+      destinationDirectory,
+      projectId
+    );
+    if (publishedDestination.kind !== "owned") {
+      throw new Error("The published Windows player folder could not be verified.");
+    }
+  } catch (error) {
+    await removeCreatedWindowsRuntimeDirectoryBestEffort(
+      destinationIdentity,
+      destinationParent
+    );
+    throw error;
+  }
+}
+
+async function copyWindowsRuntimeFileVerified(
+  sourcePath: string,
+  destinationPath: string,
+  expected: WindowsRuntimeFileRecord
+): Promise<void> {
+  // Electron's patched fs layer can try to parse a destination ending in
+  // `.asar` while copyFile is still creating it. Copy under an opaque name,
+  // verify the completed bytes, then use the same-directory rename pattern
+  // already used when assembling the valid staged archive.
+  const requiresOpaqueCopy = path.extname(destinationPath).toLocaleLowerCase("en-US") === ".asar";
+  const copyDestination = requiresOpaqueCopy
+    ? `${destinationPath}.mage2-copy-${randomUUID()}`
+    : destinationPath;
+  await rawFilesystem.promises.copyFile(sourcePath, copyDestination, constants.COPYFILE_EXCL);
+  await assertWindowsRuntimeFileMatches(copyDestination, expected);
+  if (requiresOpaqueCopy) {
+    await rawFilesystem.promises.rename(copyDestination, destinationPath);
+    await assertWindowsRuntimeFileMatches(destinationPath, expected);
+  }
+}
+
+async function assertWindowsRuntimeFileMatches(
+  filePath: string,
+  expected: WindowsRuntimeFileRecord
+): Promise<void> {
+  const actual = await hashWindowsRuntimeFile(filePath);
+  if (actual.sha256 !== expected.sha256 || actual.size !== expected.size) {
+    throw new Error(`Published Windows player content did not match staging: "${expected.path}".`);
+  }
+}
+
+async function removeCreatedWindowsRuntimeDirectoryBestEffort(
+  directoryIdentity: DirectoryIdentity,
+  destinationParent: DirectoryIdentity
+): Promise<void> {
+  try {
+    await removeVerifiedWindowsRuntimeDirectoryTree(
+      directoryIdentity,
+      directoryIdentity,
+      destinationParent
+    );
+  } catch (error) {
+    console.warn(
+      `MAGE2 left an identity-protected partial Windows player folder at "${directoryIdentity.path}":`,
+      error
+    );
+  }
+}
+
+async function removeVerifiedWindowsRuntimeDirectoryTree(
+  directoryIdentity: DirectoryIdentity,
+  rootIdentity: DirectoryIdentity,
+  destinationParent: DirectoryIdentity
+): Promise<void> {
+  await assertDirectoryIdentity(destinationParent, "export destination folder");
+  await assertDirectoryIdentity(rootIdentity, "partial Windows player folder");
+  await assertDirectoryIdentity(directoryIdentity, "partial Windows player subfolder");
+  for (const entry of await readdir(directoryIdentity.path)) {
+    const entryPath = path.join(directoryIdentity.path, entry);
+    const entryStats = await lstat(entryPath);
+    if (entryStats.isDirectory() && !entryStats.isSymbolicLink()) {
+      await removeVerifiedWindowsRuntimeDirectoryTree(
+        await captureDirectoryIdentity(entryPath, "partial Windows player subfolder"),
+        rootIdentity,
+        destinationParent
+      );
+      continue;
+    }
+    if (!entryStats.isFile() && !entryStats.isSymbolicLink()) {
+      throw new Error(`Partial Windows player contains an unsupported entry: "${entryPath}".`);
+    }
+    await assertDirectoryIdentity(destinationParent, "export destination folder");
+    await assertDirectoryIdentity(rootIdentity, "partial Windows player folder");
+    await assertDirectoryIdentity(directoryIdentity, "partial Windows player subfolder");
+    await unlink(entryPath);
+  }
+  await assertDirectoryIdentity(destinationParent, "export destination folder");
+  await assertDirectoryIdentity(rootIdentity, "partial Windows player folder");
+  await assertDirectoryIdentity(directoryIdentity, "partial Windows player subfolder");
+  if ((await readdir(directoryIdentity.path)).length !== 0) {
+    throw new Error("Partial Windows player folder changed during cleanup.");
+  }
+  await rmdir(directoryIdentity.path);
+}
+
+function sameWindowsRuntimeDestinationSnapshot(
+  left: WindowsRuntimeDestinationSnapshot,
+  right: WindowsRuntimeDestinationSnapshot
+): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "missing") return true;
+  if (right.kind === "missing" || !sameDirectoryObject(left.identity, right.identity, true)) return false;
+  return left.kind !== "owned" || (right.kind === "owned" && left.fingerprint === right.fingerprint);
+}
+
+function sameWindowsRuntimeDestinationAfterMove(
+  left: Exclude<WindowsRuntimeDestinationSnapshot, { kind: "missing" }>,
+  right: WindowsRuntimeDestinationSnapshot
+): boolean {
+  if (left.kind !== right.kind) return false;
+  if (!sameDirectoryObject(left.identity, right.identity, false)) return false;
+  return left.kind !== "owned" || (right.kind === "owned" && left.fingerprint === right.fingerprint);
+}
+
+function sameDirectoryObject(left: DirectoryIdentity, right: DirectoryIdentity, comparePath: boolean): boolean {
+  return (
+    (!comparePath || normalizeIdentityPath(left.canonicalPath) === normalizeIdentityPath(right.canonicalPath)) &&
+    filesystemObjectIdentityChangedFields(left, right).length === 0
+  );
 }
 
 async function captureDirectoryIdentity(inputPath: string, label: string): Promise<DirectoryIdentity> {
@@ -665,24 +1060,24 @@ async function captureDirectoryIdentity(inputPath: string, label: string): Promi
   if (stats.isSymbolicLink() || !stats.isDirectory()) {
     throw new Error(`${label} is not a normal directory: "${resolvedPath}".`);
   }
+  const objectIdentity = filesystemObjectIdentityFromStats(stats, label);
   return {
     path: resolvedPath,
     canonicalPath: await realpath(resolvedPath),
-    dev: stats.dev.toString(),
-    ino: stats.ino.toString(),
-    birthtimeNs: stats.birthtimeNs.toString()
+    ...objectIdentity
   };
 }
 
 async function assertDirectoryIdentity(identity: DirectoryIdentity, label: string): Promise<void> {
   const current = await captureDirectoryIdentity(identity.path, label);
-  if (
-    normalizeIdentityPath(current.canonicalPath) !== normalizeIdentityPath(identity.canonicalPath) ||
-    current.dev !== identity.dev ||
-    current.ino !== identity.ino ||
-    current.birthtimeNs !== identity.birthtimeNs
-  ) {
-    throw new Error(`Export stopped because the ${label} changed during packaging.`);
+  const changedFields = [
+    normalizeIdentityPath(current.canonicalPath) !== normalizeIdentityPath(identity.canonicalPath) && "path",
+    ...filesystemObjectIdentityChangedFields(current, identity)
+  ].filter((field): field is string => Boolean(field));
+  if (changedFields.length > 0) {
+    throw new Error(
+      `Export stopped because the ${label} changed during packaging (${changedFields.join(", ")}).`
+    );
   }
 }
 
@@ -696,69 +1091,6 @@ async function assertDirectChild(parent: DirectoryIdentity, candidatePath: strin
   if (!isStrictDescendant(parent.canonicalPath, canonicalCandidate)) {
     throw new Error(`${label} escapes the selected destination folder.`);
   }
-}
-
-async function inspectDestinationFile(inputPath: string): Promise<FileSnapshot> {
-  try {
-    const stats = await lstat(inputPath, { bigint: true });
-    if (stats.isSymbolicLink() || !stats.isFile()) {
-      throw new Error(`Export destination is not a normal file: "${inputPath}".`);
-    }
-    return {
-      kind: "file",
-      dev: stats.dev.toString(),
-      ino: stats.ino.toString(),
-      birthtimeNs: stats.birthtimeNs.toString(),
-      mtimeNs: stats.mtimeNs.toString(),
-      size: stats.size.toString()
-    };
-  } catch (error) {
-    if (isMissingPathError(error)) {
-      return { kind: "missing" };
-    }
-    throw error;
-  }
-}
-
-function sameFileSnapshot(left: FileSnapshot, right: FileSnapshot): boolean {
-  if (left.kind !== right.kind) {
-    return false;
-  }
-  return (
-    left.kind === "missing" ||
-    (right.kind === "file" &&
-      left.dev === right.dev &&
-      left.ino === right.ino &&
-      left.birthtimeNs === right.birthtimeNs &&
-      left.mtimeNs === right.mtimeNs &&
-      left.size === right.size)
-  );
-}
-
-function resolveNsisProductVersion(value: string): string {
-  const numericParts = value
-    .split(/[.+-]/)
-    .slice(0, 4)
-    .map((part) => {
-      const parsed = Number.parseInt(part, 10);
-      return Number.isInteger(parsed) && parsed >= 0 ? Math.min(parsed, 65_535) : 0;
-    });
-  while (numericParts.length < 4) {
-    numericParts.push(0);
-  }
-  return numericParts.join(".");
-}
-
-function escapeNsisString(value: string): string {
-  return value
-    .replace(/\r\n|\r|\n/g, " ")
-    .replace(/\$/g, "$$$$")
-    .replace(/"/g, '$\\"');
-}
-
-function appendBoundedOutput(current: string, next: string): string {
-  const combined = current + next;
-  return combined.length <= 32_000 ? combined : combined.slice(combined.length - 32_000);
 }
 
 function normalizeIdentityPath(inputPath: string): string {

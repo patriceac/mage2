@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   getLocaleStringValues,
+  parseTranslationInterchange,
   type Asset,
   type ProjectBundle,
-  type StringTranslationState
+  type StringTranslationState,
+  type TranslationInterchangeValue
 } from "@mage2/schema";
 import {
   BACKGROUND_IMPORT_EXTENSIONS,
@@ -46,6 +48,15 @@ import {
   type ProjectTextUsage
 } from "../project-text";
 import { type LocalizationSection, useEditorStore } from "../store";
+import {
+  analyzeTranslationInterchangeImport,
+  applyTranslationInterchangeImport,
+  createTranslationInterchange,
+  createTranslationInterchangeFileName,
+  type TranslationImportBlockingIssue,
+  type TranslationImportConflictReason,
+  type TranslationImportPlan
+} from "../translation-interchange";
 
 type StringsAreaFilter = "all" | "scenes" | "dialogue" | "inventory" | "player";
 type MediaAssetFilter = "background" | "inventory" | "sceneAudio" | "foreground" | "response" | "player";
@@ -420,6 +431,149 @@ export function LocalizationPanel({
     setStatusMessage(t("{locale} is now the project default source locale.", { locale: activeLocale }));
   }
 
+  async function handleExportTranslationInterchange() {
+    if (isDefaultLocale) {
+      return;
+    }
+
+    const destinationDirectory = await dialogs.chooseDirectory({
+      title: t("Export {locale} translation file", { locale: activeLocale }),
+      description: t("Choose a folder for the versioned JSON handoff. Existing files are never overwritten."),
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: t("Export Here"),
+      allowCreateDirectory: true
+    });
+    if (!destinationDirectory) {
+      return;
+    }
+
+    try {
+      setBusyLabel(t("Exporting translation file"));
+      const interchange = createTranslationInterchange(project, activeLocale);
+      const fileName = createTranslationInterchangeFileName(project.manifest.projectName, activeLocale);
+      const written = await window.editorApi.writeTranslationInterchange(
+        destinationDirectory,
+        fileName,
+        `${JSON.stringify(interchange, null, 2)}\n`
+      );
+      setStatusMessage(t("Exported {count} entries to {path}.", {
+        count: interchange.entries.length,
+        path: written.path
+      }));
+    } catch (error) {
+      const message = translateRuntimeMessage(error, t);
+      setStatusMessage(t("Translation file export failed: {message}", { message }));
+    } finally {
+      setBusyLabel(undefined);
+    }
+  }
+
+  async function handleReviewTranslationInterchange() {
+    if (isDefaultLocale) {
+      return;
+    }
+
+    const filePaths = await dialogs.pickFiles({
+      title: t("Review {locale} translation import", { locale: activeLocale }),
+      description: t("Choose a MAGE2 translation JSON file. Opening it will not change the project."),
+      initialPath: useEditorStore.getState().projectDir,
+      confirmLabel: t("Review File"),
+      allowedExtensions: [".json"]
+    });
+    const filePath = filePaths[0];
+    if (!filePath) {
+      return;
+    }
+
+    let plan: TranslationImportPlan;
+    try {
+      setBusyLabel(t("Reading translation file"));
+      const content = await window.editorApi.readTranslationInterchange(filePath);
+      const interchange = parseTranslationInterchange(JSON.parse(content));
+      plan = analyzeTranslationInterchangeImport(project, interchange, activeLocale);
+    } catch (error) {
+      setBusyLabel(undefined);
+      const message = translateRuntimeMessage(error, t);
+      await dialogs.alert({
+        title: t("Translation file could not be reviewed"),
+        body: (
+          <>
+            <p>{t("This is not a valid MAGE2 translation file. No project data changed.")}</p>
+            <p>{t("Details: {message}", { message })}</p>
+          </>
+        ),
+        confirmLabel: t("Close")
+      });
+      return;
+    } finally {
+      setBusyLabel(undefined);
+    }
+
+    if (plan.blockingIssues.length > 0) {
+      await dialogs.alert({
+        title: t("Translation file does not match this project"),
+        body: (
+          <>
+            <p>{t("MAGE2 found compatibility problems before making any changes.")}</p>
+            <ul className="dialog-detail-list">
+              {plan.blockingIssues.map((issue, index) => (
+                <li key={`${issue.code}:${index}`}>{formatTranslationBlockingIssue(issue, t)}</li>
+              ))}
+            </ul>
+            <p>{t("No project data changed.")}</p>
+          </>
+        ),
+        confirmLabel: t("Close")
+      });
+      return;
+    }
+
+    if (plan.changeCount === 0) {
+      await dialogs.alert({
+        title: t("Review translation import"),
+        body: <TranslationImportReview plan={plan} t={t} />,
+        confirmLabel: t("Close"),
+        wide: true
+      });
+      return;
+    }
+
+    const confirmed = await dialogs.confirm({
+      title: t("Review translation import"),
+      body: <TranslationImportReview plan={plan} t={t} />,
+      confirmLabel: t("Apply safe changes ({count})", { count: plan.changeCount }),
+      cancelLabel: t("Cancel"),
+      wide: true
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    let appliedCount = 0;
+    let conflictCount = plan.conflictCount;
+    let firstAppliedId: string | undefined;
+    mutateProject((draft) => {
+      const result = applyTranslationInterchangeImport(draft, plan.interchange, activeLocale);
+      appliedCount = result.appliedCount;
+      conflictCount = result.conflictCount;
+      firstAppliedId = result.entries.find((entry) => entry.outcome === "change")?.id;
+    });
+
+    if (firstAppliedId) {
+      setSelectedTextId(firstAppliedId);
+      setSelectedAssetId(undefined);
+      setLocalizationSection("strings");
+    }
+    setStatusMessage(
+      conflictCount > 0
+        ? t("Translation changes applied: {count}. Conflicts skipped: {conflictCount}. Save the project to keep the safe changes.", {
+            count: appliedCount,
+            conflictCount
+          })
+        : t("Translation changes applied: {count}. Save the project to keep them.", { count: appliedCount })
+    );
+  }
+
   async function handleImportVariant(asset: Asset) {
     const isReplacingVariant = Boolean(getLocalizedAssetVariant(asset, activeLocale));
     const filePaths = await dialogs.pickFiles({
@@ -670,6 +824,33 @@ export function LocalizationPanel({
             <LocalizationIcon name="trash" />
             <span>{t("Remove Locale")}</span>
           </button>
+          <span className="localization-commandbar__separator" aria-hidden="true" />
+          <div className="localization-commandbar__handoff" role="group" aria-label={t("Translation handoff")}>
+            <button
+              type="button"
+              className="button-secondary localization-command-button"
+              disabled={isDefaultLocale}
+              onClick={() => void handleExportTranslationInterchange()}
+              title={t(isDefaultLocale
+                ? "Choose a target locale to use translation handoff."
+                : "Export source text, current translations, IDs, and workflow states as versioned JSON.")}
+            >
+              <LocalizationIcon name="external" />
+              <span>{t("Export file")}</span>
+            </button>
+            <button
+              type="button"
+              className="button-secondary localization-command-button"
+              disabled={isDefaultLocale}
+              onClick={() => void handleReviewTranslationInterchange()}
+              title={t(isDefaultLocale
+                ? "Choose a target locale to use translation handoff."
+                : "Open a translation JSON file and review safe changes and conflicts before applying anything.")}
+            >
+              <LocalizationIcon name="upload" />
+              <span>{t("Review import")}</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1743,6 +1924,158 @@ function HealthMetricCard({
       </div>
     </article>
   );
+}
+
+function TranslationImportReview({
+  plan,
+  t
+}: {
+  plan: TranslationImportPlan;
+  t: EditorTranslator;
+}) {
+  const reviewedEntries = plan.entries.filter((entry) => entry.outcome !== "unchanged");
+  return (
+    <div className="translation-import-review">
+      <p>
+        {t("{locale} translation file for {projectName}", {
+          locale: plan.interchange.targetLocale,
+          projectName: plan.interchange.project.name
+        })}
+      </p>
+      <div className="translation-import-summary" aria-label={t("Import summary")}>
+        <div className="translation-import-summary__item translation-import-summary__item--change">
+          <strong>{plan.changeCount}</strong>
+          <span>{t("Safe changes")}</span>
+        </div>
+        <div className="translation-import-summary__item">
+          <strong>{plan.unchangedCount}</strong>
+          <span>{t("Unchanged")}</span>
+        </div>
+        <div className="translation-import-summary__item translation-import-summary__item--conflict">
+          <strong>{plan.conflictCount}</strong>
+          <span>{t("Conflicts")}</span>
+        </div>
+      </div>
+
+      {plan.changeCount > 0 ? (
+        <div className="dialog-callout">
+          <strong>{t("Review before applying")}</strong>
+          <p>{t("MAGE2 will apply only the non-conflicting changes below. Conflicts will be skipped and left untouched.")}</p>
+        </div>
+      ) : (
+        <div className="dialog-callout">
+          <strong>{t("No safe changes to apply")}</strong>
+          <p>
+            {plan.conflictCount > 0
+              ? t("Resolve the reported conflicts in MAGE2 or export a fresh translation file.")
+              : t("This translation file already matches the current project.")}
+          </p>
+        </div>
+      )}
+
+      {reviewedEntries.length > 0 ? (
+        <div className="translation-import-table-wrap">
+          <table className="translation-import-table">
+            <caption className="sr-only">{t("Translation import changes and conflicts")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t("Text ID")}</th>
+                <th scope="col">{t("Current")}</th>
+                <th scope="col">{t("Incoming")}</th>
+                <th scope="col">{t("Result")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reviewedEntries.map((entry) => (
+                <tr key={`${entry.outcome}:${entry.id}`}>
+                  <th scope="row"><code>{entry.id}</code></th>
+                  <td><TranslationImportValue value={entry.current} t={t} /></td>
+                  <td>
+                    {entry.conflictReason === "missing-from-file"
+                      ? <span className="translation-import-value__empty">{t("Not in file")}</span>
+                      : <TranslationImportValue value={entry.incoming} t={t} />}
+                  </td>
+                  <td>
+                    <span className={`translation-import-result translation-import-result--${entry.outcome}`}>
+                      {t(entry.outcome === "change" ? "Safe change" : "Conflict")}
+                    </span>
+                    {entry.conflictReason ? (
+                      <small>{formatTranslationConflictReason(entry.conflictReason, t)}</small>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TranslationImportValue({
+  value,
+  t
+}: {
+  value: TranslationInterchangeValue | null;
+  t: EditorTranslator;
+}) {
+  if (!value) {
+    return <span className="translation-import-value__empty">{t("Not present")}</span>;
+  }
+  const stateLabel = formatTranslationState(value.state, t);
+  const preview = value.value.trim() ? truncateTranslationPreview(value.value) : t("Empty");
+  return (
+    <span className="translation-import-value">
+      <span className={`translation-import-state translation-import-state--${value.state}`}>{stateLabel}</span>
+      <span className="translation-import-value__preview" title={value.value}>{preview}</span>
+    </span>
+  );
+}
+
+function formatTranslationState(state: StringTranslationState, t: EditorTranslator): string {
+  switch (state) {
+    case "inherited": return t("Inherited");
+    case "draft": return t("Draft");
+    case "translated": return t("Translated");
+    case "reviewed": return t("Reviewed");
+  }
+}
+
+function formatTranslationBlockingIssue(issue: TranslationImportBlockingIssue, t: EditorTranslator): string {
+  const params = {
+    actual: issue.actual ?? "",
+    expected: issue.expected ?? ""
+  };
+  switch (issue.code) {
+    case "project-id-mismatch":
+      return t("This file belongs to project {actual}, not {expected}.", params);
+    case "source-locale-mismatch":
+      return t("The source locale changed from {actual} to {expected}.", params);
+    case "target-locale-mismatch":
+      return t("This file targets {actual}; select {expected} before importing it.", params);
+    case "target-locale-unsupported":
+      return t("Target locale {actual} is not enabled in this project.", params);
+    case "target-is-source":
+      return t("A translation file cannot target the project source locale {actual}.", params);
+  }
+}
+
+function formatTranslationConflictReason(reason: TranslationImportConflictReason, t: EditorTranslator): string {
+  switch (reason) {
+    case "unexpected-id": return t("This text ID is not present in the current project.");
+    case "missing-from-file": return t("This current text ID is missing from the imported file.");
+    case "source-changed": return t("Source text changed after this file was exported.");
+    case "local-changed": return t("This translation changed in MAGE2 after this file was exported.");
+    case "inherited-source-missing": return t("An inherited value needs a current source string.");
+    case "inherited-value-mismatch": return t("An inherited value must exactly match the current source text.");
+    case "complete-state-empty": return t("A Translated or Reviewed value cannot be empty.");
+  }
+}
+
+function truncateTranslationPreview(value: string): string {
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  return normalized.length > 120 ? `${normalized.slice(0, 117)}…` : normalized;
 }
 
 type LocalizationIconName =

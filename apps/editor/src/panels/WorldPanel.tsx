@@ -62,6 +62,8 @@ interface WorldLocationTransitionCounts {
   total: number;
 }
 
+type WorldNarrowView = "map" | "locations" | "details";
+
 type WorldPanelIconKind =
   | "castle"
   | "coast"
@@ -104,6 +106,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   const [locationSearch, setLocationSearch] = useState("");
   const [showWithTransitionsOnly, setShowWithTransitionsOnly] = useState(false);
   const [showLocationSettings, setShowLocationSettings] = useState(false);
+  const [narrowView, setNarrowView] = useState<WorldNarrowView>("map");
   const locationSettingsId = useId();
   const locationSettingsRef = useRef<HTMLDivElement>(null);
   const currentLocation = project.locations.items.find((entry) => entry.id === selectedLocationId) ?? project.locations.items[0];
@@ -176,6 +179,7 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
       setSelectedLocationId(location.id);
       setSelectedSceneId(location.sceneIds[0]);
     });
+    setNarrowView("details");
   };
 
   const createSceneInCurrentLocation = () => {
@@ -288,7 +292,25 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
   };
 
   return (
-    <div className="panel-grid panel-grid--world" dir={direction}>
+    <div className={`panel-grid panel-grid--world world-panel--narrow-${narrowView}`} dir={direction}>
+      <nav className="world-panel__narrow-nav" aria-label={t("World Overview")}>
+        {([
+          { view: "map" as const, label: t("Map"), icon: "mapPin" as const },
+          { view: "locations" as const, label: t("Locations"), icon: "menu" as const },
+          { view: "details" as const, label: t("Details"), icon: "gear" as const }
+        ]).map((item) => (
+          <button
+            key={item.view}
+            type="button"
+            className={narrowView === item.view ? "world-panel__narrow-nav-button world-panel__narrow-nav-button--active" : "world-panel__narrow-nav-button"}
+            aria-pressed={narrowView === item.view}
+            onClick={() => setNarrowView(item.view)}
+          >
+            <WorldPanelIcon kind={item.icon} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
       <section className="panel panel--flow world-panel__workspace">
         <aside className="world-panel__location-rail" aria-label={t("Locations")}>
           <div className="world-panel__rail-header">
@@ -333,7 +355,10 @@ export function WorldPanel({ project, mutateProject }: WorldPanelProps) {
                     type="button"
                     className={isSelected ? "world-panel__location-row world-panel__location-row--selected" : "world-panel__location-row"}
                     aria-pressed={isSelected}
-                    onClick={() => setSelectedLocationId(location.id)}
+                    onClick={() => {
+                      setSelectedLocationId(location.id);
+                      setNarrowView("details");
+                    }}
                     title={t("Select {name}.", { name: location.name })}
                     style={direction === "rtl" ? { textAlign: "right" } : undefined}
                   >

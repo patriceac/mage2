@@ -35,6 +35,7 @@ playwright-profile*/
 puppeteer-profile*/
 playwright/.auth/
 .playwright/.auth/
+.playwright-cli/
 
 # Canonical Chromium profile databases and metadata.
 **/Cookies

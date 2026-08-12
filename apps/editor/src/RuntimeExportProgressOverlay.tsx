@@ -4,7 +4,6 @@ export type RuntimeExportProgressViewPhase =
   | "preparing"
   | "building-web"
   | "assembling-player"
-  | "compressing"
   | "publishing"
   | "complete";
 
@@ -60,7 +59,7 @@ export function RuntimeExportProgressOverlay({ progress }: RuntimeExportProgress
           <strong>{phaseLabel}</strong>
           <span>
             {progress.format === "windows"
-              ? t("Standalone Windows executable")
+              ? t("Ready-to-play Windows folder")
               : t("Web build folder")}
           </span>
         </div>
@@ -118,9 +117,7 @@ export function resolveRuntimeExportPhaseLabel(
     case "building-web":
       return t("Building web runtime");
     case "assembling-player":
-      return t("Assembling standalone player");
-    case "compressing":
-      return t("Compressing executable");
+      return t("Assembling Windows player folder");
     case "publishing":
       return t("Publishing export");
     case "complete":
@@ -138,7 +135,7 @@ function resolveRuntimeExportEta(
   if (progress.estimatedSecondsRemaining !== undefined && progress.estimatedSecondsRemaining > 0) {
     return `~${formatRuntimeExportClock(progress.estimatedSecondsRemaining, "remaining")}`;
   }
-  if (progress.phase === "compressing" || progress.phase === "publishing" || progress.progress >= 0.9) {
+  if (progress.phase === "publishing" || progress.progress >= 0.9) {
     return t("Finishing...");
   }
   return t("Calculating...");

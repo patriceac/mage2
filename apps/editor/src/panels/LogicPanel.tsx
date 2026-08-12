@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent
+} from "react";
 import {
   type GameVariableDefinition,
   type ProjectBundle,
@@ -25,6 +31,7 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
   const selectedVariableId = useEditorStore((state) => state.selectedVariableId);
   const setSelectedVariableId = useEditorStore((state) => state.setSelectedVariableId);
   const [isCreating, setIsCreating] = useState(false);
+  const addVariableInvokerRef = useRef<HTMLButtonElement>(null);
   const usageByVariableId = useMemo(
     () => new Map(collectVariableUsage(project).map((usage) => [usage.variableId, usage])),
     [project]
@@ -38,6 +45,11 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
   const selectedUsage = selectedVariable
     ? usageByVariableId.get(selectedVariable.id) ?? { variableId: selectedVariable.id, conditions: 0, effects: 0 }
     : undefined;
+
+  const openVariableCreator = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    addVariableInvokerRef.current = event.currentTarget;
+    setIsCreating(true);
+  };
 
   useEffect(() => {
     if (selectedVariable && selectedVariable.id !== selectedVariableId) {
@@ -108,7 +120,13 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
         <button
           type="button"
           className="logic-workbench__add"
-          onClick={() => setIsCreating((value) => !value)}
+          onClick={(event) => {
+            if (isCreating) {
+              setIsCreating(false);
+              return;
+            }
+            openVariableCreator(event);
+          }}
           aria-expanded={isCreating}
         >
           <span aria-hidden="true">+</span>
@@ -121,6 +139,7 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
           <VariableCreator
             existingVariables={project.manifest.variables}
             submitLabel={t("Create Variable")}
+            returnFocusRef={addVariableInvokerRef}
             onCreate={createVariable}
             onCancel={() => setIsCreating(false)}
           />
@@ -141,7 +160,7 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
             <div className="logic-variable-browser__empty">
               <strong>{t("No story variables yet")}</strong>
               <span>{t("Create one here or directly inside a condition or action.")}</span>
-              <button type="button" onClick={() => setIsCreating(true)}>{t("Add Variable")}</button>
+              <button type="button" onClick={openVariableCreator}>{t("Add Variable")}</button>
             </div>
           )}
           {managedVariables.length > 0 ? (
@@ -170,7 +189,7 @@ export function LogicPanel({ project, mutateProject, setStatusMessage }: LogicPa
             <div className="logic-variable-detail__empty">
               <strong>{t("Create a variable to remember story state")}</strong>
               <p>{t("Use Yes / No for milestones, Number for counters, or Choice for a small set of named states.")}</p>
-              <button type="button" onClick={() => setIsCreating(true)}>{t("Add Variable")}</button>
+              <button type="button" onClick={openVariableCreator}>{t("Add Variable")}</button>
             </div>
           )}
         </main>

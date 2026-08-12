@@ -33,7 +33,8 @@ const runtimeExecutablePath = path.join(
   "runtime-win",
   "dist",
   "win-unpacked",
-  `${sanitizeWindowsName(buildManifest.projectName)} Player.exe`
+  "runtime",
+  "MAGE2 Player.exe"
 );
 const outputDirectory = path.join(repoRoot, "output", "playwright", "shared-player-parity");
 const reportPath = path.join(outputDirectory, "report.json");
@@ -220,12 +221,13 @@ async function exportAndVerifyPackagedEditor() {
     if (await buildAnywayButton.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false)) {
       await buildAnywayButton.click();
     }
-    const exportDialog = page.locator(".dialog-shell").filter({ hasText: "Standalone Windows executable" });
+    const exportDialog = page.locator(".dialog-shell").filter({ hasText: "Ready-to-play Windows folder" });
     await exportDialog.waitFor({ state: "visible", timeout: 20_000 });
     const exportDialogText = normalizeText(await exportDialog.innerText());
     for (const expectedText of [
-      "Standalone Windows executable",
-      "one portable file",
+      "Ready-to-play Windows folder",
+      "no installation or per-launch extraction",
+      "Share the entire folder",
       "Web build folder",
       "managed folder"
     ]) {

@@ -392,7 +392,39 @@ export const BuildManifestSchema = z.object({
   startSceneId: z.string().min(1),
   contentPath: z.string().min(1),
   validationReportPath: z.string().min(1),
+  exportReportPath: z.string().min(1).optional(),
   assetMap: z.record(z.string(), z.record(z.string(), z.string()))
+});
+
+export const ExportMediaTotalsSchema = z.object({
+  assetCount: z.number().int().nonnegative(),
+  variantCount: z.number().int().nonnegative(),
+  bytes: z.number().int().nonnegative(),
+  unmeasuredVariantCount: z.number().int().nonnegative()
+});
+
+export const ExportMediaReportSchema = z.object({
+  before: ExportMediaTotalsSchema,
+  after: ExportMediaTotalsSchema,
+  omitted: ExportMediaTotalsSchema,
+  omittedAssets: z.array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      kind: AssetKindSchema,
+      variantCount: z.number().int().nonnegative(),
+      bytes: z.number().int().nonnegative(),
+      unmeasuredVariantCount: z.number().int().nonnegative()
+    })
+  )
+});
+
+export const RuntimeExportReportSchema = z.object({
+  format: z.literal("mage2-export-report"),
+  version: z.literal(1),
+  generatedAt: z.string().min(1),
+  mode: z.enum(["preview", "release"]),
+  media: ExportMediaReportSchema
 });
 
 export const AssetManifestSchema = z.object({
@@ -473,6 +505,9 @@ export type SaveState = z.infer<typeof SaveStateSchema>;
 export type ProjectContentIdentity = z.infer<typeof ProjectContentIdentitySchema>;
 export type SaveEnvelope = z.infer<typeof SaveEnvelopeSchema>;
 export type BuildManifest = z.infer<typeof BuildManifestSchema>;
+export type ExportMediaTotals = z.infer<typeof ExportMediaTotalsSchema>;
+export type ExportMediaReport = z.infer<typeof ExportMediaReportSchema>;
+export type RuntimeExportReport = z.infer<typeof RuntimeExportReportSchema>;
 export type AssetManifest = z.infer<typeof AssetManifestSchema>;
 export type LocationFile = z.infer<typeof LocationFileSchema>;
 export type SceneFile = z.infer<typeof SceneFileSchema>;

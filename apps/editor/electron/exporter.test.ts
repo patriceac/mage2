@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -190,6 +190,63 @@ describe("safe project export", () => {
       [...progressUpdates].map((progress) => progress.progress).sort((left, right) => left - right)
     );
     expect((await readdir(selectedParent)).filter((entry) => entry.startsWith(".mage2-export-"))).toEqual([]);
+  });
+
+  it("omits unreferenced media and records exact before-and-after export totals", async () => {
+    const { projectDir, project, sourcePath } = await createValidProject();
+    const unusedSourcePath = path.join(projectDir, "assets", "unused.svg");
+    await writeFile(
+      unusedSourcePath,
+      '<svg xmlns="http://www.w3.org/2000/svg"><text>unused</text></svg>',
+      "utf8"
+    );
+    project.assets.assets.push({
+      id: "asset_unused",
+      kind: "image",
+      category: "background",
+      name: "Unused concept",
+      variants: {
+        en: {
+          sourcePath: unusedSourcePath,
+          importedAt: "2026-08-01T00:00:00.000Z"
+        }
+      }
+    });
+
+    const result = await exportProjectBundle(projectDir, project);
+    const exportedContent = JSON.parse(
+      await readFile(path.join(result.outputDirectory, "content", "project-content.json"), "utf8")
+    );
+    const exportedReport = JSON.parse(
+      await readFile(path.join(result.outputDirectory, "export-report.json"), "utf8")
+    );
+    const usedBytes = (await stat(sourcePath)).size;
+    const unusedBytes = (await stat(unusedSourcePath)).size;
+
+    expect(await readdir(path.join(result.outputDirectory, "media"))).toEqual(["asset_background.en.svg"]);
+    expect(exportedContent.assets.map((entry: { id: string }) => entry.id)).toEqual(["asset_background"]);
+    expect(result.buildManifest.exportReportPath).toBe("export-report.json");
+    expect(result.exportReport).toEqual(exportedReport);
+    expect(exportedReport).toMatchObject({
+      format: "mage2-export-report",
+      version: 1,
+      mode: "release",
+      media: {
+        before: { assetCount: 2, variantCount: 2, bytes: usedBytes + unusedBytes, unmeasuredVariantCount: 0 },
+        after: { assetCount: 1, variantCount: 1, bytes: usedBytes, unmeasuredVariantCount: 0 },
+        omitted: { assetCount: 1, variantCount: 1, bytes: unusedBytes, unmeasuredVariantCount: 0 },
+        omittedAssets: [
+          {
+            id: "asset_unused",
+            name: "Unused concept",
+            kind: "image",
+            variantCount: 1,
+            bytes: unusedBytes,
+            unmeasuredVariantCount: 0
+          }
+        ]
+      }
+    });
   });
 
   it("refuses to replace an unowned folder at an explicitly selected destination", async () => {

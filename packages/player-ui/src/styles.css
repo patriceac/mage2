@@ -17,6 +17,12 @@
   font: inherit;
 }
 
+.mage2-player--runtime-responsive {
+  width: min(100%, var(--mage2-player-contained-width, 100%));
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+
 .mage2-player__scene-surface {
   position: absolute;
   inset: 0;
@@ -859,43 +865,54 @@
 
 @media (max-width: 780px) and (orientation: portrait) {
   .mage2-player--runtime-responsive {
-    display: flex;
-    flex-direction: column;
+    display: block;
     width: 100%;
     height: 100%;
     min-height: 0;
-    padding-top: var(--mage2-player-runtime-top-inset, 4rem);
+    padding: 0;
     aspect-ratio: auto;
     border: 0;
     border-radius: 0;
-    background: transparent;
+    background:
+      linear-gradient(180deg, rgba(5, 8, 12, 0.05) 0 44%, rgba(5, 8, 12, 0.46) 76%, rgba(5, 8, 12, 0.78) 100%);
+    isolation: isolate;
   }
 
   .mage2-player--runtime-responsive .mage2-player__scene-surface {
-    position: relative;
-    inset: auto;
-    flex: 0 0 auto;
+    position: absolute;
+    z-index: 2;
+    top: clamp(5.25rem, 22dvh, 12rem);
+    right: 0;
+    left: 0;
     width: 100%;
     height: auto;
     aspect-ratio: var(--mage2-player-media-aspect, 16 / 9);
     border-radius: 0;
-    box-shadow: 0 1.25rem 4.5rem rgba(0, 0, 0, 0.42);
+    box-shadow:
+      0 -1px 0 rgba(255, 255, 255, 0.1),
+      0 1px 0 rgba(255, 255, 255, 0.08),
+      0 1.5rem 5rem rgba(0, 0, 0, 0.5);
   }
 
   .mage2-player--runtime-responsive .mage2-player__hud-plane {
-    position: relative;
-    inset: auto;
-    flex: 1 1 auto;
-    align-items: stretch;
+    position: absolute;
+    z-index: 5;
+    inset: 0;
+    align-items: flex-end;
     width: 100%;
     min-height: 0;
-    margin-top: -0.75rem;
-    padding: 0 0.7rem max(0.7rem, env(safe-area-inset-bottom));
+    margin: 0;
+    padding:
+      max(4.5rem, env(safe-area-inset-top))
+      max(0.7rem, env(safe-area-inset-right))
+      max(0.7rem, env(safe-area-inset-bottom))
+      max(0.7rem, env(safe-area-inset-left));
+    background: linear-gradient(180deg, transparent 0 52%, rgba(4, 7, 10, 0.08) 62%, rgba(4, 7, 10, 0.66) 100%);
   }
 
   .mage2-player--runtime-responsive .mage2-player__hud {
     min-height: 0;
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: 0.7rem;
   }
 
@@ -914,7 +931,7 @@
   }
 
   .mage2-player--runtime-responsive .mage2-player__inventory-anchor {
-    margin-top: auto;
+    margin-top: 0;
   }
 
   .mage2-player--runtime-responsive .mage2-player__inventory-drawer {

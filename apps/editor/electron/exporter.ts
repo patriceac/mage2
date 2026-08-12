@@ -18,24 +18,33 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
 import {
+  analyzeProjectAssetReachability,
   assessProjectReadiness,
   normalizeSupportedLocales,
   parseBuildManifest,
   toExportProjectData,
   type BuildManifest,
+  type ExportMediaReport,
   type ProjectReadinessReport,
   type ProjectBundle,
+  type RuntimeExportReport,
   type ValidationReport
 } from "@mage2/schema";
+import {
+  filesystemObjectIdentityChangedFields,
+  filesystemObjectIdentityFromStats
+} from "./filesystem-identity";
 
 const EXPORT_MARKER_FILE = ".mage2-export.json";
 const EXPORT_MARKER_FORMAT = "mage2-runtime-export";
 const EXPORT_MARKER_VERSION = 2;
+const EXPORT_REPORT_FILE = "export-report.json";
 const RESERVED_OUTPUT_DIRECTORY = "build";
 const RESERVED_RUNTIME_NAMES = new Set([
   EXPORT_MARKER_FILE,
   "build-manifest.json",
   "content",
+  EXPORT_REPORT_FILE,
   "media",
   "validation-report.json"
 ]);
@@ -59,7 +68,7 @@ interface DirectoryIdentity {
   canonicalPath: string;
   dev: string;
   ino: string;
-  birthtimeNs: string;
+  birthtime: string;
 }
 
 type DestinationSnapshot =
@@ -70,6 +79,7 @@ type DestinationSnapshot =
 export interface ExportResult {
   outputDirectory: string;
   buildManifest: BuildManifest;
+  exportReport: RuntimeExportReport;
   validationReport: ExportValidationReport;
 }
 
@@ -135,9 +145,9 @@ export async function exportProjectBundle(
   emitExportProjectBundleProgress(options.onProgress, { stage: "building", progress: 0.05 });
 
   try {
-    let buildManifest: BuildManifest;
+    let buildResult: Awaited<ReturnType<typeof buildExportInDirectory>>;
     try {
-      buildManifest = await buildExportInDirectory(
+      buildResult = await buildExportInDirectory(
         stagingIdentity,
         projectIdentity,
         runtimeDist,
@@ -183,7 +193,8 @@ export async function exportProjectBundle(
 
     return {
       outputDirectory,
-      buildManifest,
+      buildManifest: buildResult.buildManifest,
+      exportReport: buildResult.exportReport,
       validationReport
     };
   } finally {
@@ -309,13 +320,12 @@ async function captureDirectoryIdentity(directoryPath: string): Promise<Director
   if (directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
     throw new Error(`path is not a normal directory: "${resolvedPath}"`);
   }
+  const objectIdentity = filesystemObjectIdentityFromStats(directoryStats, "export directory");
 
   return {
     path: resolvedPath,
     canonicalPath: await realpath(resolvedPath),
-    dev: directoryStats.dev.toString(),
-    ino: directoryStats.ino.toString(),
-    birthtimeNs: directoryStats.birthtimeNs.toString()
+    ...objectIdentity
   };
 }
 
@@ -330,16 +340,20 @@ async function assertDirectoryIdentity(identity: DirectoryIdentity, label: strin
   }
 
   if (!sameDirectoryIdentity(identity, currentIdentity)) {
-    throw new Error(`Export stopped because the ${label} identity changed during the operation.`);
+    const changedFields = [
+      normalizeIdentityPath(identity.canonicalPath) !== normalizeIdentityPath(currentIdentity.canonicalPath) && "path",
+      ...filesystemObjectIdentityChangedFields(identity, currentIdentity)
+    ].filter((field): field is string => Boolean(field));
+    throw new Error(
+      `Export stopped because the ${label} identity changed during the operation (${changedFields.join(", ")}).`
+    );
   }
 }
 
 function sameDirectoryIdentity(left: DirectoryIdentity, right: DirectoryIdentity): boolean {
   return (
     normalizeIdentityPath(left.canonicalPath) === normalizeIdentityPath(right.canonicalPath) &&
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    left.birthtimeNs === right.birthtimeNs
+    filesystemObjectIdentityChangedFields(left, right).length === 0
   );
 }
 
@@ -712,7 +726,7 @@ async function buildExportInDirectory(
   project: ProjectBundle,
   validationReport: ExportValidationReport,
   onProgress?: (progress: number) => void
-): Promise<BuildManifest> {
+): Promise<{ buildManifest: BuildManifest; exportReport: RuntimeExportReport }> {
   await copyRuntimeDistribution(runtimeDist, outputIdentity, projectIdentity);
   onProgress?.(0.18);
 
@@ -721,18 +735,61 @@ async function buildExportInDirectory(
     project.manifest.defaultLanguage,
     project.manifest.supportedLocales
   );
+  const reachability = analyzeProjectAssetReachability(project);
+  const referencedAssetIds = new Set(reachability.referencedAssetIds);
   const generatedMediaPaths = new Set<string>();
-  const totalVariantCount = project.assets.assets.reduce(
+  const totalVariantCountBeforePruning = project.assets.assets.reduce(
     (count, asset) => count + supportedLocales.filter((candidate) => asset.variants[candidate]).length,
     0
   );
+  const totalVariantCountAfterPruning = project.assets.assets.reduce(
+    (count, asset) =>
+      referencedAssetIds.has(asset.id)
+        ? count + supportedLocales.filter((candidate) => asset.variants[candidate]).length
+        : count,
+    0
+  );
   let copiedVariantCount = 0;
+  let exportedMediaBytes = 0;
+  let omittedMediaBytes = 0;
+  let omittedUnmeasuredVariantCount = 0;
+  const omittedAssets: ExportMediaReport["omittedAssets"] = [];
 
   const exportedAssets: Array<readonly [string, ProjectBundle["assets"]["assets"][number]]> = [];
   for (const asset of project.assets.assets) {
+    const variantLocales = supportedLocales.filter((candidate) => asset.variants[candidate]);
+    if (!referencedAssetIds.has(asset.id)) {
+      let assetBytes = 0;
+      let assetUnmeasuredVariantCount = 0;
+      for (const locale of variantLocales) {
+        const variant = asset.variants[locale]!;
+        const sourcePath =
+          asset.kind === "video" || asset.kind === "audio"
+            ? variant.proxyPath ?? variant.sourcePath
+            : variant.sourcePath;
+        const measuredBytes = await measureRegularFileBytes(sourcePath);
+        if (measuredBytes === undefined) {
+          assetUnmeasuredVariantCount += 1;
+        } else {
+          assetBytes += measuredBytes;
+        }
+      }
+      omittedMediaBytes += assetBytes;
+      omittedUnmeasuredVariantCount += assetUnmeasuredVariantCount;
+      omittedAssets.push({
+        id: asset.id,
+        name: asset.name,
+        kind: asset.kind,
+        variantCount: variantLocales.length,
+        bytes: assetBytes,
+        unmeasuredVariantCount: assetUnmeasuredVariantCount
+      });
+      continue;
+    }
+
     assertSafeGeneratedToken("asset ID", asset.id);
     const exportedVariants: Record<string, (typeof asset.variants)[string]> = {};
-    for (const locale of supportedLocales.filter((candidate) => asset.variants[candidate])) {
+    for (const locale of variantLocales) {
       assertSafeGeneratedToken("locale", locale);
       const variant = asset.variants[locale]!;
       const sourcePath =
@@ -750,7 +807,7 @@ async function buildExportInDirectory(
       generatedMediaPaths.add(foldedPath);
 
       const copiedPath = path.join(mediaIdentity.path, fileName);
-      await copyRegularFileIntoVerifiedDirectory(
+      exportedMediaBytes += await copyRegularFileIntoVerifiedDirectory(
         sourcePath,
         copiedPath,
         mediaIdentity,
@@ -764,14 +821,36 @@ async function buildExportInDirectory(
         posterPath: undefined
       };
       copiedVariantCount += 1;
-      onProgress?.(0.18 + 0.52 * (copiedVariantCount / Math.max(1, totalVariantCount)));
+      onProgress?.(0.18 + 0.52 * (copiedVariantCount / Math.max(1, totalVariantCountAfterPruning)));
     }
 
     exportedAssets.push([asset.id, { ...asset, variants: exportedVariants }]);
   }
-  if (totalVariantCount === 0) {
+  if (totalVariantCountAfterPruning === 0) {
     onProgress?.(0.7);
   }
+
+  const mediaReport: ExportMediaReport = {
+    before: {
+      assetCount: reachability.totalAssetCount,
+      variantCount: totalVariantCountBeforePruning,
+      bytes: exportedMediaBytes + omittedMediaBytes,
+      unmeasuredVariantCount: omittedUnmeasuredVariantCount
+    },
+    after: {
+      assetCount: reachability.referencedAssetCount,
+      variantCount: totalVariantCountAfterPruning,
+      bytes: exportedMediaBytes,
+      unmeasuredVariantCount: 0
+    },
+    omitted: {
+      assetCount: reachability.unusedAssetCount,
+      variantCount: totalVariantCountBeforePruning - totalVariantCountAfterPruning,
+      bytes: omittedMediaBytes,
+      unmeasuredVariantCount: omittedUnmeasuredVariantCount
+    },
+    omittedAssets
+  };
 
   const assetMap = Object.fromEntries(
     exportedAssets.map(([assetId, asset]) => [
@@ -800,17 +879,34 @@ async function buildExportInDirectory(
     projectIdentity
   );
 
+  const generatedAt = new Date().toISOString();
+  const exportReport: RuntimeExportReport = {
+    format: "mage2-export-report",
+    version: 1,
+    generatedAt,
+    mode: validationReport.mode,
+    media: mediaReport
+  };
+  await writeNewFileInVerifiedDirectory(
+    outputIdentity,
+    EXPORT_REPORT_FILE,
+    JSON.stringify(exportReport, null, 2),
+    outputIdentity,
+    projectIdentity
+  );
+
   const buildManifest: BuildManifest = {
     projectId: project.manifest.projectId,
     projectName: project.manifest.projectName,
     engineVersion: project.manifest.engineVersion,
     gameVersion: project.manifest.gameVersion,
     saveCompatibilityVersion: project.manifest.saveCompatibilityVersion,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     startLocationId: project.manifest.startLocationId,
     startSceneId: project.manifest.startSceneId,
     contentPath: "content/project-content.json",
     validationReportPath: "validation-report.json",
+    exportReportPath: EXPORT_REPORT_FILE,
     assetMap
   };
 
@@ -842,7 +938,7 @@ async function buildExportInDirectory(
 
   onProgress?.(1);
 
-  return buildManifest;
+  return { buildManifest, exportReport };
 }
 
 async function copyRuntimeDistribution(
@@ -920,7 +1016,7 @@ async function copyRegularFileIntoVerifiedDirectory(
   parentIdentity: DirectoryIdentity,
   outputIdentity: DirectoryIdentity,
   projectIdentity: DirectoryIdentity
-): Promise<void> {
+): Promise<number> {
   const sourceStats = await lstat(sourcePath);
   if (sourceStats.isSymbolicLink() || !sourceStats.isFile()) {
     throw new Error(`Export source is not a normal file: "${sourcePath}".`);
@@ -931,6 +1027,16 @@ async function copyRegularFileIntoVerifiedDirectory(
   await assertProspectiveChildPath(parentIdentity, destinationPath, "generated export file");
   await copyFile(sourcePath, destinationPath, constants.COPYFILE_EXCL);
   await assertDirectoryIdentity(outputIdentity, "export staging folder");
+  return sourceStats.size;
+}
+
+async function measureRegularFileBytes(sourcePath: string): Promise<number | undefined> {
+  try {
+    const sourceStats = await lstat(sourcePath);
+    return sourceStats.isFile() && !sourceStats.isSymbolicLink() ? sourceStats.size : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function writeNewFileInVerifiedDirectory(
@@ -1042,7 +1148,7 @@ async function promoteStagedExport(
 }
 
 function sameDirectoryObject(left: DirectoryIdentity, right: DirectoryIdentity): boolean {
-  return left.dev === right.dev && left.ino === right.ino && left.birthtimeNs === right.birthtimeNs;
+  return filesystemObjectIdentityChangedFields(left, right).length === 0;
 }
 
 async function removeCreatedDirectoryBestEffort(

@@ -15,7 +15,7 @@ const styles = [
   .join("\n")
   .replace(/\r\n/g, "\n");
 const workbenchSharedButtonSelector =
-  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
+  ".app-shell--editor-workbench\n  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node))";
 const workbenchScreenTabSelector =
   ".app-shell--editor-workbench\n  button.scene-screen-tabs__tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action)";
 const workbenchLocalizationSubtabActiveSelector =
@@ -197,6 +197,7 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain(`${workbenchSharedButtonSelector}:hover {`);
     expect(styles).not.toContain(".app-shell--editor-workbench button {");
     expect(styles).toContain(".hotspot__body--hidden,");
+    expect(workbenchSharedButtonSelector).toContain(":not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node))");
   });
 
   it("keeps the selected screen tab visually distinct from inactive tabs", () => {
@@ -324,7 +325,7 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toContain("padding: 0.25rem 0.52rem;");
     expect(styles).toContain("border-radius: 6px;");
     expect(styles).toContain("width: 1.7rem;");
-    expect(styles).toContain("min-height: 1.42rem;");
+    expect(styles).toContain("min-height: 1.5rem;");
     expect(styles).toContain(".app-shell--editor-workbench .titlebar-menu__panel {");
     expect(styles).toContain("border-radius: 8px;");
     expect(styles).toContain("background: rgba(10, 16, 22, 0.98);");
@@ -368,6 +369,52 @@ describe("hotspot idle visibility styles", () => {
     expect(styles).toMatch(
       /\.app-shell--editor-workbench\s+button\.issue-link:not\(\.hotspot__body\):not\(\.playtest-inventory-slot\):not\(\.playtest-inventory-toggle\)\s*\{[\s\S]*?background: transparent;[\s\S]*?text-decoration: underline;/
     );
+  });
+
+  it("floats compact issue summaries without shrinking the active workspace", () => {
+    expect(styles).toMatch(
+      /@media \(max-width: 1400px\)[\s\S]*?\.app-shell--editor-workbench \.editor-layout--with-issues\s*\{[\s\S]*?position: relative;[\s\S]*?grid-template-columns: 1fr;/
+    );
+    expect(styles).toMatch(
+      /@media \(max-width: 1400px\)[\s\S]*?\.app-shell--editor-workbench \.issues-sidebar\s*\{[\s\S]*?position: absolute;[\s\S]*?width: min\(22rem, calc\(100% - 1rem\)\);/
+    );
+    expect(styles).toMatch(
+      /\.app-shell--editor-workbench \.issues-sidebar--summary-only\s*\{[\s\S]*?inset-block-start: auto;[\s\S]*?inset-block-end: 0\.5rem;[\s\S]*?width: min\(18rem, calc\(100% - 1rem\)\);[\s\S]*?gap: 0;/
+    );
+  });
+
+  it("uses a single-pane compact Playtest mode without a minimum-width stage", () => {
+    expect(styles).toContain(".playtest-compact-switcher {");
+    expect(styles).toMatch(
+      /@media \(max-width: 1100px\)[\s\S]*?\.app-shell--editor-workbench \.panel-grid--playtest\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\);/
+    );
+    expect(styles).toContain(".app-shell--editor-workbench .panel-grid--playtest-player > .playtest-diagnostics,");
+    expect(styles).toContain(".app-shell--editor-workbench .panel-grid--playtest-diagnostics > .playtest-primary {");
+    expect(styles).toMatch(
+      /@media \(max-width: 1100px\)[\s\S]*?\.app-shell--editor-workbench \.playtest-stage\s*\{[\s\S]*?width: 100%;[\s\S]*?max-width: none;/
+    );
+  });
+
+  it("keeps the file picker two-pane at standard desktop widths and stacks only on narrow screens", () => {
+    const desktopCompactStart = styles.indexOf("@media (max-width: 1100px)");
+    const narrowFileBrowserStart = styles.indexOf("@media (max-width: 760px)", desktopCompactStart);
+    const nextMediaStart = styles.indexOf("@media (max-width: 1400px)", narrowFileBrowserStart);
+    const desktopCompactRules = styles.slice(desktopCompactStart, narrowFileBrowserStart);
+    const narrowFileBrowserRules = styles.slice(narrowFileBrowserStart, nextMediaStart);
+
+    expect(desktopCompactStart).toBeGreaterThan(-1);
+    expect(narrowFileBrowserStart).toBeGreaterThan(desktopCompactStart);
+    expect(desktopCompactRules).not.toContain(".file-browser,");
+    expect(desktopCompactRules).not.toContain(".file-browser__path-form,");
+    expect(narrowFileBrowserRules).toContain(".file-browser,");
+    expect(narrowFileBrowserRules).toContain(".file-browser__path-form,");
+    expect(narrowFileBrowserRules).toContain("overflow: auto;");
+    expect(narrowFileBrowserRules).toContain("min-height: 30rem;");
+  });
+
+  it("keeps every primary screen tab at least 24 pixels tall", () => {
+    expect(resolveCssRuleBlock(".scene-screen-tabs__tab")).toContain("min-height: 1.5rem;");
+    expect(resolveCssRuleBlock(workbenchScreenTabSelector)).toContain("min-height: 1.5rem;");
   });
 
   it("defines the shared non-editable dropdown shell", () => {

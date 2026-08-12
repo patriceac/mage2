@@ -4,14 +4,19 @@ import { existsSync } from "node:fs";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import { readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
 import { readPlayerBuildIdentitySync, resolveRuntimeApplicationIdentity } from "./identity.mjs";
+import { createRuntimeStartupDataUrl, createRuntimeStartupMetrics } from "./startup.mjs";
 
 let playerServer;
 const runtimeShellDirectory = path.dirname(fileURLToPath(import.meta.url));
 const playerWindows = new Set();
+const playerStartupMetrics = new WeakMap();
 const RUNTIME_QUIT_CHANNEL = "mage2-runtime:quit";
+const RUNTIME_STARTUP_METRICS_CHANNEL = "mage2-runtime:get-startup-metrics";
+const RUNTIME_INITIAL_SURFACE_READY_CHANNEL = "mage2-runtime:initial-surface-ready";
 const playerDirectory = resolvePlayerDirectory();
 const initialBuildIdentity = readPlayerBuildIdentitySync(playerDirectory);
 const applicationIdentity = resolveRuntimeApplicationIdentity(initialBuildIdentity);
+const runtimeProcessStartedAt = Date.now() - Math.round(process.uptime() * 1_000);
 
 app.setName(applicationIdentity.appName);
 app.setPath(
@@ -33,12 +38,33 @@ if (!app.requestSingleInstanceLock()) {
 
     app.quit();
   });
+  ipcMain.handle(RUNTIME_STARTUP_METRICS_CHANNEL, (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!senderWindow || !playerWindows.has(senderWindow)) {
+      throw new Error("Windows player startup metrics are unavailable to this page.");
+    }
+    const metrics = playerStartupMetrics.get(senderWindow);
+    return metrics ? { ...metrics } : null;
+  });
+  ipcMain.on(RUNTIME_INITIAL_SURFACE_READY_CHANNEL, (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!senderWindow || !playerWindows.has(senderWindow)) {
+      return;
+    }
+    const metrics = playerStartupMetrics.get(senderWindow);
+    if (!metrics || metrics.initialSurfaceReadyAt !== null) {
+      return;
+    }
+    metrics.initialSurfaceReadyAt = Date.now();
+    metrics.initialSurfaceReadyMonotonicNs = process.hrtime.bigint().toString();
+  });
 
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
+    const playerWindow = await createPlayerWindow();
     const buildIdentity = await readPlayerBuildIdentity(playerDirectory);
     playerServer = await startPlayerServer(playerDirectory, resolvePlayerPort(buildIdentity.projectId));
-    await createPlayerWindow(playerServer.url);
+    await loadPlayerWindow(playerWindow, playerServer.url);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -61,6 +87,10 @@ if (!app.requestSingleInstanceLock()) {
 
 async function createPlayerWindow(playerUrl) {
   const iconPath = resolveIconPath();
+  const startupMetrics = createRuntimeStartupMetrics({
+    projectName: initialBuildIdentity.projectName,
+    processStartedAt: runtimeProcessStartedAt
+  });
   const window = new BrowserWindow({
     show: false,
     fullscreen: true,
@@ -78,11 +108,34 @@ async function createPlayerWindow(playerUrl) {
       sandbox: true
     }
   });
+  startupMetrics.windowCreatedAt = Date.now();
 
   playerWindows.add(window);
+  playerStartupMetrics.set(window, startupMetrics);
   window.once("closed", () => playerWindows.delete(window));
-  window.once("ready-to-show", () => window.show());
+  await window.loadURL(createRuntimeStartupDataUrl({ projectName: initialBuildIdentity.projectName }));
+  startupMetrics.startupDocumentLoadedAt = Date.now();
+  if (!window.isDestroyed()) {
+    window.show();
+    startupMetrics.windowShownAt = Date.now();
+    startupMetrics.windowShownMonotonicNs = process.hrtime.bigint().toString();
+  }
+  if (playerUrl && !window.isDestroyed()) {
+    await loadPlayerWindow(window, playerUrl);
+  }
+  return window;
+}
+
+async function loadPlayerWindow(window, playerUrl) {
+  const startupMetrics = playerStartupMetrics.get(window);
+  if (startupMetrics) {
+    startupMetrics.playerNavigationStartedAt = Date.now();
+  }
   await window.loadURL(playerUrl);
+  if (startupMetrics) {
+    startupMetrics.playerLoadedAt = Date.now();
+    startupMetrics.playerLoadedMonotonicNs = process.hrtime.bigint().toString();
+  }
 }
 
 function resolvePlayerDirectory() {

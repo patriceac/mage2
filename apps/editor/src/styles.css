@@ -463,7 +463,7 @@ label > .checkbox-list {
 .scene-screen-tabs__tab {
   position: relative;
   flex: 0 0 auto;
-  min-height: 1.42rem;
+  min-height: 1.5rem;
   padding: 0.16rem 0.48rem 0.18rem;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -1037,8 +1037,12 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
   grid-template-columns: minmax(0, 1.2fr) minmax(23rem, 1fr);
 }
 
-.panel-grid--playtest > .panel:first-child {
+.panel-grid--playtest > .playtest-primary {
   gap: 0.62rem;
+}
+
+.playtest-compact-switcher {
+  display: none;
 }
 
 .panel-grid--playtest .playtest-stage :is(.media-surface, .mage2-player) {
@@ -2535,6 +2539,10 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
   gap: 0;
   height: 70vh;
   min-height: 70vh;
+}
+
+.world-panel__narrow-nav {
+  display: none;
 }
 
 .world-panel__location-rail,
@@ -6240,6 +6248,62 @@ button.recent-project__icon-button:hover {
   line-height: 1.55;
 }
 
+.runtime-export-summary {
+  display: grid;
+  gap: 0.62rem;
+  margin-bottom: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 16px;
+  background: rgba(125, 211, 252, 0.065);
+}
+
+.runtime-export-summary--release {
+  border-color: rgba(246, 193, 119, 0.26);
+  background: rgba(215, 146, 34, 0.07);
+}
+
+.runtime-export-summary p {
+  margin: 0;
+  color: #c9d6df;
+  line-height: 1.45;
+}
+
+.runtime-export-summary__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.runtime-export-summary__heading > span {
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.13);
+  color: #8edcf6;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.runtime-export-summary--release .runtime-export-summary__heading > span {
+  background: rgba(215, 146, 34, 0.14);
+  color: #f6c177;
+}
+
+.runtime-export-summary__heading strong {
+  color: #f0f6fa;
+  font-size: 0.9rem;
+}
+
+.runtime-export-summary .runtime-export-summary__media {
+  padding-top: 0.58rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #aebdca;
+  font-size: 0.82rem;
+}
+
 .runtime-export-options {
   display: grid;
   gap: 0.8rem;
@@ -6379,6 +6443,174 @@ button.recent-project__icon-button:hover {
   display: grid;
   gap: 0.45rem;
   color: #d8e2ea;
+}
+
+.translation-import-review {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.translation-import-review > p {
+  margin: 0;
+  color: #aebdca;
+}
+
+.translation-import-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.translation-import-summary__item {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid rgba(143, 163, 179, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.translation-import-summary__item strong {
+  color: #eef5fa;
+  font-size: 1.25rem;
+}
+
+.translation-import-summary__item span {
+  color: #9fb0be;
+  font-size: 0.78rem;
+}
+
+.translation-import-summary__item--change {
+  border-color: rgba(72, 199, 129, 0.32);
+  background: rgba(72, 199, 129, 0.07);
+}
+
+.translation-import-summary__item--conflict {
+  border-color: rgba(246, 193, 87, 0.32);
+  background: rgba(246, 193, 87, 0.07);
+}
+
+.translation-import-table-wrap {
+  max-height: min(26rem, 48vh);
+  overflow: auto;
+  border: 1px solid rgba(143, 163, 179, 0.2);
+  border-radius: 6px;
+  background: rgba(4, 10, 15, 0.45);
+}
+
+.translation-import-table {
+  width: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: #dce7ee;
+  font-size: 0.78rem;
+}
+
+.translation-import-table th,
+.translation-import-table td {
+  padding: 0.68rem 0.72rem;
+  border-right: 1px solid rgba(143, 163, 179, 0.14);
+  border-bottom: 1px solid rgba(143, 163, 179, 0.14);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.translation-import-table th:last-child,
+.translation-import-table td:last-child {
+  border-right: 0;
+}
+
+.translation-import-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.translation-import-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #111c25;
+  color: #aebdca;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.translation-import-table thead th:first-child {
+  width: 20%;
+}
+
+.translation-import-table thead th:last-child {
+  width: 25%;
+}
+
+.translation-import-table code {
+  color: #cae6f5;
+  font-size: 0.74rem;
+  white-space: normal;
+}
+
+.translation-import-value {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.translation-import-state,
+.translation-import-result {
+  display: inline-flex;
+  justify-self: start;
+  padding: 0.13rem 0.38rem;
+  border: 1px solid rgba(143, 163, 179, 0.24);
+  border-radius: 4px;
+  color: #bac9d4;
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+
+.translation-import-state--translated,
+.translation-import-state--reviewed,
+.translation-import-result--change {
+  border-color: rgba(72, 199, 129, 0.36);
+  background: rgba(72, 199, 129, 0.1);
+  color: #8de0ad;
+}
+
+.translation-import-state--draft {
+  border-color: rgba(246, 193, 87, 0.32);
+  background: rgba(246, 193, 87, 0.08);
+  color: #f4cc7a;
+}
+
+.translation-import-result--conflict {
+  border-color: rgba(246, 193, 87, 0.38);
+  background: rgba(246, 193, 87, 0.1);
+  color: #f4cc7a;
+}
+
+.translation-import-value__preview {
+  color: #dce7ee;
+  line-height: 1.42;
+}
+
+.translation-import-value__empty {
+  color: #8394a2;
+  font-style: italic;
+}
+
+.translation-import-table td:last-child small {
+  display: block;
+  margin-top: 0.42rem;
+  color: #b9c6cf;
+  line-height: 1.4;
+}
+
+@media (max-width: 44rem) {
+  .translation-import-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .scene-delete-dialog__preview-grid,
@@ -7434,7 +7666,7 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node)) {
   min-height: 2rem;
   border: 1px solid rgba(108, 128, 145, 0.28);
   border-radius: 4px;
@@ -7446,16 +7678,16 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node)):hover {
   border-color: rgba(23, 183, 216, 0.44);
   background: rgba(23, 119, 168, 0.22);
   color: #f4fbff;
 }
 
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled,
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node)):disabled,
 .app-shell--editor-workbench
-  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):disabled:hover {
+  button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(:where(.mage2-player__hotspot-button, .mage2-player__inventory-slot, .mage2-player__inventory-toggle, .mage2-player__dialogue-choice, .mage2-player__dialogue-continue, .scenes-floating-inspector__presentation-toggle, .scenes-floating-inspector__close)):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action):not(:where(.world-panel__location-row, .world-panel__scene-row, .world-panel__map-node)):disabled:hover {
   border-color: rgba(108, 128, 145, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: #708190;
@@ -7463,7 +7695,7 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench
   button.scene-screen-tabs__tab:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):not(.scenes-panel__scene-list-main):not(.scenes-panel__scene-list-action) {
-  min-height: 1.42rem;
+  min-height: 1.5rem;
   padding: 0.16rem 0.48rem 0.18rem;
   border-color: transparent;
   background: transparent;
@@ -7621,7 +7853,7 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .assets-panel,
 .app-shell--editor-workbench .inventory-panel,
-.app-shell--editor-workbench .panel-grid--playtest > .panel:first-child {
+.app-shell--editor-workbench .panel-grid--playtest > .playtest-primary {
   min-height: calc(100vh - 6.9rem);
   max-height: calc(100vh - 6.9rem);
   overflow: auto;
@@ -9135,6 +9367,7 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-commandbar__field,
 .app-shell--editor-workbench .localization-commandbar__actions,
+.app-shell--editor-workbench .localization-commandbar__handoff,
 .app-shell--editor-workbench .localization-locale-select,
 .app-shell--editor-workbench .localization-command-button,
 .app-shell--editor-workbench .localization-link-button,
@@ -9210,6 +9443,17 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-commandbar__actions {
   flex-wrap: wrap;
+}
+
+.app-shell--editor-workbench .localization-commandbar__handoff {
+  flex-wrap: wrap;
+}
+
+.app-shell--editor-workbench .localization-commandbar__separator {
+  align-self: stretch;
+  width: 1px;
+  min-height: 1.8rem;
+  background: var(--localization-border);
 }
 
 .app-shell--editor-workbench .localization-command-button svg,
@@ -10195,6 +10439,15 @@ button.recent-project__icon-button:hover {
 @container (max-width: 980px) {
   .app-shell--editor-workbench .localization-workbench-page {
     height: auto;
+  }
+
+  .app-shell--editor-workbench .localization-commandbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-shell--editor-workbench .localization-commandbar__separator {
+    display: none;
   }
 
   .app-shell--editor-workbench .localization-health-grid,
@@ -11452,7 +11705,7 @@ button.recent-project__icon-button:hover {
   max-height: calc(100vh - 6.9rem);
 }
 
-.app-shell--editor-workbench .panel-grid--playtest > .panel:first-child {
+.app-shell--editor-workbench .panel-grid--playtest > .playtest-primary {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
@@ -11523,6 +11776,95 @@ button.recent-project__icon-button:hover {
     max-height: 18rem;
     border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  }
+
+  .app-shell--editor-workbench .panel-grid--world {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.5rem;
+    height: calc(100vh - 6.7rem);
+    min-height: 0;
+  }
+
+  .app-shell--editor-workbench .world-panel__narrow-nav {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.38rem;
+    min-width: 0;
+  }
+
+  .app-shell--editor-workbench button.world-panel__narrow-nav-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
+    min-width: 0;
+    min-height: 2.5rem;
+    padding: 0.42rem 0.58rem;
+    border: 1px solid rgba(108, 128, 145, 0.28);
+    border-radius: 4px;
+    background: #111a22;
+    color: #bfccd6;
+    font-size: 0.8rem;
+    font-weight: 650;
+  }
+
+  .app-shell--editor-workbench button.world-panel__narrow-nav-button:hover,
+  .app-shell--editor-workbench button.world-panel__narrow-nav-button:focus-visible,
+  .app-shell--editor-workbench button.world-panel__narrow-nav-button--active {
+    border-color: rgba(23, 183, 216, 0.78);
+    background: rgba(23, 119, 168, 0.24);
+    color: #e8fbff;
+  }
+
+  .app-shell--editor-workbench .world-panel__narrow-nav-button svg {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-shell--editor-workbench .world-panel__workspace,
+  .app-shell--editor-workbench .world-panel__details {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .app-shell--editor-workbench .world-panel--narrow-map .world-panel__workspace,
+  .app-shell--editor-workbench .world-panel--narrow-locations .world-panel__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell--editor-workbench .world-panel--narrow-map .world-panel__location-rail,
+  .app-shell--editor-workbench .world-panel--narrow-locations .world-panel__map-column,
+  .app-shell--editor-workbench .world-panel--narrow-map .world-panel__details,
+  .app-shell--editor-workbench .world-panel--narrow-locations .world-panel__details,
+  .app-shell--editor-workbench .world-panel--narrow-details .world-panel__workspace {
+    display: none;
+  }
+
+  .app-shell--editor-workbench .world-panel--narrow-locations .world-panel__location-rail {
+    display: grid;
+    height: 100%;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .app-shell--editor-workbench .world-panel--narrow-details .world-panel__details {
+    display: grid;
+    align-self: stretch;
+    overflow: auto;
+  }
+
+  .app-shell--editor-workbench .world-panel--narrow-map .world-panel__map-column {
+    display: grid;
   }
 
   .titlebar-shell__inner,
@@ -11619,6 +11961,90 @@ button.recent-project__icon-button:hover {
     justify-content: flex-start;
   }
 
+  .app-shell--editor-workbench .panel-grid--playtest {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0.5rem;
+    height: calc(100vh - 6.7rem);
+    min-height: 0;
+  }
+
+  .app-shell--editor-workbench .playtest-compact-switcher {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.38rem;
+    min-width: 0;
+  }
+
+  .app-shell--editor-workbench button.playtest-compact-switcher__button {
+    min-width: 0;
+    min-height: 2.5rem;
+    overflow: hidden;
+    border-color: rgba(108, 128, 145, 0.28);
+    background: #111a22;
+    color: #bfccd6;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell--editor-workbench button.playtest-compact-switcher__button:hover,
+  .app-shell--editor-workbench button.playtest-compact-switcher__button:focus-visible,
+  .app-shell--editor-workbench button.playtest-compact-switcher__button--active {
+    border-color: rgba(23, 183, 216, 0.78);
+    background: rgba(23, 119, 168, 0.24);
+    color: #e8fbff;
+  }
+
+  .app-shell--editor-workbench .panel-grid--playtest > .playtest-primary,
+  .app-shell--editor-workbench .panel-grid--playtest > .playtest-diagnostics {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .app-shell--editor-workbench .panel-grid--playtest-player > .playtest-diagnostics,
+  .app-shell--editor-workbench .panel-grid--playtest-diagnostics > .playtest-primary {
+    display: none;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar {
+    grid-template-columns: minmax(7rem, 1fr) auto auto;
+    align-items: end;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--playhead {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--locale {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--session {
+    grid-column: 2;
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--toggle {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .app-shell--editor-workbench .playtest-stage {
+    width: 100%;
+    max-width: none;
+  }
+
   .issues-sidebar {
     position: static;
     max-height: none;
@@ -11636,9 +12062,6 @@ button.recent-project__icon-button:hover {
 
   .dialog-shell__header,
   .dialog-actions--spread,
-  .file-browser,
-  .file-browser__path-form,
-  .file-browser__folder-tools,
   .scene-delete-dialog__preview-grid,
   .scene-delete-dialog__choice-grid {
     grid-template-columns: 1fr;
@@ -11649,19 +12072,67 @@ button.recent-project__icon-button:hover {
     display: grid;
   }
 
+}
+
+@media (max-width: 760px) {
+  .file-browser,
+  .file-browser__path-form,
+  .file-browser__folder-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-shell--file-browser .dialog-shell__body--file-browser {
+    overflow: auto;
+  }
+
   .file-browser {
     height: auto;
+  }
+
+  .file-browser__main {
+    min-height: 30rem;
   }
 }
 
 @media (max-width: 1400px) {
-  .editor-layout--with-issues {
+  .app-shell--editor-workbench .editor-layout--with-issues {
+    position: relative;
     grid-template-columns: 1fr;
   }
 
-  .issues-sidebar {
-    position: static;
-    max-height: none;
+  .app-shell--editor-workbench .issues-sidebar {
+    position: absolute;
+    z-index: 40;
+    inset-block-start: 0.5rem;
+    inset-inline-end: 0.5rem;
+    width: min(22rem, calc(100% - 1rem));
+    max-height: min(38rem, calc(100vh - 8rem));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.46);
+  }
+
+  .app-shell--editor-workbench .issues-sidebar--summary-only {
+    inset-block-start: auto;
+    inset-block-end: 0.5rem;
+    width: min(18rem, calc(100% - 1rem));
+    gap: 0;
+    padding: 0.55rem 0.62rem;
+  }
+
+  .app-shell--editor-workbench .issues-sidebar--summary-only .validation-panel__header {
+    min-height: 2.18rem;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .app-shell--editor-workbench .issues-sidebar--summary-only .validation-panel__header p {
+    margin-top: 0.18rem;
+  }
+}
+
+@media (max-width: 1100px) {
+  .app-shell--editor-workbench .issues-sidebar:not(.issues-sidebar--summary-only) {
+    inset-block-start: 3.25rem;
+    max-height: calc(100vh - 11rem);
   }
 }
 
@@ -12129,6 +12600,32 @@ button.recent-project__icon-button:hover {
 
   .response-media-or {
     text-align: center;
+  }
+}
+
+@media (max-width: 700px) {
+  .app-shell--editor-workbench .playtest-panel__toolbar {
+    grid-template-columns: minmax(7rem, 1fr) auto;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--session {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .app-shell--editor-workbench .playtest-panel__toolbar-field--toggle {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .app-shell--editor-workbench .world-panel__map-toolbar,
+  .app-shell--editor-workbench .world-panel__map-toolbar-main {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .app-shell--editor-workbench .world-panel__map-toolbar-actions {
+    justify-content: space-between;
   }
 }
 

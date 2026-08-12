@@ -80,11 +80,110 @@
   box-shadow: none;
 }
 
+.scenes-panel__narrow-nav,
+.scenes-panel__narrow-backdrop {
+  display: none;
+}
+
 @media (max-width: 1100px) {
+  .app-shell--editor-workbench.app-shell--scene-editor .scenes-panel {
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .app-shell--scene-editor .scenes-panel__narrow-nav {
+    position: relative;
+    z-index: 24;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.38rem;
+    padding: 0.48rem 0.58rem;
+    border-bottom: 1px solid var(--scene-editor-border-strong);
+    background: var(--scene-editor-rail);
+  }
+
+  .app-shell--scene-editor button.scenes-panel__narrow-nav-button {
+    min-height: 2.5rem;
+    padding: 0.42rem 0.72rem;
+    border: 1px solid var(--scene-editor-border);
+    border-radius: 4px;
+    background: #111a22;
+    color: #cbd6df;
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+
+  .app-shell--scene-editor button.scenes-panel__narrow-nav-button:hover,
+  .app-shell--scene-editor button.scenes-panel__narrow-nav-button:focus-visible,
+  .app-shell--scene-editor button.scenes-panel__narrow-nav-button--active {
+    border-color: rgba(23, 183, 216, 0.78);
+    background: rgba(23, 119, 168, 0.24);
+    color: #e8fbff;
+  }
+
   .app-shell--scene-editor .scenes-panel__stage-layout,
   .app-shell--editor-workbench.app-shell--scene-editor .scenes-panel__stage-layout {
-    grid-template-columns: 1fr;
-    height: auto;
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-shell--scene-editor .scenes-panel__stage-stack {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .app-shell--scene-editor .scenes-panel__side-controls,
+  .app-shell--scene-editor .scenes-panel__right-rail {
+    position: absolute;
+    z-index: 22;
+    inset-block: 0;
+    width: min(24rem, calc(100% - 3rem));
+    max-width: 100%;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.985);
+    transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.48);
+  }
+
+  .app-shell--scene-editor .scenes-panel__side-controls {
+    inset-inline-start: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell--scene-editor .scenes-panel__right-rail {
+    inset-inline-end: 0;
+    width: min(24rem, calc(100% - 3rem));
+    height: 100%;
+    overflow: auto;
+    background: var(--scene-editor-rail);
+  }
+
+  .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked {
+    width: min(32rem, calc(100% - 3rem));
+  }
+
+  .app-shell--scene-editor .scenes-panel__stage-layout--narrow-scenes-open > .scenes-panel__side-controls,
+  .app-shell--scene-editor .scenes-panel__stage-layout--narrow-actions-open > .scenes-panel__right-rail {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .app-shell--scene-editor .scenes-panel__stage-layout--narrow-scenes-open > .scenes-panel__narrow-backdrop,
+  .app-shell--scene-editor .scenes-panel__stage-layout--narrow-actions-open > .scenes-panel__narrow-backdrop {
+    position: absolute;
+    z-index: 21;
+    inset: 0;
+    display: block;
+    background: rgba(1, 5, 9, 0.62);
   }
 
   .app-shell--scene-editor .scenes-panel__right-rail,
@@ -93,7 +192,8 @@
   }
 
   .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked {
-    grid-template-rows: auto minmax(26rem, min(42rem, 70vh));
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .app-shell--scene-editor .scenes-panel__right-rail--inspector-docked .scenes-floating-inspector__resize-handle {
@@ -122,5 +222,12 @@
   .app-shell--scene-editor .scenes-panel__action-rail--compact .scenes-panel__hotspot-delete-button {
     padding-top: 0.58rem;
     border-top: 0;
+  }
+}
+
+@media (max-width: 1100px) and (prefers-reduced-motion: reduce) {
+  .app-shell--scene-editor .scenes-panel__side-controls,
+  .app-shell--scene-editor .scenes-panel__right-rail {
+    transition: none;
   }
 }

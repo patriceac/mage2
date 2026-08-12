@@ -1,4 +1,9 @@
-import { useState } from "react";
+import {
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject
+} from "react";
 import {
   type Condition,
   type ConditionMatchMode,
@@ -61,6 +66,7 @@ export function ConditionListEditor({
 }: ConditionListEditorProps) {
   const { t } = useEditorI18n();
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+  const addConditionRef = useRef<HTMLSelectElement>(null);
   const editableConditions = conditions.filter((condition) => condition.type !== "always");
 
   const updateConditions = (
@@ -159,11 +165,13 @@ export function ConditionListEditor({
             {isCreatingVariable ? (
               <VariableCreator
                 existingVariables={project.manifest.variables}
+                returnFocusRef={addConditionRef}
                 onCreate={createVariable}
                 onCancel={() => setIsCreatingVariable(false)}
               />
             ) : (
               <DropdownSelect
+                ref={addConditionRef}
                 value=""
                 aria-label={t("Choose condition")}
                 onChange={(event) => {
@@ -191,12 +199,14 @@ export function ConditionListEditor({
         isCreatingVariable ? (
           <VariableCreator
             existingVariables={project.manifest.variables}
+            returnFocusRef={addConditionRef}
             onCreate={createVariable}
             onCancel={() => setIsCreatingVariable(false)}
           />
         ) : (
           <div className="logic-editor__add-row">
             <DropdownSelect
+              ref={addConditionRef}
               value=""
               aria-label={t("Add condition")}
               onChange={(event) => {
@@ -233,6 +243,7 @@ export function EffectListEditor({
 }: EffectListEditorProps) {
   const { t } = useEditorI18n();
   const [creatingVariableFor, setCreatingVariableFor] = useState<VariableEffectKind | undefined>();
+  const addActionRef = useRef<HTMLSelectElement>(null);
 
   const addEffect = (kind: EffectKind) => {
     const variable = project.manifest.variables.find((entry) => !entry.system) ?? project.manifest.variables[0];
@@ -337,6 +348,7 @@ export function EffectListEditor({
       {creatingVariableFor ? (
         <VariableCreator
           existingVariables={project.manifest.variables}
+          returnFocusRef={addActionRef}
           preferredType={creatingVariableFor === "changeVariable" ? "integer" : "boolean"}
           fixedType={creatingVariableFor === "changeVariable" ? "integer" : undefined}
           onCreate={createVariable}
@@ -345,6 +357,7 @@ export function EffectListEditor({
       ) : (
         <div className="logic-editor__add-row">
           <DropdownSelect
+            ref={addActionRef}
             value=""
             aria-label={t("Add action")}
             onChange={(event) => {
@@ -390,10 +403,12 @@ function ConditionRow({
 }) {
   const { t } = useEditorI18n();
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+  const conditionTypeRef = useRef<HTMLSelectElement>(null);
   return (
     <div className="logic-editor__sentence-wrap">
       <div className="logic-editor__sentence">
         <DropdownSelect
+          ref={conditionTypeRef}
           value={condition.type}
           aria-label={t("Condition type")}
           onChange={(event) => {
@@ -465,6 +480,7 @@ function ConditionRow({
         <div className="logic-editor__inline-creator">
           <VariableCreator
             existingVariables={project.manifest.variables}
+            returnFocusRef={conditionTypeRef}
             onCreate={(nextVariable) => {
               onChange(
                 createVariableCondition(nextVariable),
@@ -491,6 +507,7 @@ function VariableConditionFields({
 }) {
   const { t } = useEditorI18n();
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+  const newVariableButtonRef = useRef<HTMLButtonElement>(null);
   const variable = project.manifest.variables.find((entry) => entry.id === condition.variableId);
   const operators = variable?.type === "integer"
     ? ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"] as const
@@ -512,7 +529,11 @@ function VariableConditionFields({
             }
           }}
         />
-        <NewVariableButton expanded={isCreatingVariable} onClick={() => setIsCreatingVariable((value) => !value)} />
+        <NewVariableButton
+          buttonRef={newVariableButtonRef}
+          expanded={isCreatingVariable}
+          onClick={() => setIsCreatingVariable((value) => !value)}
+        />
       </div>
       <DropdownSelect
         value={operators.includes(condition.operator as never) ? condition.operator : "equals"}
@@ -535,6 +556,7 @@ function VariableConditionFields({
         <div className="logic-editor__inline-creator">
           <VariableCreator
             existingVariables={project.manifest.variables}
+            returnFocusRef={newVariableButtonRef}
             onCreate={(nextVariable) => {
               onChange(
                 createVariableCondition(nextVariable),
@@ -715,6 +737,7 @@ function VariableEffectFields({
 }) {
   const { t } = useEditorI18n();
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+  const newVariableButtonRef = useRef<HTMLButtonElement>(null);
   const variable = project.manifest.variables.find((entry) => entry.id === effect.variableId);
   return (
     <>
@@ -728,7 +751,11 @@ function VariableEffectFields({
             if (nextVariable) onChange({ ...effect, variableId, value: resolveSuggestedVariableValue(nextVariable) });
           }}
         />
-        <NewVariableButton expanded={isCreatingVariable} onClick={() => setIsCreatingVariable((value) => !value)} />
+        <NewVariableButton
+          buttonRef={newVariableButtonRef}
+          expanded={isCreatingVariable}
+          onClick={() => setIsCreatingVariable((value) => !value)}
+        />
       </div>
       <span className="logic-editor__word">{t("to")}</span>
       {variable ? (
@@ -743,6 +770,7 @@ function VariableEffectFields({
         <div className="logic-editor__inline-creator">
           <VariableCreator
             existingVariables={project.manifest.variables}
+            returnFocusRef={newVariableButtonRef}
             onCreate={(nextVariable) => {
               onChange(
                 createSetVariableEffect(nextVariable),
@@ -769,6 +797,7 @@ function ChangeVariableFields({
 }) {
   const { t } = useEditorI18n();
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
+  const newVariableButtonRef = useRef<HTMLButtonElement>(null);
   const integerVariables = project.manifest.variables.filter((entry) => entry.type === "integer");
   return (
     <>
@@ -779,7 +808,11 @@ function ChangeVariableFields({
           options={integerVariables.map((entry) => ({ id: entry.id, name: entry.name }))}
           onChange={(variableId) => onChange({ ...effect, variableId })}
         />
-        <NewVariableButton expanded={isCreatingVariable} onClick={() => setIsCreatingVariable((value) => !value)} />
+        <NewVariableButton
+          buttonRef={newVariableButtonRef}
+          expanded={isCreatingVariable}
+          onClick={() => setIsCreatingVariable((value) => !value)}
+        />
       </div>
       <DropdownSelect
         value={effect.delta < 0 ? "decrease" : "increase"}
@@ -805,6 +838,7 @@ function ChangeVariableFields({
         <div className="logic-editor__inline-creator">
           <VariableCreator
             existingVariables={project.manifest.variables}
+            returnFocusRef={newVariableButtonRef}
             preferredType="integer"
             fixedType="integer"
             onCreate={(nextVariable) => {
@@ -823,15 +857,18 @@ function ChangeVariableFields({
 }
 
 function NewVariableButton({
+  buttonRef,
   expanded,
   onClick
 }: {
+  buttonRef: RefObject<HTMLButtonElement | null>;
   expanded: boolean;
   onClick: () => void;
 }) {
   const { t } = useEditorI18n();
   return (
     <button
+      ref={buttonRef}
       type="button"
       className="button-secondary logic-editor__new-variable"
       aria-expanded={expanded}
@@ -934,11 +971,42 @@ function createConditionalEffect(): Extract<Effect, { type: "conditional" }> {
   };
 }
 
+interface VariableCreatorFocusRef {
+  readonly current: HTMLElement | null;
+}
+
+export function shouldDismissVariableCreatorOnKey(event: {
+  key: string;
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}): boolean {
+  return event.key === "Escape" && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+export function resolveVariableCreatorTabDestination(
+  activeIndex: number,
+  focusableCount: number,
+  shiftKey: boolean
+): number | undefined {
+  if (focusableCount < 1 || activeIndex < 0) {
+    return undefined;
+  }
+  if (shiftKey && activeIndex === 0) {
+    return focusableCount - 1;
+  }
+  if (!shiftKey && activeIndex === focusableCount - 1) {
+    return 0;
+  }
+  return undefined;
+}
+
 export function VariableCreator({
   existingVariables,
   preferredType = "boolean",
   fixedType,
   submitLabel,
+  returnFocusRef,
   onCreate,
   onCancel
 }: {
@@ -946,17 +1014,58 @@ export function VariableCreator({
   preferredType?: NewVariableType;
   fixedType?: NewVariableType;
   submitLabel?: string;
+  returnFocusRef?: VariableCreatorFocusRef;
   onCreate: (variable: GameVariableDefinition) => void;
   onCancel: () => void;
 }) {
   const { t } = useEditorI18n();
+  const creatorRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState("");
   const [type, setType] = useState<NewVariableType>(fixedType ?? preferredType);
   const [choiceText, setChoiceText] = useState("");
   const choices = choiceText.split(",").map((entry) => entry.trim()).filter(Boolean);
   const canCreate = name.trim().length > 0 && (type !== "choice" || new Set(choices.map((entry) => entry.toLowerCase())).size >= 2);
+
+  const handleCreatorKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (shouldDismissVariableCreatorOnKey(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancel();
+      window.requestAnimationFrame(() => returnFocusRef?.current?.focus());
+      return;
+    }
+
+    if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+
+    const focusableElements = Array.from(
+      creatorRef.current?.querySelectorAll<HTMLElement>(
+        "input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])"
+      ) ?? []
+    ).filter((element) => element.tabIndex >= 0 && element.getAttribute("aria-hidden") !== "true");
+    const activeIndex = focusableElements.indexOf(document.activeElement as HTMLElement);
+    const destinationIndex = resolveVariableCreatorTabDestination(
+      activeIndex,
+      focusableElements.length,
+      event.shiftKey
+    );
+    if (destinationIndex === undefined) {
+      return;
+    }
+
+    event.preventDefault();
+    focusableElements[destinationIndex]?.focus();
+  };
+
   return (
-    <div className="logic-editor__creator" role="group" aria-label={t("Create variable") }>
+    <div
+      ref={creatorRef}
+      className="logic-editor__creator"
+      role="group"
+      aria-label={t("Create variable")}
+      onKeyDown={handleCreatorKeyDown}
+    >
       <div className="logic-editor__creator-heading">
         <strong>{t("Create variable")}</strong>
         <span>{t("Give story state a clear author-facing name.")}</span>

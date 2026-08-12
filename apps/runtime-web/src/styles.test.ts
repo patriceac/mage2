@@ -42,16 +42,23 @@ describe("runtime player layout styles", () => {
     expect(styles).not.toContain(".runtime-confirmation");
   });
 
-  it("opts the standalone host into the shared portrait renderer without changing its scene plane", () => {
+  it("opts the standalone host into the shared scene-backed portrait composition", () => {
     expect(runtimeApp).toContain('presentation="runtime-responsive"');
-    expect(styles).toMatch(
-      /\.runtime-player-renderer\s*\{[\s\S]*?--mage2-player-runtime-top-inset: 0;/
-    );
     expect(styles).toMatch(
       /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*?\.runtime-player-renderer\s*\{[\s\S]*?width: 100%;[\s\S]*?height: 100%;/
     );
-    expect(sharedStyles).toContain(".mage2-player__scene-surface {");
-    expect(sharedStyles).toContain(".mage2-player--runtime-responsive .mage2-player__hud-plane {");
+    expect(sharedStyles).toMatch(
+      /\.mage2-player--runtime-responsive\s*\{[\s\S]*?width: min\(100%, var\(--mage2-player-contained-width, 100%\)\);/
+    );
+    expect(styles).toMatch(
+      /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*?\.runtime-player-backdrop\s*\{[\s\S]*?filter: blur\(1\.5px\) saturate\(0\.85\) brightness\(0\.56\);/
+    );
+    expect(sharedStyles).toMatch(
+      /\.mage2-player--runtime-responsive \.mage2-player__scene-surface\s*\{[\s\S]*?position: absolute;[\s\S]*?top: clamp\(5\.25rem, 22dvh, 12rem\);[\s\S]*?aspect-ratio: var\(--mage2-player-media-aspect, 16 \/ 9\);/
+    );
+    expect(sharedStyles).toMatch(
+      /\.mage2-player--runtime-responsive \.mage2-player__hud-plane\s*\{[\s\S]*?position: absolute;[\s\S]*?inset: 0;[\s\S]*?background: linear-gradient/
+    );
   });
 
   it("lets shared response video cover the runtime while embedded Playtest stays bounded", () => {

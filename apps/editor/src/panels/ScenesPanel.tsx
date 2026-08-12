@@ -127,6 +127,8 @@ export {
   updateOptionalHotspotEvent
 } from "./scenes/hotspot-domain";
 
+type SceneNarrowPanel = "scenes" | "actions";
+
 interface ScenesPanelProps {
   project: ProjectBundle;
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
@@ -204,6 +206,9 @@ export function ScenesPanel({
   const [activeInventoryPickerItemId, setActiveInventoryPickerItemId] = useState<string>();
   const [hotspotInspectorPosition, setHotspotInspectorPosition] = useState<FloatingWindowPosition>();
   const [sceneOperationFeedback, setSceneOperationFeedback] = useState<SceneOperationFeedback>();
+  const [narrowPanel, setNarrowPanel] = useState<SceneNarrowPanel>();
+  const scenesNarrowTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionsNarrowTriggerRef = useRef<HTMLButtonElement>(null);
   const backgroundDropDepthRef = useRef(0);
   const inventoryPlacementDropDepthRef = useRef(0);
   const inventoryDragPreviewSizeRef = useRef<{ itemId: string; widthPx: number; heightPx: number } | undefined>(undefined);
@@ -248,7 +253,8 @@ export function ScenesPanel({
     floatingWindowVisibility.isHotspotInspectorVisible && hotspotInspectorPresentation === "docked";
   const stageLayoutClassName = [
     "scenes-panel__stage-layout",
-    isHotspotInspectorDocked ? "scenes-panel__stage-layout--inspector-docked" : ""
+    isHotspotInspectorDocked ? "scenes-panel__stage-layout--inspector-docked" : "",
+    narrowPanel ? `scenes-panel__stage-layout--narrow-${narrowPanel}-open` : ""
   ].filter(Boolean).join(" ");
   const stageLayoutStyle = isHotspotInspectorDocked
     ? ({ "--hotspot-inspector-dock-width": `${hotspotInspectorDockWidth}px` } as CSSProperties)
@@ -257,6 +263,16 @@ export function ScenesPanel({
   function reportSceneOperation(message: string, tone: SceneOperationFeedbackTone) {
     setSceneOperationFeedback({ message, tone });
     setStatusMessage(message);
+  }
+
+  function closeNarrowPanel(restoreFocus = false) {
+    const panelToRestore = narrowPanel;
+    setNarrowPanel(undefined);
+    if (restoreFocus && panelToRestore) {
+      window.requestAnimationFrame(() => {
+        (panelToRestore === "scenes" ? scenesNarrowTriggerRef : actionsNarrowTriggerRef).current?.focus();
+      });
+    }
   }
 
   useEffect(() => {
@@ -1454,8 +1470,46 @@ export function ScenesPanel({
 
   return (
     <div ref={scenesPanelRef} className="panel-grid panel-grid--single scenes-panel-shell">
-      <section className="panel scenes-panel">
-        <div className={stageLayoutClassName} style={stageLayoutStyle}>
+      <section
+        className="panel scenes-panel"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && narrowPanel && !event.defaultPrevented) {
+            event.preventDefault();
+            closeNarrowPanel(true);
+          }
+        }}
+      >
+        <nav className="scenes-panel__narrow-nav" aria-label={t("Scenes")}>
+          <button
+            ref={scenesNarrowTriggerRef}
+            type="button"
+            className={narrowPanel === "scenes" ? "scenes-panel__narrow-nav-button scenes-panel__narrow-nav-button--active" : "scenes-panel__narrow-nav-button"}
+            aria-pressed={narrowPanel === "scenes"}
+            onClick={() => setNarrowPanel((current) => current === "scenes" ? undefined : "scenes")}
+          >
+            {t("Scenes")}
+          </button>
+          <button
+            ref={actionsNarrowTriggerRef}
+            type="button"
+            className={narrowPanel === "actions" ? "scenes-panel__narrow-nav-button scenes-panel__narrow-nav-button--active" : "scenes-panel__narrow-nav-button"}
+            aria-pressed={narrowPanel === "actions"}
+            onClick={() => setNarrowPanel((current) => current === "actions" ? undefined : "actions")}
+          >
+            {t("Actions")}
+          </button>
+        </nav>
+        <div
+          className={stageLayoutClassName}
+          style={stageLayoutStyle}
+        >
+          {narrowPanel ? (
+            <div
+              className="scenes-panel__narrow-backdrop"
+              aria-hidden="true"
+              onPointerDown={() => closeNarrowPanel()}
+            />
+          ) : null}
           <SceneListRail
             activeLocale={activeLocale}
             currentScene={currentScene}
@@ -1468,6 +1522,7 @@ export function ScenesPanel({
             onSelectScene={(sceneId) => {
               setSelectedSceneId(sceneId);
               setSelectedHotspotId(undefined);
+              closeNarrowPanel(document.activeElement?.matches(":focus-visible") ?? false);
             }}
           />
 

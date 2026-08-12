@@ -24,6 +24,7 @@ import {
   validateProject,
   type Asset,
   type AssetCategory,
+  type BuiltInLocale,
   type ProjectBundle,
   type SaveCompatibilityAssessment
 } from "@mage2/schema";
@@ -37,6 +38,10 @@ import {
   type RuntimeExportRequest,
   type WindowsRuntimePackagingResources
 } from "./runtime-artifact-exporter";
+import {
+  parseRuntimeExportInterfaceLocale,
+  resolveRuntimeExportDialogCopy
+} from "./runtime-export-dialog";
 import { createSubdirectory, getFileBrowserLocations, listDirectoryContents } from "./file-browser";
 import {
   createProjectInDirectory,
@@ -59,6 +64,10 @@ import {
   registerSecureSchemes
 } from "./secure-protocols";
 import { installWindowSecurity } from "./window-security";
+import {
+  readTranslationInterchangeFile,
+  writeTranslationInterchangeFile
+} from "./translation-interchange-files";
 
 let mainWindow: BrowserWindow | null = null;
 let stopAutomationServer: (() => void) | undefined;
@@ -337,6 +346,19 @@ function registerIpcHandlers(): void {
     return createSubdirectory(grantedParent, directoryName);
   });
 
+  handleTrustedIpc(
+    "mage2:write-translation-interchange",
+    async (_event, directoryPath: string, fileName: string, content: string) => {
+      const grantedDirectory = await filesystemCapabilities.assertBrowsePath(directoryPath);
+      return writeTranslationInterchangeFile(grantedDirectory, fileName, content);
+    }
+  );
+
+  handleTrustedIpc("mage2:read-translation-interchange", async (_event, filePath: string) => {
+    const grantedFile = await filesystemCapabilities.assertImportFile(filePath);
+    return readTranslationInterchangeFile(grantedFile);
+  });
+
   handleTrustedIpc("mage2:inspect-project-directory", async (_event, projectDir: string) => {
     return inspectProjectDirectory(await filesystemCapabilities.assertBrowsePath(projectDir));
   });
@@ -460,7 +482,8 @@ function registerIpcHandlers(): void {
       : await chooseRuntimeExportDestination(
           parsedRequest.format,
           normalized.manifest.projectName,
-          parsedRequest.mode ?? "release"
+          parsedRequest.mode ?? "release",
+          parsedRequest.interfaceLocale ?? "en"
         );
     if (!destinationPath) {
       return { canceled: true as const };
@@ -554,6 +577,7 @@ function parseRuntimeExportRequest(input: RuntimeExportRequest): RuntimeExportRe
   return {
     format: input.format,
     mode: input.mode ?? "release",
+    interfaceLocale: parseRuntimeExportInterfaceLocale(input.interfaceLocale),
     destinationPath: input.destinationPath?.trim() || undefined
   };
 }
@@ -561,39 +585,24 @@ function parseRuntimeExportRequest(input: RuntimeExportRequest): RuntimeExportRe
 async function chooseRuntimeExportDestination(
   format: RuntimeExportFormat,
   projectName: string,
-  mode: RuntimeExportMode
+  mode: RuntimeExportMode,
+  interfaceLocale: BuiltInLocale
 ): Promise<string | undefined> {
   if (!mainWindow) {
     throw new Error("The editor window is unavailable.");
   }
 
-  if (format === "windows") {
-    const selection = await dialog.showSaveDialog(mainWindow, {
-      title: mode === "preview"
-        ? `Create a standalone Windows preview for ${projectName}`
-        : `Create a standalone Windows player for ${projectName}`,
-      buttonLabel: "Create Executable",
-      defaultPath: path.join(app.getPath("downloads"), suggestedRuntimeArtifactName(projectName, format, mode)),
-      filters: [{ name: "Windows executable", extensions: ["exe"] }],
-      properties: ["showOverwriteConfirmation", "createDirectory"]
-    });
-    if (selection.canceled || !selection.filePath) {
-      return undefined;
-    }
-    return path.extname(selection.filePath).toLocaleLowerCase("en-US") === ".exe"
-      ? selection.filePath
-      : `${selection.filePath}.exe`;
-  }
-
+  const artifactName = suggestedRuntimeArtifactName(projectName, format, mode);
+  const copy = resolveRuntimeExportDialogCopy(format, artifactName, interfaceLocale);
   const selection = await dialog.showOpenDialog(mainWindow, {
-    title: `Choose where to create ${suggestedRuntimeArtifactName(projectName, format, mode)}`,
-    buttonLabel: "Choose Export Location",
+    title: copy.title,
+    buttonLabel: copy.buttonLabel,
     defaultPath: app.getPath("downloads"),
     properties: ["openDirectory", "createDirectory", "promptToCreate"]
   });
   const selectedParent = selection.canceled ? undefined : selection.filePaths[0];
   return selectedParent
-    ? path.join(selectedParent, suggestedRuntimeArtifactName(projectName, format, mode))
+    ? path.join(selectedParent, artifactName)
     : undefined;
 }
 
@@ -621,14 +630,12 @@ function resolveAutomationExportDestination(inputPath: string): string {
 
 function resolveWindowsRuntimePackagingResources(): WindowsRuntimePackagingResources {
   const packagedResources = {
-    runtimeTemplateDirectory: path.join(process.resourcesPath, "runtime-template-win"),
-    nsisDirectory: path.join(process.resourcesPath, "nsis"),
-    iconPath: path.join(process.resourcesPath, "icon.ico")
+    runtimeTemplateDirectory: path.join(process.resourcesPath, "runtime-template-win")
   };
   if (
     existsSync(path.join(packagedResources.runtimeTemplateDirectory, "MAGE2 Player.exe")) &&
-    existsSync(path.join(packagedResources.runtimeTemplateDirectory, "resources", "app.mage2asar")) &&
-    existsSync(path.join(packagedResources.nsisDirectory, "makensis.exe"))
+    existsSync(path.join(packagedResources.runtimeTemplateDirectory, "runtime", "MAGE2 Player.exe")) &&
+    existsSync(path.join(packagedResources.runtimeTemplateDirectory, "runtime", "resources", "app.mage2asar"))
   ) {
     return packagedResources;
   }
@@ -643,14 +650,12 @@ function resolveWindowsRuntimePackagingResources(): WindowsRuntimePackagingResou
       "app",
       "resources",
       "runtime-template-win"
-    ),
-    nsisDirectory: path.join(repoRoot, "output", "packaging", "editor-win", "app", "resources", "nsis"),
-    iconPath: path.join(repoRoot, "build", "icon.ico")
+    )
   };
   if (
     !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "MAGE2 Player.exe")) ||
-    !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "resources", "app.mage2asar")) ||
-    !existsSync(path.join(developmentResources.nsisDirectory, "makensis.exe"))
+    !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "runtime", "MAGE2 Player.exe")) ||
+    !existsSync(path.join(developmentResources.runtimeTemplateDirectory, "runtime", "resources", "app.mage2asar"))
   ) {
     throw new Error("Windows runtime packaging resources are missing. Rebuild the packaged editor and try again.");
   }

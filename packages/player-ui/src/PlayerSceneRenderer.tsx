@@ -202,6 +202,7 @@ export function PlayerInventoryTray({
 }: PlayerInventoryTrayProps) {
   const previousItemCountRef = useRef(items.length);
   const autoCollapseTimeoutRef = useRef<number | undefined>(undefined);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const hasSelectedItem = items.some((item) => item.selected);
 
   const clearAutoCollapseTimeout = useCallback(() => {
@@ -254,8 +255,20 @@ export function PlayerInventoryTray({
       }
       aria-label={copy.inventory}
       onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !isExpanded) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        clearAutoCollapseTimeout();
+        onExpandedChange(false);
+        window.requestAnimationFrame(() => toggleButtonRef.current?.focus());
+      }}
     >
       <button
+        ref={toggleButtonRef}
         type="button"
         className={
           hasSelectedItem
@@ -639,7 +652,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       isPositiveFiniteNumber(sceneAssetVariant?.width) &&
       isPositiveFiniteNumber(sceneAssetVariant?.height)
         ? ({
-            "--mage2-player-media-aspect": sceneAssetVariant.width / sceneAssetVariant.height
+            "--mage2-player-media-aspect": sceneAssetVariant.width / sceneAssetVariant.height,
+            "--mage2-player-contained-width": `${
+              (sceneAssetVariant.width / sceneAssetVariant.height) * 100
+            }dvh`
           } as CSSProperties)
         : undefined;
     const rootClassName = [
@@ -700,7 +716,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   }}
                 />
               ) : (
-                <img src={sceneUrl} alt={sceneAsset.name} className="mage2-player__media" draggable={false} />
+                <img src={sceneUrl} alt="" className="mage2-player__media" draggable={false} />
               )
             ) : (
               <div className="mage2-player__placeholder">{copy.missingVisual}</div>
@@ -723,11 +739,12 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   alphaMask={hotspotAlphaMasks[hotspot.id]}
                   showHotspots={showHotspots}
                   sceneInteractionBlocked={Boolean(snapshot.activeDialogue) || gameplayPaused}
-                  ariaLabel={`${resolvePlayerHotspotAccessibleName(
+                  ariaLabel={resolvePlayerHotspotAriaLabel(
                     hotspot,
                     strings,
-                    project.inventory.items
-                  )}: ${copy.activateHotspot}`}
+                    project.inventory.items,
+                    copy.activateHotspot
+                  )}
                   onActivate={() => activateHotspot(hotspot.id)}
                 />
               ))}
@@ -1299,7 +1316,7 @@ export function resolvePlayerHotspotAccessibleName(
   hotspot: Hotspot,
   strings: Record<string, string>,
   inventoryItems: readonly InventoryItem[] = []
-): string {
+): string | undefined {
   const localizedComment = hotspot.commentTextId
     ? strings[hotspot.commentTextId]?.replace(/\s+/g, " ").trim()
     : undefined;
@@ -1310,13 +1327,17 @@ export function resolvePlayerHotspotAccessibleName(
   const localizedInventoryLabel = inventoryItem
     ? strings[inventoryItem.textId]?.replace(/\s+/g, " ").trim()
     : undefined;
-  return (
-    localizedComment ||
-    localizedInventoryLabel ||
-    hotspot.name.replace(/\s+/g, " ").trim() ||
-    inventoryItem?.name.replace(/\s+/g, " ").trim() ||
-    hotspot.id
-  );
+  return localizedComment || localizedInventoryLabel || undefined;
+}
+
+export function resolvePlayerHotspotAriaLabel(
+  hotspot: Hotspot,
+  strings: Record<string, string>,
+  inventoryItems: readonly InventoryItem[],
+  activateLabel: string
+): string {
+  const playerFacingName = resolvePlayerHotspotAccessibleName(hotspot, strings, inventoryItems);
+  return playerFacingName || activateLabel;
 }
 
 export function shouldActivatePlayerHotspotClick(options: {

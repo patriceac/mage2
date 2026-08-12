@@ -242,6 +242,12 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("playtest-panel__toolbar-toggle");
     expect(markup).toContain("playtest-panel__toolbar-field--session");
     expect(markup).toContain("playtest-panel__toolbar-field--toggle");
+    expect(markup).toContain("panel-grid--playtest-player");
+    expect(markup).toContain("playtest-compact-switcher");
+    expect(markup).toContain('aria-controls="playtest-player-pane"');
+    expect(markup).toContain('aria-controls="playtest-diagnostics-pane"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('aria-pressed="false"');
     expect(markup).toContain('aria-label="Show hotspots in playtest"');
     expect(markup).toContain("playtest-hotspot-visibility-toggle__track");
     expect(markup).toContain("playtest-hotspot-visibility-toggle__thumb");

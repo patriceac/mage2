@@ -847,9 +847,11 @@ describe("project validation", () => {
         sceneAudioLoop: true,
         sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
+        videoAudioMode: "embedded",
         hotspots: [],
         dialogueTreeIds: [],
         onEnterEffects: [],
+        onMediaEndEffects: [],
         onExitEffects: []
       },
       {
@@ -860,9 +862,11 @@ describe("project validation", () => {
         sceneAudioLoop: true,
         sceneAudioDelayMs: 0,
         backgroundVideoLoop: false,
+        videoAudioMode: "embedded",
         hotspots: [],
         dialogueTreeIds: [],
         onEnterEffects: [],
+        onMediaEndEffects: [],
         onExitEffects: []
       }
     );
@@ -899,9 +903,11 @@ describe("project validation", () => {
       sceneAudioLoop: true,
       sceneAudioDelayMs: 0,
       backgroundVideoLoop: false,
+      videoAudioMode: "embedded",
       hotspots: [],
       dialogueTreeIds: [],
       onEnterEffects: [],
+      onMediaEndEffects: [],
       onExitEffects: []
     });
 

@@ -1,6 +1,7 @@
 import type {
   Asset,
   AssetCategory,
+  BuiltInLocale,
   ProjectBundle,
   SaveCompatibilityAssessment
 } from "@mage2/schema";
@@ -50,7 +51,6 @@ type RuntimeExportProgressPhase =
   | "preparing"
   | "building-web"
   | "assembling-player"
-  | "compressing"
   | "publishing"
   | "complete";
 
@@ -63,9 +63,39 @@ interface RuntimeExportProgress {
   payloadBytes?: number;
 }
 
+interface RuntimeExportMediaTotals {
+  assetCount: number;
+  variantCount: number;
+  bytes: number;
+  unmeasuredVariantCount: number;
+}
+
+interface RuntimeExportMediaReport {
+  before: RuntimeExportMediaTotals;
+  after: RuntimeExportMediaTotals;
+  omitted: RuntimeExportMediaTotals;
+  omittedAssets: Array<{
+    id: string;
+    name: string;
+    kind: "image" | "video" | "audio";
+    variantCount: number;
+    bytes: number;
+    unmeasuredVariantCount: number;
+  }>;
+}
+
+interface RuntimeExportReport {
+  format: "mage2-export-report";
+  version: 1;
+  generatedAt: string;
+  mode: RuntimeExportMode;
+  media: RuntimeExportMediaReport;
+}
+
 interface RuntimeExportRequest {
   format: RuntimeExportFormat;
   mode?: RuntimeExportMode;
+  interfaceLocale?: BuiltInLocale;
   destinationPath?: string;
 }
 
@@ -77,6 +107,7 @@ type RuntimeExportResult =
       outputPath?: string;
       outputDirectory: string;
       buildManifest: unknown;
+      exportReport?: RuntimeExportReport;
       validationReport: {
         valid: boolean;
         mode?: RuntimeExportMode;
@@ -107,6 +138,12 @@ declare global {
       authorizeDirectory(): Promise<string | undefined>;
       listDirectory(targetPath: string): Promise<FileBrowserDirectoryListing>;
       createDirectory(parentDirectory: string, directoryName: string): Promise<string>;
+      writeTranslationInterchange(
+        directoryPath: string,
+        fileName: string,
+        content: string
+      ): Promise<{ path: string; fileName: string }>;
+      readTranslationInterchange(filePath: string): Promise<string>;
       inspectProjectDirectory(projectDir: string): Promise<ProjectDirectoryInspection>;
       createProject(projectDir: string, projectName: string): Promise<ProjectBundle>;
       loadProject(projectDir: string): Promise<ProjectBundle>;

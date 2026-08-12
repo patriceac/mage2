@@ -13,6 +13,12 @@ import {
   resolveRuntimePackageIcon,
   resolveRuntimePackageVersion
 } from "./runtime-package-assets.mjs";
+import {
+  WINDOWS_PLAYER_RUNTIME_DIRECTORY,
+  WINDOWS_PLAYER_RUNTIME_EXECUTABLE,
+  arrangeWindowsPlayerDistribution,
+  compileWindowsPlayerLauncher
+} from "./windows-player-launcher.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -21,6 +27,8 @@ const buildResourcesDirectory = path.join(repoRoot, "build");
 const stageRoot = path.join(repoRoot, "output", "packaging", "runtime-win");
 const appStageDirectory = path.join(stageRoot, "app");
 const outputDirectory = path.join(stageRoot, "dist");
+const launcherOutputDirectory = path.join(stageRoot, "launcher");
+const editorPackageJson = JSON.parse(await readFile(path.join(repoRoot, "apps", "editor", "package.json"), "utf8"));
 
 const projectDirectory = resolveProjectDirectory(process.argv.slice(2));
 const runtimeBuildDirectory = path.join(projectDirectory, "build");
@@ -40,14 +48,23 @@ const productName = `${buildManifest.projectName} Player`;
 const executableName = `${sanitizeWindowsName(buildManifest.projectName)} Player`;
 const appId = `com.mage2.runtime.${projectId}`;
 const runtimeExecutablePath = path.join(outputDirectory, "win-unpacked", `${executableName}.exe`);
+const electronRuntimeExecutablePath = path.join(
+  outputDirectory,
+  "win-unpacked",
+  WINDOWS_PLAYER_RUNTIME_DIRECTORY,
+  WINDOWS_PLAYER_RUNTIME_EXECUTABLE
+);
 
 const closedEditorProcesses = await closeRunningCanonicalEditorProcesses({ repoRootPath: repoRoot });
 if (closedEditorProcesses.closedProcesses.length > 0) {
   console.log(`Closed ${closedEditorProcesses.closedProcesses.length} packaged editor process(es) before runtime packaging.`);
 }
 const closedRuntimeProcesses = await closeRunningWindowsProcessesAtPath(runtimeExecutablePath);
-if (closedRuntimeProcesses.closedProcesses.length > 0) {
-  console.log(`Closed ${closedRuntimeProcesses.closedProcesses.length} packaged player process(es) before runtime packaging.`);
+const closedElectronRuntimeProcesses = await closeRunningWindowsProcessesAtPath(electronRuntimeExecutablePath);
+const closedRuntimeProcessCount =
+  closedRuntimeProcesses.closedProcesses.length + closedElectronRuntimeProcesses.closedProcesses.length;
+if (closedRuntimeProcessCount > 0) {
+  console.log(`Closed ${closedRuntimeProcessCount} packaged player process(es) before runtime packaging.`);
 }
 
 await prepareStage();
@@ -78,6 +95,7 @@ async function prepareStage() {
   await cp(path.join(runtimeShellDirectory, "identity.mjs"), path.join(appStageDirectory, "identity.mjs"));
   await cp(path.join(runtimeShellDirectory, "preload.cjs"), path.join(appStageDirectory, "preload.cjs"));
   await cp(path.join(runtimeShellDirectory, "server.mjs"), path.join(appStageDirectory, "server.mjs"));
+  await cp(path.join(runtimeShellDirectory, "startup.mjs"), path.join(appStageDirectory, "startup.mjs"));
   await cp(runtimeBuildDirectory, path.join(appStageDirectory, "player"), { recursive: true, force: true });
   await writeFile(
     path.join(appStageDirectory, "package.json"),
@@ -99,18 +117,18 @@ async function prepareStage() {
 
 async function packageRuntime() {
   await build({
-    targets: Platform.WINDOWS.createTarget(["nsis", "dir"], Arch.x64),
+    targets: Platform.WINDOWS.createTarget(["dir"], Arch.x64),
     config: {
       appId,
       productName,
       executableName,
-      electronVersion: "37.4.0",
+      electronVersion: editorPackageJson.dependencies.electron.replace(/^[^\d]*/, ""),
       directories: {
         app: appStageDirectory,
         output: outputDirectory,
         buildResources: buildResourcesDirectory
       },
-      files: ["main.mjs", "identity.mjs", "preload.cjs", "server.mjs", "package.json"],
+      files: ["main.mjs", "identity.mjs", "preload.cjs", "server.mjs", "startup.mjs", "package.json"],
       extraResources: [
         { from: path.join(appStageDirectory, "player"), to: "player" },
         { from: path.join(buildResourcesDirectory, "icon.ico"), to: "icon.ico" },
@@ -122,20 +140,22 @@ async function packageRuntime() {
       buildDependenciesFromSource: false,
       compression: "normal",
       win: {
-        target: [
-          { target: "nsis", arch: ["x64"] },
-          { target: "dir", arch: ["x64"] }
-        ],
+        target: [{ target: "dir", arch: ["x64"] }],
         icon: applicationIconPath,
         artifactName: `${sanitizeWindowsName(buildManifest.projectName)}-Player-\${version}-\${arch}.\${ext}`
-      },
-      nsis: {
-        oneClick: false,
-        createDesktopShortcut: false,
-        createStartMenuShortcut: true,
-        shortcutName: productName
       }
     }
+  });
+  const launcherExecutablePath = await compileWindowsPlayerLauncher({
+    sourceDirectory: path.join(repoRoot, "apps", "runtime-windows-launcher"),
+    outputDirectory: launcherOutputDirectory,
+    iconPath: path.join(buildResourcesDirectory, "icon.ico")
+  });
+  await arrangeWindowsPlayerDistribution({
+    unpackedDirectory: path.join(outputDirectory, "win-unpacked"),
+    launcherExecutablePath,
+    packagedRuntimeExecutableName: `${executableName}.exe`,
+    rootLauncherName: `${executableName}.exe`
   });
 }
 

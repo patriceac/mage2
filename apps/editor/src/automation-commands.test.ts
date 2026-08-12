@@ -27,13 +27,13 @@ describe("parseEditorAutomationCommand", () => {
         command: "exportProject",
         format: "windows",
         mode: "preview",
-        destinationPath: "C:\\evidence\\Safe Game Player.exe"
+        destinationPath: "C:\\evidence\\Safe Game Player"
       })
     ).toEqual({
       command: "exportProject",
       format: "windows",
       mode: "preview",
-      destinationPath: "C:\\evidence\\Safe Game Player.exe"
+      destinationPath: "C:\\evidence\\Safe Game Player"
     });
     expect(parseEditorAutomationCommand({ command: "closeApplication" })).toEqual({ command: "closeApplication" });
   });

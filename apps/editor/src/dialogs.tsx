@@ -80,6 +80,7 @@ interface ConfirmDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: "default" | "danger";
+  wide?: boolean;
 }
 
 interface AlertDialogOptions {
@@ -87,6 +88,7 @@ interface AlertDialogOptions {
   body: ReactNode;
   confirmLabel?: string;
   tone?: "default" | "danger";
+  wide?: boolean;
 }
 
 interface PromptTextDialogOptions {
@@ -155,12 +157,21 @@ export type DeleteInventoryItemDialogResult =
 export type RuntimeExportFormat = "windows" | "web";
 export type RuntimeExportMode = "preview" | "release";
 
+export interface RuntimeExportDialogSummary {
+  warningCount: number;
+  unusedAssetCount: number;
+}
+
 interface DialogContextValue {
   alert: (options: AlertDialogOptions) => Promise<void>;
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   promptText: (options: PromptTextDialogOptions) => Promise<string | undefined>;
   confirmCloseProject: (projectName: string) => Promise<"save" | "discard" | "cancel">;
-  chooseRuntimeExport: (projectName: string, mode: RuntimeExportMode) => Promise<RuntimeExportFormat | undefined>;
+  chooseRuntimeExport: (
+    projectName: string,
+    mode: RuntimeExportMode,
+    summary: RuntimeExportDialogSummary
+  ) => Promise<RuntimeExportFormat | undefined>;
   chooseDirectory: (options: DirectoryDialogOptions) => Promise<string | undefined>;
   pickFiles: (options: FileDialogOptions) => Promise<string[]>;
   deleteScene: (options: DeleteSceneDialogOptions) => Promise<DeleteSceneDialogResult>;
@@ -192,6 +203,7 @@ type DialogRequest =
       kind: "runtime-export";
       projectName: string;
       mode: RuntimeExportMode;
+      summary: RuntimeExportDialogSummary;
       resolve: (value: RuntimeExportFormat | undefined) => void;
     }
   | {
@@ -250,9 +262,9 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         new Promise<"save" | "discard" | "cancel">((resolve) => {
           enqueueDialog({ kind: "close-project", projectName, resolve });
         }),
-      chooseRuntimeExport: (projectName, mode) =>
+      chooseRuntimeExport: (projectName, mode, summary) =>
         new Promise<RuntimeExportFormat | undefined>((resolve) => {
-          enqueueDialog({ kind: "runtime-export", projectName, mode, resolve });
+          enqueueDialog({ kind: "runtime-export", projectName, mode, summary, resolve });
         }),
       chooseDirectory: (options) =>
         new Promise<string | undefined>((resolve) => {
@@ -348,6 +360,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         <RuntimeExportDialog
           projectName={activeDialog.projectName}
           mode={activeDialog.mode}
+          summary={activeDialog.summary}
           onResolve={(value) => {
             activeDialog.resolve(value);
             dismissActiveDialog();
@@ -661,12 +674,16 @@ export function formatFileBrowserSize(entry: FileBrowserEntry, locale = "en"): s
     return "—";
   }
 
-  if (entry.sizeBytes < 1024) {
-    return new Intl.NumberFormat(locale, { style: "unit", unit: "byte", unitDisplay: "short" }).format(entry.sizeBytes);
+  return formatByteSize(entry.sizeBytes, locale);
+}
+
+export function formatByteSize(sizeBytes: number, locale = "en"): string {
+  if (sizeBytes < 1024) {
+    return new Intl.NumberFormat(locale, { style: "unit", unit: "byte", unitDisplay: "short" }).format(sizeBytes);
   }
 
   const units = ["kilobyte", "megabyte", "gigabyte"] as const;
-  let size = entry.sizeBytes / 1024;
+  let size = sizeBytes / 1024;
   let unitIndex = 0;
 
   while (size >= 1024 && unitIndex < units.length - 1) {
@@ -750,7 +767,7 @@ function ConfirmDialog({
   return (
     <DialogFrame
       title={t(options.title)}
-      wide={false}
+      wide={options.wide ?? false}
       tone={options.tone}
       onCancel={onCancel}
       footer={
@@ -784,7 +801,7 @@ function AlertDialog({
   return (
     <DialogFrame
       title={t(options.title)}
-      wide={false}
+      wide={options.wide ?? false}
       tone={options.tone}
       onCancel={onResolve}
       footer={
@@ -2114,16 +2131,34 @@ function resolveDirectoryValidationMessage(
     : t("This folder does not contain a valid MAGE2 project.");
 }
 
-function RuntimeExportDialog({
+export function RuntimeExportDialog({
   projectName,
   mode,
+  summary,
   onResolve
 }: {
   projectName: string;
   mode: RuntimeExportMode;
+  summary: RuntimeExportDialogSummary;
   onResolve: (value: RuntimeExportFormat | undefined) => void;
 }) {
   const { t } = useEditorI18n();
+  const gateStatus = mode === "preview"
+    ? t("Project health check passed.")
+    : summary.warningCount === 0
+      ? t("Release checks passed with no warnings.")
+      : summary.warningCount === 1
+        ? t("Release checks passed after {count} warning was acknowledged.", { count: summary.warningCount })
+        : t("Release checks passed after {count} warnings were acknowledged.", { count: summary.warningCount });
+  const unusedAssetSummary = summary.unusedAssetCount === 0
+    ? t("All project assets are referenced and will be included.")
+    : summary.unusedAssetCount === 1
+      ? t("{count} unused asset will stay in the project and be omitted from this export.", {
+          count: summary.unusedAssetCount
+        })
+      : t("{count} unused assets will stay in the project and be omitted from this export.", {
+          count: summary.unusedAssetCount
+        });
   return (
     <DialogFrame
       title={mode === "preview" ? t("Export Preview") : t("Build Release")}
@@ -2138,6 +2173,18 @@ function RuntimeExportDialog({
         </div>
       }
     >
+      <section className={`runtime-export-summary runtime-export-summary--${mode}`} aria-label={t("Export checks")}>
+        <div className="runtime-export-summary__heading">
+          <span>{mode === "preview" ? t("Preview gate") : t("Release gate")}</span>
+          <strong>{gateStatus}</strong>
+        </div>
+        <p>
+          {mode === "preview"
+            ? t("Preview checks for broken project data only. It does not confirm that the game is ready to publish.")
+            : t("Release checks publication readiness and records the decision to continue when warnings are acknowledged.")}
+        </p>
+        <p className="runtime-export-summary__media">{unusedAssetSummary}</p>
+      </section>
       <div className="runtime-export-options">
         <button
           type="button"
@@ -2145,14 +2192,14 @@ function RuntimeExportDialog({
           onClick={() => onResolve("windows")}
           autoFocus
         >
-          <span className="runtime-export-option__badge" aria-hidden="true">.EXE</span>
+          <span className="runtime-export-option__badge" aria-hidden="true">WIN</span>
           <span className="runtime-export-option__copy">
             <span className="runtime-export-option__heading">
-              <strong>{t("Standalone Windows executable")}</strong>
+              <strong>{t("Ready-to-play Windows folder")}</strong>
               <span>{t("Recommended")}</span>
             </span>
-            <span>{t("Create one portable file that runs without a browser, server, Node.js, or installation.")}</span>
-            <small>{t("You will choose its file name and destination next.")}</small>
+            <span>{t("Create a Windows game folder that starts directly, with no installation or per-launch extraction.")}</span>
+            <small>{t("Share the entire folder; players open the named game executable inside.")}</small>
           </span>
         </button>
         <button

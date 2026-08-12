@@ -46,6 +46,10 @@ const editorApi = {
   listDirectory: (targetPath: string) => ipcRenderer.invoke("mage2:list-directory", targetPath),
   createDirectory: (parentDirectory: string, directoryName: string) =>
     ipcRenderer.invoke("mage2:create-directory", parentDirectory, directoryName),
+  writeTranslationInterchange: (directoryPath: string, fileName: string, content: string) =>
+    ipcRenderer.invoke("mage2:write-translation-interchange", directoryPath, fileName, content),
+  readTranslationInterchange: (filePath: string): Promise<string> =>
+    ipcRenderer.invoke("mage2:read-translation-interchange", filePath),
   inspectProjectDirectory: (projectDir: string): Promise<ProjectDirectoryInspection> =>
     ipcRenderer.invoke("mage2:inspect-project-directory", projectDir),
   createProject: (projectDir: string, projectName: string): Promise<ProjectBundle> =>

@@ -2,9 +2,24 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createDefaultProjectBundle } from "@mage2/schema";
-import { ConditionListEditor, EffectListEditor } from "./RuleBuilder";
+import {
+  ConditionListEditor,
+  EffectListEditor,
+  resolveVariableCreatorTabDestination,
+  shouldDismissVariableCreatorOnKey
+} from "./RuleBuilder";
 
 describe("visual rule builders", () => {
+  it("keeps inline variable creation keyboard focus inside the local editor", () => {
+    expect(resolveVariableCreatorTabDestination(0, 3, true)).toBe(2);
+    expect(resolveVariableCreatorTabDestination(2, 3, false)).toBe(0);
+    expect(resolveVariableCreatorTabDestination(1, 3, false)).toBeUndefined();
+    expect(resolveVariableCreatorTabDestination(-1, 3, false)).toBeUndefined();
+    expect(shouldDismissVariableCreatorOnKey({ key: "Escape", altKey: false, ctrlKey: false, metaKey: false })).toBe(true);
+    expect(shouldDismissVariableCreatorOnKey({ key: "Escape", altKey: false, ctrlKey: true, metaKey: false })).toBe(false);
+    expect(shouldDismissVariableCreatorOnKey({ key: "Enter", altKey: false, ctrlKey: false, metaKey: false })).toBe(false);
+  });
+
   it("renders named, sentence-like conditions without exposing JSON", () => {
     const project = createDefaultProjectBundle("Conditions");
     project.manifest.variables.push({

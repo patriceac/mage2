@@ -68,6 +68,8 @@ interface PlaytestSaveFeedback {
   message: string;
 }
 
+type PlaytestCompactView = "player" | "diagnostics";
+
 export function resolvePlaytestInventorySummary(
   items: Array<Pick<InventoryItem, "name" | "textId">>,
   strings: Record<string, string>,
@@ -133,6 +135,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     durationMs: number;
   }>();
   const [showHotspots, setShowHotspots] = useState(false);
+  const [compactView, setCompactView] = useState<PlaytestCompactView>("player");
   const [playerScreen, setPlayerScreen] = useState<PlayerExperienceScreen>("game");
   const [playerPreferences, setPlayerPreferences] = useState<PlayerExperiencePreferences>(
     DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
@@ -494,8 +497,28 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const logicTrace = controller.getLogicTrace();
 
   return (
-    <div className="panel-grid panel-grid--playtest">
-      <section className="panel">
+    <div className={`panel-grid panel-grid--playtest panel-grid--playtest-${compactView}`}>
+      <nav className="playtest-compact-switcher" aria-label={t("Playtest")}>
+        <button
+          type="button"
+          className={compactView === "player" ? "playtest-compact-switcher__button playtest-compact-switcher__button--active" : "playtest-compact-switcher__button"}
+          aria-controls="playtest-player-pane"
+          aria-pressed={compactView === "player"}
+          onClick={() => setCompactView("player")}
+        >
+          {t("Player")}
+        </button>
+        <button
+          type="button"
+          className={compactView === "diagnostics" ? "playtest-compact-switcher__button playtest-compact-switcher__button--active" : "playtest-compact-switcher__button"}
+          aria-controls="playtest-diagnostics-pane"
+          aria-pressed={compactView === "diagnostics"}
+          onClick={() => setCompactView("diagnostics")}
+        >
+          {t("Playtest diagnostics")}
+        </button>
+      </nav>
+      <section id="playtest-player-pane" className="panel playtest-primary">
         <div className="panel__toolbar playtest-panel__toolbar">
           <label className="playtest-panel__toolbar-field playtest-panel__toolbar-field--playhead">
             <span className="playtest-panel__toolbar-label">{t("Playhead")}</span>
@@ -781,7 +804,7 @@ function PlaytestDiagnostics({
   const { t } = useEditorI18n();
   const recentTrace = logicTrace.slice(-12);
   return (
-    <aside className="panel playtest-diagnostics" aria-label={t("Playtest diagnostics")}>
+    <aside id="playtest-diagnostics-pane" className="panel playtest-diagnostics" aria-label={t("Playtest diagnostics")}>
       <header className="playtest-diagnostics__header">
         <div>
           <h3>{t("Playtest diagnostics")}</h3>

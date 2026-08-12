@@ -12,10 +12,10 @@ describe("runtime export progress overlay", () => {
       React.createElement(RuntimeExportProgressOverlay, {
         progress: {
           format: "windows",
-          phase: "compressing",
+          phase: "assembling-player",
           progress: 0.61,
           elapsedSeconds: 66.9,
-          estimatedSecondsRemaining: 125,
+          estimatedSecondsRemaining: 13,
           payloadBytes: 356 * 1024 * 1024
         }
       })
@@ -24,10 +24,11 @@ describe("runtime export progress overlay", () => {
     expect(markup).toContain('role="status"');
     expect(markup).toContain('role="progressbar"');
     expect(markup).toContain('aria-valuenow="61"');
-    expect(markup).toContain('data-runtime-export-progress-phase="compressing"');
-    expect(markup).toContain("Compressing executable");
+    expect(markup).toContain('data-runtime-export-progress-phase="assembling-player"');
+    expect(markup).toContain("Assembling Windows player folder");
+    expect(markup).toContain("Ready-to-play Windows folder");
     expect(markup).toContain('data-runtime-export-elapsed="true">1:06');
-    expect(markup).toContain('data-runtime-export-eta="true">~2:05');
+    expect(markup).toContain('data-runtime-export-eta="true">~0:13');
     expect(markup).toContain("The selected destination is replaced only after the export succeeds.");
   });
 

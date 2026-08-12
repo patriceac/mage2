@@ -421,6 +421,7 @@ export function App() {
   const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const interactionMediaSequenceRef = useRef(0);
   const playerRendererRef = useRef<PlayerSceneRendererHandle>(null);
+  const initialSurfaceReportedRef = useRef(false);
   const [activeResponse, setActiveResponse] = useState<ActivePlayerResponse>();
   const completeResponse = useCallback((sequence: number) => {
     setActiveResponse((current) => (current?.sequence === sequence ? undefined : current));
@@ -513,6 +514,25 @@ export function App() {
   const canQuitRuntime = typeof window !== "undefined" && typeof window.mage2Runtime?.quit === "function";
   const playerCopy = resolveRuntimePlayerCopy(interfaceLocale);
   const runtimeProject = useMemo(() => (content ? createRuntimeProject(content) : undefined), [content]);
+  useEffect(() => {
+    if (
+      initialSurfaceReportedRef.current ||
+      !buildManifest ||
+      !content ||
+      !runtimeProject ||
+      !controller ||
+      !snapshot
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      if (initialSurfaceReportedRef.current) return;
+      initialSurfaceReportedRef.current = true;
+      window.mage2Runtime?.reportInitialSurfaceReady?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [buildManifest, content, controller, runtimeProject, snapshot]);
   const currentAsset =
     content && snapshot
       ? (content.assets.find((asset) => asset.id === snapshot.scene.backgroundAssetId) as Asset | undefined)

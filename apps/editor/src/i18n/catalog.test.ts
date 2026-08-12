@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createEditorCatalog, EDITOR_FEATURE_CATALOGS } from "./catalog";
+import { createEditorCatalog, EDITOR_CATALOG, EDITOR_FEATURE_CATALOGS } from "./catalog";
 import { assertCompleteEditorMessages, defineEditorMessages, type EditorMessages } from "./messages";
+import { createEditorTranslator } from "./translate";
 
 const COMPLETE_MESSAGE = {
   fr: "Ouvrir",
@@ -84,5 +85,12 @@ describe("editor feature catalogs", () => {
         { allowSourceEqual: ["MAGE2"] }
       )
     ).not.toThrow();
+  });
+
+  it("uses the reviewed French localization terminology", () => {
+    const t = createEditorTranslator(EDITOR_CATALOG, "fr");
+    expect(t("Strings")).toBe("Chaînes");
+    expect(t("Draft strings")).toBe("Chaînes en brouillon");
+    expect(t("Mark Translated")).toBe("Marquer comme traduit");
   });
 });

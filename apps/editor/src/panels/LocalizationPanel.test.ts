@@ -87,6 +87,19 @@ function extractSourceSection(source: string, startMarker: string, endMarker: st
   return source.slice(start, end);
 }
 
+function extractButtonByLabel(markup: string, label: string): string {
+  const labelIndex = markup.indexOf(`<span>${label}</span>`);
+  if (labelIndex < 0) {
+    throw new Error(`Missing button label: ${label}`);
+  }
+  const start = markup.lastIndexOf("<button", labelIndex);
+  const end = markup.indexOf("</button>", labelIndex);
+  if (start < 0 || end < 0) {
+    throw new Error(`Missing button markup: ${label}`);
+  }
+  return markup.slice(start, end + "</button>".length);
+}
+
 function renderLocalizationPanel(
   section: LocalizationSection,
   configureProject?: (project: ReturnType<typeof createDefaultProjectBundle>) => void,
@@ -309,6 +322,25 @@ describe("LocalizationPanel shared header", () => {
     expect(markup).toContain("Set as Default");
     expect(markup).toContain("Remove Locale");
     expect(markup).toContain("button-danger-quiet");
+  });
+
+  it("keeps translation handoff contextual to a target locale", () => {
+    const sourceMarkup = renderLocalizationPanel("strings");
+    const targetMarkup = renderLocalizationPanel(
+      "strings",
+      (project) => addProjectLocale(project, "fr"),
+      "fr"
+    );
+
+    expect(sourceMarkup).toContain('role="group" aria-label="Translation handoff"');
+    expect(extractButtonByLabel(sourceMarkup, "Export file")).toContain('disabled=""');
+    expect(extractButtonByLabel(sourceMarkup, "Review import")).toContain('disabled=""');
+    expect(sourceMarkup).toContain("Choose a target locale to use translation handoff.");
+
+    expect(extractButtonByLabel(targetMarkup, "Export file")).not.toContain('disabled=""');
+    expect(extractButtonByLabel(targetMarkup, "Review import")).not.toContain('disabled=""');
+    expect(targetMarkup).toContain("Export source text, current translations, IDs, and workflow states as versioned JSON.");
+    expect(targetMarkup).toContain("Open a translation JSON file and review safe changes and conflicts before applying anything.");
   });
 });
 

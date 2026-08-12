@@ -18,6 +18,10 @@ import {
   BUILT_IN_LOCALE_CASES,
   assertEditorLocaleState
 } from "./localization-verification.mjs";
+import {
+  WINDOWS_PLAYER_FIRST_RESPONSE_BUDGET_MS,
+  WINDOWS_PLAYER_TITLE_READY_BUDGET_MS
+} from "../apps/runtime-electron/startup.mjs";
 
 const AUTOMATION_PORT = 47632;
 const AUTOMATION_TOKEN = randomBytes(32).toString("hex");
@@ -35,9 +39,19 @@ const projectEvidencePath = path.join(evidenceDirectory, "representative-project
 const standaloneRuntimeEvidenceDirectory = path.join(evidenceDirectory, "standalone-runtime");
 const standaloneRuntimeEvidencePath = path.join(
   standaloneRuntimeEvidenceDirectory,
-  "Windows CI Representative Project Player.exe"
+  "Windows CI Representative Project Preview.exe"
+);
+const standaloneRuntimeEngineEvidencePath = path.join(
+  standaloneRuntimeEvidenceDirectory,
+  "runtime",
+  "MAGE2 Player.exe"
+);
+const standaloneRuntimeLauncherReadyPath = path.join(
+  evidenceDirectory,
+  "standalone-runtime-launcher-ready.json"
 );
 const standaloneRuntimeTitleScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-title.png");
+const standaloneRuntimeStartupScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-startup.png");
 const standaloneRuntimeScreenshotPath = path.join(evidenceDirectory, "standalone-runtime-running.png");
 const runtimeExportProgressScreenshotPath = path.join(evidenceDirectory, "packaged-editor-runtime-export-progress.png");
 const selectedWebRuntimeEvidencePath = path.join(evidenceDirectory, "selected-web-runtime");
@@ -238,7 +252,7 @@ async function main() {
 
     const standaloneDestinationPath = path.join(
       temporaryRoot,
-      "Windows CI Representative Project Player.exe"
+      "Windows CI Representative Project Preview"
     );
     const standaloneExportPromise = sendAutomationCommand({
       command: "exportProject",
@@ -256,24 +270,57 @@ async function main() {
       standaloneExportState.export.outputPath !== standaloneDestinationPath ||
       !standaloneExportState.export.validationReport?.valid
     ) {
-      throw new Error(`The standalone Windows export result is invalid: ${JSON.stringify(standaloneExportState?.export)}`);
+      throw new Error(`The Windows player folder export result is invalid: ${JSON.stringify(standaloneExportState?.export)}`);
     }
-    const standaloneStats = await stat(standaloneDestinationPath);
-    const standaloneHeader = await readExecutableHeader(standaloneDestinationPath);
-    if (standaloneStats.size < 1_000_000 || standaloneHeader !== "MZ") {
-      throw new Error("The standalone Windows export is not a plausible PE executable.");
+    const standaloneFolderStats = await stat(standaloneDestinationPath);
+    if (!standaloneFolderStats.isDirectory()) {
+      throw new Error("The Windows player export did not create a folder.");
     }
-    const standaloneSha256 = await hashFile(standaloneDestinationPath);
+    const standaloneMarker = JSON.parse(
+      await readFile(path.join(standaloneDestinationPath, ".mage2-windows-player.json"), "utf8")
+    );
+    if (
+      standaloneMarker.format !== "mage2-windows-player" ||
+      standaloneMarker.projectId !== standaloneExportState.export.buildManifest?.projectId ||
+      standaloneMarker.executableName !== "Windows CI Representative Project Preview.exe"
+    ) {
+      throw new Error(`The Windows player ownership marker is invalid: ${JSON.stringify(standaloneMarker)}`);
+    }
+    const standaloneSourceExecutable = path.join(
+      standaloneDestinationPath,
+      standaloneMarker.executableName
+    );
+    const standaloneSourceRuntimeExecutable = path.join(
+      standaloneDestinationPath,
+      "runtime",
+      "MAGE2 Player.exe"
+    );
+    const standaloneStats = await stat(standaloneSourceExecutable);
+    const standaloneRuntimeStats = await stat(standaloneSourceRuntimeExecutable);
+    const standaloneHeader = await readExecutableHeader(standaloneSourceExecutable);
+    const standaloneRuntimeHeader = await readExecutableHeader(standaloneSourceRuntimeExecutable);
+    if (
+      standaloneStats.size < 20_000 ||
+      standaloneStats.size > 1_000_000 ||
+      standaloneHeader !== "MZ" ||
+      standaloneRuntimeStats.size < 50_000_000 ||
+      standaloneRuntimeHeader !== "MZ"
+    ) {
+      throw new Error("The Windows player folder does not contain a plausible launcher and runtime engine.");
+    }
+    const standaloneSha256 = await hashFile(standaloneSourceExecutable);
+    const standaloneRuntimeSha256 = await hashFile(standaloneSourceRuntimeExecutable);
     await rm(standaloneRuntimeEvidenceDirectory, { recursive: true, force: true });
-    await mkdir(standaloneRuntimeEvidenceDirectory, { recursive: true });
-    await cp(standaloneDestinationPath, standaloneRuntimeEvidencePath);
+    await cp(standaloneDestinationPath, standaloneRuntimeEvidenceDirectory, { recursive: true });
     const standaloneEvidenceEntries = await readdir(standaloneRuntimeEvidenceDirectory);
     if (
-      standaloneEvidenceEntries.length !== 1 ||
-      standaloneEvidenceEntries[0] !== path.basename(standaloneRuntimeEvidencePath)
+      !standaloneEvidenceEntries.includes(path.basename(standaloneRuntimeEvidencePath)) ||
+      !standaloneEvidenceEntries.includes(".mage2-windows-player.json") ||
+      !standaloneEvidenceEntries.includes("runtime")
     ) {
-      throw new Error("The standalone export evidence directory must contain exactly one distributable file.");
+      throw new Error("The Windows player evidence folder is incomplete.");
     }
+    await stat(path.join(standaloneRuntimeEvidenceDirectory, "runtime", "resources", "app.asar"));
     const standaloneLaunch = await verifyStandaloneRuntime(standaloneRuntimeEvidencePath);
 
     const selectedWebDestinationPath = path.join(temporaryRoot, "Selected Web Runtime");
@@ -374,10 +421,14 @@ async function main() {
       },
       standaloneExport: {
         format: standaloneExportState.export.format,
-        outputPath: standaloneRuntimeEvidencePath,
-        sizeBytes: standaloneStats.size,
-        sha256: standaloneSha256,
-        onlyDistributableFile: standaloneEvidenceEntries[0],
+        outputPath: standaloneRuntimeEvidenceDirectory,
+        executablePath: standaloneRuntimeEvidencePath,
+        executableSizeBytes: standaloneStats.size,
+        executableSha256: standaloneSha256,
+        runtimeExecutablePath: standaloneRuntimeEngineEvidencePath,
+        runtimeExecutableSizeBytes: standaloneRuntimeStats.size,
+        runtimeExecutableSha256: standaloneRuntimeSha256,
+        artifactEntries: standaloneEvidenceEntries,
         titleScreenshotPath: standaloneRuntimeTitleScreenshotPath,
         screenshotPath: standaloneRuntimeScreenshotPath,
         progress: runtimeExportProgress,
@@ -461,9 +512,7 @@ async function capturePackagedRuntimeExportProgress(expectedFormat) {
 
         if (
           !screenshotCaptured &&
-          sample.phase === "compressing" &&
-          typeof sample.estimatedSecondsRemaining === "number" &&
-          sample.estimatedSecondsRemaining > 0 &&
+          sample.phase !== "complete" &&
           sample.percent > 0 &&
           sample.percent < 100
         ) {
@@ -491,7 +540,7 @@ async function capturePackagedRuntimeExportProgress(expectedFormat) {
   }
   if (!screenshotCaptured) {
     throw new Error(
-      `The packaged editor never showed a visible compression ETA during the standalone export: ${JSON.stringify(samples)}`
+      `The packaged editor never showed visible progress while assembling the Windows player folder: ${JSON.stringify(samples)}`
     );
   }
 
@@ -499,33 +548,23 @@ async function capturePackagedRuntimeExportProgress(expectedFormat) {
   if (progressValues.some((value, index) => index > 0 && value < progressValues[index - 1])) {
     throw new Error(`Runtime export progress moved backward: ${JSON.stringify(progressValues)}`);
   }
-  const compressionSamples = samples.filter(
-    (sample) => sample.phase === "compressing" && typeof sample.estimatedSecondsRemaining === "number"
-  );
-  if (
-    compressionSamples.length < 2 ||
-    !compressionSamples.some((sample, index) => index > 0 && sample.progress > compressionSamples[index - 1].progress) ||
-    !compressionSamples.some(
-      (sample, index) =>
-        index > 0 &&
-        sample.estimatedSecondsRemaining < compressionSamples[index - 1].estimatedSecondsRemaining
-    )
-  ) {
-    throw new Error(`The packaged editor progress or ETA did not advance during compression: ${JSON.stringify(compressionSamples)}`);
+  if (!samples.some((sample) => sample.phase === "assembling-player")) {
+    throw new Error(`The packaged editor did not report Windows player assembly: ${JSON.stringify(samples)}`);
   }
 
   return {
     screenshotPath: runtimeExportProgressScreenshotPath,
     sampleCount: samples.length,
     phases: [...new Set(samples.map((sample) => sample.phase))],
-    firstCompressionSample: compressionSamples[0],
-    lastCompressionSample: compressionSamples.at(-1),
+    firstNonTerminalSample: samples.find((sample) => sample.phase !== "complete"),
     samples
   };
 }
 
 async function verifyStandaloneRuntime(executablePath) {
   const debuggingPort = await reserveLoopbackPort();
+  await rm(standaloneRuntimeLauncherReadyPath, { force: true });
+  const launchedAt = Date.now();
   const runtimeProcess = spawn(
     executablePath,
     [
@@ -535,14 +574,42 @@ async function verifyStandaloneRuntime(executablePath) {
     {
       cwd: path.dirname(executablePath),
       stdio: "ignore",
-      windowsHide: false
+      windowsHide: false,
+      env: {
+        ...process.env,
+        MAGE2_LAUNCHER_READY_FILE: standaloneRuntimeLauncherReadyPath
+      }
     }
   );
 
   let browser;
   let page;
   try {
+    const launcherReady = await waitForJsonFile(
+      standaloneRuntimeLauncherReadyPath,
+      runtimeProcess,
+      60_000
+    );
+    const firstResponseMs = Date.now() - launchedAt;
+    if (
+      launcherReady?.visible !== true ||
+      launcherReady?.projectName !== "Windows CI Representative Project"
+    ) {
+      throw new Error(`The native Windows player response was not project-branded: ${JSON.stringify(launcherReady)}`);
+    }
+    if (firstResponseMs > WINDOWS_PLAYER_FIRST_RESPONSE_BUDGET_MS) {
+      throw new Error(
+        `The Windows player exceeded its ${WINDOWS_PLAYER_FIRST_RESPONSE_BUDGET_MS} ms first-response budget: ${firstResponseMs} ms.`
+      );
+    }
+
     browser = await connectToCdp(`http://127.0.0.1:${debuggingPort}`, runtimeProcess);
+    const responsePage = await waitForRuntimeResponsePage(browser, runtimeProcess);
+    const responseText = normalizeText(await responsePage.locator("body").innerText().catch(() => ""));
+    if (!responseText.includes("Windows CI Representative Project")) {
+      throw new Error(`The Electron Windows player surface was not project-branded: ${responseText.slice(0, 500)}`);
+    }
+    await responsePage.screenshot({ path: standaloneRuntimeStartupScreenshotPath, fullPage: true });
     page = await waitForStandaloneRuntimePage(browser, runtimeProcess);
     try {
       await page.locator(".mage2-experience__title").waitFor({ state: "visible", timeout: 30_000 });
@@ -555,6 +622,12 @@ async function verifyStandaloneRuntime(executablePath) {
       );
     }
     const titleText = normalizeText(await page.locator("body").innerText());
+    const titleReadyMs = Date.now() - launchedAt;
+    if (titleReadyMs > WINDOWS_PLAYER_TITLE_READY_BUDGET_MS) {
+      throw new Error(
+        `The Windows player exceeded its ${WINDOWS_PLAYER_TITLE_READY_BUDGET_MS} ms title-ready budget: ${titleReadyMs} ms.`
+      );
+    }
     if (!titleText.includes("Windows CI Representative Project")) {
       throw new Error(`The standalone player title screen is for the wrong project: ${titleText.slice(0, 500)}`);
     }
@@ -580,6 +653,12 @@ async function verifyStandaloneRuntime(executablePath) {
     await waitForProcessExitWithTimeout(runtimeProcess, 20_000, "standalone runtime");
     return {
       executablePath,
+      launcherReady,
+      firstResponseMs,
+      firstResponseBudgetMs: WINDOWS_PLAYER_FIRST_RESPONSE_BUDGET_MS,
+      titleReadyMs,
+      titleReadyBudgetMs: WINDOWS_PLAYER_TITLE_READY_BUDGET_MS,
+      startupScreenshotPath: standaloneRuntimeStartupScreenshotPath,
       titleText,
       renderer: rendererState,
       exitCode: runtimeProcess.exitCode
@@ -594,6 +673,43 @@ async function verifyStandaloneRuntime(executablePath) {
       await waitForProcessExitWithTimeout(runtimeProcess, 5_000, "standalone runtime cleanup").catch(() => undefined);
     }
   }
+}
+
+async function waitForRuntimeResponsePage(browser, childProcess) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    if (childProcess.exitCode !== null) {
+      throw new Error(`The Windows player exited before its first visible response (code ${childProcess.exitCode}).`);
+    }
+    for (const context of browser.contexts()) {
+      for (const candidate of context.pages()) {
+        if (candidate.url() !== "about:blank") {
+          return candidate;
+        }
+      }
+    }
+    await delay(50);
+  }
+  throw new Error("Timed out waiting for the Electron Windows player startup surface.");
+}
+
+async function waitForJsonFile(filePath, childProcess, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    if (childProcess.exitCode !== null) {
+      throw new Error(`The Windows player exited before publishing its native response (code ${childProcess.exitCode}).`);
+    }
+    try {
+      return JSON.parse(await readFile(filePath, "utf8"));
+    } catch (error) {
+      lastError = error;
+    }
+    await delay(10);
+  }
+  throw new Error(`Timed out waiting for the native Windows player response at ${filePath}.`, {
+    cause: lastError
+  });
 }
 
 async function connectToCdp(endpoint, childProcess) {

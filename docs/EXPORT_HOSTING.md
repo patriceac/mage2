@@ -2,10 +2,12 @@
 
 The editor's **Export Runtime** action offers two outputs:
 
-- **Standalone Windows executable** creates one portable `.exe` at the file location you choose. It contains the player and authored project, needs no browser or installation, and extracts a private temporary runtime while the game is open.
+- **Ready-to-play Windows folder** asks for a destination and creates a MAGE2-managed `<Project Name> Player` folder there. Share the complete folder; players open the game-named `.exe` inside. It needs no browser or installation and does not extract itself on each launch.
 - **Web build folder** asks for a destination and creates a MAGE2-managed `<Project Name> Web` folder there. The supported deployment unit is the complete contents of that folder.
 
-MAGE2 only replaces an empty web destination or an unchanged export previously created for the same project. It never clears an arbitrary nonempty folder.
+MAGE2 only replaces an empty destination or an unchanged export previously created for the same project. It never clears an arbitrary nonempty folder, including a Windows player folder containing added or modified files.
+
+The game-named Windows executable is a lightweight branded launcher. It remains visible while the contained `runtime` starts, then hands off to the game window; players should not open or move files inside `runtime`. The clean-VM product budgets are a visible branded launcher within 5 seconds and the first playable/title surface within 45 seconds. The loading surface remains visible between those milestones.
 
 ## Supported hosts
 
