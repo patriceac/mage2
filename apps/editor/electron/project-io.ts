@@ -20,6 +20,7 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { computeFileSha256, generateProxy } from "@mage2/media";
+import { projectPathsForStorage, resolveStoredProjectPaths } from "./project-paths";
 import {
   createSaveCompatibilityBaseline,
   createDefaultProjectBundle,
@@ -147,12 +148,18 @@ export async function loadProjectFromDirectory(projectDir: string): Promise<Proj
     const filePaths = resolveProjectFilePaths(boundary.requestedRoot);
     await access(filePaths.manifest);
 
-    const project = await readProjectBundle(filePaths);
-    const migratedProject = (await needsStarterResponseMigration(filePaths.dialogues))
-      ? await saveProjectTransaction(boundary, project)
-      : project;
-    await assertProjectAssetPathsContained(boundary, migratedProject);
-    return ensureProjectAssetPreviews(boundary, migratedProject);
+    const { project, needsMigration } = resolveStoredProjectPaths(
+      await readProjectBundle(filePaths),
+      boundary.requestedRoot
+    );
+    await assertProjectAssetPathsContained(boundary, project);
+    const withPreviews = await ensureProjectAssetPreviews(boundary, project);
+    // Preview regeneration already saves the complete migrated bundle atomically.
+    if (withPreviews !== project) return withPreviews;
+    if (needsMigration || await needsStarterResponseMigration(filePaths.dialogues)) {
+      return saveProjectTransaction(boundary, project);
+    }
+    return project;
   });
 }
 
@@ -182,7 +189,11 @@ export async function inspectProjectDirectory(projectDir: string): Promise<Proje
     }
 
     try {
-      const project = await readProjectBundle(filePaths);
+      const { project } = resolveStoredProjectPaths(
+        await readProjectBundle(filePaths),
+        boundary.requestedRoot
+      );
+      await assertProjectAssetPathsContained(boundary, project);
       return {
         isProjectDirectory: true,
         projectName: project.manifest.projectName
@@ -291,11 +302,12 @@ async function saveProjectTransaction(
   const projectDir = boundary.requestedRoot;
   const normalized = parseProjectBundle(project);
   await assertProjectAssetPathsContained(boundary, normalized);
+  const stored = projectPathsForStorage(normalized, projectDir);
   const filePaths = resolveProjectFilePaths(projectDir);
   const transactionPaths = resolveProjectTransactionPaths(projectDir);
   const values: Record<ProjectFileKey, unknown> = {
-    manifest: normalized.manifest,
-    assets: normalized.assets,
+    manifest: stored.manifest,
+    assets: stored.assets,
     locations: normalized.locations,
     scenes: normalized.scenes,
     dialogues: normalized.dialogues,
@@ -536,7 +548,10 @@ async function createProjectExclusively(
     await seedCinematicStarterKit(stagingRoot, project);
     rebaseProjectPaths(project, stagingRoot, boundary.requestedRoot);
     const normalized = parseProjectBundle(project);
-    await writeProjectBundleToStaging(stagingRoot, normalized);
+    await writeProjectBundleToStaging(
+      stagingRoot,
+      projectPathsForStorage(normalized, boundary.requestedRoot)
+    );
     await publishStagedProjectExclusively(
       boundary,
       stagingRoot,

@@ -1,5 +1,6 @@
 import {
   access,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -178,6 +179,113 @@ describe("starter project creation", () => {
     expect(await readFile(path.join(projectDir, relativeAssetPath), "utf8")).toBe(
       concurrentContents
     );
+  });
+});
+
+describe("portable project storage", () => {
+  it("creates and copies a starter project with relative disk paths and absolute editor paths", async () => {
+    const sandbox = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-create-"));
+    tempDirs.push(sandbox);
+    const originalDir = path.join(sandbox, "original");
+    const copiedDir = path.join(sandbox, "copied");
+    const original = await createProjectInDirectory(originalDir, "Portable starter");
+    const undoSnapshot = structuredClone(original);
+    const baseline = await recordProjectSaveCompatibilityBaseline(originalDir, original);
+    await cp(originalDir, copiedDir, { recursive: true });
+
+    const loaded = await loadProjectFromDirectory(copiedDir);
+    expect(loaded.manifest.assetRoots).toEqual([path.join(copiedDir, "assets")]);
+    expect(loaded.assets.assets[0]!.variants.en!.sourcePath).toBe(
+      path.join(copiedDir, "assets", "cinematic-starter-scene.png")
+    );
+    await expect(access(loaded.assets.assets[0]!.variants.en!.proxyPath!)).resolves.toBeUndefined();
+    expect(await loadProjectSaveCompatibilityBaseline(copiedDir, loaded.manifest.projectId)).toEqual(baseline);
+    expect(JSON.parse(await readFile(path.join(copiedDir, "project.json"), "utf8")).assetRoots).toEqual(["assets"]);
+    const diskAssets = JSON.parse(await readFile(path.join(copiedDir, "assets.json"), "utf8"));
+    expect(diskAssets.assets[0].variants.en).toMatchObject({
+      sourcePath: "assets/cinematic-starter-scene.png",
+      proxyPath: ".mage2/proxies/asset_starter_scene.en.png",
+      posterPath: ".mage2/proxies/asset_starter_scene.en.thumb.png"
+    });
+    expect(await saveProjectToDirectory(originalDir, original)).toEqual(undoSnapshot);
+    expect(original).toEqual(undoSnapshot);
+  });
+
+  it("relocates legacy absolute paths and regenerates previews solely in the copied folder", async () => {
+    const sandbox = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-legacy-"));
+    tempDirs.push(sandbox);
+    const originalDir = path.join(sandbox, "original");
+    const copiedDir = path.join(sandbox, "copied");
+    const original = await createPortableFixture(originalDir);
+    original.assets.assets[0]!.variants.en!.importSourcePath = path.join(sandbox, "external.png");
+    await writeFile(path.join(originalDir, "project.json"), JSON.stringify(original.manifest));
+    await writeFile(path.join(originalDir, "assets.json"), JSON.stringify(original.assets));
+    const originalFiles = await readProjectFileContents(originalDir);
+    const originalProxy = original.assets.assets[0]!.variants.en!.proxyPath!;
+    const originalProxyBytes = await readFile(originalProxy);
+    await cp(originalDir, copiedDir, { recursive: true });
+    await rm(path.join(copiedDir, ".mage2", "proxies", "asset_fixture.en.png"));
+
+    const loaded = await loadProjectFromDirectory(copiedDir);
+    const variant = loaded.assets.assets[0]!.variants.en!;
+    expect(variant.sourcePath).toBe(path.join(copiedDir, "assets", "fixture.svg"));
+    expect(variant.proxyPath).toBe(path.join(copiedDir, ".mage2", "proxies", "asset_fixture.en.png"));
+    expect(variant.importSourcePath).toBe(original.assets.assets[0]!.variants.en!.importSourcePath);
+    expect(await readFile(variant.proxyPath!)).toEqual(originalProxyBytes);
+    expect(await readProjectFileContents(originalDir)).toEqual(originalFiles);
+    expect(await readFile(originalProxy)).toEqual(originalProxyBytes);
+    const migratedFiles = await readProjectFileContents(copiedDir);
+    expect(JSON.parse(migratedFiles["project.json"]!).assetRoots).toEqual(["assets"]);
+    expect(JSON.parse(migratedFiles["assets.json"]!).assets[0].variants.en.sourcePath).toBe("assets/fixture.svg");
+    __projectIoTestHooks.beforeAtomicReplace = () => { throw new Error("unnecessary second migration"); };
+    expect(await loadProjectFromDirectory(copiedDir)).toEqual(loaded);
+    expect(await readProjectFileContents(copiedDir)).toEqual(migratedFiles);
+  });
+
+  it("atomically rolls back a failed legacy migration and can retry from the old stored paths", async () => {
+    const sandbox = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-rollback-"));
+    tempDirs.push(sandbox);
+    const originalDir = path.join(sandbox, "original");
+    const movedDir = path.join(sandbox, "moved");
+    const project = await createPortableFixture(originalDir);
+    await writeFile(path.join(originalDir, "project.json"), JSON.stringify(project.manifest));
+    await writeFile(path.join(originalDir, "assets.json"), JSON.stringify(project.assets));
+    const legacyFiles = await readProjectFileContents(originalDir);
+    await rename(originalDir, movedDir);
+    __projectIoTestHooks.beforeAtomicReplace = ({ operation, fileName }) => {
+      if (operation === "commit" && fileName === "assets.json") throw new Error("migration interrupted");
+    };
+    await expect(loadProjectFromDirectory(movedDir)).rejects.toThrow("migration interrupted");
+    expect(await readProjectFileContents(movedDir)).toEqual(legacyFiles);
+    __projectIoTestHooks.beforeAtomicReplace = undefined;
+    expect((await loadProjectFromDirectory(movedDir)).manifest.assetRoots).toEqual([path.join(movedDir, "assets")]);
+  });
+
+  it("rejects portable traversal before touching project files or external media", async () => {
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-traversal-"));
+    tempDirs.push(projectDir);
+    const project = await createPortableFixture(projectDir);
+    project.assets.assets[0]!.variants.en!.sourcePath = "assets/../../outside.png";
+    await writeFile(path.join(projectDir, "assets.json"), JSON.stringify(project.assets));
+    const before = await readProjectFileContents(projectDir);
+    await expect(loadProjectFromDirectory(projectDir)).rejects.toThrow(/invalid project asset path/i);
+    expect(await readProjectFileContents(projectDir)).toEqual(before);
+    expect((await inspectProjectDirectory(projectDir)).isProjectDirectory).toBe(false);
+  });
+
+  it("rejects a portable asset root junction without writing to its external target", async () => {
+    const sandbox = await mkdtemp(path.join(os.tmpdir(), "mage2-portable-junction-"));
+    tempDirs.push(sandbox);
+    const projectDir = path.join(sandbox, "project");
+    const outside = path.join(sandbox, "outside");
+    await createPortableFixture(projectDir);
+    await rename(path.join(projectDir, "assets"), outside);
+    await symlink(outside, path.join(projectDir, "assets"), process.platform === "win32" ? "junction" : "dir");
+    const before = await readProjectFileContents(projectDir);
+    const outsideNames = await readdir(outside);
+    await expect(loadProjectFromDirectory(projectDir)).rejects.toThrow(/symbolic link|reparse point/i);
+    expect(await readdir(outside)).toEqual(outsideNames);
+    expect(await readProjectFileContents(projectDir)).toEqual(before);
   });
 });
 
@@ -662,6 +770,23 @@ function createDeferred() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+async function createPortableFixture(projectDir: string): Promise<ProjectBundle> {
+  const project = createDefaultProjectBundle("Portable fixture");
+  const assetsDir = path.join(projectDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  const sourcePath = path.join(assetsDir, "fixture.svg");
+  await writeFile(sourcePath, '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#102030"/></svg>');
+  project.manifest.assetRoots = [assetsDir];
+  project.assets.assets = [{
+    id: "asset_fixture", kind: "image", name: "Fixture", variants: {
+      en: { sourcePath, importedAt: "2026-09-08T00:00:00Z" }
+    }
+  }];
+  project.scenes.items[0]!.backgroundAssetId = "asset_fixture";
+  await saveProjectToDirectory(projectDir, project);
+  return loadProjectFromDirectory(projectDir);
 }
 
 async function readProjectFileContents(projectDir: string): Promise<Record<string, string>> {
