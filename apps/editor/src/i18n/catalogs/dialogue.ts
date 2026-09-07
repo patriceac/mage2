@@ -10,6 +10,8 @@ const m = (fr: string, es: string, zhHans: string, ja: string, ko: string, ar: s
 });
 
 export const dialogueMessages = defineEditorMessages("dialogue", {
+  "Starts from 1 location": m("Lancé depuis 1 endroit", "Se inicia desde 1 lugar", "从 1 处启动", "1 か所から開始", "1곳에서 시작", "يبدأ من موضع واحد"),
+  "Starts from {count} locations": m("Lancé depuis {count} endroits", "Se inicia desde {count} lugares", "从 {count} 处启动", "{count} か所から開始", "{count}곳에서 시작", "يبدأ من {count} مواضع"),
   "Dialogue authoring sections": m("Sections de création des dialogues", "Secciones de creación de diálogos", "对话创作分区", "会話作成セクション", "대화 작성 섹션", "أقسام تأليف الحوار"),
   Responses: m("Réponses", "Respuestas", "响应", "レスポンス", "응답", "الاستجابات"),
   "New line": m("Nouvelle réplique", "Nueva línea", "新台词", "新しいセリフ", "새 대사", "سطر جديد"),

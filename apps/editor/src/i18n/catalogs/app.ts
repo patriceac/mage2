@@ -1,6 +1,8 @@
 import { defineEditorMessages } from "../messages";
 
 export const appMessages = defineEditorMessages("app", {
+  "All setup steps": {"fr":"Toutes les étapes de configuration","es":"Todos los pasos de configuración","zh-Hans":"全部设置步骤","ja":"すべての設定手順","ko":"모든 설정 단계","ar":"جميع خطوات الإعداد"},
+  "Opened the scene that starts this dialogue.": {"fr":"La scène qui lance ce dialogue est ouverte.","es":"Se abrió la escena que inicia este diálogo.","zh-Hans":"已打开启动此对话的场景。","ja":"この会話を開始するシーンを開きました。","ko":"이 대화를 시작하는 장면을 열었습니다.","ar":"تم فتح المشهد الذي يبدأ هذا الحوار."},
   "Actions": {"fr":"Commandes","es":"Acciones","zh-Hans":"操作","ja":"操作","ko":"작업","ar":"الإجراءات"},
   "Add media": {"fr":"Ajouter un média","es":"Agregar medios","zh-Hans":"添加媒体","ja":"メディアを追加する","ko":"미디어 추가","ar":"أضف الوسائط"},
   "All Issues": {"fr":"Tous les problèmes","es":"Todos los problemas","zh-Hans":"所有问题","ja":"すべての問題","ko":"모든 문제","ar":"كل المشكلات"},

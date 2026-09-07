@@ -18,6 +18,14 @@ The verification command builds the installer and unpacked application, launches
 
 Release output is written to `output/packaging/editor-win/dist/`. Evidence is written to `output/playwright/windows-ci/`.
 
+For the local Hyper-V harness, build with `npm run package:editor:win`, then run:
+
+```powershell
+pwsh -File scripts/verify-review-fixes-hyperv.ps1
+```
+
+This submits the canonical package to an isolated, disconnected guest. It checks new and copied projects, legacy path migration, dialogue launch reporting and playback, onboarding, responsive layouts, and web preview export. It creates its own disposable projects and records screenshots plus `review-fixes-result.json` in the broker's returned evidence directory. The wrapper removes its temporary QA driver from the package after the run; it does not launch the editor on the host. It requires the local `hyperv-test-executables` broker client and Node.js 22.12 or newer. Review the screenshots as well as the JSON assertions.
+
 ## Checksums
 
 Packaging writes `SHA256SUMS.txt` after the binaries have been built and signed. It covers the NSIS installer, its block map when present, and `win-unpacked/MAGE2 Editor.exe`.

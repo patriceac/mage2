@@ -197,6 +197,7 @@ describe("DialoguePanel", () => {
     const markup = renderDialoguePanel((project) => {
       const dialogue = addDialogueTree(project);
       dialogue.name = "Citadel_01";
+      project.scenes.items[0]!.hotspots[0]!.effects = [{ type: "playDialogue", dialogueTreeId: dialogue.id }];
       mockedStore.state.selectedDialogueId = dialogue.id;
       mockedStore.state.selectedDialogueNodeId = dialogue.startNodeId;
     });
@@ -206,6 +207,8 @@ describe("DialoguePanel", () => {
     expect(markup).toContain("Ajouter une réplique");
     expect(markup).toContain("Citadel_01");
     expect(markup).toContain("Opening line");
+    expect(markup).toContain("Lancé depuis 1 endroit");
+    expect(markup).not.toContain("Starts from 1 location");
   });
 
   it("renders the response editor in Arabic with RTL direction", () => {

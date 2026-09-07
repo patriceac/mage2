@@ -15,7 +15,8 @@ MAGE2 is a workspace for building full-motion adventure projects with a desktop 
 
 ## Features
 
-- Create or reopen project folders directly from the Electron editor.
+- Create or reopen project folders directly from the Electron editor, with guided first-scene setup.
+- Move or copy complete project folders with portable managed-media paths. Older absolute paths migrate when a single original folder can be identified; ambiguous or external paths remain blocked by containment checks.
 - Author locations, scenes, hotspots, dialogue trees, and inventory data in one workspace.
 - Import localized foreground audio or video for individual dialogue lines and hotspot interactions without replacing scene backgrounds or looping scene audio.
 - Validate projects and jump from issues directly to the affected editor surface.
