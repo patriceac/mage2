@@ -21,6 +21,7 @@ export function FirstProjectChecklist({
   onDismiss
 }: FirstProjectChecklistProps) {
   const { t } = useEditorI18n();
+  const nextStep = state.steps.find((step) => !step.complete);
   return (
     <section className="first-project-checklist" aria-labelledby="first-project-checklist-title">
       <header className="first-project-checklist__header">
@@ -51,33 +52,50 @@ export function FirstProjectChecklist({
         <span style={{ width: `${(state.completedCount / state.steps.length) * 100}%` }} />
       </div>
 
-      <ol className="first-project-checklist__steps">
-        {state.steps.map((step, index) => (
-          <li
-            key={step.id}
-            className={step.complete ? "first-project-checklist__step first-project-checklist__step--complete" : "first-project-checklist__step"}
+      {nextStep ? (
+        <div className="first-project-checklist__next">
+          <strong>{nextStep.title}</strong>
+          <p>{nextStep.description}</p>
+          <button
+            type="button"
+            data-first-project-next-step={nextStep.id}
+            onClick={resolveStepAction(nextStep.id, nextStep.complete, { onOpenSceneMedia, onOpenInteraction, onOpenPlayer })}
           >
-            <span className="first-project-checklist__step-mark" aria-hidden="true">
-              {step.complete ? "✓" : index + 1}
-            </span>
-            <div>
-              <strong>{step.title}</strong>
-              <p>{step.description}</p>
-            </div>
-            <button
-              type="button"
-              data-first-project-step={step.id}
-              onClick={resolveStepAction(step.id, step.complete, {
-                onOpenSceneMedia,
-                onOpenInteraction,
-                onOpenPlayer
-              })}
+            {resolveStepActionLabel(nextStep.id, nextStep.complete, t)}
+          </button>
+        </div>
+      ) : null}
+
+      <details className="first-project-checklist__all-steps">
+        <summary>{t("All setup steps")}</summary>
+        <ol className="first-project-checklist__steps">
+          {state.steps.map((step, index) => (
+            <li
+              key={step.id}
+              className={step.complete ? "first-project-checklist__step first-project-checklist__step--complete" : "first-project-checklist__step"}
             >
-              {resolveStepActionLabel(step.id, step.complete, t)}
-            </button>
-          </li>
-        ))}
-      </ol>
+              <span className="first-project-checklist__step-mark" aria-hidden="true">
+                {step.complete ? "✓" : index + 1}
+              </span>
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.description}</p>
+              </div>
+              <button
+                type="button"
+                data-first-project-step={step.id}
+                onClick={resolveStepAction(step.id, step.complete, {
+                  onOpenSceneMedia,
+                  onOpenInteraction,
+                  onOpenPlayer
+                })}
+              >
+                {resolveStepActionLabel(step.id, step.complete, t)}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </details>
       <footer
         className={
           state.health.healthy
@@ -88,13 +106,13 @@ export function FirstProjectChecklist({
       >
         <div>
           <strong>{state.health.healthy ? t("Technical checks passed") : t("Technical checks need attention")}</strong>
-          <p>
-            {state.health.healthy
-              ? t("No broken project data detected. This does not mean the game is release-ready.")
-              : state.health.blockerCount === 1
+          {!state.health.healthy ? (
+            <p>
+              {state.health.blockerCount === 1
                 ? t("Resolve {count} project health blocker.", { count: state.health.blockerCount })
                 : t("Resolve {count} project health blockers.", { count: state.health.blockerCount })}
-          </p>
+            </p>
+          ) : null}
         </div>
         <div className="first-project-checklist__health-actions">
           {!state.health.healthy ? (

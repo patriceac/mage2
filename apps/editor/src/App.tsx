@@ -42,7 +42,7 @@ import {
   type RuntimeExportProgressViewState
 } from "./RuntimeExportProgressOverlay";
 import { useDialogs, type RuntimeExportFormat, type RuntimeExportMode } from "./dialogs";
-import { resolveFirstProjectChecklist } from "./first-project-checklist";
+import { resolveFirstProjectChecklist, resolveNewProjectWorkspace, shouldShowProjectIssuesSidebar } from "./first-project-checklist";
 import {
   getIssueHint,
   resolveIssueEntityLabel,
@@ -646,6 +646,13 @@ export function App() {
     };
   }, [isLanguageMenuOpen]);
 
+  function openCreatedProject(createdProject: ProjectBundle, createdProjectDir: string) {
+    setProjectContext(createdProject, createdProjectDir);
+    useEditorStore.setState(resolveNewProjectWorkspace(createdProject));
+    setShowValidationDetails(false);
+    setDismissedFirstProjectGuideId(undefined);
+  }
+
   async function handleCreateProject() {
     if (!hasEditorApi) {
       return;
@@ -689,7 +696,7 @@ export function App() {
       return;
     }
 
-    setProjectContext(createdProject, chosenDirectory);
+    openCreatedProject(createdProject, chosenDirectory);
     await rememberRecentProjectEntry(chosenDirectory, createdProject.manifest.projectName);
     setStatusMessage(t("Created project in {projectDir}", { projectDir: chosenDirectory }));
   }
@@ -1329,7 +1336,7 @@ export function App() {
         if (!createdProject) {
           throw new Error(t("Automation could not create a project at '{projectDir}'.", { projectDir: command.projectDir }));
         }
-        setProjectContext(createdProject, command.projectDir);
+        openCreatedProject(createdProject, command.projectDir);
         await rememberRecentProjectEntry(command.projectDir, createdProject.manifest.projectName);
         setStatusMessage(t("Created project in {projectDir}", { projectDir: command.projectDir }));
         await waitForAutomationUpdate();
@@ -1840,11 +1847,11 @@ export function App() {
     t
   );
   const shouldShowFirstProjectChecklist =
-    firstProjectChecklist.shouldShow && dismissedFirstProjectGuideId !== project.manifest.projectId;
+    activeTab === "scenes" && firstProjectChecklist.shouldShow && dismissedFirstProjectGuideId !== project.manifest.projectId;
   const shouldShowIssuesSidebar =
-    showValidationDetails || visibleValidationIssues.length > 0 || shouldShowFirstProjectChecklist;
+    shouldShowProjectIssuesSidebar(firstProjectChecklist.isStarterProject, showValidationDetails, visibleValidationIssues);
   const isIssuesSidebarSummaryOnly =
-    visibleValidationIssues.length === 0 && !shouldShowFirstProjectChecklist;
+    visibleValidationIssues.length === 0;
   const isSaveDisabled = !hasUnsavedChanges || Boolean(busyLabel);
   const isUndoDisabled = !canUndo || Boolean(busyLabel);
   const isRedoDisabled = !canRedo || Boolean(busyLabel);
@@ -2077,7 +2084,24 @@ export function App() {
       <div ref={editorScrollRegionRef} className="editor-scroll-region">
         <div className={shouldShowIssuesSidebar ? "editor-layout editor-layout--with-issues" : "editor-layout"}>
           <div className="editor-primary">
-            <main className="workspace">
+            <main className={shouldShowFirstProjectChecklist ? "workspace workspace--first-project" : "workspace"}>
+              {shouldShowFirstProjectChecklist ? (
+                <FirstProjectChecklist
+                  state={firstProjectChecklist}
+                  onOpenSceneMedia={() => openFirstProjectScene(false)}
+                  onOpenInteraction={() => openFirstProjectScene(true)}
+                  onOpenPlayer={() => {
+                    setActiveTab("player");
+                    setStatusMessage(t("Opened Player. Review the title screen, credits, and release version."));
+                  }}
+                  onReviewHealth={reviewFirstProjectHealth}
+                  onOpenPlaytest={() => {
+                    setActiveTab("playtest");
+                    setStatusMessage(t("Opened Playtest. Exercise the first scene and its interaction before exporting."));
+                  }}
+                  onDismiss={() => setDismissedFirstProjectGuideId(project.manifest.projectId)}
+                />
+              ) : null}
               {activeTab === "assets" ? <AssetsPanel project={project} setSavedProject={replaceSavedProject} setStatusMessage={setStatusMessage} setBusyLabel={setBusyLabel} /> : null}
               {activeTab === "world" ? <WorldPanel project={project} mutateProject={mutateProject} /> : null}
               {activeTab === "scenes" ? (
@@ -2108,7 +2132,9 @@ export function App() {
                     setStatusMessage(
                       hotspotId
                         ? t("Opened the hotspot that uses this player feedback.")
-                        : t("Choose a hotspot, then set its Player feedback field.")
+                        : sceneId
+                          ? t("Opened the scene that starts this dialogue.")
+                          : t("Choose a hotspot, then set its Player feedback field.")
                     );
                   }}
                 />
@@ -2206,24 +2232,6 @@ export function App() {
                 </div>
               </div>
 
-              {shouldShowFirstProjectChecklist ? (
-                <FirstProjectChecklist
-                  state={firstProjectChecklist}
-                  onOpenSceneMedia={() => openFirstProjectScene(false)}
-                  onOpenInteraction={() => openFirstProjectScene(true)}
-                  onOpenPlayer={() => {
-                    setActiveTab("player");
-                    setStatusMessage(t("Opened Player. Review the title screen, credits, and release version."));
-                  }}
-                  onReviewHealth={reviewFirstProjectHealth}
-                  onOpenPlaytest={() => {
-                    setActiveTab("playtest");
-                    setStatusMessage(t("Opened Playtest. Exercise the first scene and its interaction before exporting."));
-                  }}
-                  onDismiss={() => setDismissedFirstProjectGuideId(project.manifest.projectId)}
-                />
-              ) : null}
-
               {visibleValidationIssues.length > 0 ? (
                 <div className="validation-list">
                   {visibleValidationIssues.map((issue, index) => {
@@ -2238,7 +2246,6 @@ export function App() {
                           <span className={issue.level === "error" ? "validation-tag validation-tag--error" : "validation-tag validation-tag--warning"}>
                             {issue.level === "error" ? t("error") : t("warning")}
                           </span>
-                          <strong>{issue.code}</strong>
                           {entityLabel ? (
                             <IssueTextLink
                               label={entityLabel}
@@ -2250,12 +2257,14 @@ export function App() {
                         </div>
                         <p>{renderIssueMessage(project, issue, handleNavigateToIssueTarget, t)}</p>
                         <p className="muted">{t(getIssueHint(issue))}</p>
+                        <details className="validation-item__details">
+                          <summary>{t("Details")}</summary>
+                          <code>{issue.code}</code>
+                        </details>
                       </article>
                     );
                   })}
                 </div>
-              ) : shouldShowFirstProjectChecklist ? (
-                <p className="muted">{t("No issues right now.")}</p>
               ) : null}
             </aside>
           ) : null}

@@ -120,3 +120,29 @@ export function resolveFirstProjectChecklist(
 function isMeaningfulStarterInteraction(hotspot: ProjectBundle["scenes"]["items"][number]["hotspots"][number]): boolean {
   return hasPlayerFacingHotspotBehavior(hotspot);
 }
+
+/** Keep unfinished starter tasks in the guide until the creator requests diagnostics. */
+export function shouldShowProjectIssuesSidebar(
+  isStarterProject: boolean,
+  isPinned: boolean,
+  visibleIssues: readonly { code: string }[]
+): boolean {
+  if (isPinned) return true;
+  const starterTaskCodes = new Set([
+    "STARTER_SCENE_MEDIA_IN_USE",
+    "STARTER_HOTSPOT_UNWIRED",
+    "STARTER_PLAYER_ARTWORK_IN_USE"
+  ]);
+  return visibleIssues.some((issue) => !isStarterProject || !starterTaskCodes.has(issue.code));
+}
+
+/** Applied only after creation, so reopening established projects keeps its existing navigation. */
+export function resolveNewProjectWorkspace(project: ProjectBundle) {
+  const scene = project.scenes.items.find((entry) => entry.id === project.manifest.startSceneId) ?? project.scenes.items[0];
+  return {
+    activeTab: scene ? "scenes" as const : "world" as const,
+    selectedSceneId: scene?.id,
+    selectedLocationId: scene?.locationId,
+    selectedHotspotId: undefined
+  };
+}
