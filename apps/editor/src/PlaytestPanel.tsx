@@ -579,23 +579,21 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           </div>
         </div>
 
-        <section className="playtest-save-slots" aria-labelledby="playtest-save-slots-title">
-          <header className="playtest-save-slots__header">
-            <div>
-              <h3 id="playtest-save-slots-title">{t("Save slots")}</h3>
-              <p>{t("Stored on this computer and checked against the open project before loading.")}</p>
-            </div>
+        <details className="playtest-save-slots">
+          <summary className="playtest-save-slots__header">
+            <span className="playtest-save-slots__title">{t("Save slots")}</span>
             {saveFeedback ? (
-              <div
+              <span
                 className={`playtest-save-slots__feedback playtest-save-slots__feedback--${saveFeedback.tone}`}
                 role={saveFeedback.tone === "error" ? "alert" : "status"}
                 aria-live={saveFeedback.tone === "error" ? "assertive" : "polite"}
                 data-playtest-save-feedback={saveFeedback.tone}
               >
                 {saveFeedback.message}
-              </div>
+              </span>
             ) : null}
-          </header>
+          </summary>
+          <p className="playtest-save-slots__description">{t("Stored on this computer and checked against the open project before loading.")}</p>
           <div className="playtest-save-slots__grid">
             {saveSlotInspections.map((slot) => {
               const statusLabel = resolvePlaytestSaveStatusLabel(slot.status, t);
@@ -661,8 +659,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               );
             })}
           </div>
-        </section>
+        </details>
 
+        <div className="playtest-stage-region">
         <div className="playtest-stage">
           <PlayerExperienceShell
             projectName={project.manifest.projectName}
@@ -765,7 +764,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
           ) : null}
           </PlayerExperienceShell>
         </div>
-
+        </div>
       </section>
 
       <PlaytestDiagnostics

@@ -448,3 +448,42 @@ function resolveCssRuleBlock(selector: string) {
   expect(end).toBeGreaterThan(start);
   return styles.slice(start, end + 1);
 }
+
+
+describe("reviewed workspace fit regressions", () => {
+  it("lets the landing table columns shrink inside the viewport", () => {
+    expect(resolveCssRuleBlock(".app-shell--landing")).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(resolveCssRuleBlock("button.recent-project__open")).not.toContain("minmax(17rem");
+    expect(resolveCssRuleBlock(".recent-projects__columns")).not.toContain("minmax(17rem");
+  });
+
+  it("keeps localization filters and queue text inside their pane", () => {
+    expect(resolveCssRuleBlock(".app-shell--editor-workbench .localization-queue-controls")).toContain("repeat(3, minmax(0, 1fr))");
+    expect(resolveCssRuleBlock(".app-shell--editor-workbench .localization-queue-controls > .localization-search-field")).toContain("grid-column: 1 / -1");
+    expect(resolveCssRuleBlock(".app-shell--editor-workbench .localization-queue-row__preview")).toContain("grid-row: 2");
+  });
+
+  it("switches dialogue panes inside a narrow workspace without shrinking the editor", () => {
+    expect(styles).toMatch(/@container \(max-width: 1100px\)[^]*?\.dialogue-workspace \{[^]*?grid-template-columns: minmax\(0, 1fr\)/);
+    for (const [pane, panel] of [["library", "library"], ["builder", "builder"], ["preview", "launch-panel"]]) {
+      expect(styles).toContain(`.dialogue-workspace:not(.dialogue-workspace--${pane}) > .dialogue-${panel}`);
+    }
+  });
+
+  it("fits the complete player to its remaining row height", () => {
+    expect(resolveCssRuleBlock(".playtest-stage-region")).toContain("container-type: size");
+    expect(resolveCssRuleBlock(".app-shell--editor-workbench .playtest-stage-region > .playtest-stage")).toContain("width: min(100%, calc(100cqh * 16 / 9))");
+    expect(resolveCssRuleBlock(".playtest-save-slots")).toContain("display: block");
+  });
+});
+
+
+describe("first-project guidance workspace", () => {
+  it("reserves the remaining height for the scene and bounds an expanded guide", () => {
+    expect(resolveCssRuleBlock(".app-shell--scene-editor .workspace--first-project")).toContain("grid-template-rows: auto minmax(0, 1fr)");
+    const guideRule = resolveCssRuleBlock(".app-shell--editor-workbench .workspace--first-project > .first-project-checklist");
+    expect(guideRule).toContain("max-height: min(45vh, 18rem)");
+    expect(guideRule).toContain("overflow: auto");
+    expect(resolveCssRuleBlock(".workspace--first-project .first-project-checklist__all-steps[open]")).toContain("grid-column: 1 / -1");
+  });
+});

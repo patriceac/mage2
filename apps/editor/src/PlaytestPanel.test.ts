@@ -254,6 +254,9 @@ describe("PlaytestPanel toolbar", () => {
     expect(markup).toContain("Show hotspots");
     expect(markup).toContain("Reset Run");
     expect(markup).toContain("Save slots");
+    expect(markup).toContain('<details class="playtest-save-slots"><summary');
+    expect(markup).not.toMatch(/<details[^>]*class="playtest-save-slots"[^>]* open/);
+    expect(markup).toContain('class="playtest-stage-region"');
     expect(markup.match(/data-playtest-save-slot="/g)).toHaveLength(3);
     expect(markup.match(/data-playtest-save-slot-status="empty"/g)).toHaveLength(3);
     expect(markup).toContain("No save stored in this slot.");

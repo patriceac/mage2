@@ -93,6 +93,7 @@ function DialogueAuthoringPanel({
   const setSelectedDialogueId = useEditorStore((state) => state.setSelectedDialogueId);
   const setSelectedDialogueNodeId = useEditorStore((state) => state.setSelectedDialogueNodeId);
   const [dialogueFilter, setDialogueFilter] = useState("");
+  const [compactPane, setCompactPane] = useState<"library" | "builder" | "preview">("builder");
   const activeLocale = project.manifest.defaultLanguage;
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const foregroundMediaAssets = project.assets.assets.filter(isForegroundMediaAsset);
@@ -115,11 +116,13 @@ function DialogueAuthoringPanel({
     })) ?? [];
 
   const selectDialogue = (dialogue: DialogueTree) => {
+    setCompactPane("builder");
     setSelectedDialogueId(dialogue.id);
     setSelectedDialogueNodeId(dialogue.startNodeId);
   };
 
   const createDialogue = () => {
+    setCompactPane("builder");
     mutateProject((draft) => {
       const dialogue = addDialogueTree(draft);
       setSelectedDialogueId(dialogue.id);
@@ -309,8 +312,26 @@ function DialogueAuthoringPanel({
   };
 
   return (
-    <div className="panel-grid panel-grid--dialogue dialogue-workspace">
-      <aside className="panel dialogue-library" aria-label={t("Dialogue library")}>
+    <div className={`panel-grid panel-grid--dialogue dialogue-workspace dialogue-workspace--${compactPane}`}>
+      <nav className="dialogue-compact-switcher" aria-label={t("Dialogue authoring sections")}>
+        {([
+          ["library", t("Dialogue library")],
+          ["builder", t("Conversation builder")],
+          ["preview", t("Preview")]
+        ] as const).map(([pane, label]) => (
+          <button
+            key={pane}
+            type="button"
+            className="dialogue-compact-switcher__button"
+            aria-controls={`dialogue-${pane}-pane`}
+            aria-pressed={compactPane === pane}
+            onClick={() => setCompactPane(pane)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <aside id="dialogue-library-pane" className="panel dialogue-library" aria-label={t("Dialogue library")}>
         <div className="dialogue-library__header">
           <div>
             <p className="eyebrow">{t("Dialogue Authoring")}</p>
@@ -362,7 +383,7 @@ function DialogueAuthoringPanel({
         ) : null}
       </aside>
 
-      <main className="panel dialogue-builder" aria-label={t("Conversation builder")}>
+      <main id="dialogue-builder-pane" className="panel dialogue-builder" aria-label={t("Conversation builder")}>
         {currentDialogue ? (
           <>
             <header className="dialogue-builder__header">
@@ -465,7 +486,7 @@ function DialogueAuthoringPanel({
         )}
       </main>
 
-      <aside className="panel dialogue-launch-panel" aria-label={t("Dialogue preview and launch locations")}>
+      <aside id="dialogue-preview-pane" className="panel dialogue-launch-panel" aria-label={t("Dialogue preview and launch locations")}>
         {currentDialogue ? (
           <>
             <section className="dialogue-preview">

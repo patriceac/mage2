@@ -233,3 +233,18 @@ describe("DialoguePanel", () => {
     }
   });
 });
+
+
+describe("DialoguePanel compact navigation", () => {
+  it("starts with the builder and exposes keyboard-operable links to every pane", () => {
+    mockedStore.state.dialogueSection = "dialogues";
+    mockedI18n.locale = "en";
+    const markup = renderDialoguePanel(() => undefined);
+    expect(markup).toContain("dialogue-workspace--builder");
+    expect(markup).toMatch(/aria-controls="dialogue-builder-pane" aria-pressed="true"/);
+    for (const pane of ["library", "builder", "preview"]) {
+      expect(markup).toContain(`id="dialogue-${pane}-pane"`);
+      expect(markup).toContain(`aria-controls="dialogue-${pane}-pane"`);
+    }
+  });
+});

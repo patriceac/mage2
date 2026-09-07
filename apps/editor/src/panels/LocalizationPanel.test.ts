@@ -140,6 +140,24 @@ function renderLocalizationPanel(
 }
 
 describe("LocalizationPanel internal subtabs", () => {
+  it("reserves warning metrics for nonzero missing or empty content", () => {
+    const healthyMarkup = renderLocalizationPanel("overview");
+    const healthyCards = healthyMarkup.match(/<article class="localization-health-card[^]*?<\/article>/g) ?? [];
+    for (const label of ["Source strings missing", "Empty source strings", "Media missing"]) {
+      const card = healthyCards.find((entry) => entry.includes(`<span>${label}</span>`));
+      expect(card).toContain("localization-health-card--quiet");
+      expect(card).toContain("<strong>0</strong>");
+    }
+
+    const missingMarkup = renderLocalizationPanel("overview", (project) => {
+      project.scenes.items[0].hotspots[0]!.commentTextId = "text.missing.review";
+    });
+    const missingCards = missingMarkup.match(/<article class="localization-health-card[^]*?<\/article>/g) ?? [];
+    const missingCard = missingCards.find((entry) => entry.includes("<span>Source strings missing</span>"));
+    expect(missingCard).toContain("localization-health-card--missing");
+    expect(missingCard).not.toContain("<strong>0</strong>");
+  });
+
   it("renders Arabic editor chrome without translating project-authored content or locale codes", () => {
     const markup = renderLocalizationPanel("overview", undefined, "en", "ar");
 

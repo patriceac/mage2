@@ -1913,7 +1913,7 @@ function HealthMetricCard({
   value: number;
 }) {
   return (
-    <article className={`localization-health-card localization-health-card--${tone}`}>
+    <article className={`localization-health-card localization-health-card--${value === 0 ? "quiet" : tone}`}>
       <span className="localization-health-card__icon" aria-hidden="true">
         <LocalizationIcon name={icon} />
       </span>

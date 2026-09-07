@@ -148,6 +148,7 @@ label > .checkbox-list {
 
 .app-shell--landing {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
@@ -1416,8 +1417,7 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
 }
 
 .playtest-save-slots {
-  display: grid;
-  gap: 0.55rem;
+  display: block;
   padding: 0.68rem 0.82rem 0.78rem;
   border-top: 1px solid rgba(115, 136, 153, 0.2);
   border-bottom: 1px solid rgba(115, 136, 153, 0.24);
@@ -1426,25 +1426,28 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
 
 .playtest-save-slots__header {
   display: flex;
+  cursor: pointer;
+  list-style: none;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.playtest-save-slots__header h3,
-.playtest-save-slots__header p,
+.playtest-save-slots__description,
 .playtest-save-slot p {
   margin: 0;
 }
 
-.playtest-save-slots__header h3 {
+.playtest-save-slots__title {
+  margin-inline-end: auto;
+  font-weight: 650;
   color: #eef5fa;
   font-size: 0.83rem;
   letter-spacing: 0.02em;
 }
 
-.playtest-save-slots__header p {
-  margin-top: 0.14rem;
+.playtest-save-slots__description {
+  margin: 0.55rem 0;
   color: #8fa0ad;
   font-size: 0.72rem;
 }
@@ -5345,6 +5348,7 @@ html[dir="rtl"] .scenes-panel__canvas-toolbar {
 }
 
 .app-shell--landing .landing {
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   align-items: stretch;
@@ -5643,7 +5647,7 @@ button.recent-projects__refresh:hover {
 
 .recent-projects__columns {
   display: grid;
-  grid-template-columns: minmax(17rem, 1.35fr) minmax(9.5rem, 0.72fr) minmax(15rem, 1.22fr) 5.8rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.72fr) minmax(0, 1.22fr) 5.8rem;
   gap: 1.25rem;
   align-items: center;
   min-height: 2rem;
@@ -5679,7 +5683,7 @@ button.recent-projects__refresh:hover {
 
 button.recent-project__open {
   display: grid;
-  grid-template-columns: minmax(17rem, 1.35fr) minmax(9.5rem, 0.72fr) minmax(15rem, 1.22fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.72fr) minmax(0, 1.22fr);
   gap: 1.25rem;
   align-items: center;
   min-width: 0;
@@ -9670,13 +9674,25 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench .localization-queue-controls {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) minmax(6.8rem, 0.45fr) minmax(7rem, 0.48fr) minmax(7rem, 0.5fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
   gap: 0.46rem;
 }
 
+.app-shell--editor-workbench .localization-queue-controls > label {
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .localization-queue-controls > .localization-search-field {
+  grid-column: 1 / -1;
+}
+
 .app-shell--editor-workbench .localization-queue-controls--media {
-  grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 0.58fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.58fr);
+}
+
+.app-shell--editor-workbench .localization-queue-controls--media > .localization-search-field {
+  grid-column: auto;
 }
 
 .app-shell--editor-workbench .localization-search-field {
@@ -9797,18 +9813,48 @@ button.recent-project__icon-button:hover {
 
 .app-shell--editor-workbench button.localization-queue-row:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
   display: grid;
-  grid-template-columns: 1.35rem minmax(4.8rem, 0.52fr) minmax(8rem, 1fr) minmax(7rem, 0.9fr) auto 1rem;
+  grid-template-columns: 1.35rem minmax(4.5rem, 0.55fr) minmax(0, 1fr) auto 1rem;
   align-items: center;
   gap: 0.54rem;
   width: 100%;
-  min-height: 2.18rem;
-  padding: 0 0.56rem;
+  min-height: 2.8rem;
+  padding: 0.4rem 0.56rem;
   border: 0;
   border-bottom: 1px solid rgba(108, 128, 145, 0.16);
   border-radius: 0;
   background: rgba(255, 255, 255, 0.018);
   color: #cbd7e1;
   text-align: left;
+}
+
+.app-shell--editor-workbench .localization-queue-row__icon {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.app-shell--editor-workbench .localization-queue-row__area {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.app-shell--editor-workbench .localization-queue-row > code {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.app-shell--editor-workbench .localization-queue-row__preview {
+  grid-column: 2 / -2;
+  grid-row: 2;
+}
+
+.app-shell--editor-workbench .localization-queue-row > .localization-status {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.app-shell--editor-workbench .localization-queue-row > svg {
+  grid-column: 5;
+  grid-row: 1 / 3;
 }
 
 .app-shell--editor-workbench button.localization-queue-row:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle):hover {
@@ -10450,7 +10496,6 @@ button.recent-project__icon-button:hover {
     display: none;
   }
 
-  .app-shell--editor-workbench .localization-health-grid,
   .app-shell--editor-workbench .localization-workbench,
   .app-shell--editor-workbench .localization-translation-editor,
   .app-shell--editor-workbench .localization-media-variant-grid {
@@ -11706,7 +11751,8 @@ button.recent-project__icon-button:hover {
 }
 
 .app-shell--editor-workbench .panel-grid--playtest > .playtest-primary {
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: calc(100vh - 6.9rem);
+  grid-template-rows: auto auto minmax(12rem, 1fr);
 }
 
 .app-shell--editor-workbench .playtest-panel__toolbar {
@@ -12879,5 +12925,234 @@ button.recent-project__icon-button:hover {
 
   .runtime-export-progress__track > span {
     transition: none;
+  }
+}
+
+/* Keep secondary panes available without shrinking the conversation editor. */
+.dialogue-compact-switcher {
+  display: none;
+}
+
+.app-shell--editor-workbench .dialogue-builder__header {
+  flex-wrap: wrap;
+}
+
+.app-shell--editor-workbench .dialogue-builder__header > div:first-child {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.app-shell--editor-workbench .dialogue-start-panel {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+.app-shell--editor-workbench .dialogue-connection-badge {
+  white-space: normal;
+}
+
+.app-shell--editor-workbench .localization-health-card--quiet strong,
+.app-shell--editor-workbench .localization-health-card--quiet .localization-health-card__icon {
+  color: var(--localization-muted);
+}
+
+.playtest-save-slots__header::-webkit-details-marker {
+  display: none;
+}
+
+.playtest-save-slots__header::before {
+  content: "▸";
+  color: #a8bdcc;
+}
+
+.playtest-save-slots[open] > .playtest-save-slots__header::before {
+  content: "▾";
+}
+
+.playtest-save-slots__header:focus-visible {
+  outline: 2px solid #4ab8ff;
+  outline-offset: 4px;
+}
+
+@container (max-width: 1100px) {
+  .app-shell--editor-workbench .dialogue-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100vh - 9.5rem);
+    min-height: 0;
+  }
+
+  .dialogue-compact-switcher {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.38rem;
+  }
+
+  .app-shell--editor-workbench button.dialogue-compact-switcher__button:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+    min-width: 0;
+    min-height: 2.5rem;
+    padding: 0.42rem 0.58rem;
+    border: 1px solid rgba(108, 128, 145, 0.28);
+    background: #111a22;
+    color: #bfccd6;
+  }
+
+  .app-shell--editor-workbench button.dialogue-compact-switcher__button[aria-pressed="true"]:not(.hotspot__body):not(.playtest-inventory-slot):not(.playtest-inventory-toggle) {
+    border-color: rgba(23, 183, 216, 0.78);
+    background: rgba(23, 119, 168, 0.24);
+    color: #e8fbff;
+  }
+
+  .app-shell--editor-workbench .dialogue-workspace > :is(.dialogue-library, .dialogue-builder, .dialogue-launch-panel) {
+    grid-column: 1;
+    grid-row: 2;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .app-shell--editor-workbench .dialogue-workspace:not(.dialogue-workspace--library) > .dialogue-library,
+  .app-shell--editor-workbench .dialogue-workspace:not(.dialogue-workspace--builder) > .dialogue-builder,
+  .app-shell--editor-workbench .dialogue-workspace:not(.dialogue-workspace--preview) > .dialogue-launch-panel {
+    display: none;
+  }
+}
+
+/* Fit the whole player into the row left by the toolbar and save disclosure. */
+.playtest-stage-region {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  min-height: 12rem;
+  container-type: size;
+}
+
+.app-shell--editor-workbench .playtest-stage-region > .playtest-stage {
+  width: min(100%, calc(100cqh * 16 / 9));
+}
+
+/* Keep first-project guidance beside the next action, above the scene canvas. */
+.app-shell--scene-editor .workspace--first-project {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+}
+
+.app-shell--scene-editor .workspace--first-project > .scenes-panel-shell {
+  min-height: 0;
+  height: 100%;
+}
+
+.app-shell--editor-workbench .workspace--first-project > .first-project-checklist {
+  grid-template-columns: minmax(15rem, 0.9fr) minmax(0, 1.6fr);
+  gap: 0.4rem 1rem;
+  max-height: min(45vh, 18rem);
+  overflow: auto;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.workspace--first-project .first-project-checklist__header {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workspace--first-project .first-project-checklist__progress {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.workspace--first-project .first-project-checklist__next {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-column: 2;
+  grid-row: 1;
+  column-gap: 0.8rem;
+  align-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.workspace--first-project .first-project-checklist__next strong {
+  color: #edf4f9;
+  font-size: 0.84rem;
+}
+
+.workspace--first-project .first-project-checklist__next p {
+  margin: 0.2rem 0 0;
+  color: #a9bbc8;
+  font-size: 0.74rem;
+}
+
+.workspace--first-project .first-project-checklist__next button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+
+.workspace--first-project .first-project-checklist__all-steps {
+  grid-column: 1;
+  align-self: center;
+  min-width: 0;
+  color: #bccbd6;
+  font-size: 0.76rem;
+}
+
+.workspace--first-project .first-project-checklist__all-steps > summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 0.3rem 0;
+}
+
+.workspace--first-project .first-project-checklist__all-steps > summary:focus-visible {
+  outline: 2px solid #4ab8ff;
+  outline-offset: 2px;
+}
+
+.workspace--first-project .first-project-checklist__all-steps[open] {
+  grid-column: 1 / -1;
+}
+
+.app-shell--editor-workbench .workspace--first-project .first-project-checklist__steps {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.app-shell--editor-workbench .workspace--first-project .first-project-checklist__step {
+  border-top: 0;
+  align-items: start;
+}
+
+.app-shell--editor-workbench .workspace--first-project .first-project-checklist__health {
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0;
+  border-top: 0;
+}
+
+.app-shell--editor-workbench .workspace--first-project .first-project-checklist__all-steps[open] + .first-project-checklist__health {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 760px) {
+  .app-shell--editor-workbench .workspace--first-project > .first-project-checklist {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
+  }
+
+  .workspace--first-project .first-project-checklist__next,
+  .app-shell--editor-workbench .workspace--first-project .first-project-checklist__health {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .app-shell--editor-workbench .workspace--first-project .first-project-checklist__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35rem;
   }
 }
