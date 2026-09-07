@@ -115,7 +115,7 @@ describe("DialoguePanel", () => {
     expect(markup).toContain("Preview");
     expect(markup).toContain("Start this dialogue from a hotspot in Scenes");
     expect(markup).toContain("Go to Scenes");
-    expect(markup).toContain("Starts from 1 hotspot");
+    expect(markup).toContain("Starts from 1 location");
     expect(markup).toContain("When this line starts");
     expect(markup).toContain("Reply availability and actions");
     expect(markup).toContain("Add condition...");
@@ -124,6 +124,23 @@ describe("DialoguePanel", () => {
     expect(markup).not.toContain("Next Node");
   });
 
+  it("shows effect and scene launch locations instead of contradictory disconnected warnings", () => {
+    const markup = renderDialoguePanel((project) => {
+      const dialogue = addDialogueTree(project);
+      const scene = project.scenes.items[0]!;
+      scene.hotspots[0]!.name = "Radio console";
+      scene.hotspots[0]!.effects = [{ type: "playDialogue", dialogueTreeId: dialogue.id }];
+      scene.onEnterEffects = [{ type: "playDialogue", dialogueTreeId: dialogue.id }];
+      mockedStore.state.selectedDialogueId = dialogue.id;
+    });
+
+    expect(markup).toContain("Starts from 2 locations");
+    expect(markup).toContain("Radio console");
+    expect(markup).toContain("On entering");
+    expect(markup).not.toContain("Not connected");
+    expect(markup).not.toContain("Not started anywhere");
+    expect(markup).not.toContain("No hotspot starts");
+  });
   it("renders one expanded line editor inside the script builder", () => {
     const markup = renderDialoguePanel((project) => {
       const dialogue = addDialogueTree(project);

@@ -9,6 +9,7 @@ import {
 } from "@mage2/schema";
 import { FOREGROUND_MEDIA_IMPORT_EXTENSIONS } from "../asset-file-types";
 import { useDialogs } from "../dialogs";
+import { collectDialogueUsage, type DialogueUsage } from "../dialogue-usage";
 import { DropdownSelect } from "../DropdownSelect";
 import { translateRuntimeMessage, useEditorI18n, type EditorTranslator } from "../i18n";
 import { addAssetRoots, addDialogueTree, createId, ensureString, isForegroundMediaAsset } from "../project-helpers";
@@ -34,14 +35,6 @@ interface DialoguePanelProps {
 interface DialogueNodeOption {
   id: string;
   label: string;
-}
-
-interface DialogueUsage {
-  dialogueId: string;
-  sceneId: string;
-  sceneName: string;
-  hotspotId: string;
-  hotspotLabel: string;
 }
 
 const LINE_LABEL_PREVIEW_LENGTH = 64;
@@ -239,6 +232,11 @@ function DialogueAuthoringPanel({
   };
 
   const openScenes = (usage?: DialogueUsage) => {
+    if (usage?.kind === "dialogue") {
+      setSelectedDialogueId(usage.sourceDialogueId);
+      setSelectedDialogueNodeId(usage.nodeId);
+      return;
+    }
     onOpenScenesHotspot?.(usage?.sceneId, usage?.hotspotId);
   };
 
@@ -386,7 +384,7 @@ function DialogueAuthoringPanel({
                 </label>
               </div>
               <div className="dialogue-builder__actions">
-                <button type="button" className="button-secondary" onClick={() => openScenes(currentUsage[0])}>
+                <button type="button" className="button-secondary" onClick={() => openScenes(currentUsage.find((usage) => usage.kind === "scene"))}>
                   {t("Set up in Scenes")}
                 </button>
                 <button type="button" className="button-accent" onClick={addLine}>
@@ -418,7 +416,7 @@ function DialogueAuthoringPanel({
                 </DropdownSelect>
               </label>
               <div className={currentUsage.length > 0 ? "dialogue-connection-badge" : "dialogue-connection-badge dialogue-connection-badge--warning"}>
-                {currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("Not connected to a hotspot yet")}
+                {currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("Not started anywhere")}
               </div>
             </section>
 
@@ -496,7 +494,7 @@ function DialogueAuthoringPanel({
                 <h4>{t("Start this dialogue from a hotspot in Scenes")}</h4>
                 <p>{t("Choose this dialogue in the selected hotspot's Start Dialogue field.")}</p>
               </div>
-              <button type="button" className="button-accent" onClick={() => openScenes(currentUsage[0])}>
+              <button type="button" className="button-accent" onClick={() => openScenes(currentUsage.find((usage) => usage.kind === "scene"))}>
                 {t("Go to Scenes")}
               </button>
             </section>
@@ -505,25 +503,25 @@ function DialogueAuthoringPanel({
               <div className="dialogue-panel-heading">
                 <div>
                   <p className="eyebrow">{t("Started From")}</p>
-                  <h4>{currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("No hotspots yet")}</h4>
+                  <h4>{currentUsage.length > 0 ? formatUsageBadge(t, currentUsage.length) : t("Not started anywhere")}</h4>
                 </div>
               </div>
               {currentUsage.length > 0 ? (
                 <div className="dialogue-usage-list__items">
                   {currentUsage.map((usage) => (
                     <button
-                      key={`${usage.sceneId}:${usage.hotspotId}`}
+                      key={usage.key}
                       type="button"
                       className="dialogue-usage-item"
                       onClick={() => openScenes(usage)}
                     >
-                      <span className="dialogue-usage-item__scene">{usage.sceneName}</span>
-                      <span className="dialogue-usage-item__hotspot">{usage.hotspotLabel}</span>
+                      <span className="dialogue-usage-item__scene">{usage.originName}</span>
+                      <span className="dialogue-usage-item__hotspot">{usage.label}</span>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="muted">{t("No hotspot starts this dialogue yet.")}</p>
+                <p className="muted">{t("Not started anywhere")}</p>
               )}
             </section>
           </>
@@ -882,47 +880,6 @@ function DialoguePreview({
   );
 }
 
-function collectDialogueUsage(project: ProjectBundle, t: EditorTranslator): Map<string, DialogueUsage[]> {
-  const usageByDialogue = new Map<string, DialogueUsage[]>();
-  for (const scene of project.scenes.items) {
-    scene.hotspots.forEach((hotspot, index) => {
-      if (hotspot.dialogueTreeId) {
-        const usages = usageByDialogue.get(hotspot.dialogueTreeId) ?? [];
-        usages.push({
-          dialogueId: hotspot.dialogueTreeId,
-          sceneId: scene.id,
-          sceneName: scene.name,
-          hotspotId: hotspot.id,
-          hotspotLabel: t("Hotspot {number} ({id})", { number: index + 1, id: formatCompactId(hotspot.id) })
-        });
-        usageByDialogue.set(hotspot.dialogueTreeId, usages);
-      }
-
-      for (const [event, label] of [
-        [hotspot.clickEvent, t("On click")],
-        [hotspot.otherItemEvent, t("Any other item")]
-      ] as const) {
-        if (event?.dialogueTreeId) {
-          const usages = usageByDialogue.get(event.dialogueTreeId) ?? [];
-          usages.push({
-            dialogueId: event.dialogueTreeId,
-            sceneId: scene.id,
-            sceneName: scene.name,
-            hotspotId: hotspot.id,
-            hotspotLabel: t("Hotspot {number} {label} ({id})", {
-              number: index + 1,
-              label,
-              id: formatCompactId(hotspot.id)
-            })
-          });
-          usageByDialogue.set(event.dialogueTreeId, usages);
-        }
-      }
-    });
-  }
-  return usageByDialogue;
-}
-
 function findDialogue(project: ProjectBundle, dialogueId: string): DialogueTree | undefined {
   return project.dialogues.items.find((entry) => entry.id === dialogueId);
 }
@@ -957,17 +914,13 @@ function formatUsageBadge(t: EditorTranslator, usageCount: number): string {
   if (usageCount === 0) {
     return t("Not started anywhere");
   }
-  return usageCount === 1 ? t("Starts from 1 hotspot") : t("Starts from {count} hotspots", { count: usageCount });
+  return usageCount === 1 ? t("Starts from 1 location") : t("Starts from {count} locations", { count: usageCount });
 }
 
 function formatMediaKind(t: EditorTranslator, kind: Asset["kind"]): string {
   if (kind === "audio") return t("audio");
   if (kind === "video") return t("video");
   return kind;
-}
-
-function formatCompactId(id: string): string {
-  return id.length <= 10 ? id : id.slice(-8);
 }
 
 function truncateText(value: string, maxLength: number): string {
