@@ -214,10 +214,12 @@ export function createPlayerProtocolHandler(publicUrl, serverUrl, fetchRequest) 
     const target = new URL(serverUrl);
     target.pathname = requestedUrl.pathname;
     target.search = requestedUrl.search;
-    return fetchRequest(target.href, {
+    // Use Node's transport for the local hop. Electron's Chromium fetch keeps
+    // renderer CORS headers and can reject module requests across these ports.
+    // The protocol response is still delivered at the original public origin.
+    return fetch(target.href, {
       method: request.method,
-      headers: request.headers,
-      bypassCustomProtocolHandlers: true
+      headers: request.headers
     });
   };
 }

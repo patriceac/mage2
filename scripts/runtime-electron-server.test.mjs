@@ -52,20 +52,33 @@ describe("runtime Electron server", () => {
   });
 
   it("keeps the save origin while proxying media ranges to the fallback listener", async () => {
-    const fetchRequest = vi.fn(async () => new Response("media", { status: 206 }));
-    const handler = createPlayerProtocolHandler("http://127.0.0.1:52722/", "http://127.0.0.1:43001/", fetchRequest);
-    const request = new Request("http://127.0.0.1:52722/media/scene.mp4?v=2", { headers: { Range: "bytes=5-9" } });
-    expect((await handler(request)).status).toBe(206);
-    expect(request.url).toBe("http://127.0.0.1:52722/media/scene.mp4?v=2");
-    expect(fetchRequest).toHaveBeenCalledWith("http://127.0.0.1:43001/media/scene.mp4?v=2", {
-      method: "GET", headers: request.headers, bypassCustomProtocolHandlers: true
-    });
-    expect(fetchRequest.mock.calls[0][1].headers.get("Range")).toBe("bytes=5-9");
+    const root = await mkdtemp(path.join(os.tmpdir(), "mage2-runtime-protocol-"));
+    await writeFile(path.join(root, "scene.mp4"), "0123456789");
+    await writeFile(path.join(root, "app.js"), "export const ready = true;");
+    const runtime = await startPlayerServer(root, 0);
+    cleanups.push(() => new Promise(resolve => runtime.server.close(resolve)), () => rm(root, { recursive: true, force: true }));
+    const fetchRequest = vi.fn(async () => new Response("external"));
+    const handler = createPlayerProtocolHandler("http://127.0.0.1:52722/", runtime.url, fetchRequest);
+    const request = new Request("http://127.0.0.1:52722/scene.mp4?v=2", { headers: { Range: "bytes=5-9" } });
+    const media = await handler(request);
+    expect(media.status).toBe(206);
+    expect(media.headers.get("Content-Range")).toBe("bytes 5-9/10");
+    expect(await media.text()).toBe("56789");
+    expect(request.url).toBe("http://127.0.0.1:52722/scene.mp4?v=2");
+    const module = await handler(new Request("http://127.0.0.1:52722/app.js", {
+      headers: { Origin: "http://127.0.0.1:52722", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "script" }
+    }));
+    expect(module.headers.get("Content-Type")).toContain("javascript");
+    expect(await module.text()).toBe("export const ready = true;");
+    const head = await handler(new Request(request.url, { method: "HEAD" }));
+    expect(head.headers.get("Content-Length")).toBe("10");
+    expect(await head.text()).toBe("");
+    expect(fetchRequest).not.toHaveBeenCalled();
     const otherRequest = new Request("http://127.0.0.1:4187/");
     await handler(otherRequest);
     expect(fetchRequest).toHaveBeenLastCalledWith(otherRequest, { bypassCustomProtocolHandlers: true });
     expect((await handler(new Request(request.url, { method: "POST", body: "ignored" }))).status).toBe(405);
-    expect(fetchRequest).toHaveBeenCalledTimes(2);
+    expect(fetchRequest).toHaveBeenCalledTimes(1);
   });
 
   it("uses a stable project-specific loopback port", () => {
