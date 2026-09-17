@@ -708,7 +708,10 @@
 .mage2-player__dialogue-choices {
   display: grid;
   gap: 0.55rem;
-  max-height: 10rem;
+  max-height: calc(10rem + 8px);
+  /* Keep the 3px focus ring and 1px hover lift inside the scrollport. */
+  margin: -4px;
+  padding: 4px;
   overflow: auto;
 }
 
@@ -927,7 +930,7 @@
   }
 
   .mage2-player--runtime-responsive .mage2-player__dialogue-choices {
-    max-height: min(12rem, 30dvh);
+    max-height: calc(min(12rem, 30dvh) + 8px);
   }
 
   .mage2-player--runtime-responsive .mage2-player__inventory-anchor {
