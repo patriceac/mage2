@@ -159,10 +159,7 @@ export async function startPlayerServer(rootDirectory, port) {
     }
   });
 
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
-  });
+  await listenOnAvailablePlayerPort(server, port);
 
   const address = server.address();
   if (!address || typeof address === "string") {
@@ -174,6 +171,54 @@ export async function startPlayerServer(rootDirectory, port) {
     server,
     url: `http://127.0.0.1:${address.port}/`,
     close: () => server.close()
+  };
+}
+
+// Windows can reserve an otherwise unused port (notably with Hyper-V). Keep
+// the preferred port when possible, but let the OS select an available one
+// after a bind conflict. The Electron shell preserves the public save origin.
+export async function listenOnAvailablePlayerPort(server, preferredPort) {
+  const listen = (port) => new Promise((resolve, reject) => {
+    const failed = (error) => {
+      server.removeListener("listening", ready);
+      reject(error);
+    };
+    const ready = () => {
+      server.removeListener("error", failed);
+      resolve();
+    };
+    server.once("error", failed);
+    server.once("listening", ready);
+    server.listen(port, "127.0.0.1");
+  });
+  try {
+    await listen(preferredPort);
+  } catch (error) {
+    if (preferredPort === 0 || !["EACCES", "EADDRINUSE"].includes(error?.code)) throw error;
+    await listen(0);
+  }
+}
+
+// Only the transport address changes. Chromium continues using the original
+// project URL, so localStorage saves and preferences survive either bind path.
+export function createPlayerProtocolHandler(publicUrl, serverUrl, fetchRequest) {
+  const publicOrigin = new URL(publicUrl).origin;
+  return (request) => {
+    const requestedUrl = new URL(request.url);
+    if (requestedUrl.origin !== publicOrigin) {
+      return fetchRequest(request, { bypassCustomProtocolHandlers: true });
+    }
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+    }
+    const target = new URL(serverUrl);
+    target.pathname = requestedUrl.pathname;
+    target.search = requestedUrl.search;
+    return fetchRequest(target.href, {
+      method: request.method,
+      headers: request.headers,
+      bypassCustomProtocolHandlers: true
+    });
   };
 }
 

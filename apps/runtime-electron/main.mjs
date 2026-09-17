@@ -1,12 +1,13 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
-import { readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net } from "electron";
+import { createPlayerProtocolHandler, readPlayerBuildIdentity, resolvePlayerPort, startPlayerServer } from "./server.mjs";
 import { readPlayerBuildIdentitySync, resolveRuntimeApplicationIdentity } from "./identity.mjs";
 import { createRuntimeStartupDataUrl, createRuntimeStartupMetrics } from "./startup.mjs";
 
 let playerServer;
+let playerUrl;
 const runtimeShellDirectory = path.dirname(fileURLToPath(import.meta.url));
 const playerWindows = new Set();
 const playerStartupMetrics = new WeakMap();
@@ -63,14 +64,25 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(null);
     const playerWindow = await createPlayerWindow();
     const buildIdentity = await readPlayerBuildIdentity(playerDirectory);
-    playerServer = await startPlayerServer(playerDirectory, resolvePlayerPort(buildIdentity.projectId));
-    await loadPlayerWindow(playerWindow, playerServer.url);
+    const preferredPort = resolvePlayerPort(buildIdentity.projectId);
+    playerServer = await startPlayerServer(playerDirectory, preferredPort);
+    playerUrl = `http://127.0.0.1:${preferredPort}/`;
+    if (playerServer.url !== playerUrl) {
+      playerWindow.webContents.session.protocol.handle(
+        "http",
+        createPlayerProtocolHandler(playerUrl, playerServer.url, (request, options) => net.fetch(request, options))
+      );
+    }
+    await loadPlayerWindow(playerWindow, playerUrl);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createPlayerWindow(playerServer.url);
+        void createPlayerWindow(playerUrl);
       }
     });
+  }).catch((error) => {
+    dialog.showErrorBox("Unable to start the game", error instanceof Error ? error.message : String(error));
+    app.quit();
   });
 
   app.on("window-all-closed", () => {

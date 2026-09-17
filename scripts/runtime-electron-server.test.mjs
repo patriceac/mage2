@@ -1,8 +1,12 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import http from "node:http";
+import { EventEmitter } from "node:events";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createPlayerProtocolHandler,
+  listenOnAvailablePlayerPort,
   resolveByteRange,
   resolveContentType,
   resolvePlayerPort,
@@ -16,6 +20,54 @@ afterEach(async () => {
 });
 
 describe("runtime Electron server", () => {
+  it("starts on an available loopback port when the preferred port is occupied", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "mage2-runtime-conflict-"));
+    await writeFile(path.join(root, "index.html"), "The game is ready.");
+    const occupied = http.createServer();
+    await new Promise(resolve => occupied.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise(resolve => occupied.close(resolve)), () => rm(root, { recursive: true, force: true }));
+    const preferredPort = occupied.address().port;
+    const runtime = await startPlayerServer(root, preferredPort);
+    cleanups.push(() => new Promise(resolve => runtime.server.close(resolve)));
+    expect(runtime.url).not.toBe(`http://127.0.0.1:${preferredPort}/`);
+    expect(await (await fetch(runtime.url)).text()).toBe("The game is ready.");
+  });
+
+  it("recovers from Windows reserved ports but propagates unrelated listen failures", async () => {
+    const server = new EventEmitter();
+    const ports = [];
+    server.listen = (port, address) => {
+      ports.push(port);
+      expect(address).toBe("127.0.0.1");
+      queueMicrotask(() => port ? server.emit("error", Object.assign(new Error("Reserved port"), { code: "EACCES" })) : server.emit("listening"));
+    };
+    await listenOnAvailablePlayerPort(server, 52722);
+    expect(ports).toEqual([52722, 0]);
+    expect(server.listenerCount("error")).toBe(0);
+    expect(server.listenerCount("listening")).toBe(0);
+    const failure = Object.assign(new Error("Unexpected error"), { code: "EIO" });
+    server.listen = vi.fn(() => queueMicrotask(() => server.emit("error", failure)));
+    await expect(listenOnAvailablePlayerPort(server, 52722)).rejects.toBe(failure);
+    expect(server.listen).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the save origin while proxying media ranges to the fallback listener", async () => {
+    const fetchRequest = vi.fn(async () => new Response("media", { status: 206 }));
+    const handler = createPlayerProtocolHandler("http://127.0.0.1:52722/", "http://127.0.0.1:43001/", fetchRequest);
+    const request = new Request("http://127.0.0.1:52722/media/scene.mp4?v=2", { headers: { Range: "bytes=5-9" } });
+    expect((await handler(request)).status).toBe(206);
+    expect(request.url).toBe("http://127.0.0.1:52722/media/scene.mp4?v=2");
+    expect(fetchRequest).toHaveBeenCalledWith("http://127.0.0.1:43001/media/scene.mp4?v=2", {
+      method: "GET", headers: request.headers, bypassCustomProtocolHandlers: true
+    });
+    expect(fetchRequest.mock.calls[0][1].headers.get("Range")).toBe("bytes=5-9");
+    const otherRequest = new Request("http://127.0.0.1:4187/");
+    await handler(otherRequest);
+    expect(fetchRequest).toHaveBeenLastCalledWith(otherRequest, { bypassCustomProtocolHandlers: true });
+    expect((await handler(new Request(request.url, { method: "POST", body: "ignored" }))).status).toBe(405);
+    expect(fetchRequest).toHaveBeenCalledTimes(2);
+  });
+
   it("uses a stable project-specific loopback port", () => {
     const first = resolvePlayerPort("beacon-at-dusk");
 
