@@ -39,6 +39,7 @@ import {
 } from "./hotspot-alpha-hit-test";
 import {
   resolvePlayerDialogueChoiceMarker,
+  resolvePlayerDialoguePortraitSource,
   resolvePlayerHotspotInteraction,
   resolvePlayerHotspotVisuals,
   resolvePlayerInventoryItemInitial,
@@ -65,7 +66,7 @@ const INVENTORY_DRAWER_ID = "mage2-player-inventory-drawer";
 const NOOP_RESPONSE_COMPLETE = () => undefined;
 
 export interface PlayerSceneRendererProps {
-  project: Pick<ProjectBundle, "assets" | "inventory">;
+  project: Pick<ProjectBundle, "assets" | "inventory" | "dialogues">;
   snapshot: PlayerSnapshot;
   locale: string;
   strings: Record<string, string>;
@@ -107,6 +108,7 @@ export interface PlayerSceneRendererHandle {
 
 export interface PlayerDialogueBoxProps {
   activeDialogue: ActiveDialogueState;
+  portraitSrc?: string;
   strings: Record<string, string>;
   copy: Pick<
     PlayerSystemCopy,
@@ -118,11 +120,13 @@ export interface PlayerDialogueBoxProps {
 
 export function PlayerDialogueBox({
   activeDialogue,
+  portraitSrc,
   strings,
   copy,
   onChoice,
   onContinue
 }: PlayerDialogueBoxProps) {
+  const [failedPortraitSrc, setFailedPortraitSrc] = useState<string>();
   const speaker = activeDialogue.node.speaker.trim() || copy.narrator;
   const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
   const canContinueBySurfaceClick = activeDialogue.choices.length === 0;
@@ -142,7 +146,19 @@ export function PlayerDialogueBox({
       <div className="mage2-player__dialogue-speaker-row">
         <h4 className="mage2-player__dialogue-speaker">{speaker}</h4>
       </div>
-      <p className="mage2-player__dialogue-text">{line}</p>
+      <div className="mage2-player__dialogue-body">
+        {portraitSrc && portraitSrc !== failedPortraitSrc ? (
+          <img
+            key={portraitSrc}
+            className="mage2-player__dialogue-portrait"
+            src={portraitSrc}
+            alt=""
+            draggable={false}
+            onError={() => setFailedPortraitSrc(portraitSrc)}
+          />
+        ) : null}
+        <p className="mage2-player__dialogue-text">{line}</p>
+      </div>
 
       {activeDialogue.choices.length > 0 ? (
         <div className="mage2-player__dialogue-choices">
@@ -377,6 +393,8 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const sceneAssetVariant = sceneAsset ? resolveAssetVariant(sceneAsset, locale) : undefined;
     const sceneSourcePath = sceneAssetVariant?.proxyPath ?? sceneAssetVariant?.sourcePath;
     const sceneUrl = useResolvedSource(sceneSourcePath, resolveSourcePath);
+    const portraitSourcePath = resolvePlayerDialoguePortraitSource(snapshot.activeDialogue?.node.speaker, project, locale);
+    const portraitUrl = useResolvedSource(portraitSourcePath, resolveSourcePath);
     const videoAudioMode = snapshot.scene.videoAudioMode;
     const sceneAudioAsset = snapshot.scene.sceneAudioAssetId
       ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
@@ -787,6 +805,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
               {snapshot.activeDialogue ? (
                 <PlayerDialogueBox
                   activeDialogue={snapshot.activeDialogue}
+                  portraitSrc={portraitUrl}
                   strings={strings}
                   copy={copy}
                   onChoice={onDialogueChoice}
@@ -956,30 +975,31 @@ function PlayerHotspotButton({
 }
 
 function useResolvedSource(sourcePath: string | undefined, resolver: PlayerSourceResolver): string | undefined {
-  const [url, setUrl] = useState<string>();
+  const [resolved, setResolved] = useState<{ sourcePath: string; url: string; resolver: PlayerSourceResolver }>();
   useEffect(() => {
     let cancelled = false;
     if (!sourcePath) {
-      setUrl(undefined);
+      setResolved(undefined);
       return;
     }
 
     void resolver(sourcePath)
       .then((nextUrl) => {
         if (!cancelled) {
-          setUrl(nextUrl);
+          setResolved({ sourcePath, url: nextUrl, resolver });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setUrl(undefined);
+          setResolved(undefined);
         }
       });
     return () => {
       cancelled = true;
     };
   }, [resolver, sourcePath]);
-  return url;
+  // Never show the previous speaker's portrait while the next image resolves.
+  return resolved?.sourcePath === sourcePath && resolved?.resolver === resolver ? resolved.url : undefined;
 }
 
 function useResolvedSourceMap(

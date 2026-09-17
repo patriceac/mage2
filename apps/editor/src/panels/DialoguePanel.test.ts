@@ -79,6 +79,20 @@ function renderDialoguePanel(configureProject: (project: ProjectBundle) => void)
 }
 
 describe("DialoguePanel", () => {
+  it("offers a shared speaker portrait using image assets and previews it", () => {
+    const markup = renderDialoguePanel((project) => {
+      const dialogue = addDialogueTree(project);
+      project.assets.assets.push({ id: "portrait", name: "Hero portrait", kind: "image", variants: {} });
+      project.dialogues.speakerPortraits = { Hero: "portrait" };
+      mockedStore.state.selectedDialogueId = dialogue.id;
+      mockedStore.state.selectedDialogueNodeId = dialogue.startNodeId;
+    });
+    expect(markup).toContain("Speaker portrait");
+    expect(markup).toContain("Hero portrait");
+    expect(markup).toContain("Shared by all lines with this speaker name.");
+    expect(markup).toContain("dialogue-preview-card__portrait");
+  });
+
   beforeEach(() => {
     mockedStore.state.selectedDialogueId = undefined;
     mockedStore.state.selectedDialogueNodeId = undefined;

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   getLocaleStringValues,
+  resolveSpeakerPortraitAssetId,
   type Asset,
   type DialogueChoice,
   type DialogueNode,
@@ -97,6 +98,7 @@ function DialogueAuthoringPanel({
   const activeLocale = project.manifest.defaultLanguage;
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const foregroundMediaAssets = project.assets.assets.filter(isForegroundMediaAsset);
+  const portraitAssets = project.assets.assets.filter((asset) => asset.kind === "image");
   const usageByDialogue = useMemo(() => collectDialogueUsage(project, t), [project, t]);
   const currentDialogue = project.dialogues.items.find((entry) => entry.id === selectedDialogueId) ?? project.dialogues.items[0];
   const currentUsage = currentDialogue ? usageByDialogue.get(currentDialogue.id) ?? [] : [];
@@ -453,6 +455,7 @@ function DialogueAuthoringPanel({
                     isSelected={node.id === selectedNodeId}
                     localeStrings={localeStrings}
                     mediaAssets={foregroundMediaAssets}
+                    portraitAssets={portraitAssets}
                     mutateProject={mutateProject}
                     project={project}
                     node={node}
@@ -500,6 +503,7 @@ function DialogueAuthoringPanel({
                 <DialoguePreview
                   activeLocale={activeLocale}
                   mediaAsset={foregroundMediaAssets.find((asset) => asset.id === selectedNode.mediaAssetId)}
+                  portraitAsset={portraitAssets.find((asset) => asset.id === resolveSpeakerPortraitAssetId(project.dialogues.speakerPortraits, selectedNode.speaker))}
                   node={selectedNode}
                   nodeOptions={nodeOptions}
                   strings={localeStrings}
@@ -562,6 +566,7 @@ function LineCard({
   isSelected,
   localeStrings,
   mediaAssets,
+  portraitAssets,
   mutateProject,
   project,
   node,
@@ -579,6 +584,7 @@ function LineCard({
   isSelected: boolean;
   localeStrings: Record<string, string>;
   mediaAssets: Asset[];
+  portraitAssets: Asset[];
   mutateProject: (mutator: (draft: ProjectBundle) => void) => void;
   project: ProjectBundle;
   node: DialogueNode;
@@ -593,6 +599,7 @@ function LineCard({
   const lineText = localeStrings[node.textId] ?? "";
   const hasReplies = node.choices.length > 0;
   const branchOptions = nodeOptions.filter((option) => option.id !== node.id);
+  const portraitAssetId = resolveSpeakerPortraitAssetId(project.dialogues.speakerPortraits, node.speaker);
 
   return (
     <article className={isSelected ? "dialogue-line-card dialogue-line-card--selected" : "dialogue-line-card"}>
@@ -666,6 +673,33 @@ function LineCard({
               {hasReplies ? <span className="dialogue-field-note">{t("Player replies decide what happens next.")}</span> : null}
             </label>
           </div>
+
+          <label>
+            <span className="field-label--inset">{t("Speaker portrait")}</span>
+            <DropdownSelect
+              value={portraitAssetId ?? ""}
+              disabled={!node.speaker.trim()}
+              onChange={(event) => {
+                const assetId = event.target.value;
+                mutateProject((draft) => {
+                  const speaker = node.speaker.trim();
+                  if (!speaker) return;
+                  const portraits = { ...draft.dialogues.speakerPortraits, [speaker]: assetId };
+                  if (!assetId) delete portraits[speaker];
+                  draft.dialogues.speakerPortraits = portraits;
+                });
+              }}
+            >
+              <option value="">{t("No image")}</option>
+              {portraitAssetId && !portraitAssets.some((asset) => asset.id === portraitAssetId) ? (
+                <option value={portraitAssetId}>{t("Missing portrait")}</option>
+              ) : null}
+              {portraitAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>{asset.name}</option>
+              ))}
+            </DropdownSelect>
+            <span className="dialogue-field-note">{t("Shared by all lines with this speaker name. Import images in Assets.")}</span>
+          </label>
 
           <label>
             <span className="field-label--inset">{t("What they say")}</span>
@@ -853,12 +887,14 @@ function ChoiceEditor({
 function DialoguePreview({
   activeLocale,
   mediaAsset,
+  portraitAsset,
   node,
   nodeOptions,
   strings
 }: {
   activeLocale: string;
   mediaAsset?: Asset;
+  portraitAsset?: Asset;
   node: DialogueNode;
   nodeOptions: DialogueNodeOption[];
   strings: Record<string, string>;
@@ -883,7 +919,14 @@ function DialoguePreview({
       ) : null}
       <div className="dialogue-preview-card__bubble">
         <strong>{node.speaker || t("Speaker")}</strong>
-        <p>{lineText}</p>
+        <div className="dialogue-preview-card__line">
+          {portraitAsset ? (
+            <div className="dialogue-preview-card__portrait">
+              <AssetPreview key={portraitAsset.id} asset={portraitAsset} locale={activeLocale} allowSourceFallback fit="contain" />
+            </div>
+          ) : null}
+          <p>{lineText}</p>
+        </div>
       </div>
       {node.choices.length > 0 ? (
         <div className="dialogue-preview-card__choices">

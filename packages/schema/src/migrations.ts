@@ -51,7 +51,8 @@ export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
   { fromVersion: 12, toVersion: 13, migrate: migrateV12ToV13 },
   { fromVersion: 13, toVersion: 14, migrate: migrateV13ToV14 },
   { fromVersion: 14, toVersion: 15, migrate: migrateV14ToV15 },
-  { fromVersion: 15, toVersion: 16, migrate: migrateV15ToV16 }
+  { fromVersion: 15, toVersion: 16, migrate: migrateV15ToV16 },
+  { fromVersion: 16, toVersion: 17, migrate: migrateV16ToV17 }
 ];
 
 /** Returns the ordered transformations required to reach the current format. */
@@ -417,6 +418,12 @@ function migrateV14ToV15(bundle: UnknownRecord): UnknownRecord {
 // derived from placedInventoryItemId by the runtime.
 function migrateV15ToV16(bundle: UnknownRecord): UnknownRecord {
   return withSchemaVersion(bundle, 16);
+}
+
+// Portraits are optional. Older projects keep their text-only dialogue, while
+// the version boundary prevents older editors from silently stripping portraits.
+function migrateV16ToV17(bundle: UnknownRecord): UnknownRecord {
+  return withSchemaVersion(bundle, 17);
 }
 
 function migrateLegacyCondition(value: unknown, flagIds: Set<string>): unknown {

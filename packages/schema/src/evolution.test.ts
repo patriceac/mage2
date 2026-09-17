@@ -48,7 +48,8 @@ describe("project schema evolution", () => {
       [12, 13],
       [13, 14],
       [14, 15],
-      [15, 16]
+      [15, 16],
+      [16, 17]
     ]);
 
     const parsed = parseProjectBundle(raw);

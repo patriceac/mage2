@@ -6,6 +6,7 @@ import {
   toExportProjectData
 } from "@mage2/schema";
 import {
+  createRuntimeProject,
   isRuntimeDebugMode,
   persistRuntimeInterfaceLocalePreference,
   resolveRuntimeHeaderContent,
@@ -21,6 +22,15 @@ import {
 } from "./App";
 
 describe("runtime mode", () => {
+  it("keeps shared speaker portraits when loading an export and supports older exports", () => {
+    const project = createDefaultProjectBundle("Shared portraits");
+    project.dialogues.speakerPortraits = { Tancrede: "portrait" };
+    const content = toExportProjectData(project);
+    expect(createRuntimeProject(content).dialogues.speakerPortraits).toEqual({ Tancrede: "portrait" });
+    delete content.speakerPortraits;
+    expect(createRuntimeProject(content).dialogues.speakerPortraits).toEqual({});
+  });
+
   it("requires the exact debug=1 query opt-in", () => {
     expect(isRuntimeDebugMode("?debug=1")).toBe(true);
     expect(isRuntimeDebugMode("?project=demo&debug=1")).toBe(true);

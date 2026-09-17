@@ -4,17 +4,30 @@ import {
   hasHotspotEvent,
   resolveAssetCategory,
   resolveAssetVariant,
+  resolveSpeakerPortraitAssetId,
   resolveHotspotInventoryAction,
   resolvePlacedInventoryHotspotInstance,
   resolvePlacedInventoryItemId,
   shouldDisplayHotspotInventoryVisual,
   type Asset,
+  type ProjectBundle,
   type Hotspot,
   type InventoryItem
 } from "@mage2/schema";
 
 export type PlayerSourceResolver = (sourcePath: string) => Promise<string>;
 export type PlayerScenePresentation = "embedded" | "runtime-responsive";
+
+export function resolvePlayerDialoguePortraitSource(
+  speaker: string | undefined,
+  project: Pick<ProjectBundle, "assets" | "dialogues">,
+  locale: string
+): string | undefined {
+  const assetId = speaker ? resolveSpeakerPortraitAssetId(project.dialogues.speakerPortraits, speaker) : undefined;
+  const asset = assetId ? project.assets.assets.find((entry) => entry.id === assetId) : undefined;
+  const variant = asset?.kind === "image" ? resolveAssetVariant(asset, locale) : undefined;
+  return variant?.proxyPath ?? variant?.sourcePath;
+}
 
 export interface PlayerSystemCopy {
   narrator: string;

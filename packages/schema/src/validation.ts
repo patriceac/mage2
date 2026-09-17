@@ -187,6 +187,31 @@ export function validateProject(project: ProjectBundle): ValidationReport {
     validateDialogue(project, dialogue, supportedLocales, assetsById, sceneIds, inventoryIds, dialogueIds, issues);
   }
 
+  for (const [speaker, assetId] of Object.entries(project.dialogues.speakerPortraits)) {
+    const portrait = assetsById.get(assetId);
+    const node = project.dialogues.items.flatMap((dialogue) => dialogue.nodes).find((entry) => entry.speaker.trim() === speaker);
+    if (!portrait || portrait.kind !== "image") {
+      issues.push({
+        level: "error",
+        code: portrait ? "DIALOGUE_PORTRAIT_KIND_INVALID" : "DIALOGUE_PORTRAIT_ASSET_MISSING",
+        message: `Speaker '${speaker}' must reference an existing image for their portrait ('${assetId}').`,
+        entityId: node?.id
+      });
+    } else {
+      for (const locale of supportedLocales) {
+        if (!resolveAssetVariant(portrait, locale)) {
+          issues.push({
+            level: "error",
+            code: "DIALOGUE_PORTRAIT_LOCALE_MISSING",
+            message: `Portrait asset '${portrait.id}' is missing a '${locale}' variant.`,
+            entityId: portrait.id,
+            locale
+          });
+        }
+      }
+    }
+  }
+
   validateResponseLibrary(project, supportedLocales, assetsById, issues);
 
   for (const item of project.inventory.items) {

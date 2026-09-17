@@ -59,6 +59,7 @@ export function createRuntimeProject(content: ExportProjectData): ProjectBundle 
     dialogues: {
       schemaVersion: content.schemaVersion,
       items: content.dialogues,
+      speakerPortraits: content.speakerPortraits ?? {},
       responseGroups: content.responseGroups ?? [],
       starterResponsesVersion: content.starterResponsesVersion ?? 0
     },

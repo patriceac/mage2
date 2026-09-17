@@ -663,6 +663,7 @@
 .mage2-player__dialogue-speaker-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   min-width: 0;
 }
 
@@ -695,11 +696,37 @@
   opacity: 0.8;
 }
 
+.mage2-player__dialogue-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mage2-player__dialogue-portrait {
+  display: block;
+  flex: 0 0 auto;
+  width: clamp(3.25rem, 12cqw, 5.5rem);
+  max-height: 100%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(246, 193, 119, 0.3);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  object-fit: contain;
+}
+
 .mage2-player__dialogue-text {
-  max-height: 6rem;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: min(6rem, 100%);
   margin: 0;
   overflow: auto;
-  color: #f7fafc;
+  overflow-wrap: anywhere;
+  color: #f5f0e8;
   font-size: 1.08rem;
   line-height: 1.5;
   text-wrap: pretty;
@@ -853,6 +880,14 @@
     min-height: 1.7rem;
     padding: 0.25rem 0.55rem;
     font-size: 0.82rem;
+  }
+
+  .mage2-player__dialogue-body {
+    gap: 0.65rem;
+  }
+
+  .mage2-player__dialogue-portrait {
+    width: 3.5rem;
   }
 
   .mage2-player__dialogue-text {

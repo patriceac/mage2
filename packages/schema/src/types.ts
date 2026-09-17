@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -445,6 +445,7 @@ export const SceneFileSchema = z.object({
 export const DialogueFileSchema = z.object({
   schemaVersion: z.number().int().positive(),
   items: z.array(DialogueTreeSchema).default([]),
+  speakerPortraits: z.record(z.string().trim().min(1), z.string().min(1)).default({}),
   responseGroups: z.array(ResponseGroupSchema).default([]),
   starterResponsesVersion: z.number().int().nonnegative().default(0)
 });
@@ -536,6 +537,7 @@ export interface ExportProjectData {
   locations: Location[];
   scenes: Scene[];
   dialogues: DialogueTree[];
+  speakerPortraits?: Record<string, string>;
   responseGroups?: ResponseGroup[];
   starterResponsesVersion?: number;
   inventoryItems: InventoryItem[];

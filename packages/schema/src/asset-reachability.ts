@@ -35,6 +35,10 @@ export function collectReferencedAssetIds(project: ProjectBundle): Set<string> {
     }
   }
 
+  for (const assetId of Object.values(project.dialogues.speakerPortraits)) {
+    addReference(assetId);
+  }
+
   for (const item of project.inventory.items) {
     addReference(item.imageAssetId);
   }

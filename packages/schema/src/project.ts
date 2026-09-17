@@ -158,6 +158,7 @@ export function createDefaultProjectBundle(projectName = "New FMV Project"): Pro
     dialogues: {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       items: [],
+      speakerPortraits: {},
       responseGroups: createStarterResponseGroups(),
       starterResponsesVersion: STARTER_RESPONSE_LIBRARY_VERSION
     },
@@ -204,6 +205,7 @@ export function toExportProjectData(project: ProjectBundle): ExportProjectData {
     locations: project.locations.items,
     scenes: project.scenes.items,
     dialogues: project.dialogues.items,
+    speakerPortraits: project.dialogues.speakerPortraits,
     responseGroups: project.dialogues.responseGroups,
     starterResponsesVersion: project.dialogues.starterResponsesVersion,
     inventoryItems: project.inventory.items,
