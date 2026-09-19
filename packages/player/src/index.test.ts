@@ -11,10 +11,28 @@ import {
   getSceneAudioPlayheadMs,
   resolveSceneAudioPlaybackDirective,
   resolveSceneAudioSyncState,
-  resolveSceneTimelineDurationMs
+  resolveSceneTimelineDurationMs,
+  shouldResetPlayheadAfterHotspot
 } from "./index";
 
 describe("player controller", () => {
+  it("preserves ambient video progress while retaining transitions and cinematic restarts", () => {
+    const project = createDefaultProjectBundle();
+    const scene = project.scenes.items[0]!;
+    scene.backgroundVideoLoop = true;
+    const controller = createPlayerController(project);
+    const hotspot = scene.hotspots[0]!;
+    delete hotspot.response;
+    const interaction = controller.selectHotspot(hotspot.id, 2500);
+    expect(shouldResetPlayheadAfterHotspot(scene, scene.id, "video", interaction.transitionedToSceneId)).toBe(false);
+    expect(shouldResetPlayheadAfterHotspot(scene, "another_scene", "video")).toBe(true);
+    hotspot.effects = [{ type: "goToScene", sceneId: scene.id }];
+    const replay = controller.selectHotspot(hotspot.id, 2500);
+    expect(shouldResetPlayheadAfterHotspot(scene, scene.id, "video", replay.transitionedToSceneId)).toBe(true);
+    expect(shouldResetPlayheadAfterHotspot(scene, scene.id, "image")).toBe(true);
+    expect(shouldResetPlayheadAfterHotspot({ ...scene, backgroundVideoLoop: false }, scene.id, "video")).toBe(true);
+  });
+
   it("keeps unassigned hotspot interactions completely silent", () => {
     const project = createDefaultProjectBundle();
     const hotspot = project.scenes.items[0]!.hotspots[0]!;

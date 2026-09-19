@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createPlayerController,
   resolveSceneTimelineDurationMs,
+  shouldResetPlayheadAfterHotspot,
   type ActivePlayerResponse,
   type ConditionEvaluation,
   type HotspotAvailabilityExplanation,
@@ -351,7 +352,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     applyPlayerResponseResolution(resolution);
     const nextSnapshot = controller.getSnapshot();
     setSnapshot(nextSnapshot);
-    setPlayheadMs(0);
+    if (shouldResetPlayheadAfterHotspot(snapshot.scene, nextSnapshot.scene.id, sceneAsset?.kind, resolution.transitionedToSceneId)) {
+      setPlayheadMs(0);
+    }
     return { snapshot: nextSnapshot, selectedInventoryItemId: activeSelectedInventoryItemId, activated: true };
   }
 
@@ -359,8 +362,11 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     setLastActivatedHotspotId(hotspotId);
     const resolution = controller.selectHotspotEvent(hotspotId, eventType, playheadMs, sceneTimelineDurationMs);
     applyPlayerResponseResolution(resolution);
-    setSnapshot(controller.getSnapshot());
-    setPlayheadMs(0);
+    const nextSnapshot = controller.getSnapshot();
+    setSnapshot(nextSnapshot);
+    if (shouldResetPlayheadAfterHotspot(snapshot.scene, nextSnapshot.scene.id, sceneAsset?.kind, resolution.transitionedToSceneId)) {
+      setPlayheadMs(0);
+    }
   }
 
   function applyPlayerResponseResolution(resolution: ReturnType<typeof controller.selectHotspot>) {

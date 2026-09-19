@@ -1,4 +1,16 @@
+import type { Asset, Scene } from "@mage2/schema";
+
 export const PLAYHEAD_SYNC_TOLERANCE_MS = 16;
+
+export function shouldResetPlayheadAfterHotspot(
+  scene: Pick<Scene, "id" | "backgroundVideoLoop">,
+  nextSceneId: string,
+  backgroundKind?: Asset["kind"],
+  transitionedToSceneId?: string
+): boolean {
+  return backgroundKind !== "video" || !scene.backgroundVideoLoop
+    || scene.id !== nextSceneId || Boolean(transitionedToSceneId);
+}
 
 export interface SceneAudioSyncState {
   phase: "waiting" | "playing" | "ended";

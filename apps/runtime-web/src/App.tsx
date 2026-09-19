@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createPlayerController,
   resolveSceneTimelineDurationMs,
+  shouldResetPlayheadAfterHotspot,
   type ActivePlayerResponse
 } from "@mage2/player";
 import {
@@ -832,8 +833,11 @@ export function App() {
               onHotspotActivate={(hotspotId) => {
                 const resolution = controller.selectHotspot(hotspotId, playheadMs, sceneTimelineDurationMs);
                 applyPlayerResponseResolution(resolution);
-                setSnapshot(controller.getSnapshot());
-                setPlayheadMs(0);
+                const nextSnapshot = controller.getSnapshot();
+                setSnapshot(nextSnapshot);
+                if (shouldResetPlayheadAfterHotspot(snapshot.scene, nextSnapshot.scene.id, currentAsset?.kind, resolution.transitionedToSceneId)) {
+                  setPlayheadMs(0);
+                }
                 setRuntimeNotice(undefined);
               }}
               onHotspotEventActivate={(hotspotId, eventType) => {
@@ -844,8 +848,11 @@ export function App() {
                   sceneTimelineDurationMs
                 );
                 applyPlayerResponseResolution(resolution);
-                setSnapshot(controller.getSnapshot());
-                setPlayheadMs(0);
+                const nextSnapshot = controller.getSnapshot();
+                setSnapshot(nextSnapshot);
+                if (shouldResetPlayheadAfterHotspot(snapshot.scene, nextSnapshot.scene.id, currentAsset?.kind, resolution.transitionedToSceneId)) {
+                  setPlayheadMs(0);
+                }
                 setRuntimeNotice(undefined);
               }}
               onPlacedHotspotActivate={(_hotspotId, itemId) => {
