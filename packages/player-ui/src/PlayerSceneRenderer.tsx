@@ -60,6 +60,7 @@ import {
 } from "./model";
 import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
 import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
+import { AmbientLayers } from "./AmbientLayers";
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
 const INVENTORY_DRAWER_ID = "mage2-player-inventory-drawer";
@@ -92,6 +93,8 @@ export interface PlayerSceneRendererProps {
   playbackResetKey?: string | number;
   volume?: number;
   paused?: boolean;
+  ambientEnabled?: boolean;
+  reducedMotion?: boolean;
   presentation?: PlayerScenePresentation;
   className?: string;
 }
@@ -372,6 +375,8 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       playbackResetKey,
       volume = 1,
       paused = false,
+      ambientEnabled = true,
+      reducedMotion = false,
       presentation = "embedded",
       className
     },
@@ -740,6 +745,18 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
               <div className="mage2-player__placeholder">{copy.missingVisual}</div>
             )}
 
+            {sceneAsset?.kind === "image" && snapshot.scene.ambient && <AmbientLayers
+              key={`${snapshot.scene.id}:${snapshot.sceneEntrySequence ?? 0}`}
+              ambient={snapshot.scene.ambient}
+              assets={project.assets.assets}
+              locale={locale}
+              resolveSourcePath={resolveSourcePath}
+              paused={gameplayPaused}
+              enabled={ambientEnabled}
+              reducedMotion={reducedMotion}
+              activeRegionIds={snapshot.activeAmbientRegionIds}
+              resetKey={playbackResetKey}
+            />}
             <div ref={overlayRef} className="mage2-player__hotspots">
               {sceneHotspots.surfaceHotspots.map((hotspot) => (
                 <PlayerHotspotButton

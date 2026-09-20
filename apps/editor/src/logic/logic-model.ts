@@ -122,6 +122,7 @@ export function collectVariableUsage(project: ProjectBundle): VariableUsage[] {
   };
 
   for (const scene of project.scenes.items) {
+    for (const region of scene.ambient?.regions ?? []) readConditions(region.conditions);
     readEffects(scene.onEnterEffects);
     readEffects(scene.onExitEffects);
     readEffects(scene.onMediaEndEffects);

@@ -60,6 +60,7 @@ interface MediaSurfaceProps {
   selectedHotspotId?: string;
   className?: string;
   children?: React.ReactNode;
+  ambientLayers?: React.ReactNode;
   viewportTool?: MediaSurfaceViewportTool;
   viewportTransform?: MediaSurfaceViewportTransform;
   onViewportTransformChange?: (transform: MediaSurfaceViewportTransform) => void;
@@ -122,6 +123,7 @@ export function MediaSurface({
   selectedHotspotId,
   className,
   children,
+  ambientLayers,
   viewportTool = "select",
   viewportTransform = DEFAULT_MEDIA_SURFACE_VIEWPORT_TRANSFORM,
   onViewportTransformChange,
@@ -1065,6 +1067,7 @@ export function MediaSurface({
           </div>
         )}
 
+        {ambientLayers}
         <div
           ref={overlayRef}
           className={editableHotspots ? "media-surface__overlay media-surface__overlay--editable" : "media-surface__overlay"}

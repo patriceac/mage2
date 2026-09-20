@@ -23,6 +23,7 @@ import {
   validateSaveStateForProject
 } from "@mage2/schema";
 export * from "./media-playhead";
+export * from "./ambient";
 
 export interface ActiveDialogueState {
   tree: DialogueTree;
@@ -38,6 +39,8 @@ export interface PlayerSnapshot {
   flags: Record<string, boolean>;
   variables: Record<string, GameVariableValue>;
   activeDialogue?: ActiveDialogueState;
+  activeAmbientRegionIds?: string[];
+  sceneEntrySequence?: number;
 }
 
 export interface HotspotResolution {
@@ -788,6 +791,8 @@ export function createPlayerController(
     return {
       saveState: structuredClone(state),
       scene,
+      sceneEntrySequence,
+      activeAmbientRegionIds: (scene.ambient?.regions ?? []).filter((region) => region.enabled && areConditionsMet(region.conditions, region.conditionMode)).map((region) => region.id),
       location: getLocation(scene.locationId),
       inventoryItems: state.inventory
         .map((itemId) => project.inventory.items.find((item) => item.id === itemId))

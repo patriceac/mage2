@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from 
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
+import { AmbientRegionSchema, createDefaultProjectBundle, type ProjectBundle } from "@mage2/schema";
 
 const electronApp = vi.hoisted(() => ({ isPackaged: true }));
 const renameControl = vi.hoisted(() => ({
@@ -64,6 +64,21 @@ afterAll(async () => {
 });
 
 describe("safe project export", () => {
+  it("exports ambient clips at original registration dimensions plus masks and neutral images", async () => {
+    const { project, projectDir } = await createValidProject();
+    for (const id of ["clip", "neutral", "mask"]) {
+      const sourcePath = path.join(projectDir, `${id}.${id === "clip" ? "mp4" : "png"}`);
+      await writeFile(sourcePath, `original-${id}`);
+      const proxyPath = path.join(projectDir, `${id}-proxy.mp4`);
+      await writeFile(proxyPath, "resized-proxy");
+      project.assets.assets.push({ id, name: id, kind: id === "clip" ? "video" : "image", variants: { en: { sourcePath, proxyPath, width: 320, height: 180, durationMs: 2000, importedAt: "2026-09-20" } } });
+    }
+    project.scenes.items[0]!.ambient = { enabled: true, regions: [AmbientRegionSchema.parse({ id: "region", name: "Region", x: 0, y: 0, width: 0.5, height: 0.5, sourceWidth: 320, sourceHeight: 180, registrationId: "aligned", fallbackMode: "image", fallbackAssetId: "neutral", mask: { assetId: "mask" }, clips: [{ assetId: "clip", registrationId: "aligned" }] })] };
+    const result = await exportProjectBundle(projectDir, project);
+    for (const id of ["clip", "neutral", "mask"]) {
+      expect(await readFile(path.join(result.outputDirectory, "media", `${id}.en.${id === "clip" ? "mp4" : "png"}`), "utf8")).toBe(`original-${id}`);
+    }
+  });
   it("blocks validation errors before inspecting or touching the configured output", async () => {
     const { projectDir, project } = await createValidProject();
     const externalOutput = await createTempDirectory("mage2-export-external-");

@@ -409,6 +409,7 @@ export function App() {
     resolveRuntimeInterfaceLocale("automatic", getNavigatorPreferredLocales())
   );
   const [playheadMs, setPlayheadMs] = useState(0);
+  const [ambientResetKey, setAmbientResetKey] = useState(0);
   const [showHotspots, setShowHotspots] = useState(false);
   const [hasValidStoredSave, setHasValidStoredSave] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
@@ -683,6 +684,7 @@ export function App() {
   const headerContent = resolveRuntimeHeaderContent(content);
 
   const applyRestoredSession = (restoredSession: RuntimeSessionRestoration) => {
+    setAmbientResetKey((value) => value + 1);
     setController(restoredSession.controller);
     setSnapshot(restoredSession.controller.getSnapshot());
     setPlayheadMs(restoredSession.saveState.playheadMs);
@@ -882,7 +884,8 @@ export function App() {
                   setPlayheadMs(0);
                 }
               }}
-              playbackResetKey={`${snapshot.scene.id}:${locale}`}
+              playbackResetKey={`${snapshot.scene.id}:${locale}:${ambientResetKey}`}
+              reducedMotion={playerPreferences.reducedMotion}
             />
             {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
               <RuntimeForegroundMediaPlayer

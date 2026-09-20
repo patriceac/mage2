@@ -737,6 +737,8 @@ async function buildExportInDirectory(
   );
   const reachability = analyzeProjectAssetReachability(project);
   const referencedAssetIds = new Set(reachability.referencedAssetIds);
+  const ambientClipIds = new Set(project.scenes.items.flatMap((scene) =>
+    scene.ambient?.regions.flatMap((region) => region.clips.map((clip) => clip.assetId)) ?? []));
   const generatedMediaPaths = new Set<string>();
   const totalVariantCountBeforePruning = project.assets.assets.reduce(
     (count, asset) => count + supportedLocales.filter((candidate) => asset.variants[candidate]).length,
@@ -793,7 +795,7 @@ async function buildExportInDirectory(
       assertSafeGeneratedToken("locale", locale);
       const variant = asset.variants[locale]!;
       const sourcePath =
-        asset.kind === "video" || asset.kind === "audio"
+        !ambientClipIds.has(asset.id) && (asset.kind === "video" || asset.kind === "audio")
           ? variant.proxyPath ?? variant.sourcePath
           : variant.sourcePath;
       const extension = safeAssetExtension(sourcePath, asset.kind);

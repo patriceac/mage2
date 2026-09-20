@@ -57,6 +57,7 @@ import {
 import { HotspotInspectorWindow } from "./scenes/HotspotInspectorWindow";
 import { SceneListRail } from "./scenes/SceneListRail";
 import { SceneMediaSection } from "./scenes/SceneMediaSection";
+import { AmbientSection } from "./scenes/AmbientSection";
 import { SceneWiringSection } from "./scenes/SceneWiringSection";
 import { applyInventoryLinkToHotspot } from "./scenes/hotspot-domain";
 import {
@@ -189,6 +190,7 @@ export function ScenesPanel({
   const selectedHotspot = currentScene?.hotspots.find((entry) => entry.id === selectedHotspotId);
   const localeStrings = getLocaleStringValues(project, activeLocale);
   const [isBackgroundDropActive, setIsBackgroundDropActive] = useState(false);
+  const [ambientPreview, setAmbientPreview] = useState(false);
   const [isSceneAudioDropActive, setIsSceneAudioDropActive] = useState(false);
   const [isInventoryPickerOpen, setIsInventoryPickerOpen] = useState(false);
   const [isInventoryPickerDragging, setIsInventoryPickerDragging] = useState(false);
@@ -1528,6 +1530,8 @@ export function ScenesPanel({
 
           <div className="scenes-panel__stage-stack">
             <SceneCanvas
+              ambientAssets={project.assets.assets}
+              ambientPreview={ambientPreview}
               activeLocale={activeLocale}
               asset={currentAsset}
               assetHeight={currentAssetVariant?.height}
@@ -1600,6 +1604,7 @@ export function ScenesPanel({
                 setPlayheadMs={setPlayheadMs}
               />
 
+              <AmbientSection project={project} scene={currentScene} locale={activeLocale} mutateProject={mutateProject} preview={ambientPreview} onPreviewChange={setAmbientPreview} />
               <SceneWiringSection
                 project={project}
                 scene={currentScene}

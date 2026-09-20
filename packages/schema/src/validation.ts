@@ -9,6 +9,7 @@ import {
   type ValidationReport
 } from "./types";
 import { effectCanStartTerminalFlow, effectsContain, visitEffects } from "./effects";
+import { validateSceneAmbient } from "./ambient";
 import { getLocalizedText, normalizeSupportedLocales, resolveAssetCategory, resolveAssetVariant } from "./localization";
 
 export function collectSceneLinks(scene: Scene): string[] {
@@ -314,6 +315,10 @@ function validateScene(
   let backgroundAsset: ProjectBundle["assets"]["assets"][number] | undefined;
   let sceneAudioAsset: ProjectBundle["assets"]["assets"][number] | undefined;
   const { backgroundAssetId } = scene;
+  issues.push(...validateSceneAmbient(scene, project));
+  for (const region of scene.ambient?.regions ?? []) {
+    validateConditionEffectRefs(project, region.conditions, [], issues, inventoryIds, sceneIds, dialogueIds, scene.id);
+  }
 
   validateDuplicateReferenceIds(
     scene.dialogueTreeIds,

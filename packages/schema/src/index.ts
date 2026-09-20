@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./ambient";
 export * from "./dialogue-portraits";
 export * from "./asset-reachability";
 export * from "./built-in-locales";

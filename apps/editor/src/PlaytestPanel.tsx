@@ -734,6 +734,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             activeResponse={activeResponse}
             onResponseComplete={completeResponse}
             playbackResetKey={playbackResetKey}
+            reducedMotion={playerPreferences.reducedMotion}
             onPlayheadMsChange={setPlayheadMs}
             onPlayableDurationMsChange={
               sceneAsset?.kind === "video"

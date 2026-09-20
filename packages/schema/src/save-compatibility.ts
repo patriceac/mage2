@@ -258,6 +258,7 @@ function collectSaveStateVariableIds(project: ProjectBundle): string[] {
   };
 
   for (const scene of project.scenes.items) {
+    for (const region of scene.ambient?.regions ?? []) addConditions(region.conditions);
     addEffects(scene.onEnterEffects);
     addEffects(scene.onExitEffects);
     addEffects(scene.onMediaEndEffects ?? []);

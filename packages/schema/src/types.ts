@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -187,11 +187,62 @@ export const HotspotSchema = z.object({
   effects: z.array(EffectSchema).default([])
 });
 
+export const AmbientScheduleSchema = z.object({
+  minDelayMs: z.number().int().min(0).max(2147483647).optional(),
+  maxDelayMs: z.number().int().min(0).max(2147483647).optional(),
+  repeatCount: z.number().int().nonnegative().optional()
+});
+
+export const AmbientClipSchema = z.object({
+  assetId: z.string().min(1),
+  registrationId: z.string().min(1),
+  weight: z.number().nonnegative().default(1),
+  schedule: AmbientScheduleSchema.optional()
+});
+
+export const AmbientRegionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  enabled: z.boolean().default(true),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().positive().max(1),
+  height: z.number().positive().max(1),
+  zIndex: z.number().int().default(0),
+  opacity: z.number().min(0).max(1).default(1),
+  sourceWidth: z.number().int().positive(),
+  sourceHeight: z.number().int().positive(),
+  registrationId: z.string().min(1),
+  fallbackMode: z.enum(["base", "image"]),
+  fallbackAssetId: z.string().min(1).optional(),
+  mask: z.object({
+    assetId: z.string().min(1).optional(),
+    mode: z.enum(["alpha", "luminance"]).default("alpha"),
+    feather: z.number().min(0).max(0.5).default(0.08)
+  }).default({ mode: "alpha", feather: 0.08 }),
+  schedule: AmbientScheduleSchema.optional(),
+  conditionMode: ConditionMatchModeSchema.default("all"),
+  conditions: z.array(ConditionSchema).default([]),
+  clips: z.array(AmbientClipSchema).default([])
+});
+
+export const SceneAmbientSchema = z.object({
+  enabled: z.boolean().default(true),
+  seed: z.number().int().min(0).max(4294967295).optional(),
+  defaults: AmbientScheduleSchema.optional(),
+  regions: z.array(AmbientRegionSchema).default([])
+});
+export type AmbientSchedule = z.infer<typeof AmbientScheduleSchema>;
+export type AmbientClip = z.infer<typeof AmbientClipSchema>;
+export type AmbientRegion = z.infer<typeof AmbientRegionSchema>;
+export type SceneAmbient = z.infer<typeof SceneAmbientSchema>;
+
 export const SceneSchema = z.object({
   id: z.string().min(1),
   locationId: z.string().min(1),
   name: z.string().min(1),
   backgroundAssetId: z.string().min(1).optional(),
+  ambient: SceneAmbientSchema.optional(),
   sceneAudioAssetId: z.string().min(1).optional(),
   sceneAudioLoop: z.boolean().default(true),
   sceneAudioDelayMs: z.number().nonnegative().default(0),

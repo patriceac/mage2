@@ -32,6 +32,7 @@ import {
 } from "./project-text";
 
 export interface AssetReferenceSummary {
+  ambientRegions?: Array<{ sceneId: string; sceneName: string }>;
   sceneBackgrounds: Array<{
     sceneId: string;
     sceneName: string;
@@ -69,7 +70,7 @@ export interface AssetReferenceSummary {
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use" | "player-asset-in-use";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use" | "player-asset-in-use" | "ambient-asset-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
 }
@@ -201,6 +202,9 @@ export function collectAssetReferenceSummary(
   const inventoryImages: AssetReferenceSummary["inventoryImages"] = [];
   const responseEntries: AssetReferenceSummary["responseEntries"] = [];
   const playerPresentation: AssetReferenceSummary["playerPresentation"] = [];
+  const ambientRegions = project.scenes.items.filter((scene) => scene.ambient?.regions.some((region) =>
+    region.fallbackAssetId === assetId || region.mask.assetId === assetId || region.clips.some((clip) => clip.assetId === assetId)))
+    .map((scene) => ({ sceneId: scene.id, sceneName: scene.name }));
 
   for (const scene of project.scenes.items) {
     if (scene.backgroundAssetId === assetId) {
@@ -276,6 +280,7 @@ export function collectAssetReferenceSummary(
 
   return {
     sceneBackgrounds,
+    ...(ambientRegions.length ? { ambientRegions } : {}),
     sceneAudioAssignments,
     hotspotMediaAssignments,
     dialogueMediaAssignments,
@@ -288,6 +293,7 @@ export function collectAssetReferenceSummary(
 export function countAssetReferences(summary: AssetReferenceSummary): number {
   return (
     summary.sceneBackgrounds.length +
+    (summary.ambientRegions?.length ?? 0) +
     summary.sceneAudioAssignments.length +
     summary.hotspotMediaAssignments.length +
     summary.dialogueMediaAssignments.length +
@@ -305,6 +311,9 @@ export function evaluateAssetDeletion(
   const targetAsset = project.assets.assets.find((asset) => asset.id === assetId);
   const fallbackAssetId = targetAsset ? resolveBackgroundFallbackAssetId(project.assets.assets, targetAsset) : undefined;
   const assetExists = Boolean(targetAsset);
+  if (referenceSummary.ambientRegions?.length) {
+    return { canDelete: false, blockedReason: "ambient-asset-in-use", referenceSummary };
+  }
 
   if (!assetExists) {
     return {
@@ -452,6 +461,7 @@ export function collectSceneReferenceSummary(project: ProjectBundle, sceneId: st
     }
 
     summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onEnterEffects, sceneId);
+    for (const region of candidateScene.ambient?.regions ?? []) summary.sceneVisitedConditionCount += countSceneVisitedConditions(region.conditions, sceneId);
     summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onExitEffects, sceneId);
     summary.goToSceneEffectCount += countGoToSceneEffects(candidateScene.onMediaEndEffects, sceneId);
     summary.sceneVisitedConditionCount += countSceneVisitedConditionsInEffects(candidateScene.onEnterEffects, sceneId);
@@ -498,6 +508,7 @@ export function collectInventoryItemReferenceSummary(
 
   for (const scene of project.scenes.items) {
     summary.inventoryEffectCount += countInventoryItemEffects(scene.onEnterEffects, itemId);
+    for (const region of scene.ambient?.regions ?? []) summary.inventoryConditionCount += countInventoryItemConditions(region.conditions, itemId);
     summary.inventoryEffectCount += countInventoryItemEffects(scene.onExitEffects, itemId);
     summary.inventoryEffectCount += countInventoryItemEffects(scene.onMediaEndEffects, itemId);
     summary.inventoryConditionCount += countInventoryItemConditionsInEffects(scene.onEnterEffects, itemId);
@@ -582,6 +593,7 @@ export function removeInventoryItemFromProject(
 
   for (const scene of project.scenes.items) {
     scene.onEnterEffects = rewriteInventoryItemEffects(scene.onEnterEffects, itemId, strategy);
+    for (const region of scene.ambient?.regions ?? []) region.conditions = rewriteInventoryItemConditions(region.conditions, itemId, strategy);
     scene.onExitEffects = rewriteInventoryItemEffects(scene.onExitEffects, itemId, strategy);
     scene.onMediaEndEffects = rewriteInventoryItemEffects(scene.onMediaEndEffects, itemId, strategy);
 
@@ -695,6 +707,7 @@ export function removeSceneFromProject(
     }
 
     candidateScene.onEnterEffects = rewriteSceneEffects(candidateScene.onEnterEffects, sceneId, strategy);
+    for (const region of candidateScene.ambient?.regions ?? []) region.conditions = rewriteSceneConditions(region.conditions, sceneId, strategy);
     candidateScene.onExitEffects = rewriteSceneEffects(candidateScene.onExitEffects, sceneId, strategy);
     candidateScene.onMediaEndEffects = rewriteSceneEffects(candidateScene.onMediaEndEffects, sceneId, strategy);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProjectBundle, resolveHotspotBounds, type Asset } from "@mage2/schema";
+import { AmbientRegionSchema, createDefaultProjectBundle, resolveHotspotBounds, type Asset } from "@mage2/schema";
 import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
@@ -25,6 +25,23 @@ import {
 function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
   return project.strings.byLocale[project.manifest.defaultLanguage];
 }
+
+it("protects ambient media and rewires ambient conditions with inventory cleanup", () => {
+  const project = createDefaultProjectBundle();
+  const item = addInventoryItem(project);
+  const scene = project.scenes.items[0]!;
+  const assetId = project.assets.assets[0]!.id;
+  scene.ambient = { enabled: true, regions: [AmbientRegionSchema.parse({
+    id: "lamp", name: "Lamp", x: 0, y: 0, width: 0.5, height: 0.5,
+    sourceWidth: 320, sourceHeight: 180, registrationId: "lamp", fallbackMode: "image", fallbackAssetId: assetId,
+    conditions: [{ type: "inventoryHas", itemId: item.id }], clips: []
+  })] };
+  expect(collectAssetReferenceSummary(project, assetId).ambientRegions).toEqual([{ sceneId: scene.id, sceneName: scene.name }]);
+  expect(removeAssetFromProject(project, assetId).blockedReason).toBe("ambient-asset-in-use");
+  expect(collectInventoryItemReferenceSummary(project, item.id).inventoryConditionCount).toBe(1);
+  removeInventoryItemFromProject(project, item.id, { mode: "cleanup" });
+  expect(scene.ambient.regions[0]!.conditions).toEqual([]);
+});
 
 describe("createProjectRevision", () => {
   it("stays stable for unchanged project data and changes after edits", () => {

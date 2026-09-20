@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import type { Asset, Hotspot, ProjectBundle } from "@mage2/schema";
+import { AmbientLayers } from "@mage2/player-ui";
+import { resolveFileUrl } from "../../file-url-cache";
 import {
   MEDIA_SURFACE_ZOOM_LEVELS,
   MediaSurface,
@@ -28,6 +30,8 @@ export interface SceneOperationFeedback {
 }
 
 interface SceneCanvasProps {
+  ambientAssets?: Asset[];
+  ambientPreview?: boolean;
   activeLocale: string;
   asset?: Asset;
   assetHeight?: number;
@@ -60,6 +64,8 @@ interface SceneCanvasProps {
 }
 
 export function SceneCanvas({
+  ambientAssets,
+  ambientPreview,
   activeLocale,
   asset,
   assetHeight,
@@ -266,6 +272,7 @@ export function SceneCanvas({
       >
         <div className="scenes-panel__background-dropzone-frame" style={scenePreviewFrameStyle}>
           <MediaSurface
+            ambientLayers={asset?.kind === "image" && scene.ambient && ambientAssets ? <AmbientLayers key={scene.id} ambient={scene.ambient} assets={ambientAssets} locale={activeLocale} resolveSourcePath={resolveFileUrl} enabled={ambientPreview} /> : undefined}
             asset={asset}
             className={isHotspotInspectorActive ? "media-surface--hotspot-locked" : undefined}
             locale={activeLocale}

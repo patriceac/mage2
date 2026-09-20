@@ -24,6 +24,11 @@ export function collectReferencedAssetIds(project: ProjectBundle): Set<string> {
   for (const scene of project.scenes.items) {
     addReference(scene.backgroundAssetId);
     addReference(scene.sceneAudioAssetId);
+    for (const region of scene.ambient?.regions ?? []) {
+      addReference(region.fallbackAssetId);
+      addReference(region.mask.assetId);
+      for (const clip of region.clips) addReference(clip.assetId);
+    }
     for (const hotspot of scene.hotspots) {
       addReference(hotspot.mediaAssetId);
     }

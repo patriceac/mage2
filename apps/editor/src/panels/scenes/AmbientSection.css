@@ -1,0 +1,9 @@
+.ambient-editor { min-width: 0; }
+.ambient-editor > .scenes-panel__details-body { max-height: 42vh; overflow-y: auto; overscroll-behavior: contain; }
+.ambient-editor__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; }
+.ambient-editor label { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.ambient-editor input, .ambient-editor select { max-width: 100%; min-width: 0; }
+.ambient-editor label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; }
+.ambient-editor fieldset { min-width: 0; display: grid; gap: 0.6rem; }
+.ambient-editor p { font-size: 0.85rem; }
+.ambient-editor [role="alert"] { color: #f2b4a4; }
