@@ -40,6 +40,7 @@ encode("base.png", base, "1280x720", ["-frames:v", "1"]);
 
 const project = createDefaultProjectBundle("MAGE2 Ambient Fixture");
 project.manifest.projectId = "mage2_ambient_fixture";
+project.manifest.gameVersion = "0.1.0-ambient-fixture";
 project.manifest.supportedLocales = ["en"];
 project.manifest.playerPresentation = { ...project.manifest.playerPresentation, titleScreenEnabled: false, titleBackgroundAssetId: undefined, appIconAssetId: undefined };
 project.manifest.variables = [{ id: "motion", name: "Motion", description: "Ambient condition test", type: "boolean", initialValue: true, system: false }];
@@ -88,5 +89,5 @@ const content = toExportProjectData(project);
 for (const asset of content.assets) asset.variants.en.sourcePath = `media/${asset.name}`;
 await writeFile(path.join(build, "content/project-content.json"), JSON.stringify(content, null, 2));
 await writeFile(path.join(build, "validation-report.json"), JSON.stringify(health, null, 2));
-await writeFile(path.join(build, "build-manifest.json"), JSON.stringify({ projectId: project.manifest.projectId, projectName: project.manifest.projectName, engineVersion: project.manifest.engineVersion, generatedAt: new Date().toISOString(), defaultLanguage: "en", supportedLocales: ["en"], startLocationId: project.manifest.startLocationId, startSceneId: scene.id, contentPath: "content/project-content.json", validationReportPath: "validation-report.json", assetMap: Object.fromEntries(content.assets.map((asset) => [asset.id, { en: asset.variants.en.sourcePath }])) }, null, 2));
+await writeFile(path.join(build, "build-manifest.json"), JSON.stringify({ projectId: project.manifest.projectId, projectName: project.manifest.projectName, gameVersion: project.manifest.gameVersion, engineVersion: project.manifest.engineVersion, generatedAt: new Date().toISOString(), defaultLanguage: "en", supportedLocales: ["en"], startLocationId: project.manifest.startLocationId, startSceneId: scene.id, contentPath: "content/project-content.json", validationReportPath: "validation-report.json", assetMap: Object.fromEntries(content.assets.map((asset) => [asset.id, { en: asset.variants.en.sourcePath }])) }, null, 2));
 console.log(destination);
