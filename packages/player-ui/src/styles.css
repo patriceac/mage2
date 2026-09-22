@@ -643,6 +643,7 @@
 }
 
 .mage2-player__dialogue {
+  user-select: none;
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, auto) auto;
@@ -659,6 +660,10 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.035),
     0 22px 54px rgba(0, 0, 0, 0.46);
   backdrop-filter: blur(12px);
+}
+
+.mage2-player__dialogue :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
+  user-select: text;
 }
 
 .mage2-player__dialogue--continue {
