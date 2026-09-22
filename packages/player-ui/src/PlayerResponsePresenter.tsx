@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActivePlayerResponse } from "@mage2/player";
 import { resolveAssetVariant, type ProjectBundle } from "@mage2/schema";
 import type { PlayerScenePresentation, PlayerSourceResolver, PlayerSystemCopy } from "./model";
+import { useForegroundAudio } from "./audio";
 
 const RESPONSE_TEXT_BASE_DURATION_MS = 2200;
 const RESPONSE_TEXT_PER_CHARACTER_MS = 45;
@@ -21,6 +22,8 @@ export interface PlayerResponsePresenterProps {
   >;
   onComplete: (sequence: number) => void;
   volume?: number;
+  paused?: boolean;
+  onAudibleChange?: (audible: boolean) => void;
 }
 
 export function resolveResponseTextDurationMs(text: string): number {
@@ -40,7 +43,9 @@ export function PlayerResponsePresenter({
   presentation,
   copy,
   onComplete,
-  volume = 1
+  volume = 1,
+  paused = false,
+  onAudibleChange
 }: PlayerResponsePresenterProps) {
   const entry = activeResponse?.entry;
   const mediaAsset =
@@ -52,7 +57,7 @@ export function PlayerResponsePresenter({
   const resolvedSource = useResolvedResponseSource(sourcePath, resolveSourcePath);
 
   useEffect(() => {
-    if (!activeResponse || activeResponse.entry.kind !== "text") {
+    if (!activeResponse || activeResponse.entry.kind !== "text" || paused) {
       return;
     }
 
@@ -62,7 +67,7 @@ export function PlayerResponsePresenter({
       resolveResponseTextDurationMs(text)
     );
     return () => window.clearTimeout(timeout);
-  }, [activeResponse, onComplete, strings]);
+  }, [activeResponse, onComplete, strings, paused]);
 
   useEffect(() => {
     if (!activeResponse || activeResponse.entry.kind !== "video") {
@@ -136,6 +141,8 @@ export function PlayerResponsePresenter({
         sourceUrl={resolvedSource.url}
         copy={copy}
         volume={volume}
+        paused={paused}
+        onAudibleChange={onAudibleChange}
         onComplete={onComplete}
       />
     );
@@ -150,6 +157,9 @@ export function PlayerResponsePresenter({
       skipLabel={copy.skipResponseVideo}
       playLabel={copy.playResponseAudio}
       volume={volume}
+      paused={paused}
+      hasAudio={mediaVariant.hasAudio !== false}
+      onAudibleChange={onAudibleChange}
       onComplete={onComplete}
     />
   );
@@ -160,31 +170,31 @@ function ResponseAudio({
   sourceUrl,
   copy,
   volume,
+  paused,
+  onAudibleChange,
   onComplete
 }: {
   sequence: number;
   sourceUrl: string;
   copy: PlayerResponsePresenterProps["copy"];
   volume: number;
+  paused: boolean;
+  onAudibleChange?: (audible: boolean) => void;
   onComplete: (sequence: number) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [requiresPlay, setRequiresPlay] = useState(false);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = Math.min(1, Math.max(0, volume));
-    }
-  }, [volume]);
+  useForegroundAudio(audioRef, sourceUrl, volume, paused, onAudibleChange);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) {
+    if (!audio || paused) {
       return;
     }
     void audio.play().then(() => setRequiresPlay(false)).catch(() => setRequiresPlay(true));
     return () => audio.pause();
-  }, [sourceUrl]);
+  }, [sourceUrl, paused]);
 
   return (
     <div className="mage2-player__response-layer mage2-player__response-layer--nonblocking" aria-live="polite">
@@ -222,6 +232,9 @@ function ResponseVideo({
   skipLabel,
   playLabel,
   volume,
+  paused,
+  hasAudio,
+  onAudibleChange,
   onComplete
 }: {
   sequence: number;
@@ -230,25 +243,24 @@ function ResponseVideo({
   skipLabel: string;
   playLabel: string;
   volume: number;
+  paused: boolean;
+  hasAudio: boolean;
+  onAudibleChange?: (audible: boolean) => void;
   onComplete: (sequence: number) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [requiresPlay, setRequiresPlay] = useState(false);
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = Math.min(1, Math.max(0, volume));
-    }
-  }, [volume]);
+  useForegroundAudio(videoRef, sourceUrl, volume, paused, onAudibleChange, hasAudio);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
+    if (!video || paused) {
       return;
     }
     void video.play().then(() => setRequiresPlay(false)).catch(() => setRequiresPlay(true));
     return () => video.pause();
-  }, [sourceUrl]);
+  }, [sourceUrl, paused]);
 
   return (
     <div
@@ -259,7 +271,7 @@ function ResponseVideo({
       <video
         ref={videoRef}
         src={sourceUrl}
-        autoPlay
+        autoPlay={!paused}
         playsInline
         preload="auto"
         className="mage2-player__response-video"

@@ -27,6 +27,10 @@ import {
   PlayerSceneRenderer,
   resolvePlayerSystemCopy,
   resolvePlayerTextDirection,
+  resolvePlayerPreferences,
+  playerAudioGain,
+  useForegroundAudio,
+  usePlayerPageHidden,
   type PlayerExperiencePreferences,
   type PlayerExperienceScreen,
   type PlayerSceneRendererHandle,
@@ -285,7 +289,9 @@ function RuntimeForegroundMediaPlayer({
   label,
   unavailableMessage,
   onDismiss,
-  volume = 1
+  volume = 1,
+  paused = false,
+  onAudibleChange
 }: {
   asset: Asset;
   closeLabel: string;
@@ -294,21 +300,16 @@ function RuntimeForegroundMediaPlayer({
   unavailableMessage: string;
   onDismiss?: () => void;
   volume?: number;
+  paused?: boolean;
+  onAudibleChange?: (audible: boolean) => void;
 }) {
   const variant = resolveAssetVariant(asset, locale);
   const sourcePath = variant?.proxyPath ?? variant?.sourcePath;
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  useEffect(() => {
-    const nextVolume = Math.min(1, Math.max(0, volume));
-    if (videoRef.current) {
-      videoRef.current.volume = nextVolume;
-    }
-    if (audioRef.current) {
-      audioRef.current.volume = nextVolume;
-    }
-  }, [volume]);
+  useForegroundAudio(videoRef, sourcePath, volume, paused, onAudibleChange, variant?.hasAudio !== false);
+  useForegroundAudio(audioRef, sourcePath, volume, paused, onAudibleChange);
 
   return (
     <section className={`runtime-foreground-media runtime-foreground-media--${asset.kind}`} aria-label={`${label}: ${asset.name}`}>
@@ -322,9 +323,9 @@ function RuntimeForegroundMediaPlayer({
         ) : null}
       </header>
       {sourcePath && asset.kind === "video" ? (
-        <video ref={videoRef} src={sourcePath} autoPlay controls playsInline preload="auto" />
+        <video ref={videoRef} src={sourcePath} autoPlay={!paused} controls playsInline preload="auto" />
       ) : sourcePath && asset.kind === "audio" ? (
-        <audio ref={audioRef} src={sourcePath} autoPlay controls preload="auto" />
+        <audio ref={audioRef} src={sourcePath} autoPlay={!paused} controls preload="auto" />
       ) : (
         <div>{unavailableMessage}</div>
       )}
@@ -364,29 +365,7 @@ export function resolveRuntimeLanguageName(locale: string): string {
 }
 
 export function resolveRuntimePlayerPreferences(raw: string | null | undefined): PlayerExperiencePreferences {
-  if (!raw) {
-    return DEFAULT_PLAYER_EXPERIENCE_PREFERENCES;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      volume:
-        typeof parsed.volume === "number" && Number.isFinite(parsed.volume)
-          ? Math.min(1, Math.max(0, parsed.volume))
-          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.volume,
-      textSize:
-        parsed.textSize === "small" || parsed.textSize === "medium" || parsed.textSize === "large"
-          ? parsed.textSize
-          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.textSize,
-      reducedMotion:
-        typeof parsed.reducedMotion === "boolean"
-          ? parsed.reducedMotion
-          : DEFAULT_PLAYER_EXPERIENCE_PREFERENCES.reducedMotion
-    };
-  } catch {
-    return DEFAULT_PLAYER_EXPERIENCE_PREFERENCES;
-  }
+  return resolvePlayerPreferences(raw);
 }
 
 function getNavigatorPreferredLocales(): readonly string[] {
@@ -414,6 +393,13 @@ export function App() {
   const [hasValidStoredSave, setHasValidStoredSave] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [snapshot, setSnapshot] = useState(() => controller?.getSnapshot());
+  const [voiceAudible, setVoiceAudible] = useState(false);
+  const pageHidden = usePlayerPageHidden();
+  const onSoundCuesConsumed = useCallback((sequence: number) => {
+    if (!controller) return;
+    controller.acknowledgeSoundCues(sequence);
+    setSnapshot(controller.getSnapshot());
+  }, [controller]);
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
   const [runtimeNotice, setRuntimeNotice] = useState<string>();
   const [interactionMediaPlayback, setInteractionMediaPlayback] = useState<{ assetId: string; sequence: number }>();
@@ -563,7 +549,8 @@ export function App() {
     currentAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller ? controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs) : [];
-  const gameplayPaused = activeResponse?.entry.kind === "video" || shellMenuOpen || playerScreen === "title";
+  const audioPaused = pageHidden || shellMenuOpen || playerScreen === "title";
+  const gameplayPaused = activeResponse?.entry.kind === "video" || audioPaused;
 
   const resolvePresentationVariant = (assetId?: string) => {
     const asset = assetId ? content?.assets.find((entry) => entry.id === assetId) : undefined;
@@ -826,7 +813,10 @@ export function App() {
               bagIconUrl={RUNTIME_INVENTORY_BAG_ICON_SRC}
               copy={playerCopy}
               volume={playerPreferences.volume}
-              paused={gameplayPaused}
+              audioLevels={playerPreferences}
+              voiceAudible={voiceAudible}
+              onSoundCuesConsumed={onSoundCuesConsumed}
+              paused={audioPaused}
               selectedInventoryItemId={selectedInventoryItemId}
               onSelectedInventoryItemIdChange={(itemId) => {
                 setSelectedInventoryItemId(itemId);
@@ -895,7 +885,9 @@ export function App() {
                 locale={locale}
                 label={dialogueMediaAssetId ? systemCopy.dialogueMedia : systemCopy.interactionMedia}
                 unavailableMessage={systemCopy.mediaUnavailable}
-                volume={playerPreferences.volume}
+                volume={playerAudioGain(playerPreferences, "voice")}
+                paused={audioPaused}
+                onAudibleChange={setVoiceAudible}
                 onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
               />
             ) : null}

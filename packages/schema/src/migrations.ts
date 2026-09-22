@@ -53,7 +53,8 @@ export const PROJECT_SCHEMA_MIGRATIONS: readonly ProjectSchemaMigration[] = [
   { fromVersion: 14, toVersion: 15, migrate: migrateV14ToV15 },
   { fromVersion: 15, toVersion: 16, migrate: migrateV15ToV16 },
   { fromVersion: 16, toVersion: 17, migrate: migrateV16ToV17 },
-  { fromVersion: 17, toVersion: 18, migrate: (bundle) => withSchemaVersion(bundle, 18) }
+  { fromVersion: 17, toVersion: 18, migrate: (bundle) => withSchemaVersion(bundle, 18) },
+  { fromVersion: 18, toVersion: 19, migrate: (bundle) => withSchemaVersion(bundle, 19) }
 ];
 
 /** Returns the ordered transformations required to reach the current format. */

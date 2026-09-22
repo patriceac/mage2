@@ -10,6 +10,11 @@ const m = (fr: string, es: string, zhHans: string, ja: string, ko: string, ar: s
 });
 
 export const logicMessages = defineEditorMessages("logic", {
+  "Play sound": m("Jouer un son", "Reproducir sonido", "播放声音", "音を再生", "소리 재생", "تشغيل صوت"),
+  "Once key (optional)": m("Clé unique (facultative)", "Clave única (opcional)", "单次播放键（可选）", "一度だけ再生するキー（任意）", "일회 재생 키 (선택)", "مفتاح تشغيل مرة واحدة (اختياري)"),
+  "Use the same key to play this sound only once per saved game.": m("Utilisez la même clé pour jouer ce son une seule fois par partie sauvegardée.", "Use la misma clave para reproducir este sonido una sola vez por partida guardada.", "使用同一键，使此声音在每个存档中只播放一次。", "同じキーを使うと、セーブデータごとに一度だけ再生します。", "같은 키를 사용하면 저장된 게임마다 한 번만 재생합니다.", "استخدم المفتاح نفسه لتشغيل هذا الصوت مرة واحدة فقط لكل لعبة محفوظة."),
+  "Play sound: {name}": m("Jouer le son : {name}", "Reproducir sonido: {name}", "播放声音：{name}", "音を再生：{name}", "소리 재생: {name}", "تشغيل صوت: {name}"),
+  "Sound already played: {name}": m("Son déjà joué : {name}", "Sonido ya reproducido: {name}", "声音已播放：{name}", "再生済みの音：{name}", "이미 재생한 소리: {name}", "صوت تم تشغيله سابقًا: {name}"),
   Logic: m("Logique", "Lógica", "逻辑", "ロジック", "로직", "المنطق"),
   "Logic Issues": m("Problèmes de logique", "Problemas de lógica", "逻辑问题", "ロジックの問題", "로직 문제", "مشكلات المنطق"),
   "Logic and variables": m("Logique et variables", "Lógica y variables", "逻辑与变量", "ロジックと変数", "로직 및 변수", "المنطق والمتغيرات"),

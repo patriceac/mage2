@@ -3,10 +3,12 @@ import { createServer } from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { verifyAmbient } from "./verification/ambient-checks.mjs";
-const root = path.resolve(import.meta.dirname, "../output/ambient-fixture/build");
-const out = path.resolve(import.meta.dirname, "../output/verification/ambient-browser");
+import { verifyAudio } from "./verification/audio-checks.mjs";
+const scenario = process.argv.includes("--audio") ? "audio" : "ambient";
+const root = path.resolve(import.meta.dirname, `../output/${scenario}-fixture/build`);
+const out = path.resolve(import.meta.dirname, `../output/verification/${scenario}-browser`);
 await fs.mkdir(out, { recursive: true });
-const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".mp4": "video/mp4", ".png": "image/png" };
+const mime = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".mp4": "video/mp4", ".png": "image/png", ".wav": "audio/wav" };
 const server = createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
@@ -32,8 +34,8 @@ try {
     const r = await session.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails)); return r.result.value;
   } };
-  result.checks = await verifyAmbient(adapter, (name) => page.screenshot({ path: path.join(out, `${name}.png`) }));
+  result.checks = await (scenario === "audio" ? verifyAudio : verifyAmbient)(adapter, (name) => page.screenshot({ path: path.join(out, `${name}.png`) }));
   result.passed = true;
-} catch (error) { result.error = String(error.stack ?? error); process.exitCode = 1; if (page) { await page.screenshot({ path: path.join(out, "failure.png") }); result.body = await page.locator("body").innerText(); } }
+} catch (error) { result.checks = error.checks ?? []; result.error = String(error.stack ?? error); process.exitCode = 1; if (page) { await page.screenshot({ path: path.join(out, "failure.png") }); result.body = await page.locator("body").innerText(); } }
 finally { await browser?.close(); server.close(); await fs.writeFile(path.join(out, "result.json"), JSON.stringify(result, null, 2)); }
 console.log(JSON.stringify(result, null, 2));

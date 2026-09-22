@@ -1127,6 +1127,7 @@ interface AssetUsageModel {
 
 function buildAssetUsageModels(summary: AssetReferenceSummary, t: EditorTranslator): AssetUsageModel[] {
   return [
+    ...(summary.soundscapeAudio ?? []).map((entry) => ({ id: entry.id, kind: entry.kind, label: entry.name, detail: t("Soundscape / sound effects"), actionLabel: entry.kind === "scene" ? t("Open Scene") : t("Open Dialogue") })),
     ...(summary.ambientRegions ?? []).map((entry) => ({ id: entry.sceneId, kind: "scene" as const, label: entry.sceneName, detail: t("Ambient regions"), actionLabel: t("Open Scene") })),
     ...summary.sceneBackgrounds.map((entry) => ({
       id: entry.sceneId,
@@ -1478,6 +1479,7 @@ function resolveDeleteSafetyMessage(row: AssetRowModel | undefined, t: EditorTra
     return t("This asset is used as a scene background and no replacement background asset is available.");
   }
 
+  if (row.blockedReason === "soundscape-asset-in-use") return t("Remove this asset from soundscapes and sound effects before deleting it.");
   if (row.blockedReason === "ambient-asset-in-use") return t("Remove this asset from ambient regions before deleting it.");
   if (row.blockedReason === "player-asset-in-use") {
     return t("This asset is used by the player presentation. Choose another title, logo, or icon asset before deleting.");
@@ -1600,6 +1602,7 @@ function resolveDeleteBlockedMessage(
     return t("Cannot delete {assetName} because one or more responses still use it.", { assetName });
   }
 
+  if (blockedReason === "soundscape-asset-in-use") return t("Remove this asset from soundscapes and sound effects before deleting it.");
   if (blockedReason === "ambient-asset-in-use") return t("Remove this asset from ambient regions before deleting it.");
   if (blockedReason === "player-asset-in-use") {
     return t("Cannot delete {assetName} because the Player screen still references it.", { assetName });
@@ -1625,6 +1628,7 @@ function resolveDeleteDisabledTitle(
     return t("{assetName} cannot be deleted until it is removed from every response that references it.", { assetName });
   }
 
+  if (blockedReason === "soundscape-asset-in-use") return t("Remove this asset from soundscapes and sound effects before deleting it.");
   if (blockedReason === "ambient-asset-in-use") return t("Remove this asset from ambient regions before deleting it.");
   if (blockedReason === "player-asset-in-use") {
     return t("{assetName} cannot be deleted until it is replaced or cleared in Player.", { assetName });

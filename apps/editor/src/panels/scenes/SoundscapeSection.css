@@ -1,0 +1,7 @@
+.scene-soundscape { display: grid; gap: 0.65rem; border-top: 1px solid var(--scene-editor-border); padding-top: 0.8rem; }
+.scene-soundscape h4, .scene-soundscape p { margin: 0; }
+.scene-soundscape fieldset { display: grid; gap: 0.6rem; min-width: 0; border: 1px solid var(--scene-editor-border); border-radius: 8px; }
+.scene-soundscape label { display: grid; gap: 0.25rem; min-width: 0; }
+.scene-soundscape__levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.scene-soundscape .scene-soundscape__toggle { display: flex; align-items: center; gap: 0.5rem; }
+.scene-soundscape__toggle input { width: auto; }

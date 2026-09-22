@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -78,6 +78,7 @@ export type Effect =
   | { type: "removeItem"; itemId: string }
   | { type: "goToScene"; sceneId: string }
   | { type: "playDialogue"; dialogueTreeId: string }
+  | { type: "playSound"; assetId: string; gain?: number; onceKey?: string }
   | {
       type: "conditional";
       conditionMode: ConditionMatchMode;
@@ -113,6 +114,12 @@ export const EffectSchema: z.ZodType<Effect, unknown> = z.lazy(() =>
     z.object({
       type: z.literal("playDialogue"),
       dialogueTreeId: z.string().min(1)
+    }),
+    z.object({
+      type: z.literal("playSound"),
+      assetId: z.string().min(1),
+      gain: z.number().min(0).max(1).optional(),
+      onceKey: z.string().trim().min(1).optional()
     }),
     z.object({
       type: z.literal("conditional"),
@@ -237,12 +244,28 @@ export type AmbientClip = z.infer<typeof AmbientClipSchema>;
 export type AmbientRegion = z.infer<typeof AmbientRegionSchema>;
 export type SceneAmbient = z.infer<typeof SceneAmbientSchema>;
 
+export const SoundscapeLayerSchema = z.object({
+  assetId: z.string().min(1),
+  gain: z.number().min(0).max(1).default(1),
+  loop: z.boolean().default(true),
+  fadeInMs: z.number().int().min(0).max(60000).default(500),
+  fadeOutMs: z.number().int().min(0).max(60000).default(500),
+  continueAcrossScenes: z.boolean().default(false)
+});
+export const SceneSoundscapeSchema = z.object({
+  music: SoundscapeLayerSchema.optional(),
+  ambience: SoundscapeLayerSchema.optional()
+});
+export type SoundscapeLayer = z.infer<typeof SoundscapeLayerSchema>;
+export type SceneSoundscape = z.infer<typeof SceneSoundscapeSchema>;
+
 export const SceneSchema = z.object({
   id: z.string().min(1),
   locationId: z.string().min(1),
   name: z.string().min(1),
   backgroundAssetId: z.string().min(1).optional(),
   ambient: SceneAmbientSchema.optional(),
+  soundscape: SceneSoundscapeSchema.optional(),
   sceneAudioAssetId: z.string().min(1).optional(),
   sceneAudioLoop: z.boolean().default(true),
   sceneAudioDelayMs: z.number().nonnegative().default(0),
@@ -413,6 +436,7 @@ export const SaveStateSchema = z.object({
   flags: z.record(z.string(), z.boolean()).default({}),
   variables: z.record(z.string(), GameVariableValueSchema).default({}),
   visitedSceneIds: z.array(z.string()).default([]),
+  playedSoundKeys: z.array(z.string().min(1)).optional(),
   activeDialogueTreeId: z.string().optional(),
   activeDialogueNodeId: z.string().optional(),
   playheadMs: z.number().nonnegative().default(0)

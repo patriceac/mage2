@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AmbientRegionSchema, createDefaultProjectBundle, resolveHotspotBounds, type Asset } from "@mage2/schema";
+import { AmbientRegionSchema, SceneSoundscapeSchema, createDefaultProjectBundle, resolveHotspotBounds, type Asset } from "@mage2/schema";
 import {
   STARTER_PLACEHOLDER_ASSET_ID,
   addLocation,
@@ -22,6 +22,19 @@ import {
   removeSceneFromProject
 } from "./project-helpers";
 
+it("prevents deleting audio used by a soundscape or a nested sound effect", () => {
+  const project = createDefaultProjectBundle();
+  project.assets.assets.push({ id: "tone", name: "Tone", kind: "audio", variants: { en: { sourcePath: "tone.wav", importedAt: "2026-09-22" } } });
+  const scene = project.scenes.items[0]!;
+  scene.soundscape = SceneSoundscapeSchema.parse({ music: { assetId: "tone" } });
+  expect(removeAssetFromProject(project, "tone").blockedReason).toBe("soundscape-asset-in-use");
+  delete scene.soundscape;
+  scene.onEnterEffects = [{ type: "conditional", conditionMode: "all", conditions: [{ type: "always" }], thenEffects: [], elseEffects: [{ type: "playSound", assetId: "tone" }] }];
+  expect(removeAssetFromProject(project, "tone").deleted).toBe(false);
+  scene.onEnterEffects = [];
+  expect(removeAssetFromProject(project, "tone").deleted).toBe(true);
+});
+
 function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle>) {
   return project.strings.byLocale[project.manifest.defaultLanguage];
 }
@@ -30,7 +43,8 @@ it("protects ambient media and rewires ambient conditions with inventory cleanup
   const project = createDefaultProjectBundle();
   const item = addInventoryItem(project);
   const scene = project.scenes.items[0]!;
-  const assetId = project.assets.assets[0]!.id;
+  const assetId = "neutral";
+  project.assets.assets.push({ id: assetId, name: "Neutral", kind: "image", variants: { en: { sourcePath: "neutral.png", importedAt: "2026-09-22" } } });
   scene.ambient = { enabled: true, regions: [AmbientRegionSchema.parse({
     id: "lamp", name: "Lamp", x: 0, y: 0, width: 0.5, height: 0.5,
     sourceWidth: 320, sourceHeight: 180, registrationId: "lamp", fallbackMode: "image", fallbackAssetId: assetId,

@@ -10,6 +10,17 @@ const m = (fr: string, es: string, zhHans: string, ja: string, ko: string, ar: s
 });
 
 export const scenesMessages = defineEditorMessages("scenes", {
+  "Soundscape": m("Paysage sonore", "Paisaje sonoro", "声景", "サウンドスケープ", "사운드스케이프", "المشهد الصوتي"),
+  "Music": m("Musique", "Música", "音乐", "音楽", "음악", "الموسيقى"),
+  "Ambience": m("Ambiance", "Ambiente", "环境音", "環境音", "환경음", "الأصوات المحيطة"),
+  "Audio asset": m("Média audio", "Recurso de audio", "音频资源", "オーディオ素材", "오디오 에셋", "مورد صوتي"),
+  "Gain": m("Niveau sonore", "Ganancia", "增益", "ゲイン", "게인", "الكسب"),
+  "Fade in (ms)": m("Fondu entrant (ms)", "Entrada gradual (ms)", "淡入（毫秒）", "フェードイン（ミリ秒）", "페이드 인 (ms)", "تلاشي الدخول (مللي ثانية)"),
+  "Fade out (ms)": m("Fondu sortant (ms)", "Salida gradual (ms)", "淡出（毫秒）", "フェードアウト（ミリ秒）", "페이드 아웃 (ms)", "تلاشي الخروج (مللي ثانية)"),
+  "Continue the same track across scenes": m("Continuer la même piste entre les scènes", "Continuar la misma pista entre escenas", "跨场景继续同一音轨", "シーン間で同じトラックを継続", "장면 간 같은 트랙 계속 재생", "متابعة المقطع نفسه بين المشاهد"),
+  "Independent music and ambience. Preview in Playtest; import audio in Assets.": m("Musique et ambiance indépendantes. Écoutez dans Test du jeu ; importez l’audio dans Médias.", "Música y ambiente independientes. Pruebe en Prueba de juego; importe audio en Recursos.", "独立的音乐和环境音。在试玩中试听，在资源中导入音频。", "音楽と環境音を個別に設定します。プレイテストで試聴し、アセットから音声を読み込みます。", "음악과 환경음을 개별 설정합니다. 플레이테스트에서 미리 듣고 에셋에서 오디오를 가져오세요.", "موسيقى وأصوات محيطة مستقلة. عاينها في اختبار اللعب واستورد الصوت من الموارد."),
+  "Soundscape / sound effects": m("Paysage sonore / effets sonores", "Paisaje sonoro / efectos", "声景 / 音效", "サウンドスケープ / 効果音", "사운드스케이프 / 효과음", "المشهد الصوتي / المؤثرات"),
+  "Remove this asset from soundscapes and sound effects before deleting it.": m("Retirez ce média des paysages sonores et des effets sonores avant de le supprimer.", "Quite este recurso de los paisajes sonoros y efectos antes de eliminarlo.", "删除前请从声景和音效中移除此资源。", "削除前にサウンドスケープと効果音からこの素材を外してください。", "삭제하기 전에 사운드스케이프와 효과음에서 이 에셋을 제거하세요.", "أزل هذا المورد من المشاهد والمؤثرات الصوتية قبل حذفه."),
   "Ambient regions": m("Zones animées", "Regiones ambientales", "环境动画区域", "環境アニメーション領域", "환경 애니메이션 영역", "مناطق الحركة المحيطة"),
   "Ambient region": m("Zone animée", "Región ambiental", "环境动画区域", "環境領域", "환경 영역", "منطقة الحركة"),
   "Keep a complete static background. Import aligned silent clips and neutral images in Assets, then assign them here.": m("Conservez un fond statique complet. Importez les vidéos muettes alignées et les images neutres dans Médias, puis assignez-les ici.", "Mantén un fondo estático completo. Importa clips silenciosos alineados e imágenes neutras en Recursos y asígnalos aquí.", "保留完整静态背景。在资源中导入对齐的无声视频和中性图像，然后在此分配。", "完全な静止背景を保持してください。整列した無音動画とニュートラル画像をアセットに読み込み、ここで割り当てます。", "완전한 정적 배경을 유지하세요. 에셋에서 정렬된 무음 클립과 기본 이미지를 가져와 여기에 지정하세요.", "احتفظ بخلفية ثابتة كاملة. استورد المقاطع الصامتة المتطابقة والصور المحايدة في الأصول ثم عيّنها هنا."),

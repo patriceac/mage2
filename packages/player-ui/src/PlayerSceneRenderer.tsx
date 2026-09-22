@@ -61,6 +61,8 @@ import {
 import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
 import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
 import { AmbientLayers } from "./AmbientLayers";
+import { PlayerSoundscape } from "./PlayerSoundscape";
+import { playerAudioGain, useAudibleMedia, type PlayerAudioLevels } from "./audio";
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
 const INVENTORY_DRAWER_ID = "mage2-player-inventory-drawer";
@@ -92,6 +94,9 @@ export interface PlayerSceneRendererProps {
   onSceneMediaEnd?: () => void;
   playbackResetKey?: string | number;
   volume?: number;
+  audioLevels?: PlayerAudioLevels;
+  voiceAudible?: boolean;
+  onSoundCuesConsumed?: (sequence: number) => void;
   paused?: boolean;
   ambientEnabled?: boolean;
   reducedMotion?: boolean;
@@ -374,6 +379,9 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       onSceneMediaEnd,
       playbackResetKey,
       volume = 1,
+      audioLevels,
+      voiceAudible = false,
+      onSoundCuesConsumed,
       paused = false,
       ambientEnabled = true,
       reducedMotion = false,
@@ -390,6 +398,18 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
     const [sceneAudioPlaybackBlocked, setSceneAudioPlaybackBlocked] = useState(false);
     const sceneAudioRef = useRef<PlayerSceneAudioHandle>(null);
+    const soundscapeRef = useRef<{ resume(): void }>(null);
+    const [soundscapeBlocked, setSoundscapeBlocked] = useState(false);
+    const [soundscapeFailed, setSoundscapeFailed] = useState(false);
+    const [videoAudible, setVideoAudible] = useState(false);
+    const [externalAudioAudible, setExternalAudioAudible] = useState(false);
+    const [responseAudible, setResponseAudible] = useState(false);
+    const levels = useMemo(() => ({ ...audioLevels, volume }), [audioLevels, volume]);
+    const voiceGain = playerAudioGain(levels, "voice");
+    const onSoundscapeStatus = useCallback((blocked: boolean, failed: boolean) => {
+      setSoundscapeBlocked(blocked);
+      setSoundscapeFailed(failed);
+    }, []);
     const [overlaySurfaceSize, setOverlaySurfaceSize] = useState<HotspotSurfaceSize>();
     const [inputModality, setInputModality] = useState<"keyboard" | "pointer">("pointer");
     const gameplayPaused = paused || activeResponse?.entry.kind === "video";
@@ -401,6 +421,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const portraitSourcePath = resolvePlayerDialoguePortraitSource(snapshot.activeDialogue?.node.speaker, project, locale);
     const portraitUrl = useResolvedSource(portraitSourcePath, resolveSourcePath);
     const videoAudioMode = snapshot.scene.videoAudioMode;
+    useAudibleMedia(videoRef, sceneUrl, setVideoAudible, videoAudioMode === "embedded" && sceneAssetVariant?.hasAudio !== false);
     const sceneAudioAsset = snapshot.scene.sceneAudioAssetId
       ? project.assets.assets.find((asset) => asset.id === snapshot.scene.sceneAudioAssetId)
       : undefined;
@@ -479,6 +500,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     );
 
     const resumeSceneMedia = useCallback(() => {
+      soundscapeRef.current?.resume();
       const video = videoRef.current;
       if (!video) {
         sceneAudioRef.current?.resume();
@@ -649,7 +671,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       onPlayheadMsChange,
       paused: gameplayPaused,
       muted: videoAudioMode !== "embedded",
-      volume,
+      volume: voiceGain,
       onPlaybackBlockedChange: setVideoPlaybackBlocked
     });
 
@@ -784,7 +806,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 />
               ))}
             </div>
-            {(videoPlaybackBlocked || sceneAudioPlaybackBlocked) && !gameplayPaused ? (
+            {(videoPlaybackBlocked || sceneAudioPlaybackBlocked || soundscapeBlocked) && !gameplayPaused ? (
               <div className="mage2-player__media-recovery">
                 <button type="button" onClick={resumeSceneMedia}>
                   {copy.resumeSceneMedia}
@@ -793,6 +815,11 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
             ) : null}
           </div>
 
+          <PlayerSoundscape ref={soundscapeRef} project={project} snapshot={snapshot} locale={locale}
+            resolveSourcePath={resolveSourcePath} levels={levels} paused={paused}
+            ducked={voiceAudible || videoAudible || externalAudioAudible || responseAudible}
+            onStatus={onSoundscapeStatus} onCuesConsumed={onSoundCuesConsumed} />
+          {soundscapeFailed ? <div role="status" className="mage2-player__response-unavailable">{copy.responseMediaUnavailable}</div> : null}
           <PlayerSceneAudio
             ref={sceneAudioRef}
             sourcePath={sceneAudioSourcePath}
@@ -805,7 +832,8 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
             loop={sceneAsset?.kind === "image" ? snapshot.scene.sceneAudioLoop : false}
             durationMs={sceneAudioVariant?.durationMs}
             paused={gameplayPaused}
-            volume={volume}
+            volume={sceneAsset?.kind === "video" ? voiceGain : volume}
+            onAudibleChange={sceneAsset?.kind === "video" ? setExternalAudioAudible : undefined}
             playbackResetKey={playbackResetKey}
             onPlayheadMsChange={onPlayheadMsChange ?? (() => undefined)}
             drivePlayhead={sceneAsset?.kind !== "video"}
@@ -850,7 +878,9 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
             resolveSourcePath={resolveSourcePath}
             presentation={presentation}
             copy={copy}
-            volume={volume}
+            volume={voiceGain}
+            paused={paused}
+            onAudibleChange={setResponseAudible}
             onComplete={onResponseComplete ?? NOOP_RESPONSE_COMPLETE}
           />
         </div>
@@ -1152,7 +1182,7 @@ function useControlledVideoPlayback(options: {
 
     video.muted = muted;
     video.volume = Math.min(1, Math.max(0, volume));
-  }, [muted, videoRef, volume]);
+  }, [assetId, assetUrl, muted, videoRef, volume]);
 
   useEffect(() => {
     const video = videoRef.current;

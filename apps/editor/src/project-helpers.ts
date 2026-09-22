@@ -17,6 +17,7 @@ import {
   resolveAssetCategory,
   resolveHotspotBounds,
   visitEffectConditions,
+  visitProjectEffects,
   visitEffects
 } from "@mage2/schema";
 import { MIN_HOTSPOT_SIZE, roundHotspotCoordinate } from "./hotspot-geometry";
@@ -32,6 +33,7 @@ import {
 } from "./project-text";
 
 export interface AssetReferenceSummary {
+  soundscapeAudio?: Array<{ kind: "scene" | "dialogue"; id: string; name: string }>;
   ambientRegions?: Array<{ sceneId: string; sceneName: string }>;
   sceneBackgrounds: Array<{
     sceneId: string;
@@ -70,7 +72,7 @@ export interface AssetReferenceSummary {
 
 export interface RemoveAssetFromProjectResult {
   deleted: boolean;
-  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use" | "player-asset-in-use" | "ambient-asset-in-use";
+  blockedReason?: "asset-not-found" | "background-in-use-without-replacement" | "inventory-image-in-use" | "response-media-in-use" | "player-asset-in-use" | "ambient-asset-in-use" | "soundscape-asset-in-use";
   fallbackAssetId?: string;
   referenceSummary: AssetReferenceSummary;
 }
@@ -196,6 +198,17 @@ export function collectAssetReferenceSummary(
   assetId: string
 ): AssetReferenceSummary {
   const sceneBackgrounds: AssetReferenceSummary["sceneBackgrounds"] = [];
+  const soundscapeAudio: NonNullable<AssetReferenceSummary["soundscapeAudio"]> = [];
+  for (const scene of project.scenes.items) {
+    if (scene.soundscape?.music?.assetId === assetId || scene.soundscape?.ambience?.assetId === assetId) {
+      soundscapeAudio.push({ kind: "scene", id: scene.id, name: scene.name });
+    }
+  }
+  visitProjectEffects(project, (effect, owner) => {
+    if (effect.type === "playSound" && effect.assetId === assetId && !soundscapeAudio.some((entry) => entry.kind === owner.kind && entry.id === owner.id)) {
+      soundscapeAudio.push(owner);
+    }
+  });
   const sceneAudioAssignments: AssetReferenceSummary["sceneAudioAssignments"] = [];
   const hotspotMediaAssignments: AssetReferenceSummary["hotspotMediaAssignments"] = [];
   const dialogueMediaAssignments: AssetReferenceSummary["dialogueMediaAssignments"] = [];
@@ -281,6 +294,7 @@ export function collectAssetReferenceSummary(
   return {
     sceneBackgrounds,
     ...(ambientRegions.length ? { ambientRegions } : {}),
+    ...(soundscapeAudio.length ? { soundscapeAudio } : {}),
     sceneAudioAssignments,
     hotspotMediaAssignments,
     dialogueMediaAssignments,
@@ -294,6 +308,7 @@ export function countAssetReferences(summary: AssetReferenceSummary): number {
   return (
     summary.sceneBackgrounds.length +
     (summary.ambientRegions?.length ?? 0) +
+    (summary.soundscapeAudio?.length ?? 0) +
     summary.sceneAudioAssignments.length +
     summary.hotspotMediaAssignments.length +
     summary.dialogueMediaAssignments.length +
@@ -311,6 +326,9 @@ export function evaluateAssetDeletion(
   const targetAsset = project.assets.assets.find((asset) => asset.id === assetId);
   const fallbackAssetId = targetAsset ? resolveBackgroundFallbackAssetId(project.assets.assets, targetAsset) : undefined;
   const assetExists = Boolean(targetAsset);
+  if (referenceSummary.soundscapeAudio?.length) {
+    return { canDelete: false, blockedReason: "soundscape-asset-in-use", referenceSummary };
+  }
   if (referenceSummary.ambientRegions?.length) {
     return { canDelete: false, blockedReason: "ambient-asset-in-use", referenceSummary };
   }

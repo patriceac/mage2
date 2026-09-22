@@ -192,7 +192,7 @@
 .mage2-player__response-video-actions {
   position: absolute;
   z-index: 1;
-  top: max(1rem, env(safe-area-inset-top));
+  bottom: max(1rem, env(safe-area-inset-bottom));
   right: max(1rem, env(safe-area-inset-right));
   display: flex;
   gap: 0.55rem;

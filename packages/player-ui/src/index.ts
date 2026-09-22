@@ -1,4 +1,5 @@
 export * from "./model";
+export * from "./audio";
 export * from "./AmbientLayers";
 export * from "./chrome-localization";
 export * from "./hotspot-alpha-hit-test";

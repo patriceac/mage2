@@ -17,6 +17,9 @@ import {
   resolvePlayerHotspotVisuals,
   resolvePlayerSystemCopy,
   resolvePlayerSceneHotspots,
+  resolvePlayerPreferences,
+  playerAudioGain,
+  usePlayerPageHidden,
   type PlayerExperiencePreferences,
   type PlayerExperienceScreen,
   type PlayerSceneRendererHandle
@@ -128,6 +131,12 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const setActiveLocale = useEditorStore((state) => state.setPlaytestLocale);
   const [controller, setController] = useState(() => createPlayerController(project));
   const [snapshot, setSnapshot] = useState(() => controller.getSnapshot());
+  const [voiceAudible, setVoiceAudible] = useState(false);
+  const pageHidden = usePlayerPageHidden();
+  const onSoundCuesConsumed = useCallback((sequence: number) => {
+    controller.acknowledgeSoundCues(sequence);
+    setSnapshot(controller.getSnapshot());
+  }, [controller]);
   const [playheadMs, setPlayheadMs] = useState(0);
   const [playbackResetKey, setPlaybackResetKey] = useState(0);
   const [observedVideoDuration, setObservedVideoDuration] = useState<{
@@ -139,8 +148,15 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
   const [compactView, setCompactView] = useState<PlaytestCompactView>("player");
   const [playerScreen, setPlayerScreen] = useState<PlayerExperienceScreen>("game");
   const [playerPreferences, setPlayerPreferences] = useState<PlayerExperiencePreferences>(
-    DEFAULT_PLAYER_EXPERIENCE_PREFERENCES
+    () => {
+      try { return resolvePlayerPreferences(localStorage.getItem("mage2-playtest-preferences")); }
+      catch { return { ...DEFAULT_PLAYER_EXPERIENCE_PREFERENCES }; }
+    }
   );
+  useEffect(() => {
+    try { localStorage.setItem("mage2-playtest-preferences", JSON.stringify(playerPreferences)); }
+    catch { /* Preferences still apply when storage is unavailable. */ }
+  }, [playerPreferences]);
   const [interfaceLocalePreference, setInterfaceLocalePreference] = useState<"automatic" | BuiltInLocale>("automatic");
   const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string>();
@@ -416,7 +432,8 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
     sceneAsset?.kind === "image" ? sceneAudioVariant?.durationMs : undefined
   );
   const visibleHotspots = controller.getVisibleHotspots(playheadMs, sceneTimelineDurationMs);
-  const gameplayPaused = activeResponse?.entry.kind === "video" || shellMenuOpen || playerScreen === "title";
+  const audioPaused = pageHidden || shellMenuOpen || playerScreen === "title";
+  const gameplayPaused = activeResponse?.entry.kind === "video" || audioPaused;
   const sceneHotspots = resolvePlayerSceneHotspots(visibleHotspots, snapshot.scene.hotspots, snapshot.flags);
   const hotspotVisuals = resolvePlayerHotspotVisuals({
     hotspots: sceneHotspots.surfaceHotspots,
@@ -717,7 +734,10 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             bagIconUrl={PLAYTEST_INVENTORY_BAG_ICON_SRC}
             copy={playerCopy}
             volume={playerPreferences.volume}
-            paused={gameplayPaused}
+            audioLevels={playerPreferences}
+            voiceAudible={voiceAudible}
+            onSoundCuesConsumed={onSoundCuesConsumed}
+            paused={audioPaused}
             selectedInventoryItemId={selectedInventoryItemId}
             onSelectedInventoryItemIdChange={selectPlaytestInventoryItem}
             onHotspotActivate={activatePlaytestHotspot}
@@ -765,7 +785,9 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               locale={contentLocale}
               label={dialogueMediaAssetId ? t("Dialogue media") : t("Interaction media")}
               className="foreground-media-player--playtest"
-              volume={playerPreferences.volume}
+              volume={playerAudioGain(playerPreferences, "voice")}
+              paused={audioPaused}
+              onAudibleChange={setVoiceAudible}
               onDismiss={dialogueMediaAssetId ? undefined : () => setInteractionMediaPlayback(undefined)}
             />
           ) : null}
@@ -1009,6 +1031,10 @@ function formatLogicTraceEffect(entry: LogicTraceEntry, project: ProjectBundle, 
     return entry.branch === "then"
       ? t("Decision: Then branch")
       : t("Decision: Else branch");
+  }
+  if (effect.type === "playSound") {
+    const name = project.assets.assets.find((candidate) => candidate.id === effect.assetId)?.name ?? effect.assetId;
+    return entry.applied ? t("Play sound: {name}", { name }) : t("Sound already played: {name}", { name });
   }
   const name = project.dialogues.items.find((candidate) => candidate.id === effect.dialogueTreeId)?.name ?? effect.dialogueTreeId;
   return t("Start dialogue: {name}", { name });

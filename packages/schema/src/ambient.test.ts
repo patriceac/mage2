@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AmbientRegionSchema, SceneAmbientSchema, collectReferencedAssetIds, createDefaultProjectBundle, parseProjectBundle, resolveAmbientSchedule, validateSceneAmbient } from "./index";
+import { CURRENT_SCHEMA_VERSION, AmbientRegionSchema, SceneAmbientSchema, collectReferencedAssetIds, createDefaultProjectBundle, parseProjectBundle, resolveAmbientSchedule, validateSceneAmbient } from "./index";
 
 function fixture() {
   const project = createDefaultProjectBundle("Ambient validation");
@@ -22,7 +22,7 @@ describe("ambient scene contract", () => {
     project.scenes.items[0]!.backgroundVideoLoop = true;
     for (const file of Object.values(project)) file.schemaVersion = 17;
     const parsed = parseProjectBundle(project);
-    expect(parsed.manifest.schemaVersion).toBe(18);
+    expect(parsed.manifest.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(parsed.scenes.items[0]!.ambient).toBeUndefined();
     expect(parsed.scenes.items[0]!.backgroundVideoLoop).toBe(true);
   });

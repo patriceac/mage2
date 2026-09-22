@@ -644,7 +644,7 @@ export function resolveWorldLocationEdges(project: ProjectBundle): WorldLocation
 
   for (const scene of project.scenes.items) {
     const sourceLocation = project.locations.items.find((location) => location.id === scene.locationId);
-    for (const linkedSceneId of collectSceneLinks(scene)) {
+    for (const linkedSceneId of collectSceneLinks(scene, project.dialogues.items)) {
       const targetScene = project.scenes.items.find((entry) => entry.id === linkedSceneId);
       const targetLocation = project.locations.items.find((location) => location.id === targetScene?.locationId);
       if (!sourceLocation || !targetLocation || sourceLocation.id === targetLocation.id) {

@@ -1,4 +1,29 @@
-import type { Condition, Effect } from "./types";
+import type { Condition, Effect, ProjectBundle } from "./types";
+
+/** Visits nested effects with their authoring owner, including both hotspot events. */
+export function visitProjectEffects(
+  project: ProjectBundle,
+  visit: (effect: Effect, owner: { kind: "scene" | "dialogue"; id: string; name: string }) => void
+): void {
+  for (const scene of project.scenes.items) {
+    const read = (effects: readonly Effect[]) => visitEffects(effects, (effect) => visit(effect, { kind: "scene", id: scene.id, name: scene.name }));
+    read(scene.onEnterEffects);
+    read(scene.onExitEffects);
+    read(scene.onMediaEndEffects);
+    for (const hotspot of scene.hotspots) {
+      read(hotspot.effects);
+      read(hotspot.clickEvent?.effects ?? []);
+      read(hotspot.otherItemEvent?.effects ?? []);
+    }
+  }
+  for (const dialogue of project.dialogues.items) {
+    const read = (effects: readonly Effect[]) => visitEffects(effects, (effect) => visit(effect, { kind: "dialogue", id: dialogue.id, name: dialogue.name }));
+    for (const node of dialogue.nodes) {
+      read(node.effects);
+      for (const choice of node.choices) read(choice.effects);
+    }
+  }
+}
 
 export function visitEffects(effects: readonly Effect[], visit: (effect: Effect) => void): void {
   for (const effect of effects) {

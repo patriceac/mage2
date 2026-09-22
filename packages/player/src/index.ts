@@ -41,7 +41,17 @@ export interface PlayerSnapshot {
   activeDialogue?: ActiveDialogueState;
   activeAmbientRegionIds?: string[];
   sceneEntrySequence?: number;
+  audioSessionId?: number;
+  soundCues?: PlayerSoundCue[];
 }
+
+export interface PlayerSoundCue {
+  sequence: number;
+  assetId: string;
+  gain: number;
+}
+
+let nextAudioSessionId = 0;
 
 export interface HotspotResolution {
   transitionedToSceneId?: string;
@@ -114,6 +124,7 @@ export interface PlayerController {
   getRuntimeIssues(): PlayerRuntimeIssue[];
   getLogicTrace(): LogicTraceEntry[];
   clearLogicTrace(): void;
+  acknowledgeSoundCues(sequence: number): void;
   explainHotspotAvailability(timeMs: number, sceneTimelineDurationMs?: number): HotspotAvailabilityExplanation[];
   getVisibleHotspots(timeMs: number, sceneTimelineDurationMs?: number): Hotspot[];
   enterScene(sceneId: string): void;
@@ -135,6 +146,7 @@ export const DEFAULT_SCENE_TIMELINE_DURATION_MS = 30000;
 export const DEFAULT_EFFECT_BUDGET = 256;
 
 interface EffectExecutionContext {
+  initialSoundSequence: number;
   effectBudget: number;
   effectsExecuted: number;
   halted: boolean;
@@ -164,6 +176,9 @@ export function createPlayerController(
   const random = options.random ?? Math.random;
   let responseSequence = 0;
   let sceneEntrySequence = 0;
+  const audioSessionId = ++nextAudioSessionId;
+  let soundSequence = 0;
+  const soundCues: PlayerSoundCue[] = [];
   let completedMediaEntrySequence: number | undefined;
   const effectBudget = resolveEffectBudget(options.effectBudget);
   const runtimeIssues: PlayerRuntimeIssue[] = [];
@@ -307,6 +322,7 @@ export function createPlayerController(
     }
 
     const context: EffectExecutionContext = {
+      initialSoundSequence: soundSequence,
       effectBudget,
       effectsExecuted: 0,
       halted: false,
@@ -413,6 +429,15 @@ export function createPlayerController(
           requestSceneTransition(effect.sceneId, context);
           resolution.transitionedToSceneId = effect.sceneId;
           break;
+        case "playSound":
+          applied = Boolean(project.assets.assets.some((asset) => asset.id === effect.assetId && asset.kind === "audio")) &&
+            !(effect.onceKey && state.playedSoundKeys?.includes(effect.onceKey));
+          if (applied) {
+            if (effect.onceKey) (state.playedSoundKeys ??= []).push(effect.onceKey);
+            soundCues.push({ sequence: ++soundSequence, assetId: effect.assetId, gain: effect.gain ?? 1 });
+            if (soundCues.length > DEFAULT_EFFECT_BUDGET) soundCues.shift();
+          }
+          break;
         case "playDialogue":
           appendLogicTrace(source, effect, previousValue, effect.dialogueTreeId, true);
           tracedBeforeNestedEffects = true;
@@ -510,6 +535,9 @@ export function createPlayerController(
         state.currentLocationId = nextScene.locationId;
         state.playheadMs = 0;
         sceneEntrySequence += 1;
+        // Keep new transition Foley (playSound + goToScene in one action),
+        // but discard undelivered cues from earlier actions in the old room.
+        while (soundCues[0] && soundCues[0].sequence <= context.initialSoundSequence) soundCues.shift();
         completedMediaEntrySequence = undefined;
 
         if (!state.visitedSceneIds.includes(nextScene.id)) {
@@ -713,6 +741,7 @@ export function createPlayerController(
   }
 
   function resolveEffectObservedValue(effect: Effect): GameVariableValue | undefined {
+    if (effect.type === "playSound") return effect.onceKey ? Boolean(state.playedSoundKeys?.includes(effect.onceKey)) : soundSequence;
     if (effect.type === "setVariable" || effect.type === "changeVariable") {
       return getVariableValue(effect.variableId);
     }
@@ -792,6 +821,8 @@ export function createPlayerController(
       saveState: structuredClone(state),
       scene,
       sceneEntrySequence,
+      audioSessionId,
+      soundCues: structuredClone(soundCues),
       activeAmbientRegionIds: (scene.ambient?.regions ?? []).filter((region) => region.enabled && areConditionsMet(region.conditions, region.conditionMode)).map((region) => region.id),
       location: getLocation(scene.locationId),
       inventoryItems: state.inventory
@@ -805,6 +836,10 @@ export function createPlayerController(
 
   return {
     getSnapshot,
+    acknowledgeSoundCues: (sequence) => {
+      const remaining = soundCues.filter((cue) => cue.sequence > sequence);
+      soundCues.splice(0, soundCues.length, ...remaining);
+    },
     getRuntimeIssues: () => structuredClone(runtimeIssues),
     getLogicTrace: () => structuredClone(logicTrace),
     clearLogicTrace: () => {

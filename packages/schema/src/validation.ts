@@ -12,33 +12,58 @@ import { effectCanStartTerminalFlow, effectsContain, visitEffects } from "./effe
 import { validateSceneAmbient } from "./ambient";
 import { getLocalizedText, normalizeSupportedLocales, resolveAssetCategory, resolveAssetVariant } from "./localization";
 
-export function collectSceneLinks(scene: Scene): string[] {
+export function collectSceneLinks(scene: Scene, dialogues: readonly DialogueTree[] = []): string[] {
   const links = new Set<string>();
+  const pendingDialogues: string[] = [];
+  const readEffects = (effects: Effect[]) => visitEffects(effects, (effect) => {
+    if (effect.type === "goToScene") links.add(effect.sceneId);
+    if (effect.type === "playDialogue") pendingDialogues.push(effect.dialogueTreeId);
+  });
 
   for (const hotspot of scene.hotspots) {
     if (hotspot.targetSceneId) {
       links.add(hotspot.targetSceneId);
     }
 
-    visitEffects(hotspot.effects, (effect) => {
-      if (effect.type === "goToScene") links.add(effect.sceneId);
-    });
+    if (hotspot.dialogueTreeId) pendingDialogues.push(hotspot.dialogueTreeId);
+    readEffects(hotspot.effects);
 
     for (const event of [hotspot.clickEvent, hotspot.otherItemEvent]) {
       if (event?.targetSceneId) {
         links.add(event.targetSceneId);
       }
 
-      visitEffects(event?.effects ?? [], (effect) => {
-        if (effect.type === "goToScene") links.add(effect.sceneId);
-      });
+      if (event?.dialogueTreeId) pendingDialogues.push(event.dialogueTreeId);
+      readEffects(event?.effects ?? []);
     }
   }
 
   for (const effects of [scene.onEnterEffects, scene.onExitEffects, scene.onMediaEndEffects ?? []]) {
-    visitEffects(effects, (effect) => {
-      if (effect.type === "goToScene") links.add(effect.sceneId);
-    });
+    readEffects(effects);
+  }
+
+  const visitedDialogues = new Set<string>();
+  while (pendingDialogues.length) {
+    const dialogueId = pendingDialogues.pop()!;
+    if (visitedDialogues.has(dialogueId)) continue;
+    visitedDialogues.add(dialogueId);
+    const dialogue = dialogues.find((entry) => entry.id === dialogueId);
+    if (!dialogue) continue;
+    const pendingNodes = [dialogue.startNodeId];
+    const visitedNodes = new Set<string>();
+    while (pendingNodes.length) {
+      const nodeId = pendingNodes.pop()!;
+      if (visitedNodes.has(nodeId)) continue;
+      visitedNodes.add(nodeId);
+      const node = dialogue.nodes.find((entry) => entry.id === nodeId);
+      if (!node) continue;
+      readEffects(node.effects);
+      if (node.nextNodeId) pendingNodes.push(node.nextNodeId);
+      for (const choice of node.choices) {
+        readEffects(choice.effects);
+        if (choice.nextNodeId) pendingNodes.push(choice.nextNodeId);
+      }
+    }
   }
 
   return [...links];
@@ -233,7 +258,7 @@ export function validateProject(project: ProjectBundle): ValidationReport {
       continue;
     }
 
-    for (const nextSceneId of collectSceneLinks(scene)) {
+    for (const nextSceneId of collectSceneLinks(scene, project.dialogues.items)) {
       stack.push(nextSceneId);
     }
   }
@@ -315,6 +340,9 @@ function validateScene(
   let backgroundAsset: ProjectBundle["assets"]["assets"][number] | undefined;
   let sceneAudioAsset: ProjectBundle["assets"]["assets"][number] | undefined;
   const { backgroundAssetId } = scene;
+  for (const layer of Object.values(scene.soundscape ?? {})) {
+    if (layer) validateAudioReference(project, layer.assetId, scene.id, issues);
+  }
   issues.push(...validateSceneAmbient(scene, project));
   for (const region of scene.ambient?.regions ?? []) {
     validateConditionEffectRefs(project, region.conditions, [], issues, inventoryIds, sceneIds, dialogueIds, scene.id);
@@ -1335,6 +1363,8 @@ function validateConditionEffectRefs(
       });
     }
 
+    if (effect.type === "playSound") validateAudioReference(project, effect.assetId, entityId, issues);
+
     if (effect.type === "playDialogue" && !dialogueIds.has(effect.dialogueTreeId)) {
       issues.push({
         level: "error",
@@ -1352,6 +1382,18 @@ function validateConditionEffectRefs(
         entityId
       });
     }
+  }
+}
+
+function validateAudioReference(project: ProjectBundle, assetId: string, entityId: string | undefined, issues: ValidationIssue[]): void {
+  const asset = project.assets.assets.find((entry) => entry.id === assetId);
+  if (!asset || asset.kind !== "audio") {
+    issues.push({
+      level: "error",
+      code: "SOUNDSCAPE_AUDIO_INVALID",
+      message: `Audio on '${entityId}' must reference an existing audio asset, but '${assetId}' is ${asset ? `'${asset.kind}'` : "missing"}.`,
+      entityId
+    });
   }
 }
 

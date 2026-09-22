@@ -4,6 +4,7 @@ import { DropdownSelect } from "../../DropdownSelect";
 import { AssetPreview } from "../../previews";
 import { useEditorI18n } from "../../i18n/EditorI18nProvider";
 import { applySceneBackgroundAsset } from "./scene-domain";
+import { SoundscapeSection } from "./SoundscapeSection";
 
 type ProjectScene = ProjectBundle["scenes"]["items"][number];
 type SceneOperationFeedbackTone = "success" | "warning" | "error";
@@ -12,6 +13,7 @@ interface SceneMediaSectionProps {
   activeLocale: string;
   availableBackgroundAssets: Asset[];
   availableSceneAudioAssets: Asset[];
+  soundscapeAssets?: Asset[];
   currentAsset?: Asset;
   currentAssetHasAudio?: boolean;
   currentSceneAudioAsset?: Asset;
@@ -38,6 +40,7 @@ export function SceneMediaSection({
   activeLocale,
   availableBackgroundAssets,
   availableSceneAudioAssets,
+  soundscapeAssets = availableSceneAudioAssets,
   currentAsset,
   currentAssetHasAudio,
   currentSceneAudioAsset,
@@ -370,6 +373,7 @@ export function SceneMediaSection({
         )}
 
         {isVideoScene || hasPlayableSceneAudio ? renderPlayheadRow(isVideoScene ? "video" : "audio") : null}
+        <SoundscapeSection scene={scene} assets={soundscapeAssets} mutateScene={mutateScene} />
       </div>
     </details>
   );

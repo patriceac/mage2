@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Asset } from "@mage2/schema";
+import { useForegroundAudio } from "@mage2/player-ui";
 import { resolveFileUrl } from "./file-url-cache";
 import { useEditorI18n } from "./i18n";
 import { getLocalizedAssetVariant } from "./localized-project";
@@ -12,6 +13,8 @@ interface ForegroundMediaPlayerProps {
   className?: string;
   onDismiss?: () => void;
   volume?: number;
+  paused?: boolean;
+  onAudibleChange?: (audible: boolean) => void;
 }
 
 export function ForegroundMediaPlayer({
@@ -21,7 +24,9 @@ export function ForegroundMediaPlayer({
   autoPlay = true,
   className,
   onDismiss,
-  volume = 1
+  volume = 1,
+  paused = false,
+  onAudibleChange
 }: ForegroundMediaPlayerProps) {
   const { t } = useEditorI18n();
   const resolvedLabel = label ? t(label) : t("Foreground media");
@@ -33,15 +38,8 @@ export function ForegroundMediaPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  useEffect(() => {
-    const nextVolume = Math.min(1, Math.max(0, volume));
-    if (videoRef.current) {
-      videoRef.current.volume = nextVolume;
-    }
-    if (audioRef.current) {
-      audioRef.current.volume = nextVolume;
-    }
-  }, [volume]);
+  useForegroundAudio(videoRef, sourceUrl, volume, paused, onAudibleChange, variant?.hasAudio !== false);
+  useForegroundAudio(audioRef, sourceUrl, volume, paused, onAudibleChange);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +104,7 @@ export function ForegroundMediaPlayer({
           ref={videoRef}
           src={sourceUrl}
           poster={posterUrl}
-          autoPlay={autoPlay}
+          autoPlay={autoPlay && !paused}
           controls
           playsInline
           preload="auto"
@@ -117,7 +115,7 @@ export function ForegroundMediaPlayer({
         <audio
           ref={audioRef}
           src={sourceUrl}
-          autoPlay={autoPlay}
+          autoPlay={autoPlay && !paused}
           controls
           preload="auto"
           className="foreground-media-player__audio"

@@ -1579,6 +1579,7 @@ export function ScenesPanel({
 
             <div className="scenes-panel__details-row">
               <SceneMediaSection
+                soundscapeAssets={project.assets.assets.filter((asset) => asset.kind === "audio")}
                 activeLocale={activeLocale}
                 availableBackgroundAssets={availableBackgroundAssets}
                 availableSceneAudioAssets={availableSceneAudioAssets}

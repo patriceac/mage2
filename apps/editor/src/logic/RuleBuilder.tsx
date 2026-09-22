@@ -278,6 +278,11 @@ export function EffectListEditor({
           onChange([...effects, { type: kind, sceneId: scene.id }]);
         }
         return;
+      case "playSound": {
+        const asset = project.assets.assets.find((entry) => entry.kind === "audio");
+        if (asset) onChange([...effects, { type: "playSound", assetId: asset.id }]);
+        return;
+      }
       case "playDialogue":
         if (dialogue) {
           onChange([...effects, { type: kind, dialogueTreeId: dialogue.id }]);
@@ -374,6 +379,7 @@ export function EffectListEditor({
             <option value="removeItem" disabled={project.inventory.items.length === 0}>{t("Remove inventory item")}</option>
             <option value="goToScene" disabled={project.scenes.items.length === 0}>{t("Go to scene")}</option>
             <option value="playDialogue" disabled={project.dialogues.items.length === 0}>{t("Start dialogue")}</option>
+            <option value="playSound" disabled={!project.assets.assets.some((asset) => asset.kind === "audio")}>{t("Play sound")}</option>
             {nestingDepth === 0 ? <option value="conditional">{t("If / Then / Else")}</option> : null}
           </DropdownSelect>
           {nestingDepth === 0 ? (
@@ -604,6 +610,8 @@ function EffectRow({
             if ((kind === "addItem" || kind === "removeItem") && item) onChange({ type: kind, itemId: item.id });
             if (kind === "goToScene" && scene) onChange({ type: kind, sceneId: scene.id });
             if (kind === "playDialogue" && dialogue) onChange({ type: kind, dialogueTreeId: dialogue.id });
+            const audioAsset = project.assets.assets.find((asset) => asset.kind === "audio");
+            if (kind === "playSound" && audioAsset) onChange({ type: kind, assetId: audioAsset.id });
             if (kind === "conditional" && nestingDepth === 0) onChange(createConditionalEffect());
           }}
         >
@@ -613,6 +621,7 @@ function EffectRow({
           <option value="removeItem" disabled={project.inventory.items.length === 0}>{t("Remove item")}</option>
           <option value="goToScene" disabled={project.scenes.items.length === 0}>{t("Go to scene")}</option>
           <option value="playDialogue" disabled={project.dialogues.items.length === 0}>{t("Start dialogue")}</option>
+          <option value="playSound" disabled={!project.assets.assets.some((asset) => asset.kind === "audio")}>{t("Play sound")}</option>
           {nestingDepth === 0 || effect.type === "conditional" ? (
             <option value="conditional">{t("If / Then / Else")}</option>
           ) : null}
@@ -635,6 +644,17 @@ function EffectRow({
             options={project.scenes.items.map((scene) => ({ id: scene.id, name: scene.name }))}
             onChange={(sceneId) => onChange({ ...effect, sceneId })}
           />
+        ) : effect.type === "playSound" ? (
+          <>
+            <ReferenceSelect value={effect.assetId} label={t("Audio asset")}
+              options={project.assets.assets.filter((asset) => asset.kind === "audio")}
+              onChange={(assetId) => onChange({ ...effect, assetId })} />
+            <label>{t("Gain")}<input type="number" min={0} max={1} step={0.05} value={effect.gain ?? 1}
+              onChange={(event) => onChange({ ...effect, gain: Math.min(1, Math.max(0, Number(event.target.value) || 0)) })} /></label>
+            <label title={t("Use the same key to play this sound only once per saved game.")}>{t("Once key (optional)")}
+              <input value={effect.onceKey ?? ""} onChange={(event) => onChange({ ...effect, onceKey: event.target.value.trim() || undefined })} />
+            </label>
+          </>
         ) : effect.type === "playDialogue" ? (
           <ReferenceSelect
             value={effect.dialogueTreeId}

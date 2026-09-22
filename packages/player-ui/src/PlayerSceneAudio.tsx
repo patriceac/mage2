@@ -8,6 +8,7 @@ import {
   shouldSyncPlayheadMs
 } from "@mage2/player";
 import type { PlayerSourceResolver } from "./model";
+import { useAudibleMedia } from "./audio";
 
 export interface PlayerSceneAudioProps {
   sourcePath?: string;
@@ -21,6 +22,7 @@ export interface PlayerSceneAudioProps {
   durationMs?: number;
   paused?: boolean;
   volume?: number;
+  onAudibleChange?: (audible: boolean) => void;
   playbackResetKey?: string | number;
   onPlayheadMsChange: (playheadMs: number) => void;
   drivePlayhead?: boolean;
@@ -62,6 +64,7 @@ export const PlayerSceneAudio = forwardRef<PlayerSceneAudioHandle, PlayerSceneAu
   durationMs,
   paused = false,
   volume = 1,
+  onAudibleChange,
   playbackResetKey,
   onPlayheadMsChange,
   drivePlayhead = true,
@@ -72,12 +75,13 @@ export const PlayerSceneAudio = forwardRef<PlayerSceneAudioHandle, PlayerSceneAu
 }: PlayerSceneAudioProps, ref) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceUrl = useResolvedSceneAudioSource(sourcePath, resolveSourcePath);
+  useAudibleMedia(audioRef, sourceUrl, onAudibleChange, enabled);
 
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = Math.min(1, Math.max(0, volume));
     }
-  }, [volume]);
+  }, [volume, sourceUrl]);
 
   usePlayerSceneAudioPlayback({
     audioRef,

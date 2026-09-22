@@ -17,11 +17,12 @@ import {
 } from "@mage2/schema";
 import { resolvePlayerExperienceShellCopy } from "./chrome-localization";
 import { resolvePlayerTextDirection } from "./model";
+import { AUDIO_CHANNELS, clampAudioLevel, type PlayerAudioLevels } from "./audio";
 
 export type PlayerExperienceScreen = "title" | "game";
 export type PlayerTextSize = "small" | "medium" | "large";
 
-export interface PlayerExperiencePreferences {
+export interface PlayerExperiencePreferences extends PlayerAudioLevels {
   volume: number;
   textSize: PlayerTextSize;
   reducedMotion: boolean;
@@ -29,9 +30,29 @@ export interface PlayerExperiencePreferences {
 
 export const DEFAULT_PLAYER_EXPERIENCE_PREFERENCES: PlayerExperiencePreferences = {
   volume: 1,
+  musicVolume: 1,
+  ambienceVolume: 1,
+  effectsVolume: 1,
+  voiceVolume: 1,
   textSize: "medium",
   reducedMotion: false
 };
+
+export function resolvePlayerPreferences(raw: string | null | undefined): PlayerExperiencePreferences {
+  try {
+    const parsed = JSON.parse(raw ?? "null") as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ...DEFAULT_PLAYER_EXPERIENCE_PREFERENCES };
+    return {
+      volume: clampAudioLevel(parsed.volume),
+      musicVolume: clampAudioLevel(parsed.musicVolume),
+      ambienceVolume: clampAudioLevel(parsed.ambienceVolume),
+      effectsVolume: clampAudioLevel(parsed.effectsVolume),
+      voiceVolume: clampAudioLevel(parsed.voiceVolume),
+      textSize: parsed.textSize === "small" || parsed.textSize === "large" ? parsed.textSize : "medium",
+      reducedMotion: typeof parsed.reducedMotion === "boolean" ? parsed.reducedMotion : false
+    };
+  } catch { return { ...DEFAULT_PLAYER_EXPERIENCE_PREFERENCES }; }
+}
 
 export interface PlayerExperienceShellProps {
   projectName: string;
@@ -359,6 +380,7 @@ export function PlayerExperienceShell({
                   <span>{copy.volume}</span>
                   <input
                     type="range"
+                    data-audio-level="volume"
                     min={0}
                     max={1}
                     step={0.05}
@@ -366,6 +388,15 @@ export function PlayerExperienceShell({
                     onChange={(event) => onPreferencesChange({ ...preferences, volume: Number(event.target.value) })}
                   />
                 </label>
+                {AUDIO_CHANNELS.map((channel) => (
+                  <label key={channel}>
+                    <span>{copy[channel]}</span>
+                    <input type="range" min={0} max={1} step={0.05}
+                      data-audio-level={`${channel}Volume`}
+                      value={clampAudioLevel(preferences[`${channel}Volume`])}
+                      onChange={(event) => onPreferencesChange({ ...preferences, [`${channel}Volume`]: Number(event.target.value) })} />
+                  </label>
+                ))}
                 <label>
                   <span>{copy.textSize}</span>
                   <select

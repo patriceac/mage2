@@ -1,4 +1,5 @@
 import type { ProjectBundle } from "./types";
+import { visitProjectEffects } from "./effects";
 
 export interface ProjectAssetReachability {
   totalAssetCount: number;
@@ -24,6 +25,8 @@ export function collectReferencedAssetIds(project: ProjectBundle): Set<string> {
   for (const scene of project.scenes.items) {
     addReference(scene.backgroundAssetId);
     addReference(scene.sceneAudioAssetId);
+    addReference(scene.soundscape?.music?.assetId);
+    addReference(scene.soundscape?.ambience?.assetId);
     for (const region of scene.ambient?.regions ?? []) {
       addReference(region.fallbackAssetId);
       addReference(region.mask.assetId);
@@ -33,6 +36,10 @@ export function collectReferencedAssetIds(project: ProjectBundle): Set<string> {
       addReference(hotspot.mediaAssetId);
     }
   }
+
+  visitProjectEffects(project, (effect) => {
+    if (effect.type === "playSound") addReference(effect.assetId);
+  });
 
   for (const dialogue of project.dialogues.items) {
     for (const node of dialogue.nodes) {
