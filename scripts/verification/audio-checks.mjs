@@ -9,7 +9,7 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     catch (error) { error.checks = checks; throw error; }
   };
   const click = async (selector) => {
-    const point = await waitFor(() => value(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; e.scrollIntoView({block:'center'}); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const top=document.elementFromPoint(x,y); return r.width && r.height && (top===e||e.contains(top)) ? {x,y} : null; })()`));
+    const point = await waitFor(() => value(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; e.scrollIntoView({block:'nearest',inline:'nearest'}); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const top=document.elementFromPoint(x,y); return r.width && r.height && (top===e||e.contains(top)) ? {x,y} : null; })()`));
     await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
   };
@@ -75,6 +75,9 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     assert(await value("window.__audioQa.voice.paused && !window.__audioQa.voice.isConnected"));
   });
   await check("dialogue video fills the scene below readable text and choices without a duplicate portrait or debug card", async () => {
+    const viewport = await value("({width:innerWidth,height:innerHeight})");
+    const resize = async (width, height) => { await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }); await pause(150); };
+    if (mode === "runtime") await resize(1280, 720);
     await hotspot("Cinematic dialogue");
     const video = "document.querySelector('.mage2-player__dialogue-video')";
     await waitFor(() => value(`${video}?.readyState>=2 && getComputedStyle(${video}).visibility==='visible'`));
@@ -82,9 +85,15 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     await gain("music", 0.05);
     assert.equal(await value(`${video}.volume`), 0.8 * 0.4);
     assert(await value(`!${video}.controls && !document.querySelector('.mage2-player__dialogue-portrait,.runtime-foreground-media,.foreground-media-player--playtest')`));
-    const layout = () => value(`(() => { const v=${video},p=document.querySelector('.mage2-player__dialogue'),s=v.closest('.mage2-player__scene-surface'); const a=v.getBoundingClientRect(),b=s.getBoundingClientRect(),r=p.getBoundingClientRect(); return {fits:Math.abs(a.width-b.width)<2&&Math.abs(a.height-b.height)<2,readable:r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&p.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),width:v.videoWidth,height:v.videoHeight,viewportWidth:innerWidth}; })()`);
-    const initialLayout = await layout(); assert(initialLayout.fits && initialLayout.readable);
+    const layout = () => value(`(() => { const v=${video},p=document.querySelector('.mage2-player__dialogue'),s=v.closest('.mage2-player__scene-surface'),t=p.querySelector('.mage2-player__dialogue-text'); const a=v.getBoundingClientRect(),b=s.getBoundingClientRect(),r=p.getBoundingClientRect(); return {fits:Math.abs(a.width-b.width)<2&&Math.abs(a.height-b.height)<2,readable:r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&p.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),cinematic:p.classList.contains('mage2-player__dialogue--cinematic'),textFits:t.scrollHeight<=t.clientHeight+1,panelTop:r.top,videoTop:a.top,videoHeight:a.height,width:v.videoWidth,height:v.videoHeight,viewportWidth:innerWidth}; })()`);
+    const initialLayout = await layout(); assert(initialLayout.fits && initialLayout.readable && initialLayout.cinematic && initialLayout.textFits);
+    if (mode === "runtime") assert(initialLayout.panelTop >= initialLayout.videoTop + initialLayout.videoHeight * 0.85, "Short subtitles must leave the lower face clear");
+    await value(`${video}.currentTime=1`); await waitFor(() => value(`!${video}.seeking && ${video}.readyState>=2`));
+    await value(`new Promise(resolve => ${video}.requestVideoFrameCallback(() => resolve(true)))`);
     await capture("cinematic-dialogue");
+    if (mode === "runtime") {
+      await resize(430, 900); await capture("cinematic-first-mobile"); await resize(1280, 720);
+    }
     await click(".mage2-experience__menu-button");
     await waitFor(() => value(`${video}.paused`));
     const time = await value(`${video}.currentTime`); await pause(200);
@@ -94,19 +103,29 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     await waitFor(() => value(`${video}?.readyState>=2 && ${video}!==window.__audioQa.performance && getComputedStyle(${video}).visibility==='visible'`));
     assert(await value("window.__audioQa.performance.paused&&!window.__audioQa.performance.isConnected"));
     assert(await value(`${video}.currentTime<2 && !document.querySelector('.mage2-player__dialogue-portrait')`));
+    const replyLayout = await layout(); assert(replyLayout.readable && replyLayout.textFits);
+    await capture("cinematic-reply");
     if (mode === "runtime") {
-      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 430, height: 900, deviceScaleFactor: 1, mobile: false });
-      await pause(150); const mobile = await layout(); assert.equal(mobile.viewportWidth, 430); assert(mobile.fits && mobile.readable);
+      await resize(430, 900);
+      const mobile = await layout(); assert.equal(mobile.viewportWidth, 430); assert(mobile.fits && mobile.readable && mobile.textFits);
       await capture("cinematic-mobile");
-      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false });
+      const choices = "document.querySelector('.mage2-player__dialogue-choices')";
+      assert(await value(`${choices}.scrollHeight > ${choices}.clientHeight`), "Phone choices must exercise scrolling");
+      const point = await value(`(() => { const r=${choices}.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: 600 });
+      await waitFor(() => value(`${choices}.scrollTop > 0`));
+      await capture("cinematic-mobile-scrolled");
+      await resize(1280, 720);
     }
     await value(`${video}.currentTime=${video}.duration-0.05`); await waitFor(() => value(`${video}.ended`));
     assert(await value("!!document.querySelector('.mage2-player__dialogue-choice')&&!document.querySelector('.mage2-player__dialogue-portrait')"));
     await gain("music", 0.2); await capture("cinematic-choices");
-    await click(".mage2-player__dialogue-choice");
+    await click(".mage2-player__dialogue-choice:last-child");
     await waitFor(() => value("!!document.querySelector('.mage2-player__dialogue-portrait')&&!document.querySelector('.mage2-player__dialogue-video')"));
+    assert(await value("!document.querySelector('.mage2-player__dialogue--cinematic')"));
     await click(".mage2-player__dialogue-continue");
-    return initialLayout;
+    if (mode === "runtime") await resize(viewport.width, viewport.height);
+    return { initialLayout, replyLayout };
   });
   await check("text and silent video do not duck; performed video restores gain on skip", async () => {
     await hotspot("Text"); await pause(450); await gain("music", 0.2); await click(".mage2-player__dialogue-continue");
@@ -135,7 +154,10 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     await hotspot("External scene");
     await waitFor(() => value("(() => { const a=document.querySelector('audio[data-scene-audio-asset-id=\"external_audio\"]'); return a?.readyState>=2&&!a.paused; })()"));
     await gain("music", 0.05);
-    const legacy = await value("({videoMuted:document.querySelector('video.mage2-player__media').muted,audio:[...document.querySelectorAll('audio')].filter(a=>!a.dataset.audioChannel).map(a=>({volume:a.volume,paused:a.paused,ready:a.readyState}))})");
+    const legacy = await waitFor(async () => {
+      const state = await value("({videoMuted:document.querySelector('video.mage2-player__media').muted,audio:[...document.querySelectorAll('audio')].filter(a=>!a.dataset.audioChannel).map(a=>({volume:a.volume,paused:a.paused,ready:a.readyState}))})");
+      return state.audio.some((a) => !a.paused && a.ready >= 2 && Math.abs(a.volume - 0.32) < 0.001) ? state : null;
+    });
     assert(legacy.videoMuted); assert(legacy.audio.some((a) => !a.paused && a.ready >= 2 && Math.abs(a.volume - 0.32) < 0.001), JSON.stringify(legacy));
     await hotspot("Back"); await bedPlaying(); await gain("music", 0.2);
     return legacy;

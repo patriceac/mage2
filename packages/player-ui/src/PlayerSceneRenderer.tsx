@@ -117,6 +117,7 @@ export interface PlayerSceneRendererHandle {
 export interface PlayerDialogueBoxProps {
   activeDialogue: ActiveDialogueState;
   portraitSrc?: string;
+  cinematic?: boolean;
   strings: Record<string, string>;
   copy: Pick<
     PlayerSystemCopy,
@@ -129,6 +130,7 @@ export interface PlayerDialogueBoxProps {
 export function PlayerDialogueBox({
   activeDialogue,
   portraitSrc,
+  cinematic = false,
   strings,
   copy,
   onChoice,
@@ -140,6 +142,7 @@ export function PlayerDialogueBox({
   const canContinueBySurfaceClick = activeDialogue.choices.length === 0;
   const dialogueClassName = [
     "mage2-player__dialogue",
+    cinematic ? "mage2-player__dialogue--cinematic" : undefined,
     canContinueBySurfaceClick ? "mage2-player__dialogue--continue" : undefined
   ]
     .filter(Boolean)
@@ -884,6 +887,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 <PlayerDialogueBox
                   activeDialogue={snapshot.activeDialogue}
                   portraitSrc={portraitUrl}
+                  cinematic={dialogueVideoVisible}
                   strings={strings}
                   copy={copy}
                   onChoice={onDialogueChoice}

@@ -45,6 +45,11 @@ describe("dialogue portraits", () => {
     expect(markup).toMatch(/<div class="mage2-player__dialogue-body"><img[^>]*src="tancrede.png"[^>]*alt=""[^>]*\/><p/);
     expect(markup).toContain("We should go.");
     expect(markup).toContain("mage2-player__dialogue-continue");
+    expect(markup).not.toContain("mage2-player__dialogue--cinematic");
+    const cinematic = renderToStaticMarkup(<PlayerDialogueBox {...props} cinematic />);
+    expect(cinematic).toContain("mage2-player__dialogue--cinematic");
+    expect(cinematic).toContain("mage2-player__dialogue-continue");
+    expect(cinematic).toContain("We should go.");
     expect(renderToStaticMarkup(<PlayerDialogueBox {...props} />)).not.toContain("mage2-player__dialogue-portrait");
   });
 });

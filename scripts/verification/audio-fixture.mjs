@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { HotspotSchema, SceneSchema, SceneSoundscapeSchema } from "@mage2/schema";
 
@@ -23,11 +24,17 @@ export function configureAudioFixture(project, destination, ffmpeg) {
   add("embedded", "performed.mp4", "video", "background");
   add("external_video", "silent.mp4", "video", "background", 10000, false);
   add("external_audio", "voice.wav", "audio", "sceneAudio");
-  const performanceSource = process.env.AUDIO_FIXTURE_DIALOGUE_VIDEO ?? media("performed.mp4");
-  encode(["-stream_loop", "-1", "-i", performanceSource, "-t", "10", "-vf", "scale=960:540:force_original_aspect_ratio=decrease,pad=960:540:(ow-iw)/2:(oh-ih)/2", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", media("dialogue.mp4")]);
-  add("dialogue_performance", "dialogue.mp4", "video", "foreground");
-  Object.assign(project.assets.assets.at(-1).variants.en, { width: 960, height: 540 });
-  console.log(`Dialogue fixture input: ${performanceSource}; output: 960x540 H264/AAC, 10 seconds.`);
+  const performances = process.env.AUDIO_FIXTURE_DIALOGUE_LINES
+    ? JSON.parse(readFileSync(process.env.AUDIO_FIXTURE_DIALOGUE_LINES, "utf8"))
+    : [{ speaker: "MAGE2", text: "I thought I might find you here. There is something we should talk about." },
+       { speaker: "MAGE2", text: "I came by the old road this morning. The guards thought I was a creditor, so they let me through with a great deal of respect. Will you stay a little longer?" }];
+  for (const [index, line] of performances.entries()) {
+    const source = line.source ?? process.env.AUDIO_FIXTURE_DIALOGUE_VIDEO ?? media("performed.mp4");
+    encode(["-stream_loop", "-1", "-i", source, "-t", "10", "-vf", "scale=960:540:force_original_aspect_ratio=decrease,pad=960:540:(ow-iw)/2:(oh-ih)/2", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", media(`dialogue-${index}.mp4`)]);
+    add(`dialogue_performance_${index}`, `dialogue-${index}.mp4`, "video", "foreground");
+    Object.assign(project.assets.assets.at(-1).variants.en, { width: 960, height: 540 });
+    console.log(`Dialogue fixture input: ${source}; output: 960x540 H264/AAC, 10 seconds.`);
+  }
   project.manifest.projectName = "MAGE2 Audio Fixture";
   project.manifest.projectId = "mage2_audio_fixture";
   project.manifest.gameVersion = "0.1.0-audio-fixture";
@@ -65,13 +72,13 @@ export function configureAudioFixture(project, destination, ffmpeg) {
   project.locations.items[0].sceneIds = project.scenes.items.map((item) => item.id);
   project.dialogues.items = ["spoken", "text"].map((id) => ({ id, name: id, startNodeId: `${id}_line`, nodes: [{ id: `${id}_line`, speaker: "MAGE2", textId: `audio.${id}.line`, mediaAssetId: id === "spoken" ? "voice" : undefined, effects: [], choices: [] }] }));
   project.dialogues.items.push({ id: "cinematic", name: "Conversation", startNodeId: "cinematic_line", nodes: [
-    { id: "cinematic_line", speaker: "MAGE2", textId: "audio.cinematic.line", mediaAssetId: "dialogue_performance", effects: [], choices: [], nextNodeId: "cinematic_choice" },
-    { id: "cinematic_choice", speaker: "MAGE2", textId: "audio.cinematic.choice", mediaAssetId: "dialogue_performance", effects: [], choices: [{ id: "cinematic_answer", textId: "audio.cinematic.answer", conditions: [], effects: [], nextNodeId: "cinematic_after" }] },
+    { id: "cinematic_line", speaker: performances[0].speaker, textId: "audio.cinematic.line", mediaAssetId: "dialogue_performance_0", effects: [], choices: [], nextNodeId: "cinematic_choice" },
+    { id: "cinematic_choice", speaker: performances[1].speaker, textId: "audio.cinematic.choice", mediaAssetId: "dialogue_performance_1", effects: [], choices: Array.from({ length: 6 }, (_, index) => ({ id: `cinematic_answer_${index}`, textId: "audio.cinematic.answer", conditions: [], effects: [], nextNodeId: "cinematic_after" })) },
     { id: "cinematic_after", speaker: "MAGE2", textId: "audio.cinematic.after", effects: [], choices: [] }
   ] });
   project.dialogues.speakerPortraits = { MAGE2: "neutral" };
   scene.dialogueTreeIds = ["spoken", "text", "cinematic"];
-  Object.assign(project.strings.byLocale.en, { "audio.cinematic.line": "I thought I might find you here. There is something we should talk about.", "audio.cinematic.choice": "Will you stay a little longer?", "audio.cinematic.answer": "Of course. I am listening.", "audio.cinematic.after": "Thank you. Take your time." });
+  Object.assign(project.strings.byLocale.en, { "audio.cinematic.line": performances[0].text, "audio.cinematic.choice": performances[1].text, "audio.cinematic.answer": "Of course. I am listening.", "audio.cinematic.after": "Thank you. Take your time." });
   project.strings.byLocale.en["audio.spoken.line"] = "Synthetic voiced-media test: music and ambience should duck while this tone plays.";
   project.strings.byLocale.en["audio.text.line"] = "Text-only dialogue keeps the music at its normal level.";
   project.dialogues.responseGroups = [{ id: "audio_responses", name: "Performed clips", entries: [{ id: "performed_entry", kind: "video", assetId: "performed" }, { id: "silent_entry", kind: "video", assetId: "silent" }] }];
