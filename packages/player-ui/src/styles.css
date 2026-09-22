@@ -26,6 +26,7 @@
 .mage2-player__scene-surface {
   position: absolute;
   inset: 0;
+  isolation: isolate;
   overflow: hidden;
   border-radius: inherit;
   background: linear-gradient(180deg, #16202a 0%, #10171f 100%);
@@ -44,6 +45,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.mage2-player__dialogue-video {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #030405;
+  pointer-events: none;
 }
 
 .mage2-ambient {

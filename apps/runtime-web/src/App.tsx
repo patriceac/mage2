@@ -877,7 +877,7 @@ export function App() {
               playbackResetKey={`${snapshot.scene.id}:${locale}:${ambientResetKey}`}
               reducedMotion={playerPreferences.reducedMotion}
             />
-            {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
+            {foregroundMediaAsset && foregroundMediaPlaybackKey && !(dialogueMediaAssetId && foregroundMediaAsset.kind === "video") ? (
               <RuntimeForegroundMediaPlayer
                 key={foregroundMediaPlaybackKey}
                 asset={foregroundMediaAsset}

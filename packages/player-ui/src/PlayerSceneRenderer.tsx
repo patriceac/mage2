@@ -62,7 +62,7 @@ import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
 import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
 import { AmbientLayers } from "./AmbientLayers";
 import { PlayerSoundscape } from "./PlayerSoundscape";
-import { playerAudioGain, useAudibleMedia, type PlayerAudioLevels } from "./audio";
+import { playerAudioGain, useAudibleMedia, useForegroundAudio, type PlayerAudioLevels } from "./audio";
 
 const INVENTORY_CURSOR_PREVIEW_SIZE_PX = 48;
 const INVENTORY_DRAWER_ID = "mage2-player-inventory-drawer";
@@ -394,6 +394,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const [inventoryCursorPoint, setInventoryCursorPoint] = useState<PlayerCursorPoint>();
     const overlayRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const dialogueVideoRef = useRef<HTMLVideoElement>(null);
+    const [visibleDialogueVideoKey, setVisibleDialogueVideoKey] = useState<string>();
+    const [dialogueVideoPlaybackBlocked, setDialogueVideoPlaybackBlocked] = useState(false);
+    const [dialogueVideoAudible, setDialogueVideoAudible] = useState(false);
     const completedMediaEntryKeyRef = useRef<string | undefined>(undefined);
     const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
     const [sceneAudioPlaybackBlocked, setSceneAudioPlaybackBlocked] = useState(false);
@@ -418,7 +422,24 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const sceneAssetVariant = sceneAsset ? resolveAssetVariant(sceneAsset, locale) : undefined;
     const sceneSourcePath = sceneAssetVariant?.proxyPath ?? sceneAssetVariant?.sourcePath;
     const sceneUrl = useResolvedSource(sceneSourcePath, resolveSourcePath);
-    const portraitSourcePath = resolvePlayerDialoguePortraitSource(snapshot.activeDialogue?.node.speaker, project, locale);
+    const dialogueAsset = project.assets.assets.find((asset) => asset.id === snapshot.activeDialogue?.node.mediaAssetId);
+    const dialogueVideoVariant = dialogueAsset?.kind === "video" ? resolveAssetVariant(dialogueAsset, locale) : undefined;
+    const dialogueVideoUrl = useResolvedSource(dialogueVideoVariant?.proxyPath ?? dialogueVideoVariant?.sourcePath, resolveSourcePath);
+    const dialogueVideoKey = dialogueVideoUrl
+      ? `${snapshot.audioSessionId}:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${locale}:${dialogueVideoUrl}`
+      : undefined;
+    const dialogueVideoVisible = Boolean(dialogueVideoKey && visibleDialogueVideoKey === dialogueVideoKey);
+    useForegroundAudio(dialogueVideoRef, dialogueVideoKey, voiceGain, paused, setDialogueVideoAudible, dialogueVideoVariant?.hasAudio !== false);
+    useEffect(() => {
+      setDialogueVideoPlaybackBlocked(false);
+      const video = dialogueVideoRef.current;
+      if (video && !paused) void video.play().catch((error: unknown) => {
+        if (video === dialogueVideoRef.current && (error as { name?: string })?.name === "NotAllowedError") {
+          setDialogueVideoPlaybackBlocked(true);
+        }
+      });
+    }, [dialogueVideoKey, paused]);
+    const portraitSourcePath = resolvePlayerDialoguePortraitSource(snapshot.activeDialogue?.node.speaker, project, locale, dialogueVideoVisible);
     const portraitUrl = useResolvedSource(portraitSourcePath, resolveSourcePath);
     const videoAudioMode = snapshot.scene.videoAudioMode;
     useAudibleMedia(videoRef, sceneUrl, setVideoAudible, videoAudioMode === "embedded" && sceneAssetVariant?.hasAudio !== false);
@@ -501,6 +522,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
 
     const resumeSceneMedia = useCallback(() => {
       soundscapeRef.current?.resume();
+      void dialogueVideoRef.current?.play().then(
+        () => setDialogueVideoPlaybackBlocked(false),
+        () => setDialogueVideoPlaybackBlocked(true)
+      );
       const video = videoRef.current;
       if (!video) {
         sceneAudioRef.current?.resume();
@@ -806,7 +831,15 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 />
               ))}
             </div>
-            {(videoPlaybackBlocked || sceneAudioPlaybackBlocked || soundscapeBlocked) && !gameplayPaused ? (
+            {dialogueVideoUrl ? (
+              <video key={dialogueVideoKey} ref={dialogueVideoRef} src={dialogueVideoUrl}
+                className="mage2-player__dialogue-video" style={{ visibility: dialogueVideoVisible ? "visible" : "hidden" }}
+                autoPlay={!paused} playsInline preload="auto" controls={false} disablePictureInPicture disableRemotePlayback
+                aria-hidden="true" tabIndex={-1}
+                onLoadedData={() => setVisibleDialogueVideoKey(dialogueVideoKey)}
+                onError={() => setVisibleDialogueVideoKey(undefined)} />
+            ) : null}
+            {(videoPlaybackBlocked || sceneAudioPlaybackBlocked || soundscapeBlocked || dialogueVideoPlaybackBlocked) && !gameplayPaused ? (
               <div className="mage2-player__media-recovery">
                 <button type="button" onClick={resumeSceneMedia}>
                   {copy.resumeSceneMedia}
@@ -817,7 +850,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
 
           <PlayerSoundscape ref={soundscapeRef} project={project} snapshot={snapshot} locale={locale}
             resolveSourcePath={resolveSourcePath} levels={levels} paused={paused}
-            ducked={voiceAudible || videoAudible || externalAudioAudible || responseAudible}
+            ducked={voiceAudible || videoAudible || externalAudioAudible || responseAudible || dialogueVideoAudible}
             onStatus={onSoundscapeStatus} onCuesConsumed={onSoundCuesConsumed} />
           {soundscapeFailed ? <div role="status" className="mage2-player__response-unavailable">{copy.responseMediaUnavailable}</div> : null}
           <PlayerSceneAudio

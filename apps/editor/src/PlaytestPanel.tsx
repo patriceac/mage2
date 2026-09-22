@@ -778,7 +778,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
               }
             }}
           />
-          {foregroundMediaAsset && foregroundMediaPlaybackKey ? (
+          {foregroundMediaAsset && foregroundMediaPlaybackKey && !(dialogueMediaAssetId && foregroundMediaAsset.kind === "video") ? (
             <ForegroundMediaPlayer
               key={foregroundMediaPlaybackKey}
               asset={foregroundMediaAsset}

@@ -34,7 +34,11 @@ try {
     const r = await session.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails)); return r.result.value;
   } };
-  result.checks = await (scenario === "audio" ? verifyAudio : verifyAmbient)(adapter, (name) => page.screenshot({ path: path.join(out, `${name}.png`) }));
+  const capture = async (name) => {
+    const shot = await session.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    await fs.writeFile(path.join(out, `${name}.png`), Buffer.from(shot.data, "base64"));
+  };
+  result.checks = await (scenario === "audio" ? verifyAudio : verifyAmbient)(adapter, capture);
   result.passed = true;
 } catch (error) { result.checks = error.checks ?? []; result.error = String(error.stack ?? error); process.exitCode = 1; if (page) { await page.screenshot({ path: path.join(out, "failure.png") }); result.body = await page.locator("body").innerText(); } }
 finally { await browser?.close(); server.close(); await fs.writeFile(path.join(out, "result.json"), JSON.stringify(result, null, 2)); }

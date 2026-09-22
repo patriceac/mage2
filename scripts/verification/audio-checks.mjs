@@ -74,6 +74,40 @@ export async function verifyAudio(cdp, capture, mode = "runtime") {
     await click(".mage2-player__dialogue-continue"); await gain("music", 0.2);
     assert(await value("window.__audioQa.voice.paused && !window.__audioQa.voice.isConnected"));
   });
+  await check("dialogue video fills the scene below readable text and choices without a duplicate portrait or debug card", async () => {
+    await hotspot("Cinematic dialogue");
+    const video = "document.querySelector('.mage2-player__dialogue-video')";
+    await waitFor(() => value(`${video}?.readyState>=2 && getComputedStyle(${video}).visibility==='visible'`));
+    await value(`window.__audioQa.performance=${video}; void 0`);
+    await gain("music", 0.05);
+    assert.equal(await value(`${video}.volume`), 0.8 * 0.4);
+    assert(await value(`!${video}.controls && !document.querySelector('.mage2-player__dialogue-portrait,.runtime-foreground-media,.foreground-media-player--playtest')`));
+    const layout = () => value(`(() => { const v=${video},p=document.querySelector('.mage2-player__dialogue'),s=v.closest('.mage2-player__scene-surface'); const a=v.getBoundingClientRect(),b=s.getBoundingClientRect(),r=p.getBoundingClientRect(); return {fits:Math.abs(a.width-b.width)<2&&Math.abs(a.height-b.height)<2,readable:r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&p.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),width:v.videoWidth,height:v.videoHeight,viewportWidth:innerWidth}; })()`);
+    const initialLayout = await layout(); assert(initialLayout.fits && initialLayout.readable);
+    await capture("cinematic-dialogue");
+    await click(".mage2-experience__menu-button");
+    await waitFor(() => value(`${video}.paused`));
+    const time = await value(`${video}.currentTime`); await pause(200);
+    assert.equal(await value(`${video}.currentTime`), time);
+    await click(".mage2-experience__close"); await waitFor(() => value(`!${video}.paused`));
+    await click(".mage2-player__dialogue-continue");
+    await waitFor(() => value(`${video}?.readyState>=2 && ${video}!==window.__audioQa.performance && getComputedStyle(${video}).visibility==='visible'`));
+    assert(await value("window.__audioQa.performance.paused&&!window.__audioQa.performance.isConnected"));
+    assert(await value(`${video}.currentTime<2 && !document.querySelector('.mage2-player__dialogue-portrait')`));
+    if (mode === "runtime") {
+      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 430, height: 900, deviceScaleFactor: 1, mobile: false });
+      await pause(150); const mobile = await layout(); assert.equal(mobile.viewportWidth, 430); assert(mobile.fits && mobile.readable);
+      await capture("cinematic-mobile");
+      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false });
+    }
+    await value(`${video}.currentTime=${video}.duration-0.05`); await waitFor(() => value(`${video}.ended`));
+    assert(await value("!!document.querySelector('.mage2-player__dialogue-choice')&&!document.querySelector('.mage2-player__dialogue-portrait')"));
+    await gain("music", 0.2); await capture("cinematic-choices");
+    await click(".mage2-player__dialogue-choice");
+    await waitFor(() => value("!!document.querySelector('.mage2-player__dialogue-portrait')&&!document.querySelector('.mage2-player__dialogue-video')"));
+    await click(".mage2-player__dialogue-continue");
+    return initialLayout;
+  });
   await check("text and silent video do not duck; performed video restores gain on skip", async () => {
     await hotspot("Text"); await pause(450); await gain("music", 0.2); await click(".mage2-player__dialogue-continue");
     await hotspot("Silent video"); await waitFor(() => value("document.querySelector('.mage2-player__response-video')?.readyState>=2"));

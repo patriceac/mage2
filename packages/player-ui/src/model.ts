@@ -21,8 +21,10 @@ export type PlayerScenePresentation = "embedded" | "runtime-responsive";
 export function resolvePlayerDialoguePortraitSource(
   speaker: string | undefined,
   project: Pick<ProjectBundle, "assets" | "dialogues">,
-  locale: string
+  locale: string,
+  dialogueVideoVisible = false
 ): string | undefined {
+  if (dialogueVideoVisible) return undefined;
   const assetId = speaker ? resolveSpeakerPortraitAssetId(project.dialogues.speakerPortraits, speaker) : undefined;
   const asset = assetId ? project.assets.assets.find((entry) => entry.id === assetId) : undefined;
   const variant = asset?.kind === "image" ? resolveAssetVariant(asset, locale) : undefined;

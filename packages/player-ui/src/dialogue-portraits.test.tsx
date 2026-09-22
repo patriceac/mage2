@@ -24,6 +24,8 @@ describe("dialogue portraits", () => {
       expect(resolvePlayerDialoguePortraitSource(dialogue.nodes[0]!.speaker, project, "fr")).toBe("tancrede-fr.webp");
     }
     expect(resolvePlayerDialoguePortraitSource("Narrator", project, "en")).toBeUndefined();
+    expect(resolvePlayerDialoguePortraitSource("Tancrede", project, "en", true)).toBeUndefined();
+    expect(resolvePlayerDialoguePortraitSource("Tancrede", project, "en", false)).toBe("tancrede.png");
     project.assets.assets = project.assets.assets.filter((asset) => asset.id !== "portrait");
     expect(resolvePlayerDialoguePortraitSource("Tancrede", project, "en")).toBeUndefined();
   });
