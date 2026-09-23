@@ -867,6 +867,7 @@ export function App() {
               onSceneMediaEnd={() => {
                 const completedSceneId = snapshot.scene.id;
                 const resolution = controller.completeSceneMedia();
+                setRuntimeNotice(undefined);
                 applyPlayerResponseResolution(resolution);
                 const nextSnapshot = controller.getSnapshot();
                 setSnapshot(nextSnapshot);
