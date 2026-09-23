@@ -578,7 +578,7 @@ describe("shared player component contract", () => {
     expect(source).not.toMatch(/useEditorStore|electronAPI|localStorage|sessionStorage/);
     expect(source).toContain("onContextMenu={handleInventoryContextMenu}");
     expect(source).toContain("resolvePlayerInventoryContextMenuAction(");
-    expect(source).toContain("onClick={canContinueBySurfaceClick ? onContinue : undefined}");
+    expect(source).toContain("onClick={canContinueBySurfaceClick ? advance : undefined}");
     expect(source).toContain('"--mage2-player-contained-width"');
     expect(source).toContain('<img src={sceneUrl} alt="" className="mage2-player__media"');
     expect(source).toContain('event.key !== "Escape" || !isExpanded');

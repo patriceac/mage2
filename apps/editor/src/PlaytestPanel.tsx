@@ -755,6 +755,7 @@ export function PlaytestPanel({ project, onExit }: PlaytestPanelProps) {
             onResponseComplete={completeResponse}
             playbackResetKey={playbackResetKey}
             reducedMotion={playerPreferences.reducedMotion}
+            autoAdvanceNarration={playerPreferences.autoAdvanceNarration}
             onPlayheadMsChange={setPlayheadMs}
             onPlayableDurationMsChange={
               sceneAsset?.kind === "video"

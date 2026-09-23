@@ -61,6 +61,7 @@ import {
 import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
 import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
 import { AmbientLayers } from "./AmbientLayers";
+import { useNarrationAdvance } from "./narration";
 import { PlayerSoundscape } from "./PlayerSoundscape";
 import { playerAudioGain, useAudibleMedia, useForegroundAudio, type PlayerAudioLevels } from "./audio";
 
@@ -100,6 +101,7 @@ export interface PlayerSceneRendererProps {
   paused?: boolean;
   ambientEnabled?: boolean;
   reducedMotion?: boolean;
+  autoAdvanceNarration?: boolean;
   presentation?: PlayerScenePresentation;
   className?: string;
 }
@@ -118,6 +120,9 @@ export interface PlayerDialogueBoxProps {
   activeDialogue: ActiveDialogueState;
   portraitSrc?: string;
   cinematic?: boolean;
+  autoAdvanceNarration?: boolean;
+  paused?: boolean;
+  sessionKey?: string | number;
   strings: Record<string, string>;
   copy: Pick<
     PlayerSystemCopy,
@@ -131,6 +136,9 @@ export function PlayerDialogueBox({
   activeDialogue,
   portraitSrc,
   cinematic = false,
+  autoAdvanceNarration = true,
+  paused = false,
+  sessionKey = "",
   strings,
   copy,
   onChoice,
@@ -140,9 +148,16 @@ export function PlayerDialogueBox({
   const speaker = activeDialogue.node.speaker.trim() || copy.narrator;
   const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
   const canContinueBySurfaceClick = activeDialogue.choices.length === 0;
+  const narration = activeDialogue.node.narration === true && !cinematic;
+  const advance = useNarrationAdvance(
+    `${sessionKey}:${activeDialogue.tree.id}:${activeDialogue.node.id}`, line,
+    narration && autoAdvanceNarration && canContinueBySurfaceClick && !activeDialogue.node.mediaAssetId,
+    paused, onContinue
+  );
   const dialogueClassName = [
     "mage2-player__dialogue",
     cinematic ? "mage2-player__dialogue--cinematic" : undefined,
+    narration ? "mage2-player__dialogue--narration" : undefined,
     canContinueBySurfaceClick ? "mage2-player__dialogue--continue" : undefined
   ]
     .filter(Boolean)
@@ -152,13 +167,13 @@ export function PlayerDialogueBox({
     <div
       className={dialogueClassName}
       aria-live="polite"
-      onClick={canContinueBySurfaceClick ? onContinue : undefined}
+      onClick={canContinueBySurfaceClick ? advance : undefined}
     >
       <div className="mage2-player__dialogue-speaker-row">
         <h4 className="mage2-player__dialogue-speaker">{speaker}</h4>
       </div>
       <div className="mage2-player__dialogue-body">
-        {portraitSrc && portraitSrc !== failedPortraitSrc ? (
+        {!narration && portraitSrc && portraitSrc !== failedPortraitSrc ? (
           <img
             key={portraitSrc}
             className="mage2-player__dialogue-portrait"
@@ -192,13 +207,14 @@ export function PlayerDialogueBox({
         </div>
       ) : (
         <div className="mage2-player__dialogue-actions">
+          {narration ? <span className="mage2-player__narration-ornament" aria-hidden="true"><i /></span> : null}
           <button
             type="button"
             className="mage2-player__dialogue-continue"
             title={copy.continueDialogueTitle}
             onClick={(event) => {
               event.stopPropagation();
-              onContinue();
+              advance();
             }}
           >
             {copy.continue}
@@ -388,6 +404,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       paused = false,
       ambientEnabled = true,
       reducedMotion = false,
+      autoAdvanceNarration = true,
       presentation = "embedded",
       className
     },
@@ -888,6 +905,9 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   activeDialogue={snapshot.activeDialogue}
                   portraitSrc={portraitUrl}
                   cinematic={dialogueVideoVisible}
+                  sessionKey={snapshot.audioSessionId}
+                  autoAdvanceNarration={autoAdvanceNarration}
+                  paused={paused || Boolean(activeResponse)}
                   strings={strings}
                   copy={copy}
                   onChoice={onDialogueChoice}

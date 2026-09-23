@@ -26,6 +26,7 @@ export interface PlayerExperiencePreferences extends PlayerAudioLevels {
   volume: number;
   textSize: PlayerTextSize;
   reducedMotion: boolean;
+  autoAdvanceNarration: boolean;
 }
 
 export const DEFAULT_PLAYER_EXPERIENCE_PREFERENCES: PlayerExperiencePreferences = {
@@ -35,7 +36,8 @@ export const DEFAULT_PLAYER_EXPERIENCE_PREFERENCES: PlayerExperiencePreferences 
   effectsVolume: 1,
   voiceVolume: 1,
   textSize: "medium",
-  reducedMotion: false
+  reducedMotion: false,
+  autoAdvanceNarration: true
 };
 
 export function resolvePlayerPreferences(raw: string | null | undefined): PlayerExperiencePreferences {
@@ -49,7 +51,8 @@ export function resolvePlayerPreferences(raw: string | null | undefined): Player
       effectsVolume: clampAudioLevel(parsed.effectsVolume),
       voiceVolume: clampAudioLevel(parsed.voiceVolume),
       textSize: parsed.textSize === "small" || parsed.textSize === "large" ? parsed.textSize : "medium",
-      reducedMotion: typeof parsed.reducedMotion === "boolean" ? parsed.reducedMotion : false
+      reducedMotion: typeof parsed.reducedMotion === "boolean" ? parsed.reducedMotion : false,
+      autoAdvanceNarration: typeof parsed.autoAdvanceNarration === "boolean" ? parsed.autoAdvanceNarration : true
     };
   } catch { return { ...DEFAULT_PLAYER_EXPERIENCE_PREFERENCES }; }
 }
@@ -407,6 +410,11 @@ export function PlayerExperienceShell({
                     <option value="medium">{copy.textSizeMedium}</option>
                     <option value="large">{copy.textSizeLarge}</option>
                   </select>
+                </label>
+                <label className="mage2-experience__checkbox-row">
+                  <span>{copy.autoAdvanceNarration}</span>
+                  <input type="checkbox" checked={preferences.autoAdvanceNarration}
+                    onChange={(event) => onPreferencesChange({ ...preferences, autoAdvanceNarration: event.target.checked })} />
                 </label>
                 <label className="mage2-experience__checkbox-row">
                   <span>{copy.reducedMotion}</span>

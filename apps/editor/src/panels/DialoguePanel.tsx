@@ -635,6 +635,14 @@ function LineCard({
       {isSelected ? (
         <div className="dialogue-line-editor">
           <div className="dialogue-line-editor__fields">
+            <label className="checkbox-field">
+              <input type="checkbox" checked={node.narration === true} onChange={(event) =>
+                mutateProject((draft) => {
+                  const target = findNode(draft, currentDialogue.id, node.id);
+                  if (target) target.narration = event.target.checked || undefined;
+                })} />
+              <span>{t("Narration")}</span>
+            </label>
             <label>
               <span className="field-label--inset">{t("Who speaks")}</span>
               <input

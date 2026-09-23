@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 19;
+export const CURRENT_SCHEMA_VERSION = 20;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -300,6 +300,7 @@ export const DialogueChoiceSchema = z.object({
 export const DialogueNodeSchema = z.object({
   id: z.string().min(1),
   speaker: z.string().min(1),
+  narration: z.boolean().optional(),
   textId: z.string().min(1),
   mediaAssetId: z.string().min(1).optional(),
   nextNodeId: z.string().optional(),

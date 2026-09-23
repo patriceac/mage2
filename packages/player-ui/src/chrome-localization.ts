@@ -7,6 +7,7 @@ import {
 } from "@mage2/schema";
 
 export interface PlayerExperienceShellCopy {
+  autoAdvanceNarration: string;
   automatic: string;
   cancel: string;
   close: string;
@@ -47,6 +48,7 @@ export interface PlayerExperienceShellCopy {
 
 const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = {
   en: {
+    autoAdvanceNarration: "Auto-advance narration",
     music: "Music", ambience: "Ambience", effects: "Sound effects", voice: "Voice",
     automatic: "Automatic", cancel: "Cancel", close: "Close",
     confirmLoadBody: "Current unsaved progress will be replaced.",
@@ -61,6 +63,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSizeMedium: "Medium", textSizeSmall: "Small", version: "Version", volume: "Volume"
   },
   fr: {
+    autoAdvanceNarration: "Faire défiler la narration automatiquement",
     music: "Musique", ambience: "Ambiance", effects: "Effets sonores", voice: "Voix",
     automatic: "Automatique", cancel: "Annuler", close: "Fermer",
     confirmLoadBody: "La progression actuelle non sauvegardée sera remplacée.",
@@ -75,6 +78,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSizeMedium: "Moyenne", textSizeSmall: "Petite", version: "Version", volume: "Volume"
   },
   es: {
+    autoAdvanceNarration: "Avanzar la narración automáticamente",
     music: "Música", ambience: "Ambiente", effects: "Efectos de sonido", voice: "Voz",
     automatic: "Automático", cancel: "Cancelar", close: "Cerrar",
     confirmLoadBody: "Se reemplazará el progreso actual que no se haya guardado.",
@@ -89,6 +93,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSizeMedium: "Mediano", textSizeSmall: "Pequeño", version: "Versión", volume: "Volumen"
   },
   "zh-Hans": {
+    autoAdvanceNarration: "自动推进旁白",
     music: "音乐", ambience: "环境音", effects: "音效", voice: "语音",
     automatic: "自动", cancel: "取消", close: "关闭", confirmLoadBody: "当前未保存的进度将被替换。",
     confirmNewGameBody: "此设备上的当前进度将被替换。", continueGame: "继续游戏", credits: "制作人员",
@@ -101,6 +106,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSizeMedium: "中", textSizeSmall: "小", version: "版本", volume: "音量"
   },
   ja: {
+    autoAdvanceNarration: "ナレーションを自動で進める",
     music: "音楽", ambience: "環境音", effects: "効果音", voice: "音声",
     automatic: "自動", cancel: "キャンセル", close: "閉じる", confirmLoadBody: "現在の未保存の進行状況は置き換えられます。",
     confirmNewGameBody: "この端末の現在の進行状況は置き換えられます。", continueGame: "続きから", credits: "クレジット",
@@ -113,6 +119,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSize: "文字サイズ", textSizeLarge: "大", textSizeMedium: "中", textSizeSmall: "小", version: "バージョン", volume: "音量"
   },
   ko: {
+    autoAdvanceNarration: "내레이션 자동 진행",
     music: "음악", ambience: "환경음", effects: "효과음", voice: "음성",
     automatic: "자동", cancel: "취소", close: "닫기", confirmLoadBody: "현재 저장하지 않은 진행 상황이 교체됩니다.",
     confirmNewGameBody: "이 기기의 현재 진행 상황이 교체됩니다.", continueGame: "계속하기", credits: "제작진",
@@ -125,6 +132,7 @@ const CHROME_COPY: Readonly<Record<BuiltInLocale, PlayerExperienceShellCopy>> = 
     textSize: "글자 크기", textSizeLarge: "크게", textSizeMedium: "보통", textSizeSmall: "작게", version: "버전", volume: "음량"
   },
   ar: {
+    autoAdvanceNarration: "تقدّم السرد تلقائيًا",
     music: "الموسيقى", ambience: "الأصوات المحيطة", effects: "المؤثرات الصوتية", voice: "الصوت البشري",
     automatic: "تلقائي", cancel: "إلغاء", close: "إغلاق", confirmLoadBody: "سيُستبدل التقدم الحالي غير المحفوظ.",
     confirmNewGameBody: "سيُستبدل التقدم الحالي على هذا الجهاز.", continueGame: "متابعة", credits: "فريق العمل",

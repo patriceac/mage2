@@ -1007,6 +1007,115 @@
   }
 }
 
+/* Narration: the approved literary overlay, with feathered darkness behind it. */
+@font-face {
+  font-family: "MAGE2 Garamond";
+  src: url("./fonts/EBGaramond.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+.mage2-player .mage2-player__dialogue--narration {
+  isolation: isolate;
+  width: min(70rem, calc(100% - 8rem));
+  max-height: calc(100% - 3rem);
+  padding: 0.5rem 1rem 0;
+  gap: clamp(0.65rem, 1cqw, 1.2rem);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  text-align: center;
+  font-family: "MAGE2 Garamond", Georgia, serif;
+}
+
+.mage2-player__dialogue--narration::before {
+  z-index: -1;
+  inset: -5rem -18% -4rem;
+  height: auto;
+  background: radial-gradient(ellipse at 50% 100%, rgba(4, 8, 12, 0.94) 0%, rgba(4, 8, 12, 0.86) 38%, rgba(4, 8, 12, 0.48) 62%, transparent 79%);
+}
+
+.mage2-player__dialogue--narration::after,
+.mage2-player__dialogue--narration .mage2-player__dialogue-speaker::before {
+  display: none;
+}
+
+.mage2-player__dialogue--narration .mage2-player__dialogue-speaker {
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #caa66e;
+  font: 500 clamp(0.7rem, 1cqw, 1.2rem)/1.3 "MAGE2 Garamond", Georgia, serif;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: normal;
+  text-wrap: balance;
+}
+
+.mage2-player .mage2-player__dialogue--narration .mage2-player__dialogue-text {
+  max-height: min(45cqh, 24rem);
+  color: #f3eee4;
+  font-size: calc(clamp(1.3rem, 2.05cqw, 2.46rem) * var(--mage2-experience-text-scale, 1));
+  font-weight: 400;
+  line-height: 1.12;
+  white-space: pre-line;
+  text-wrap: balance;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
+}
+
+.mage2-player__dialogue--narration .mage2-player__dialogue-actions {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.mage2-player__narration-ornament {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: clamp(8rem, 11.4cqw, 14rem);
+  padding-top: 0.4rem;
+  pointer-events: none;
+}
+.mage2-player__narration-ornament::before,
+.mage2-player__narration-ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #927343;
+}
+.mage2-player__narration-ornament i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 1.5px solid #f3eee4;
+  transform: rotate(45deg);
+}
+.mage2-player__dialogue--narration .mage2-player__dialogue-continue {
+  min-height: 2.2rem;
+  padding: 0.35rem;
+  color: #c8c0af;
+  font: 400 clamp(0.9rem, 1.05cqw, 1.25rem)/1.2 "MAGE2 Garamond", Georgia, serif;
+}
+.mage2-player__dialogue--narration ~ .mage2-player__inventory-anchor {
+  position: absolute;
+  bottom: clamp(0.75rem, 2.4vw, 1.35rem);
+  left: clamp(0.75rem, 2.4vw, 1.35rem);
+}
+@media (max-width: 780px) {
+  .mage2-player .mage2-player__dialogue--narration {
+    width: 100%;
+    margin-bottom: 3.2rem;
+    padding-inline: 0.35rem;
+  }
+}
+
 /* Decoded dialogue performances keep their lower face clear of the normal card. */
 .mage2-player__dialogue--cinematic {
   grid-template-columns: minmax(0, 1fr) auto;
