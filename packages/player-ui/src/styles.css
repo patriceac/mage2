@@ -1062,6 +1062,7 @@
 
 .mage2-player .mage2-player__dialogue--narration .mage2-player__dialogue-text {
   max-height: min(45cqh, 24rem);
+  scrollbar-width: none;
   color: #f3eee4;
   font-size: calc(clamp(1.3rem, 1.9cqw, 2.28rem) * var(--mage2-experience-text-scale, 1));
   font-weight: 400;
