@@ -17,10 +17,10 @@ export function useNarrationAdvance(key: string, text: string, enabled: boolean,
   }
   const current = state.current;
   const advance = useCallback(() => {
-    if (state.current !== current || current.continued) return;
+    if (paused || state.current !== current || current.continued) return;
     current.continued = true;
     callback.current();
-  }, [current]);
+  }, [current, paused]);
 
   useEffect(() => {
     if (!enabled) {

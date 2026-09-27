@@ -144,6 +144,7 @@ export function PlayerDialogueBox({
   onChoice,
   onContinue
 }: PlayerDialogueBoxProps) {
+  const dialogueRef = useRef<HTMLDivElement>(null);
   const [failedPortraitSrc, setFailedPortraitSrc] = useState<string>();
   const speaker = activeDialogue.node.speaker.trim() || copy.narrator;
   const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
@@ -154,6 +155,18 @@ export function PlayerDialogueBox({
     narration && autoAdvanceNarration && canContinueBySurfaceClick && !activeDialogue.node.mediaAssetId,
     paused, onContinue
   );
+  useEffect(() => {
+    if (!canContinueBySurfaceClick || paused) return;
+    const surface = dialogueRef.current?.closest(".mage2-experience__game-canvas")
+      ?? dialogueRef.current?.closest(".mage2-player");
+    const continueFromSurface = (event: Event) => {
+      if ((event.target as Element).closest(".mage2-player__media-recovery, audio[controls], video[controls]")) return;
+      event.stopPropagation();
+      advance();
+    };
+    surface?.addEventListener("click", continueFromSurface, true);
+    return () => surface?.removeEventListener("click", continueFromSurface, true);
+  }, [advance, canContinueBySurfaceClick, paused]);
   const dialogueClassName = [
     "mage2-player__dialogue",
     cinematic ? "mage2-player__dialogue--cinematic" : undefined,
@@ -165,6 +178,7 @@ export function PlayerDialogueBox({
 
   return (
     <div
+      ref={dialogueRef}
       className={dialogueClassName}
       aria-live="polite"
       onClick={canContinueBySurfaceClick ? advance : undefined}
