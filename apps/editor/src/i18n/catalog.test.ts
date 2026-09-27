@@ -89,6 +89,7 @@ describe("editor feature catalogs", () => {
 
   it("uses the reviewed French localization terminology", () => {
     const t = createEditorTranslator(EDITOR_CATALOG, "fr");
+    expect(t("Narration")).toBe("Narration");
     expect(t("Strings")).toBe("Chaînes");
     expect(t("Draft strings")).toBe("Chaînes en brouillon");
     expect(t("Mark Translated")).toBe("Marquer comme traduit");

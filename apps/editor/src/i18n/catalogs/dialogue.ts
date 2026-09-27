@@ -199,4 +199,4 @@ export const dialogueMessages = defineEditorMessages("dialogue", {
   "Already completed": m("Déjà terminé", "Ya completado", "已经完成", "完了済み", "이미 완료됨", "مكتمل بالفعل"),
   "No effect": m("Aucun effet", "Sin efecto", "没有效果", "効果なし", "효과 없음", "بلا تأثير"),
   "Nothing useful": m("Rien d’utile", "Nada útil", "没有有用的东西", "役立つものなし", "쓸 만한 것 없음", "لا شيء مفيد")
-}, { allowSourceEqual: ["Audio", "Video", "audio"] });
+}, { allowSourceEqual: ["Audio", "Video", "audio", "Narration"] });
