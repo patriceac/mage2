@@ -438,6 +438,26 @@ describe("shared player system copy", () => {
 });
 
 describe("shared player component contract", () => {
+  it("renders cinematic subtitles and a separate skip without the interactive dialogue card", () => {
+    const project = createDefaultProjectBundle("Cinematic subtitles");
+    project.dialogues.items = [{ id: "film", name: "Film", startNodeId: "line", nodes: [
+      { id: "line", speaker: "Hidden speaker", cinematic: true, textId: "line", effects: [], choices: [] }
+    ] }];
+    const controller = createPlayerController(project);
+    controller.startDialogue("film");
+    const markup = renderToStaticMarkup(React.createElement(PlayerSceneRenderer, {
+      project, snapshot: controller.getSnapshot(), locale: "en", strings: { line: "Passive subtitle" },
+      visibleHotspots: [], playheadMs: 0, showHotspots: false, resolveSourcePath: async (path) => path,
+      bagIconUrl: "bag.png", copy, onSelectedInventoryItemIdChange() {}, onHotspotActivate() {},
+      onDialogueChoice() {}, onDialogueContinue() {}
+    }));
+    expect(markup).toContain("Passive subtitle");
+    expect(markup).toContain("mage2-player__cinematic-skip");
+    expect(markup).not.toContain("mage2-player__dialogue-continue");
+    expect(markup).not.toContain("mage2-player__dialogue-speaker");
+    expect(markup).not.toContain("Hidden speaker");
+  });
+
   it("renders injected dialogue copy and choice markers", () => {
     const project = createDefaultProjectBundle("Shared dialogue");
     const tree = {

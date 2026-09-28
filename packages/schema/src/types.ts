@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_SCHEMA_VERSION = 20;
+export const CURRENT_SCHEMA_VERSION = 21;
 export const CURRENT_SAVE_ENVELOPE_VERSION = 2;
 export const SAVE_ENVELOPE_FORMAT = "mage2-save";
 
@@ -301,6 +301,7 @@ export const DialogueNodeSchema = z.object({
   id: z.string().min(1),
   speaker: z.string().min(1),
   narration: z.boolean().optional(),
+  cinematic: z.boolean().optional(),
   textId: z.string().min(1),
   mediaAssetId: z.string().min(1).optional(),
   nextNodeId: z.string().optional(),
@@ -404,6 +405,15 @@ export const PlayerPresentationSchema = z.object({
   overlayTone: z.enum(["dark", "light"]).default("dark"),
   fontPreset: z.enum(["cinematic", "modern", "classic"]).default("cinematic"),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#e0b56a"),
+  subtitles: z.object({
+    fontFamily: z.string().min(1).max(200).optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    backgroundOpacity: z.number().min(0).max(1).optional(),
+    fontScale: z.number().min(0.5).max(2).optional(),
+    lineHeight: z.number().min(1).max(2).optional(),
+    bottomPercent: z.number().min(0).max(25).optional()
+  }).optional(),
   creatorName: z.string().max(120).default(""),
   websiteUrl: z.string().max(2048).default(""),
   taglineTextId: z.string().min(1).optional(),

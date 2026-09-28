@@ -62,6 +62,7 @@ import { PlayerResponsePresenter } from "./PlayerResponsePresenter";
 import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudio";
 import { AmbientLayers } from "./AmbientLayers";
 import { useNarrationAdvance } from "./narration";
+import { useCinematicAdvance } from "./cinematic";
 import { PlayerSoundscape } from "./PlayerSoundscape";
 import { playerAudioGain, useAudibleMedia, useForegroundAudio, type PlayerAudioLevels } from "./audio";
 
@@ -151,7 +152,7 @@ export function PlayerDialogueBox({
   const canContinueBySurfaceClick = activeDialogue.choices.length === 0;
   const narration = activeDialogue.node.narration === true && !cinematic;
   const advance = useNarrationAdvance(
-    `${sessionKey}:${activeDialogue.tree.id}:${activeDialogue.node.id}`, line,
+    `${sessionKey}:${activeDialogue.entrySequence}:${activeDialogue.tree.id}:${activeDialogue.node.id}`, line,
     narration && autoAdvanceNarration && canContinueBySurfaceClick && !activeDialogue.node.mediaAssetId,
     paused, onContinue
   );
@@ -429,8 +430,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const overlayRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const dialogueVideoRef = useRef<HTMLVideoElement>(null);
+    const cinematicFrameRef = useRef<HTMLCanvasElement>(null);
     const [visibleDialogueVideoKey, setVisibleDialogueVideoKey] = useState<string>();
     const [dialogueVideoPlaybackBlocked, setDialogueVideoPlaybackBlocked] = useState(false);
+    const [failedDialogueVideoKey, setFailedDialogueVideoKey] = useState<string>();
     const [dialogueVideoAudible, setDialogueVideoAudible] = useState(false);
     const completedMediaEntryKeyRef = useRef<string | undefined>(undefined);
     const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
@@ -458,21 +461,44 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const sceneUrl = useResolvedSource(sceneSourcePath, resolveSourcePath);
     const dialogueAsset = project.assets.assets.find((asset) => asset.id === snapshot.activeDialogue?.node.mediaAssetId);
     const dialogueVideoVariant = dialogueAsset?.kind === "video" ? resolveAssetVariant(dialogueAsset, locale) : undefined;
-    const dialogueVideoUrl = useResolvedSource(dialogueVideoVariant?.proxyPath ?? dialogueVideoVariant?.sourcePath, resolveSourcePath);
+    const dialogueVideoSource = dialogueVideoVariant?.proxyPath ?? dialogueVideoVariant?.sourcePath;
+    const { url: dialogueVideoUrl, failed: dialogueSourceFailed } = useResolvedSourceResult(dialogueVideoSource, resolveSourcePath);
+    const dialogueEntryKey = `${snapshot.audioSessionId}:${snapshot.activeDialogue?.entrySequence}:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${locale}:${dialogueVideoSource}`;
+    const cinematic = snapshot.activeDialogue?.node.cinematic === true;
+    const cinematicPlayback = useCinematicAdvance(dialogueEntryKey, cinematic, gameplayPaused,
+      Boolean(snapshot.activeDialogue?.node.choices.length), onDialogueContinue);
+    const passiveCinematic = cinematic && (!cinematicPlayback.completed || !snapshot.activeDialogue?.node.choices.length);
+    const dialogueMediaPaused = gameplayPaused || (cinematic && cinematicPlayback.completed);
+    const completeCinematic = () => {
+      const video = dialogueVideoRef.current;
+      const frame = cinematicFrameRef.current;
+      if (video && frame && video.readyState >= 2) {
+        frame.width = video.videoWidth;
+        frame.height = video.videoHeight;
+        frame.getContext("2d")?.drawImage(video, 0, 0);
+      }
+      cinematicPlayback.complete();
+    };
     const dialogueVideoKey = dialogueVideoUrl
-      ? `${snapshot.audioSessionId}:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${locale}:${dialogueVideoUrl}`
+      ? `${dialogueEntryKey}:${dialogueVideoUrl}`
       : undefined;
     const dialogueVideoVisible = Boolean(dialogueVideoKey && visibleDialogueVideoKey === dialogueVideoKey);
-    useForegroundAudio(dialogueVideoRef, dialogueVideoKey, voiceGain, paused, setDialogueVideoAudible, dialogueVideoVariant?.hasAudio !== false);
+    const dialogueMediaFailed = !dialogueVideoSource || dialogueSourceFailed || Boolean(dialogueVideoKey && failedDialogueVideoKey === dialogueVideoKey);
+    useForegroundAudio(dialogueVideoRef, dialogueVideoKey, voiceGain, dialogueMediaPaused, setDialogueVideoAudible, dialogueVideoVariant?.hasAudio !== false);
     useEffect(() => {
       setDialogueVideoPlaybackBlocked(false);
       const video = dialogueVideoRef.current;
-      if (video && !paused) void video.play().catch((error: unknown) => {
-        if (video === dialogueVideoRef.current && (error as { name?: string })?.name === "NotAllowedError") {
+      let cancelled = false;
+      if (video && !dialogueMediaPaused) void video.play().catch((error: unknown) => {
+        if (cancelled || video !== dialogueVideoRef.current) return;
+        if ((error as { name?: string })?.name === "NotAllowedError") {
           setDialogueVideoPlaybackBlocked(true);
+        } else if ((error as { name?: string })?.name !== "AbortError") {
+          setFailedDialogueVideoKey(dialogueVideoKey);
         }
       });
-    }, [dialogueVideoKey, paused]);
+      return () => { cancelled = true; };
+    }, [dialogueVideoKey, dialogueMediaPaused]);
     const portraitSourcePath = resolvePlayerDialoguePortraitSource(snapshot.activeDialogue?.node.speaker, project, locale, dialogueVideoVisible);
     const portraitUrl = useResolvedSource(portraitSourcePath, resolveSourcePath);
     const videoAudioMode = snapshot.scene.videoAudioMode;
@@ -556,9 +582,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
 
     const resumeSceneMedia = useCallback(() => {
       soundscapeRef.current?.resume();
-      void dialogueVideoRef.current?.play().then(
-        () => setDialogueVideoPlaybackBlocked(false),
-        () => setDialogueVideoPlaybackBlocked(true)
+      const dialogueVideo = dialogueVideoRef.current;
+      if (!dialogueMediaPaused) void dialogueVideo?.play().then(
+        () => { if (dialogueVideo === dialogueVideoRef.current) setDialogueVideoPlaybackBlocked(false); },
+        () => { if (dialogueVideo === dialogueVideoRef.current) setDialogueVideoPlaybackBlocked(true); }
       );
       const video = videoRef.current;
       if (!video) {
@@ -571,7 +598,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
         () => setVideoPlaybackBlocked(true)
       );
       sceneAudioRef.current?.resume();
-    }, []);
+    }, [dialogueMediaPaused]);
 
     const handleInventoryContextMenu = useCallback(
       (event: MouseEvent<HTMLDivElement>) => {
@@ -865,13 +892,23 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 />
               ))}
             </div>
+            {cinematic ? <canvas key={`${snapshot.audioSessionId}:${snapshot.activeDialogue?.tree.id}`} ref={cinematicFrameRef} className="mage2-player__cinematic-frame" aria-hidden="true" /> : null}
             {dialogueVideoUrl ? (
               <video key={dialogueVideoKey} ref={dialogueVideoRef} src={dialogueVideoUrl}
                 className="mage2-player__dialogue-video" style={{ visibility: dialogueVideoVisible ? "visible" : "hidden" }}
-                autoPlay={!paused} playsInline preload="auto" controls={false} disablePictureInPicture disableRemotePlayback
+                autoPlay={!dialogueMediaPaused} playsInline preload="auto" controls={false} disablePictureInPicture disableRemotePlayback
                 aria-hidden="true" tabIndex={-1}
-                onLoadedData={() => setVisibleDialogueVideoKey(dialogueVideoKey)}
-                onError={() => setVisibleDialogueVideoKey(undefined)} />
+                onLoadedData={(event) => {
+                  if (event.currentTarget === dialogueVideoRef.current) setVisibleDialogueVideoKey(dialogueVideoKey);
+                }}
+                onEnded={(event) => {
+                  if (event.currentTarget === dialogueVideoRef.current) completeCinematic();
+                }}
+                onError={(event) => {
+                  if (event.currentTarget !== dialogueVideoRef.current) return;
+                  setVisibleDialogueVideoKey(undefined);
+                  setFailedDialogueVideoKey(dialogueVideoKey);
+                }} />
             ) : null}
             {(videoPlaybackBlocked || sceneAudioPlaybackBlocked || soundscapeBlocked || dialogueVideoPlaybackBlocked) && !gameplayPaused ? (
               <div className="mage2-player__media-recovery">
@@ -914,7 +951,16 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 isInventoryDrawerExpanded
               )}
             >
-              {snapshot.activeDialogue ? (
+              {snapshot.activeDialogue && passiveCinematic ? (
+                <>
+                  <div className="mage2-player__cinematic-subtitles" aria-live="polite">
+                    {(dialogueVideoVisible || dialogueMediaFailed) ? <p><span>{strings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</span></p> : null}
+                    {dialogueMediaFailed ? <p role="status">{copy.responseMediaUnavailable}</p> : null}
+                  </div>
+                  <button type="button" className="mage2-player__cinematic-skip" disabled={gameplayPaused}
+                    onClick={completeCinematic}>{copy.skipResponseVideo}</button>
+                </>
+              ) : snapshot.activeDialogue ? (
                 <PlayerDialogueBox
                   activeDialogue={snapshot.activeDialogue}
                   portraitSrc={portraitUrl}
@@ -928,7 +974,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                   onContinue={onDialogueContinue}
                 />
               ) : null}
-              <div className="mage2-player__inventory-anchor">
+              <div className="mage2-player__inventory-anchor" hidden={passiveCinematic}>
                 <PlayerInventoryTray
                   items={inventoryItems}
                   isExpanded={isInventoryDrawerExpanded}
@@ -1093,7 +1139,11 @@ function PlayerHotspotButton({
 }
 
 function useResolvedSource(sourcePath: string | undefined, resolver: PlayerSourceResolver): string | undefined {
-  const [resolved, setResolved] = useState<{ sourcePath: string; url: string; resolver: PlayerSourceResolver }>();
+  return useResolvedSourceResult(sourcePath, resolver).url;
+}
+
+function useResolvedSourceResult(sourcePath: string | undefined, resolver: PlayerSourceResolver): { url?: string; failed?: boolean } {
+  const [resolved, setResolved] = useState<{ sourcePath: string; url?: string; failed?: boolean; resolver: PlayerSourceResolver }>();
   useEffect(() => {
     let cancelled = false;
     if (!sourcePath) {
@@ -1104,12 +1154,12 @@ function useResolvedSource(sourcePath: string | undefined, resolver: PlayerSourc
     void resolver(sourcePath)
       .then((nextUrl) => {
         if (!cancelled) {
-          setResolved({ sourcePath, url: nextUrl, resolver });
+          setResolved({ sourcePath, url: nextUrl, failed: !nextUrl, resolver });
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setResolved(undefined);
+          setResolved({ sourcePath, failed: true, resolver });
         }
       });
     return () => {
@@ -1117,7 +1167,7 @@ function useResolvedSource(sourcePath: string | undefined, resolver: PlayerSourc
     };
   }, [resolver, sourcePath]);
   // Never show the previous speaker's portrait while the next image resolves.
-  return resolved?.sourcePath === sourcePath && resolved?.resolver === resolver ? resolved.url : undefined;
+  return resolved?.sourcePath === sourcePath && resolved?.resolver === resolver ? resolved : {};
 }
 
 function useResolvedSourceMap(

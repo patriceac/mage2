@@ -47,7 +47,8 @@
   object-fit: cover;
 }
 
-.mage2-player__dialogue-video {
+.mage2-player__dialogue-video,
+.mage2-player__cinematic-frame {
   position: absolute;
   inset: 0;
   z-index: 3;
@@ -1116,6 +1117,44 @@
     margin-bottom: 3.2rem;
     padding-inline: 0.35rem;
   }
+}
+
+.mage2-player__cinematic-subtitles {
+  position: absolute;
+  bottom: var(--mage2-subtitle-bottom, 5%);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(64rem, 90%);
+  text-align: center;
+  color: var(--mage2-subtitle-color, #ffffff);
+  font-family: var(--mage2-subtitle-font, inherit);
+  font-size: calc(clamp(1rem, 2cqw, 1.75rem) * var(--mage2-subtitle-scale, 1) * var(--mage2-experience-text-scale, 1));
+  line-height: var(--mage2-subtitle-line-height, 1.3);
+  text-shadow: -1px -1px 1px #000, 1px 1px 1px #000, 0 2px 3px #000;
+  white-space: pre-line;
+  pointer-events: none;
+}
+
+.mage2-player__cinematic-subtitles p { margin: 0.4em 0; }
+.mage2-player__cinematic-subtitles p span {
+  padding: 0.12em 0.35em;
+  background: color-mix(in srgb, var(--mage2-subtitle-background, #000000) var(--mage2-subtitle-opacity, 65%), transparent);
+  box-decoration-break: clone;
+}
+
+.mage2-player__cinematic-skip {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.75rem;
+  pointer-events: auto;
+  padding: 0.35em 0.8em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: inherit;
+  background: #000a;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 /* Decoded dialogue performances keep their lower face clear of the normal card. */

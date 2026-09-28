@@ -29,6 +29,7 @@ export interface ActiveDialogueState {
   tree: DialogueTree;
   node: DialogueNode;
   choices: DialogueChoice[];
+  entrySequence?: number;
 }
 
 export interface PlayerSnapshot {
@@ -176,6 +177,7 @@ export function createPlayerController(
   const random = options.random ?? Math.random;
   let responseSequence = 0;
   let sceneEntrySequence = 0;
+  let dialogueEntrySequence = 0;
   const audioSessionId = ++nextAudioSessionId;
   let soundSequence = 0;
   const soundCues: PlayerSoundCue[] = [];
@@ -308,10 +310,11 @@ export function createPlayerController(
     const tree = getDialogue(state.activeDialogueTreeId);
     const node = getDialogueNode(tree, state.activeDialogueNodeId);
     const choices = node.choices.filter((choice) => areConditionsMet(choice.conditions, choice.conditionMode));
-    return { tree, node, choices };
+    return { tree, node, choices, entrySequence: dialogueEntrySequence };
   }
 
   function setActiveDialogue(treeId?: string, nodeId?: string): void {
+    dialogueEntrySequence += 1;
     state.activeDialogueTreeId = treeId;
     state.activeDialogueNodeId = nodeId;
   }

@@ -144,6 +144,13 @@ export function PlayerExperienceShell({
   const modalOpen = Boolean(panel || confirmation);
   const rootStyle = {
     "--mage2-experience-accent": presentation.accentColor,
+    "--mage2-subtitle-font": presentation.subtitles?.fontFamily,
+    "--mage2-subtitle-color": presentation.subtitles?.color,
+    "--mage2-subtitle-background": presentation.subtitles?.backgroundColor,
+    "--mage2-subtitle-opacity": `${(presentation.subtitles?.backgroundOpacity ?? 0.65) * 100}%`,
+    "--mage2-subtitle-scale": presentation.subtitles?.fontScale,
+    "--mage2-subtitle-line-height": presentation.subtitles?.lineHeight,
+    "--mage2-subtitle-bottom": `${presentation.subtitles?.bottomPercent ?? 5}%`,
     "--mage2-experience-text-scale": preferences.textSize === "large" ? 1.14 : preferences.textSize === "small" ? 0.9 : 1
   } as CSSProperties;
   const rootClassName = [
