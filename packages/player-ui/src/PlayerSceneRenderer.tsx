@@ -149,6 +149,7 @@ export function PlayerDialogueBox({
   onContinue
 }: PlayerDialogueBoxProps) {
   const dialogueRef = useRef<HTMLDivElement>(null);
+  const pointerAdvanceRef = useRef<(() => void) | undefined>(undefined);
   const [failedPortraitSrc, setFailedPortraitSrc] = useState<string>();
   const speaker = activeDialogue.node.speaker.trim() || copy.narrator;
   const line = strings[activeDialogue.node.textId] ?? activeDialogue.node.textId;
@@ -160,16 +161,28 @@ export function PlayerDialogueBox({
     paused, onContinue
   );
   useEffect(() => {
-    if (!canContinueBySurfaceClick || paused) return;
     const surface = dialogueRef.current?.closest(".mage2-experience__game-canvas")
       ?? dialogueRef.current?.closest(".mage2-player");
+    const rememberPointerEntry = () => { pointerAdvanceRef.current = advance; };
     const continueFromSurface = (event: Event) => {
+      const pointerAdvance = pointerAdvanceRef.current;
+      pointerAdvanceRef.current = undefined;
       if ((event.target as Element).closest(".mage2-player__media-recovery, audio[controls], video[controls]")) return;
+      // A narration timer may change the passage between pointer down and click.
+      if ((event as globalThis.MouseEvent).detail > 0 && pointerAdvance && pointerAdvance !== advance) {
+        event.stopPropagation();
+        return;
+      }
+      if (!canContinueBySurfaceClick || paused) return;
       event.stopPropagation();
       advance();
     };
+    surface?.addEventListener("pointerdown", rememberPointerEntry, true);
     surface?.addEventListener("click", continueFromSurface, true);
-    return () => surface?.removeEventListener("click", continueFromSurface, true);
+    return () => {
+      surface?.removeEventListener("pointerdown", rememberPointerEntry, true);
+      surface?.removeEventListener("click", continueFromSurface, true);
+    };
   }, [advance, canContinueBySurfaceClick, paused]);
   const dialogueClassName = [
     "mage2-player__dialogue",

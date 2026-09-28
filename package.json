@@ -24,6 +24,7 @@
     "test": "vitest run",
     "typecheck": "npm run typecheck --workspace @mage2/player-ui && npm run typecheck --workspace @mage2/editor && npm run typecheck --workspace @mage2/runtime-web",
     "verify:player:parity": "node scripts/verify-shared-player-parity.mjs",
+    "verify:dialogue:clicks": "node scripts/verify-dialogue-click.mjs",
     "verify:editor:windows-launch": "npm run verify:editor:windows-ci",
     "verify:editor:windows-ci": "node scripts/verify-editor-windows-ci.mjs"
   },
