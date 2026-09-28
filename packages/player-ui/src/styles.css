@@ -1124,7 +1124,7 @@
   bottom: var(--mage2-subtitle-bottom, 5%);
   left: 50%;
   transform: translateX(-50%);
-  width: min(64rem, 90%);
+  width: 90%;
   text-align: center;
   color: var(--mage2-subtitle-color, #ffffff);
   font-family: var(--mage2-subtitle-font, inherit);

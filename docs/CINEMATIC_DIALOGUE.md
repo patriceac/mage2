@@ -29,4 +29,4 @@ Example project-specific serif presentation:
 }
 ```
 
-Subtitles are centered, wrap within 90% of the player (maximum 64rem), preserve authored newlines, and use a dark outline/shadow. Each node's text is displayed with its decoded clip; no word-level timing is inferred. These authoring fields currently use project JSON; no new editor controls are added.
+Subtitles are centered, wrap within 90% of the player, preserve authored newlines, and use a dark outline/shadow. Each node's text is displayed with its decoded clip; no word-level timing is inferred. These authoring fields currently use project JSON; no new editor controls are added.
