@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./ambient";
 export * from "./dialogue-portraits";
+export * from "./subtitles";
 export * from "./asset-reachability";
 export * from "./built-in-locales";
 export * from "./effects";

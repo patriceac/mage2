@@ -13,6 +13,18 @@ function getDefaultStrings(project: ReturnType<typeof createDefaultProjectBundle
 }
 
 describe("collectProjectTextEntries", () => {
+  it("keeps timed subtitle strings referenced and reachable in localization", () => {
+    const project = createDefaultProjectBundle("Subtitle text");
+    project.dialogues.items = [{ id: "film", name: "Film", startNodeId: "line", nodes: [{
+      id: "line", speaker: "Guide", textId: "full", cinematic: true, effects: [], choices: [],
+      subtitleCues: [{ startMs: 0, endMs: 1000, textId: "cue" }]
+    }] }];
+    getDefaultStrings(project).cue = "Caption.";
+    const cue = collectProjectTextEntries(project, project.manifest.defaultLanguage).find(entry => entry.textId === "cue");
+    expect(cue?.status).toBe("referenced");
+    expect(cue?.usages[0]?.navigation).toMatchObject({ tab: "dialogue", dialogueNodeId: "line" });
+  });
+
   it("treats starter and custom response text as authored Dialogue content", () => {
     const project = createDefaultProjectBundle("Response text");
     const responseEntry = project.dialogues.responseGroups[0]!.entries[0]!;

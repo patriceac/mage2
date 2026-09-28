@@ -1,4 +1,4 @@
-# Cinematic dialogue (schema 21)
+# Cinematic dialogue (schema 22)
 
 Set `cinematic: true` and `mediaAssetId` on each performed dialogue node. Use normal `nextNodeId` links. The shared editor/web/Windows player advances once when the video ends, keeps the last frame while the next clip loads, and stops at authored choices. Node effects and links back to a topic menu use the existing dialogue controller.
 
@@ -29,4 +29,17 @@ Example project-specific serif presentation:
 }
 ```
 
-Subtitles are centered, wrap within 90% of the player, preserve authored newlines, and use a dark outline/shadow. Each node's text is displayed with its decoded clip; no word-level timing is inferred. These authoring fields currently use project JSON; no new editor controls are added.
+Subtitles are centered within 90% of the player and use a dark outline/shadow. Each caption has at most **two lines of 43 visible Unicode characters**, counting spaces and punctuation. Combining accents and joined emoji count as single grapheme clusters. Wrapping prefers spaces; long unbroken words split at grapheme boundaries. Authored newlines are retained; other whitespace is normalized to single spaces. The measured caption scales down on narrow surfaces so its logical lines never wrap into additional visual rows or get clipped.
+
+For long dialogue, add `subtitleCues` to the node, referencing localized strings:
+
+```json
+"subtitleCues": [
+  { "startMs": 200, "endMs": 2300, "textId": "speech.first" },
+  { "startMs": 2300, "endMs": 5500, "textId": "speech.second" }
+]
+```
+
+Cues follow the dialogue video's `currentTime`, including pause, seek and replay. Intervals are start-inclusive/end-exclusive; gaps show no subtitle. Times are whole milliseconds, ordered, non-overlapping, and within each locale's video duration (imported duration metadata is required). Each localized cue must exist, contain text, and satisfy 43×2. Cue text must reconstruct the full localized `node.textId` in order, ignoring whitespace and canonical Unicode differences. Timing is authored, never guessed or accelerated. The same cue times apply to each locale's video; different localized recordings must respect those intervals.
+
+The 21→22 migration preserves all text and adds no cues or timings. Existing uncued cinematic lines that fit 43×2 still show for the clip's duration. Oversized uncued lines require authored cues: project validation blocks preview/release export with `DIALOGUE_SUBTITLE_INVALID`. The shared renderer also pauses invalid captions and shows the authoring error instead of truncating or silently hiding overflow; explicit Skip and the player menu remain available. Non-cinematic dialogue is unaffected. These authoring fields currently use project JSON; cue strings appear in the existing localization view.

@@ -21,6 +21,8 @@ import {
   type PlayerSnapshot
 } from "@mage2/player";
 import {
+  getCinematicSubtitleError,
+  resolveCinematicSubtitleText,
   resolveAssetVariant,
   resolveHotspotBounds,
   resolveHotspotRotationDegrees,
@@ -63,6 +65,7 @@ import { PlayerSceneAudio, type PlayerSceneAudioHandle } from "./PlayerSceneAudi
 import { AmbientLayers } from "./AmbientLayers";
 import { useNarrationAdvance } from "./narration";
 import { useCinematicAdvance } from "./cinematic";
+import { CinematicSubtitles } from "./CinematicSubtitles";
 import { PlayerSoundscape } from "./PlayerSoundscape";
 import { playerAudioGain, useAudibleMedia, useForegroundAudio, type PlayerAudioLevels } from "./audio";
 
@@ -434,6 +437,7 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const [visibleDialogueVideoKey, setVisibleDialogueVideoKey] = useState<string>();
     const [dialogueVideoPlaybackBlocked, setDialogueVideoPlaybackBlocked] = useState(false);
     const [failedDialogueVideoKey, setFailedDialogueVideoKey] = useState<string>();
+    const [dialogueMediaProgress, setDialogueMediaProgress] = useState<{ key?: string; timeMs: number; durationMs?: number }>();
     const [dialogueVideoAudible, setDialogueVideoAudible] = useState(false);
     const completedMediaEntryKeyRef = useRef<string | undefined>(undefined);
     const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
@@ -464,11 +468,21 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
     const dialogueVideoSource = dialogueVideoVariant?.proxyPath ?? dialogueVideoVariant?.sourcePath;
     const { url: dialogueVideoUrl, failed: dialogueSourceFailed } = useResolvedSourceResult(dialogueVideoSource, resolveSourcePath);
     const dialogueEntryKey = `${snapshot.audioSessionId}:${snapshot.activeDialogue?.entrySequence}:${snapshot.activeDialogue?.tree.id}:${snapshot.activeDialogue?.node.id}:${locale}:${dialogueVideoSource}`;
+    const dialogueVideoKey = dialogueVideoUrl ? `${dialogueEntryKey}:${dialogueVideoUrl}` : undefined;
     const cinematic = snapshot.activeDialogue?.node.cinematic === true;
+    const dialogueProgress = dialogueMediaProgress?.key === dialogueVideoKey ? dialogueMediaProgress : undefined;
+    const subtitleError = cinematic && snapshot.activeDialogue
+      ? getCinematicSubtitleError(snapshot.activeDialogue.node, strings, dialogueProgress?.durationMs ?? dialogueVideoVariant?.durationMs)
+      : undefined;
     const cinematicPlayback = useCinematicAdvance(dialogueEntryKey, cinematic, gameplayPaused,
       Boolean(snapshot.activeDialogue?.node.choices.length), onDialogueContinue);
     const passiveCinematic = cinematic && (!cinematicPlayback.completed || !snapshot.activeDialogue?.node.choices.length);
-    const dialogueMediaPaused = gameplayPaused || (cinematic && cinematicPlayback.completed);
+    const dialogueMediaPaused = gameplayPaused || (cinematic && cinematicPlayback.completed) || Boolean(subtitleError);
+    const updateDialogueMediaProgress = (video: HTMLVideoElement) => {
+      if (video !== dialogueVideoRef.current) return;
+      setDialogueMediaProgress({ key: dialogueVideoKey, timeMs: video.currentTime * 1000,
+        durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : undefined });
+    };
     const completeCinematic = () => {
       const video = dialogueVideoRef.current;
       const frame = cinematicFrameRef.current;
@@ -479,9 +493,6 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
       }
       cinematicPlayback.complete();
     };
-    const dialogueVideoKey = dialogueVideoUrl
-      ? `${dialogueEntryKey}:${dialogueVideoUrl}`
-      : undefined;
     const dialogueVideoVisible = Boolean(dialogueVideoKey && visibleDialogueVideoKey === dialogueVideoKey);
     const dialogueMediaFailed = !dialogueVideoSource || dialogueSourceFailed || Boolean(dialogueVideoKey && failedDialogueVideoKey === dialogueVideoKey);
     useForegroundAudio(dialogueVideoRef, dialogueVideoKey, voiceGain, dialogueMediaPaused, setDialogueVideoAudible, dialogueVideoVariant?.hasAudio !== false);
@@ -898,11 +909,14 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
                 className="mage2-player__dialogue-video" style={{ visibility: dialogueVideoVisible ? "visible" : "hidden" }}
                 autoPlay={!dialogueMediaPaused} playsInline preload="auto" controls={false} disablePictureInPicture disableRemotePlayback
                 aria-hidden="true" tabIndex={-1}
+                onLoadedMetadata={(event) => updateDialogueMediaProgress(event.currentTarget)}
+                onTimeUpdate={(event) => updateDialogueMediaProgress(event.currentTarget)}
+                onSeeked={(event) => updateDialogueMediaProgress(event.currentTarget)}
                 onLoadedData={(event) => {
                   if (event.currentTarget === dialogueVideoRef.current) setVisibleDialogueVideoKey(dialogueVideoKey);
                 }}
                 onEnded={(event) => {
-                  if (event.currentTarget === dialogueVideoRef.current) completeCinematic();
+                  if (event.currentTarget === dialogueVideoRef.current && !subtitleError) completeCinematic();
                 }}
                 onError={(event) => {
                   if (event.currentTarget !== dialogueVideoRef.current) return;
@@ -953,10 +967,10 @@ export const PlayerSceneRenderer = forwardRef<PlayerSceneRendererHandle, PlayerS
             >
               {snapshot.activeDialogue && passiveCinematic ? (
                 <>
-                  <div className="mage2-player__cinematic-subtitles" aria-live="polite">
-                    {(dialogueVideoVisible || dialogueMediaFailed) ? <p><span>{strings[snapshot.activeDialogue.node.textId] ?? snapshot.activeDialogue.node.textId}</span></p> : null}
-                    {dialogueMediaFailed ? <p role="status">{copy.responseMediaUnavailable}</p> : null}
-                  </div>
+                  <CinematicSubtitles text={(dialogueVideoVisible || dialogueMediaFailed) && !subtitleError
+                    ? resolveCinematicSubtitleText(snapshot.activeDialogue.node, strings, dialogueProgress?.timeMs ?? 0) : undefined} />
+                  {subtitleError ? <div role="alert" className="mage2-player__response-unavailable">{subtitleError}</div> : null}
+                  {dialogueMediaFailed ? <div role="status" className="mage2-player__response-unavailable">{copy.responseMediaUnavailable}</div> : null}
                   <button type="button" className="mage2-player__cinematic-skip" disabled={gameplayPaused}
                     onClick={completeCinematic}>{copy.skipResponseVideo}</button>
                 </>

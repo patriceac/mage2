@@ -100,8 +100,8 @@ export function collectProjectTextUsages(
 
   for (const dialogue of project.dialogues.items) {
     for (const node of dialogue.nodes) {
-      usages.push({
-        textId: node.textId,
+      for (const textId of [node.textId, ...(node.subtitleCues ?? []).map((cue) => cue.textId)]) usages.push({
+        textId,
         kind: "dialogueLine",
         ownerId: node.id,
         ownerLabel: `${dialogue.name} / ${node.id}`,
@@ -576,6 +576,7 @@ function collectAllProjectTextReferenceCounts(project: ProjectBundle): Map<strin
   for (const dialogue of project.dialogues.items) {
     for (const node of dialogue.nodes) {
       register(node.textId);
+      for (const cue of node.subtitleCues ?? []) register(cue.textId);
 
       for (const choice of node.choices) {
         register(choice.textId);

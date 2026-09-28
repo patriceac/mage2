@@ -1135,17 +1135,29 @@
   pointer-events: none;
 }
 
-.mage2-player__cinematic-subtitles p { margin: 0.4em 0; }
-.mage2-player__cinematic-subtitles p span {
-  padding: 0.12em 0.35em;
+.mage2-player__cinematic-subtitles p {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: max-content;
+  margin: 0.4em 0;
+  transform: translateX(-50%) scale(var(--mage2-subtitle-fit, 1));
+  transform-origin: bottom center;
+}
+.mage2-player__subtitle-line {
+  display: block;
+  width: max-content;
+  margin-inline: auto;
+  white-space: pre;
+  padding: 0 0.35em;
   background: color-mix(in srgb, var(--mage2-subtitle-background, #000000) var(--mage2-subtitle-opacity, 65%), transparent);
   box-decoration-break: clone;
 }
 
 .mage2-player__cinematic-skip {
   position: absolute;
-  right: 1rem;
-  bottom: 0.75rem;
+  left: 1rem;
+  top: 0.75rem;
   pointer-events: auto;
   padding: 0.35em 0.8em;
   border: 1px solid currentColor;

@@ -10,6 +10,7 @@ import {
 } from "./types";
 import { effectCanStartTerminalFlow, effectsContain, visitEffects } from "./effects";
 import { validateSceneAmbient } from "./ambient";
+import { getCinematicSubtitleError } from "./subtitles";
 import { getLocalizedText, normalizeSupportedLocales, resolveAssetCategory, resolveAssetVariant } from "./localization";
 
 export function collectSceneLinks(scene: Scene, dialogues: readonly DialogueTree[] = []): string[] {
@@ -1004,6 +1005,14 @@ function validateDialogue(
   }
 
   for (const node of dialogue.nodes) {
+    if (node.cinematic || node.subtitleCues) {
+      const asset = node.mediaAssetId ? assetsById.get(node.mediaAssetId) : undefined;
+      for (const locale of supportedLocales) {
+        const error = getCinematicSubtitleError(node, project.strings.byLocale[locale] ?? {},
+          asset?.kind === "video" ? resolveAssetVariant(asset, locale)?.durationMs : undefined);
+        if (error) issues.push({ level: "error", code: "DIALOGUE_SUBTITLE_INVALID", message: `Dialogue '${node.id}': ${error}`, entityId: node.id, locale });
+      }
+    }
     validateLocalizedTextCoverage(
       project,
       supportedLocales,
